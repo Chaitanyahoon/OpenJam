@@ -12,6 +12,9 @@ class SocketClient {
   connect() {
     if (this.socket) return; // already created
 
+    // Enable verbose client-side logging when URL contains ?debug=1
+    try { this._debug = new URLSearchParams(location.search).has('debug'); } catch (e) { this._debug = false; }
+
     const token = this._getCookie('session_token');
     const guestName = localStorage.getItem('openjam_display_name') || '';
 
@@ -30,6 +33,7 @@ class SocketClient {
       if (this.roomId) {
         this.socket.emit('join_room', { room_id: this.roomId });
       }
+      if (this._debug) console.log('[openjam] socket connected, sid=', this.socket.id);
     });
 
     this.socket.on('disconnect', () => {});
@@ -47,6 +51,7 @@ class SocketClient {
     ];
     events.forEach(event => {
       this.socket.on(event, (data) => {
+        if (this._debug) console.log(`[openjam] recv ${event}`, data);
         if (this.handlers[event]) {
           this.handlers[event](data);
         }

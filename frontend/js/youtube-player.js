@@ -292,16 +292,22 @@ class YouTubePlayer {
   }
 
   updateDisplay() {
-    const fill = document.getElementById('progress-fill');
-    const elapsed = document.getElementById('time-elapsed');
-    const total = document.getElementById('time-total');
+    // Support both older and newer DOM IDs used across templates.
+    const fillA = document.getElementById('progress-fill');
+    const fillB = document.getElementById('progress');
+    const elapsedA = document.getElementById('time-elapsed');
+    const elapsedB = document.getElementById('time-cur');
+    const totalA = document.getElementById('time-total');
+    const totalB = document.getElementById('time-dur');
 
-    if (fill) {
-      const pct = this.durationMs > 0 ? (this.positionMs / this.durationMs) * 100 : 0;
-      fill.style.width = `${Math.min(pct, 100)}%`;
-    }
-    if (elapsed) elapsed.textContent = formatTime(this.positionMs);
-    if (total) total.textContent = formatTime(this.durationMs);
+    const pct = this.durationMs > 0 ? (this.positionMs / this.durationMs) * 100 : 0;
+    if (fillA) fillA.style.width = `${Math.min(pct, 100)}%`;
+    if (fillB) fillB.style.width = `${Math.min(pct, 100)}%`;
+
+    if (elapsedA) elapsedA.textContent = formatTime(this.positionMs);
+    if (elapsedB) elapsedB.textContent = formatTime(this.positionMs);
+    if (totalA) totalA.textContent = formatTime(this.durationMs);
+    if (totalB) totalB.textContent = formatTime(this.durationMs);
     if (this.onProgressUpdate) {
       this.onProgressUpdate(this.positionMs, this.durationMs, this.isPlaying);
     }

@@ -806,8 +806,10 @@ function showRoomHelp() {
     $('#time-cur').title = 'Current playback time';
     $('#time-dur').textContent = fmt(dur);
     $('#time-dur').title = 'Total track duration';
-    $('#progress-fill').style.width = dur ? `${(pos/dur)*100}%` : '0%';
-    $('#progress').style.width = dur ? `${(pos/dur)*100}%` : '0%'; // Fallback for old class
+    // Update both legacy (#progress-fill) and canonical (#progress) elements
+    const pct = dur ? `${(pos/dur)*100}%` : '0%';
+    const elA = document.getElementById('progress-fill'); if(elA) elA.style.width = pct;
+    const elB = document.getElementById('progress');      if(elB) elB.style.width = pct;
     if (typeof lyricsManager !== 'undefined') lyricsManager.sync(pos);
   }
 
@@ -1379,6 +1381,33 @@ function showRoomHelp() {
   checkQueuePermissions();
   sc.connect();
   sc.joinRoom(roomId);
+
+  // Lightweight debug panel (shows when ?debug=1 is present)
+  (function createDebugPanel(){
+    try{
+      const params = new URLSearchParams(location.search);
+      if(!params.get('debug')) return;
+      const panel = document.createElement('div');
+      panel.id = 'openjam-debug-panel';
+      panel.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:9999;padding:8px 12px;background:rgba(0,0,0,0.72);color:#fff;font-size:12px;border-radius:8px;min-width:160px;font-family:system-ui,Segoe UI,Roboto,Arial;';
+      panel.innerHTML = `<div style="font-weight:700;margin-bottom:6px;">OpenJam Debug</div>
+        <div id="dbg-socket">Socket: —</div>
+        <div id="dbg-host">Host: —</div>
+        <div id="dbg-yt">YouTube: —</div>
+        <div id="dbg-video">Video: —</div>`;
+      document.body.appendChild(panel);
+      setInterval(()=>{
+        const sock = sc && sc.socket ? (sc.socket.connected ? 'connected' : `disconnected (${sc.socket?.io?.transport?.name||'?'})`) : 'not connected';
+        const host = isHost ? 'yes' : 'no';
+        const ytReady = (typeof yt !== 'undefined' && yt._ready) ? 'ready' : (typeof yt !== 'undefined' ? 'not ready' : 'missing');
+        const vid = (typeof yt !== 'undefined' && yt.currentVideoId) ? yt.currentVideoId : '—';
+        const elS = document.getElementById('dbg-socket'); if(elS) elS.textContent = `Socket: ${sock}`;
+        const elH = document.getElementById('dbg-host'); if(elH) elH.textContent = `Host: ${host}`;
+        const elY = document.getElementById('dbg-yt'); if(elY) elY.textContent = `YouTube: ${ytReady}`;
+        const elV = document.getElementById('dbg-video'); if(elV) elV.textContent = `Video: ${vid}`;
+      }, 800);
+    }catch(e){/* no-op */}
+  })();
 
   // Wire reconnect AFTER connect() so sc.socket exists
   if(sc.socket){
