@@ -1,0 +1,97 @@
+"""Queue and voting routes + track search."""
+
+import asyncio
+import logging
+
+from fastapi import APIRouter, Request, Depends, HTTPException
+from sqlalchemy.orm import Session
+from backend.database import get_db
+from backend.models.room import Room
+from backend.models.queue_item import QueueItem
+from backend.models.user import User
+from backend.middleware.auth import get_current_user_id
+from backend.services.queue_manager import queue_manager
+from backend.services.lastfm import lastfm_service
+from backend.schemas import QueueTrackRequest
+
+logger = logging.getLogger(__name__)
+router = APIRouter(tags=["queue"])
+
+
+@router.post("/rooms/{room_id}/queue")
+async def add_to_queue(
+    room_id: str,
+    track: QueueTrackRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    user_data = get_current_user_id(request, include_name=True)
+    if not user_data:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    room = db.query(Room).filter(Room.id == room_id, Room.is_active == True).first()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    user_id = user_data["id"]
+    user_name = user_data["display_name"]
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        user = User(id=user_id, display_name=user_name)
+        db.add(user)
+        db.commit()
+
+    track_data = track.model_dump() if hasattr(track, "model_dump") else track.dict()
+    item = queue_manager.add_track(db, room_id, track_data, user_id, user_name)
+    return {"item": item.to_dict()}
+
+
+@router.post("/rooms/{room_id}/queue/{item_id}/vote")
+async def vote_track(room_id: str, item_id: str, request: Request, db: Session = Depends(get_db)):
+    user_data = get_current_user_id(request, include_name=True)
+    if not user_data:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    item = db.query(QueueItem).filter(
+        QueueItem.id == item_id,
+        QueueItem.room_id == room_id,
+        QueueItem.status != "played",
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Queue item not found")
+    success = queue_manager.vote_track(db, item_id, user_data["id"])
+    if not success:
+        raise HTTPException(status_code=409, detail="Already voted")
+    queue = queue_manager.get_queue(db, room_id)
+    return {"queue": queue}
+
+
+@router.get("/search/tracks")
+async def search_tracks(q: str = ""):
+    if not q.strip():
+        return {"tracks": []}
+    tracks = await asyncio.to_thread(lastfm_service.search_tracks, q.strip())
+    return {"tracks": tracks}
+
+
+@router.get("/queue/{room_id}")
+async def get_queue(room_id: str, db: Session = Depends(get_db)):
+    """Lightweight queue fetch — used by the frontend 3s poll fallback."""
+    queue = queue_manager.get_queue(db, room_id, None)
+    return {"queue": queue}
+
+
+
+@router.get("/search/resolve")
+async def resolve_youtube(q: str = ""):
+    """Resolve a YouTube video ID from a search query using ytmusicapi (No API key needed)."""
+    if not q.strip():
+        return {"video_id": None}
+
+    video_id = await asyncio.to_thread(lastfm_service.resolve_youtube, q.strip())
+    return {"video_id": video_id}
+
+
+@router.get("/search/recommendations")
+async def get_recommendations():
+    """Return trending/popular tracks as search starting suggestions (no key needed)."""
+    tracks = await asyncio.to_thread(lastfm_service.get_recommendations)
+    return {"tracks": tracks}

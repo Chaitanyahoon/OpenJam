@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: openjam
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        value: sqlite:////var/data/openjam.db
+      - key: ALLOWED_ORIGINS
+        value: https://openjam.onrender.com,http://localhost:8000,http://localhost:3000
+    disk:
+      name: openjam-data
+      mountPath: /var/data
+      sizeGB: 1
