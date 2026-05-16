@@ -130,7 +130,7 @@ async def stream_audio(video_id: str, request: Request):
     if range_header:
         headers["Range"] = range_header
 
-    client = httpx.AsyncClient()
+    client = httpx.AsyncClient(follow_redirects=True, timeout=60.0)
     req = client.build_request("GET", url, headers=headers)
     r = await client.send(req, stream=True)
 
@@ -151,4 +151,4 @@ async def stream_audio(video_id: str, request: Request):
             await r.aclose()
             await client.aclose()
 
-    return StreamingResponse(generate(), status_code=r.status_code, headers=resp_headers)
+    return StreamingResponse(generate(), status_code=r.status_code if r.status_code == 206 else 200, headers=resp_headers)

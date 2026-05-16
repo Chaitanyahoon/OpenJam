@@ -174,7 +174,12 @@ class YouTubePlayer {
     this._suppressStateChange = true;
     this.player.src = `/stream/${videoId}`;
     this.player.currentTime = startSeconds;
-    this.player.play().catch(e => console.error('Autoplay prevented:', e));
+    this.player.play().catch(e => {
+      console.error('Autoplay prevented:', e);
+      this._userUnlocked = false;
+      this._pendingPlayAfterUnlock = { videoId, startSeconds };
+      this._showOverlay();
+    });
     setTimeout(() => { this._suppressStateChange = false; }, 1000);
   }
 
@@ -219,7 +224,11 @@ class YouTubePlayer {
       this.player.currentTime = positionMs / 1000;
     }
     if (isPlaying) {
-      this.player.play().catch(() => {});
+      this.player.play().catch(e => {
+        console.error('Autoplay prevented on sync:', e);
+        this._userUnlocked = false;
+        this._showOverlay();
+      });
       this.startProgressTimer();
     } else {
       this.player.pause();
