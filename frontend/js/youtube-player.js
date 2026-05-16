@@ -38,10 +38,7 @@ class YouTubePlayer {
     this.player.addEventListener('ended', () => this._onStateChange('ended'));
     this.player.addEventListener('error', (e) => console.error('Audio playback error:', e));
 
-    // Monkey patch HTMLAudioElement for compatibility with room.html YT.Player calls
-    this.player.setVolume = (vol) => { this.player.volume = Math.max(0, Math.min(100, vol)) / 100; };
-    this.player.playVideo = () => { this.player.play().catch(e => console.error('Play blocked:', e)); };
-    this.player.pauseVideo = () => { this.player.pause(); };
+    // Removed legacy YT.Player compatibility methods. All playback uses direct audio streaming.
   }
 
   /**
@@ -283,16 +280,5 @@ class YouTubePlayer {
     this.player.src = '';
   }
 
-  // Compatibility methods for room.html which was originally written for YT.Player
-  playVideo() {
-    this.player.play().catch(e => console.error('Play blocked:', e));
-  }
-
-  pauseVideo() {
-    this.player.pause();
-  }
-
-  setVolume(vol) {
-    this.player.volume = Math.max(0, Math.min(100, vol)) / 100;
-  }
+  // Removed legacy YT.Player compatibility methods. All playback uses direct audio streaming.
 }
