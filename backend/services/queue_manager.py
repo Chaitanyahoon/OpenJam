@@ -107,6 +107,14 @@ class QueueManager:
         ).first()
         if next_item:
             next_item.status = "playing"
+
+            # Ensure the track_uri is a resolved YouTube ID
+            if next_item.track_uri and (" " in next_item.track_uri or len(next_item.track_uri) != 11):
+                from backend.services.lastfm import lastfm_service
+                vid = lastfm_service.resolve_youtube(next_item.track_uri)
+                if vid:
+                    next_item.track_uri = vid
+
             db.commit()
             db.refresh(next_item)
             return next_item.to_dict()

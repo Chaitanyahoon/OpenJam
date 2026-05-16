@@ -92,6 +92,7 @@ def register_queue_handlers(sio: socketio.AsyncServer):
             queue, next_item = await asyncio.to_thread(
                 _db_add_and_get_queue, room_id, track_data, user_id, display_name
             )
+            logger.info(f"add_to_queue called for room={room_id} user={user_id} track={(track_data.get('name') or '')[:120]} uri={track_data.get('uri')}")
         except ValueError as ve:
             await sio.emit("queue_error", {"message": str(ve)}, to=sid)
             return
@@ -101,6 +102,7 @@ def register_queue_handlers(sio: socketio.AsyncServer):
 
         # Auto-play: if a first track was found, emit track_changed and start sync loop
         if next_item:
+            logger.info(f"Auto-playing next_item for room={room_id}: {next_item.get('track_name')} ({next_item.get('track_uri')})")
             room_manager.update_playback(
                 room_id=room_id,
                 track_uri=next_item["track_uri"],

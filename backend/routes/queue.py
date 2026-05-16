@@ -4,6 +4,9 @@ import asyncio
 import logging
 
 from fastapi import APIRouter, Request, Depends, HTTPException
+from fastapi.responses import StreamingResponse
+import httpx
+import yt_dlp
 from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.models.room import Room
@@ -95,3 +98,57 @@ async def get_recommendations():
     """Return trending/popular tracks as search starting suggestions (no key needed)."""
     tracks = await asyncio.to_thread(lastfm_service.get_recommendations)
     return {"tracks": tracks}
+
+
+_url_cache = {}
+
+def _get_audio_url(video_id: str) -> str:
+    import time
+    if video_id in _url_cache:
+        url, expiry = _url_cache[video_id]
+        if time.time() < expiry:
+            return url
+            
+    ydl_opts = {'format': 'bestaudio/best', 'quiet': True, 'noplaylist': True}
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+        url = info['url']
+        # YouTube CDN URLs typically expire after 6 hours, we cache for 4 hours
+        _url_cache[video_id] = (url, time.time() + (4 * 3600))
+        return url
+
+@router.get("/stream/{video_id}")
+async def stream_audio(video_id: str, request: Request):
+    try:
+        url = await asyncio.to_thread(_get_audio_url, video_id)
+    except Exception as e:
+        logger.error(f"yt-dlp extraction failed for {video_id}: {e}")
+        raise HTTPException(status_code=404, detail="Could not extract stream")
+
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+    range_header = request.headers.get("Range")
+    if range_header:
+        headers["Range"] = range_header
+
+    client = httpx.AsyncClient()
+    req = client.build_request("GET", url, headers=headers)
+    r = await client.send(req, stream=True)
+
+    resp_headers = {
+        "Accept-Ranges": "bytes",
+        "Content-Type": r.headers.get("Content-Type", "audio/webm"),
+    }
+    if "Content-Range" in r.headers:
+        resp_headers["Content-Range"] = r.headers["Content-Range"]
+    if "Content-Length" in r.headers:
+        resp_headers["Content-Length"] = r.headers["Content-Length"]
+
+    async def generate():
+        try:
+            async for chunk in r.aiter_bytes(chunk_size=65536):
+                yield chunk
+        finally:
+            await r.aclose()
+            await client.aclose()
+
+    return StreamingResponse(generate(), status_code=r.status_code, headers=resp_headers)
