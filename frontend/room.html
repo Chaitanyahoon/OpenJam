@@ -7,7 +7,7 @@
   <link rel="manifest" href="/static/manifest.json">
   <title>Room — Open Jam</title>
   <meta name="description" content="Join this listening room and discover music together.">
-
+  <link rel="icon" href="/static/img/logo.svg" type="image/svg+xml">
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -279,7 +279,11 @@
 <!-- ══ MOBILE BOTTOM TABS ══════════════════════════════════ -->
 <!-- Only visible on mobile (≤640px via CSS) -->
 <nav class="mobile-bottom-tabs" id="mob-tabs" aria-label="Room navigation">
-  <button class="mob-tab active" id="mob-tab-queue" onclick="switchMobileTab('queue')" aria-label="Queue">
+  <button class="mob-tab active" id="mob-tab-nowplaying" onclick="switchMobileTab('nowplaying')" aria-label="Now Playing">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55C7.79 13 6 14.79 6 17s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+    <span class="mob-tab-label">Playing</span>
+  </button>
+  <button class="mob-tab" id="mob-tab-queue" onclick="switchMobileTab('queue')" aria-label="Queue">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h16v2H4v-2z"/></svg>
     <span class="mob-tab-label">Queue</span>
   </button>
