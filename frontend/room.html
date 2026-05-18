@@ -319,20 +319,18 @@
 <!-- Removed YouTube iframe API: all playback is handled via direct audio streaming -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<script src="/static/js/utils.js"></script>
+<script src="/static/js/motion.js"></script>
+<script src="/static/js/youtube-player.js"></script>
+<script src="/static/js/socket-client.js"></script>
+<script src="/static/js/lyrics.js"></script>
 <script>
-/* ── Tiny helpers ─────────────────────────────────────────── */
-const $  = s => document.querySelector(s);
-const $$ = s => document.querySelectorAll(s);
-
-function esc(s){ const d=document.createElement('div');d.textContent=String(s||'');return d.innerHTML; }
-function fmt(ms){ if(!ms||ms<0)return'0:00'; const s=Math.floor(ms/1000); return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; }
-function initials(n){ return (n||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2); }
-function ago(d){ const s=Math.floor((Date.now()-new Date(d))/1000); if(s<60)return'just now'; if(s<3600)return`${Math.floor(s/60)}m`; return`${Math.floor(s/3600)}h`; }
-function debounce(fn,ms){ let t; return(...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; }
-function toast(msg,type='info'){
-  const el=document.createElement('div'); el.className=`toast ${type}`; el.textContent=msg;
-  $('#toasts').appendChild(el); setTimeout(()=>{ el.style.opacity='0'; el.style.transform='translateY(-20px) scale(0.9)'; el.style.transition='all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'; setTimeout(()=>el.remove(),300); },3500);
-}
+/* ── Tiny helpers (aliases for utils.js + room-specific) ── */
+const esc = typeof escapeHtml !== 'undefined' ? escapeHtml : (s => { const d=document.createElement('div');d.textContent=String(s||'');return d.innerHTML; });
+const fmt = typeof formatTime !== 'undefined' ? formatTime : (ms => { if(!ms||ms<0)return'0:00'; const s=Math.floor(ms/1000); return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; });
+const initials = typeof getInitials !== 'undefined' ? getInitials : (n => (n||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2));
+const ago = typeof timeAgo !== 'undefined' ? timeAgo : (d => { const s=Math.floor((Date.now()-new Date(d))/1000); if(s<60)return'just now'; if(s<3600)return`${Math.floor(s/60)}m`; return`${Math.floor(s/3600)}h`; });
+const toast = typeof showToast !== 'undefined' ? showToast : ((msg,type='info') => { const el=document.createElement('div'); el.className=`toast ${type}`; el.textContent=msg; $('#toasts').appendChild(el); setTimeout(()=>{ el.style.opacity='0'; el.style.transform='translateY(-20px) scale(0.9)'; el.style.transition='all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'; setTimeout(()=>el.remove(),300); },3500); });
 function toggleMembers(){ 
   const panel = $('#members-panel');
   panel?.classList.toggle('collapsed'); 
@@ -417,6 +415,7 @@ function showRoomHelp() {
   let muted = false;
   let vol = 80;
   let _currentTrackUri = null; // track when URI truly changes to avoid reload loops
+  let _queueData = [];    // current queue state
 
   /* ─── YouTube Player & Lyrics ────────────────────────── */
   const yt = new YouTubePlayer();
