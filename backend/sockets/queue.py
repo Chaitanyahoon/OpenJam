@@ -103,6 +103,11 @@ def register_queue_handlers(sio: socketio.AsyncServer):
         # Auto-play: if a first track was found, emit track_changed and start sync loop
         if next_item:
             logger.info(f"Auto-playing next_item for room={room_id}: {next_item.get('track_name')} ({next_item.get('track_uri')})")
+            # Pre-resolve stream URL before emitting so playback starts instantly
+            track_uri = next_item.get("track_uri", "")
+            if track_uri and len(track_uri) == 11:
+                from backend.routes.queue import pre_resolve_url
+                await pre_resolve_url(track_uri)
             room_manager.update_playback(
                 room_id=room_id,
                 track_uri=next_item["track_uri"],
@@ -123,6 +128,17 @@ def register_queue_handlers(sio: socketio.AsyncServer):
                 pass  # use the queue we already have
 
         await sio.emit("queue_updated", {"queue": queue}, room=room_id)
+
+        # Pre-resolve the next track in queue in background (fire-and-forget)
+        if queue and len(queue) > 1:
+            next_track_uri = None
+            for item in queue:
+                if item.get("status") != "playing" and item.get("status") != "played":
+                    next_track_uri = item.get("track_uri")
+                    break
+            if next_track_uri and len(next_track_uri) == 11:
+                from backend.routes.queue import pre_resolve_url
+                asyncio.create_task(pre_resolve_url(next_track_uri))
 
     @sio.event
     async def vote_track(sid, data):

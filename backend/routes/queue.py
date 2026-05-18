@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import time
 
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -45,6 +46,11 @@ async def add_to_queue(
 
     track_data = track.model_dump() if hasattr(track, "model_dump") else track.dict()
     item = queue_manager.add_track(db, room_id, track_data, user_id, user_name)
+
+    # Pre-resolve stream URL in background so playback starts instantly
+    if track_data.get("uri") and len(track_data.get("uri", "")) == 11:
+        asyncio.create_task(pre_resolve_url(track_data["uri"]))
+
     return {"item": item.to_dict()}
 
 
@@ -100,22 +106,62 @@ async def get_recommendations():
     return {"tracks": tracks}
 
 
-_url_cache = {}
+# ── Stream URL cache & pre-resolution ──────────────────────────────
+# YouTube CDN URLs expire after ~6 hours. Cache for 5 hours to be safe.
+_URL_CACHE_TTL = 5 * 3600
+_url_cache: dict[str, tuple[str, float]] = {}
+_resolving: set[str] = set()  # Track in-flight resolutions to avoid duplicates
+
+# Reusable yt-dlp instance (expensive to create)
+_ydl = None
+
+def _get_ydl():
+    global _ydl
+    if _ydl is None:
+        _ydl = yt_dlp.YoutubeDL({
+            "format": "bestaudio/best",
+            "quiet": True,
+            "no_warnings": True,
+            "extract_flat": False,
+            "noplaylist": True,
+            "skip_download": True,
+            "socket_timeout": 10,
+        })
+    return _ydl
+
 
 def _get_audio_url(video_id: str) -> str:
-    import time
+    """Get cached or freshly extracted YouTube stream URL."""
     if video_id in _url_cache:
         url, expiry = _url_cache[video_id]
         if time.time() < expiry:
             return url
-            
-    ydl_opts = {'format': 'bestaudio/best', 'quiet': True, 'noplaylist': True}
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
-        url = info['url']
-        # YouTube CDN URLs typically expire after 6 hours, we cache for 4 hours
-        _url_cache[video_id] = (url, time.time() + (4 * 3600))
-        return url
+        del _url_cache[video_id]
+
+    ydl = _get_ydl()
+    info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+    url = info["url"]
+    _url_cache[video_id] = (url, time.time() + _URL_CACHE_TTL)
+    return url
+
+
+async def pre_resolve_url(video_id: str):
+    """Resolve a stream URL in the background so it's cached when needed."""
+    if video_id in _url_cache:
+        _, expiry = _url_cache[video_id]
+        if time.time() < expiry:
+            return  # Already cached and valid
+    if video_id in _resolving:
+        return  # Already in flight
+    _resolving.add(video_id)
+    try:
+        await asyncio.to_thread(_get_audio_url, video_id)
+        logger.info(f"Pre-resolved stream URL for {video_id}")
+    except Exception as e:
+        logger.warning(f"Pre-resolve failed for {video_id}: {e}")
+    finally:
+        _resolving.discard(video_id)
+
 
 @router.get("/stream/{video_id}")
 async def stream_audio(video_id: str, request: Request):

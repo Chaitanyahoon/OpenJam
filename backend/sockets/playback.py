@@ -71,6 +71,11 @@ async def _playback_sync_loop(room_id: str, sio: socketio.AsyncServer):
             next_item, queue = await asyncio.to_thread(_advance, room_id)
 
             if next_item:
+                # Pre-resolve stream URL before emitting so playback starts instantly
+                track_uri = next_item.get("track_uri", "")
+                if track_uri and len(track_uri) == 11:
+                    from backend.routes.queue import pre_resolve_url
+                    await pre_resolve_url(track_uri)
                 room_manager.update_playback(
                     room_id=room_id,
                     track_uri=next_item["track_uri"],
@@ -88,6 +93,18 @@ async def _playback_sync_loop(room_id: str, sio: socketio.AsyncServer):
                 await sio.emit("track_changed", None, room=room_id)
 
             await sio.emit("queue_updated", {"queue": queue}, room=room_id)
+
+            # Pre-resolve the next track in queue in background (fire-and-forget)
+            if queue and len(queue) > 1:
+                next_track_uri = None
+                for item in queue:
+                    if item.get("status") != "playing" and item.get("status") != "played":
+                        next_track_uri = item.get("track_uri")
+                        break
+                if next_track_uri and len(next_track_uri) == 11:
+                    from backend.routes.queue import pre_resolve_url
+                    asyncio.create_task(pre_resolve_url(next_track_uri))
+
             return
 
         # Update server-side position
@@ -221,6 +238,11 @@ def register_playback_handlers(sio: socketio.AsyncServer):
         next_item, queue = await asyncio.to_thread(_advance, room_id)
 
         if next_item:
+            # Pre-resolve stream URL before emitting so playback starts instantly
+            track_uri = next_item.get("track_uri", "")
+            if track_uri and len(track_uri) == 11:
+                from backend.routes.queue import pre_resolve_url
+                await pre_resolve_url(track_uri)
             room_manager.update_playback(
                 room_id=room_id,
                 track_uri=next_item["track_uri"],
@@ -248,5 +270,16 @@ def register_playback_handlers(sio: socketio.AsyncServer):
             await sio.emit("queue_updated", {"queue": queue}, room=room_id)
         except Exception as e:
             logger.error(f"Failed to emit queue_updated for room {room_id}: {e}")
+
+        # Pre-resolve the next track in queue in background (fire-and-forget)
+        if queue and len(queue) > 1:
+            next_track_uri = None
+            for item in queue:
+                if item.get("status") != "playing" and item.get("status") != "played":
+                    next_track_uri = item.get("track_uri")
+                    break
+            if next_track_uri and len(next_track_uri) == 11:
+                from backend.routes.queue import pre_resolve_url
+                asyncio.create_task(pre_resolve_url(next_track_uri))
 
 
