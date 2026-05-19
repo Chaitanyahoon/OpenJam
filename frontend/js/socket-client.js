@@ -7,6 +7,7 @@ class SocketClient {
     this.socket = null;
     this.handlers = {};
     this.roomId = null;
+    this._hasConnected = false;
   }
 
   connect() {
@@ -28,9 +29,13 @@ class SocketClient {
     });
 
     this.socket.on('connect', () => {
-      if (this.roomId) {
-        this.socket.emit('join_room', { room_id: this.roomId });
+      // Only auto-join on reconnect (not initial connect — joinRoom is called explicitly)
+      if (this._hasConnected) {
+        if (this.roomId) {
+          this.socket.emit('join_room', { room_id: this.roomId });
+        }
       }
+      this._hasConnected = true;
       if (this._debug) console.log('[openjam] socket connected, sid=', this.socket.id);
     });
 

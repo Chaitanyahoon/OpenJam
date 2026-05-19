@@ -131,7 +131,7 @@ def register_connection_handlers(sio: socketio.AsyncServer):
                 db.close()
         is_premium = await asyncio.to_thread(_get_user_premium, user_id)
 
-        error = room_manager.join_room(room_id, user_id, sid, display_name, avatar_url, is_premium=is_premium)
+        error, was_new = room_manager.join_room(room_id, user_id, sid, display_name, avatar_url, is_premium=is_premium)
         if error:
             await sio.emit("join_error", {"message": error}, to=sid)
             return
@@ -162,11 +162,12 @@ def register_connection_handlers(sio: socketio.AsyncServer):
         if playback and playback.get("track_uri"):
             await sio.emit("playback_sync", playback, to=sid)
 
-        await sio.emit("user_joined", {
-            "user_id": user_id,
-            "display_name": display_name,
-            "avatar_url": avatar_url,
-        }, room=room_id)
+        if was_new:
+            await sio.emit("user_joined", {
+                "user_id": user_id,
+                "display_name": display_name,
+                "avatar_url": avatar_url,
+            }, room=room_id)
         await sio.emit("listener_count", {
             "count": room_manager.get_listener_count(room_id),
             "listeners": room_manager.get_listeners(room_id),

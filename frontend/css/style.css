@@ -1307,11 +1307,38 @@ input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.3); }
   .modal-bg.active .modal-box { transform: translateY(0); }
 
   /* Safe area insets (iPhone notch / home bar) */
-/* Safe area insets (iPhone notch / home bar) */
-.navbar         { padding-top: env(safe-area-inset-top, 0); }
-.mobile-bottom-tabs {
-  padding-bottom: env(safe-area-inset-bottom, 0);
-}
+  .navbar         { padding-top: env(safe-area-inset-top, 0); }
+  .mobile-bottom-tabs {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  /* ── P7: Responsive queue items ── */
+  .queue-item { padding: 10px 8px; gap: 10px; }
+  .queue-item-thumb { width: 40px; height: 40px; border-radius: var(--r-sm); }
+  .queue-item-title { font-size: 13px; }
+  .queue-item-artist { font-size: 11px; }
+
+  /* ── P7: Members panel — compact ── */
+  .members-list { max-height: 30vh; }
+  .member-item { padding: 8px 10px; gap: 8px; }
+  .member-item .member-name { font-size: 13px; }
+
+  /* ── P7: Reactions bar — compact ── */
+  .reactions-bar { padding: 4px 6px; gap: 2px; }
+  .btn-react { width: 36px; height: 36px; font-size: 16px; }
+
+  /* ── P7: Full-width search results ── */
+  .search-results { left: 0; right: 0; border-radius: 0 0 var(--r-lg) var(--r-lg); }
+
+  /* ── P7: Now Playing panel > scroll friendly ── */
+  .panel-left .np-cover { width: 64px; height: 64px; }
+  .np-title { font-size: 14px; }
+  .np-artist { font-size: 12px; }
+  .np-progress-wrap { margin: 0; }
+
+  /* ── P7: Volume bar refinements ── */
+  .mobile-vol-wrap { padding: 6px 14px; }
+  .mobile-vol-wrap .vol-slider { height: 24px; }
 
 /* Add rhythmic scaling for EQ bars when playing */
 .eq-bar {
@@ -1703,19 +1730,57 @@ input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.3); }
 }
 .typing-text { font-size: 12px; color: var(--text-3); font-style: italic; }
 
-/* Avatar Picker */
-.avatar-picker-box { max-width: 440px; }
-.avatar-picker-sub { color: var(--text-3); font-size: 14px; margin-bottom: 20px; }
-.avatar-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
-  max-height: 300px; overflow-y: auto; padding-right: 8px; margin-bottom: 24px;
-}
-.avatar-option {
-  aspect-ratio: 1; border-radius: 12px; cursor: pointer;
-  background: rgba(255,255,255,0.03); border: 2px solid transparent;
+/* ── Loading Overlay ── */
+.loading-overlay {
+  position: fixed; inset: 0; z-index: 9999;
   display: flex; align-items: center; justify-content: center;
-  overflow: hidden; transition: all 0.2s;
+  background: rgba(10, 9, 8, 0.92); backdrop-filter: blur(20px);
+  transition: opacity 0.4s ease;
 }
-.avatar-option:hover { background: rgba(255,255,255,0.08); transform: translateY(-2px); }
-.avatar-option.selected { border-color: var(--amber); background: rgba(255,170,0,0.1); }
-.avatar-option img { width: 100%; height: 100%; object-fit: cover; }
+.loading-overlay.fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+.loading-content {
+  text-align: center;
+  max-width: 320px;
+}
+.loading-spinner {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin-bottom: 24px;
+}
+.loading-spinner div {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--amber);
+  animation: loadPulse 1.2s ease-in-out infinite;
+}
+.loading-spinner div:nth-child(2) { animation-delay: 0.2s; }
+.loading-spinner div:nth-child(3) { animation-delay: 0.4s; }
+@keyframes loadPulse {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.3; }
+  40% { transform: scale(1); opacity: 1; }
+}
+.loading-title {
+  font-family: var(--font-display); font-size: 18px; font-weight: 700;
+  color: var(--text-1); margin-bottom: 8px;
+}
+.loading-sub {
+  font-size: 13px; color: var(--text-3); line-height: 1.5;
+}
+
+/* ── Avatar Initials ── */
+.av-initials {
+  width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: #fff;
+  flex-shrink: 0;
+  user-select: none;
+}
+.chat-message .av-initials {
+  width: 36px; height: 36px; font-size: 12px;
+  flex-shrink: 0;
+}
+.member-item .av-initials {
+  width: 32px; height: 32px; font-size: 11px;
+}
+

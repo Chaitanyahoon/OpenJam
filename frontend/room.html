@@ -33,7 +33,7 @@
   <link rel="preconnect" href="https://www.youtube.com">
   <link rel="preconnect" href="https://www.googleapis.com">
 
-  <link rel="stylesheet" href="/static/css/style.css?v=8">
+  <link rel="stylesheet" href="/static/css/style.css?v=9">
 </head>
 <body>
   <!-- Google Tag Manager (noscript) -->
@@ -48,6 +48,15 @@
 
 <!-- Ambient background blur -->
 <div class="room-ambient" id="room-ambient"></div>
+
+<!-- ══ LOADING OVERLAY ══════════════════════════════════════ -->
+<div class="loading-overlay" id="loading-overlay">
+  <div class="loading-content">
+    <div class="loading-spinner"><div></div><div></div><div></div></div>
+    <div class="loading-title">Setting up the room for everyone…</div>
+    <div class="loading-sub">This usually takes 20–30 seconds only on first load.</div>
+  </div>
+</div>
 
 <!-- ══ NAVBAR ══════════════════════════════════════════════ -->
 <nav class="navbar">
@@ -354,16 +363,21 @@ let _mobUnread = 0;
 function switchMobileTab(tab) {
   const centre  = $('#panel-center');
   const right   = $('#panel-right');
+  const npTab   = $('#mob-tab-nowplaying');
   const qTab    = $('#mob-tab-queue');
   const cTab    = $('#mob-tab-chat');
   const mTab    = $('#mob-tab-members');
 
   // Deactivate all
-  [qTab, cTab, mTab].forEach(t => t?.classList.remove('active'));
+  [npTab, qTab, cTab, mTab].forEach(t => t?.classList.remove('active'));
 
   if (tab === 'nowplaying') {
-    // Now Playing is always visible on mobile as the top strip; just deactivate other tabs
-    // No panel switch needed — panel-left stays visible, panels stay in their current state
+    // Show queue panel (panel-center) by default
+    npTab?.classList.add('active');
+    Motion.slidePanel(centre, right, 'right');
+  } else if (tab === 'queue') {
+    qTab?.classList.add('active');
+    Motion.slidePanel(centre, right, 'right');
   } else if (tab === 'queue') {
     qTab?.classList.add('active');
     Motion.slidePanel(centre, right, 'right');
@@ -578,10 +592,18 @@ function showRoomHelp() {
   }
 
   /* ─── Auth ───────────────────────────────────────────── */
-  function getAvatarUrl(user){
-    if(user.avatar_url) return user.avatar_url;
-    // Fallback to cute adventurer style if no custom avatar
-    return `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(user.display_name || user.user_name || 'Jammer')}&backgroundColor=121110`;
+  function getInitials(name) {
+    return (name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+  }
+  function nameColor(name) {
+    let h = 0;
+    for (let i = 0; i < (name || '').length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+    const hue = Math.abs(h) % 360;
+    return `hsl(${hue}, 60%, 55%)`;
+  }
+  function avatarHTML(name) {
+    const c = nameColor(name);
+    return `<div class="av-initials" style="background:${c}">${getInitials(name)}</div>`;
   }
 
   async function checkAuth(){
@@ -596,22 +618,12 @@ function showRoomHelp() {
     }
     if(!me){ location.href='/'; return; }
 
-    // Restore custom avatar from localStorage if available (for persistence without full DB)
-    const savedAvatar = localStorage.getItem('openjam_avatar_url');
-    if(savedAvatar && !me.avatar_url) me.avatar_url = savedAvatar;
-
-    const myAvatarUrl = getAvatarUrl(me);
-    $('#nav-avatar').innerHTML = `<img src="${myAvatarUrl}" style="width:100%;height:100%;border-radius:50%;object-fit:cover" alt="">`;
+    $('#nav-avatar').innerHTML = avatarHTML(me.display_name);
     $('#nav-name').textContent = me.display_name;
     $('#navbar-right').style.display = 'flex';
   }
 
-  $('#nav-user-btn')?.addEventListener('click', () => {
-    $('#modal-avatar').classList.add('open');
-    renderAvatarPicker();
-  });
-
-  /* ─── Load Room ──────────────────────────────────────── */
+  /* ─── Now Playing ────────────────────────────────────── */
   async function loadRoom(){
     const res = await fetch(`/rooms/${roomId}`, { credentials:'include' });
     if(!res.ok){ toast('Room not found','error'); setTimeout(()=>location.href='/',2e3); return; }
@@ -652,61 +664,6 @@ function showRoomHelp() {
     }
   }
 
-  /* ─── Avatar Picker ──────────────────────────────────── */
-  const AVATARS = [
-    { id: 'cat', url: '/static/img/avatars/cat.png', label: 'Cat' },
-    { id: 'fox', url: '/static/img/avatars/fox.png', label: 'Fox' },
-    { id: 'panda', url: '/static/img/avatars/panda.png', label: 'Panda' },
-    { id: 'rabbit', url: '/static/img/avatars/rabbit.png', label: 'Rabbit' },
-    // Add some cute DiceBear variations
-    { id: 'db1', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Felix&backgroundColor=121110', label: 'Adventurer 1' },
-    { id: 'db2', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Buddy&backgroundColor=121110', label: 'Adventurer 2' },
-    { id: 'db3', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Cookie&backgroundColor=121110', label: 'Adventurer 3' },
-    { id: 'db4', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Milo&backgroundColor=121110', label: 'Adventurer 4' },
-    { id: 'db5', url: 'https://api.dicebear.com/7.x/lorelei/svg?seed=Luna&backgroundColor=121110', label: 'Lorelei 1' },
-    { id: 'db6', url: 'https://api.dicebear.com/7.x/lorelei/svg?seed=Stella&backgroundColor=121110', label: 'Lorelei 2' },
-    { id: 'db7', url: 'https://api.dicebear.com/7.x/lorelei/svg?seed=Pepper&backgroundColor=121110', label: 'Lorelei 3' },
-    { id: 'db8', url: 'https://api.dicebear.com/7.x/lorelei/svg?seed=Gizmo&backgroundColor=121110', label: 'Lorelei 4' },
-  ];
-
-  let selectedAvatarUrl = null;
-
-  function renderAvatarPicker(){
-    const grid = $('#avatar-grid');
-    if(!grid) return;
-    const current = me.avatar_url;
-    grid.innerHTML = AVATARS.map(a => `
-      <div class="avatar-option${a.url === current ? ' selected' : ''}" data-url="${a.url}">
-        <img src="${a.url}" alt="${a.label}">
-      </div>
-    `).join('');
-
-    grid.querySelectorAll('.avatar-option').forEach(opt => {
-      opt.onclick = () => {
-        grid.querySelectorAll('.avatar-option').forEach(o => o.classList.remove('selected'));
-        opt.classList.add('selected');
-        selectedAvatarUrl = opt.dataset.url;
-        $('#btn-save-avatar').disabled = false;
-      };
-    });
-  }
-
-  $('#btn-save-avatar')?.addEventListener('click', () => {
-    if(!selectedAvatarUrl) return;
-    me.avatar_url = selectedAvatarUrl;
-    localStorage.setItem('openjam_avatar_url', selectedAvatarUrl);
-    
-    // Update server and broadcast
-    sc.updateProfile({ avatar_url: selectedAvatarUrl });
-    
-    // Update local UI immediately
-    const myAvatarUrl = getAvatarUrl(me);
-    $('#nav-avatar').innerHTML = `<img src="${myAvatarUrl}" style="width:100%;height:100%;border-radius:50%;object-fit:cover" alt="">`;
-    
-    $('#modal-avatar').classList.remove('open');
-    toast('Avatar updated!', 'success');
-  });
-
   /* ─── Now Playing ────────────────────────────────────── */
   const BLANK = 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'1\' height=\'1\'%3E%3C/svg%3E';
   let progressInterval = null;
@@ -746,6 +703,7 @@ function showRoomHelp() {
 
     if(!track || !track.track_uri){
       _currentTrackUri = null;
+      yt.stop();
       $('#np-title').textContent = 'Nothing playing';
       $('#np-artist').textContent = 'Add a track to the queue';
       artImg.src = BLANK;
@@ -983,11 +941,12 @@ function showRoomHelp() {
     list.innerHTML = arr.map(l => {
       const isSelf = me && l.user_id===me.id;
       const isRoomHost = roomData && l.user_id===roomData.room?.host_user_id;
-      const avatarUrl = getAvatarUrl(l);
       return `
       <div class="member-item">
-        <div class="member-avatar-wrap">
-          <img class="avatar avatar-sm" src="${avatarUrl}" alt="">
+        ${avatarHTML(l.display_name || 'Jammer')}
+        <span class="member-name">${esc(l.display_name)}${isSelf ? ' <span class="member-you">(you)</span>' : ''}</span>
+        ${isRoomHost ? `<span class="badge badge-host">Host</span>` : ''}
+      </div>`;
           <div class="member-online"></div>
         </div>
         <span class="member-name">${esc(l.display_name)}${isSelf ? ' <span class="member-you">(you)</span>' : ''}</span>
@@ -1304,16 +1263,39 @@ function showRoomHelp() {
   });
 
   /* ─── Chat ───────────────────────────────────────────── */
+  let _chatQueue = [];
+  let _chatRetrying = false;
+
+  async function _processChatQueue() {
+    if (_chatRetrying || _chatQueue.length === 0) return;
+    _chatRetrying = true;
+    const item = _chatQueue[0];
+    try {
+      sc.sendChat(item.text);
+      _chatQueue.shift();
+    } catch(e) {
+      // Retry failed, keep in queue
+      await new Promise(r => setTimeout(r, 2000));
+    }
+    _chatRetrying = false;
+    _processChatQueue();
+  }
+
   function addChat(msg){
+    // Dedup by checking if we already have this message
+    const msgs = $('#chat-msgs');
+    if (!msgs) return;
+    const dedupKey = msg.id || `${msg.user_id}_${msg.content}_${msg.timestamp}`;
+    if (msgs.querySelector(`[data-dedup="${CSS.escape(dedupKey)}"]`)) return;
+
     const empty = $('#chat-empty');
     if(empty) empty.style.display='none';
-    const msgs = $('#chat-msgs');
     const isSelf = me && msg.user_id===me.id;
     const el = document.createElement('div');
     el.className = `chat-message${isSelf?' self':''}`;
-    const avatarUrl = getAvatarUrl(msg);
+    el.dataset.dedup = dedupKey;
     el.innerHTML = `
-      <img class="chat-msg-avatar" src="${avatarUrl}" alt="${esc(msg.user_name)}">
+      ${avatarHTML(msg.user_name)}
       <div class="chat-msg-body">
         <div class="chat-msg-bubble">
           <div class="chat-msg-header">
@@ -1325,14 +1307,15 @@ function showRoomHelp() {
       </div>`;
     msgs.appendChild(el);
     msgs.scrollTop = msgs.scrollHeight;
-    // Mobile: show unread badge if chat panel is not active
     if (!isSelf) _mobMarkUnread();
   }
   function sendMsg(){
     const input = $('#chat-input');
     const v = input.value.trim();
     if(v){
-      sc.sendChat(v);
+      // Queue for sending with retry
+      _chatQueue.push({ text: v });
+      _processChatQueue();
       input.value = '';
       input.style.height = 'auto';
       updateSendButton();
@@ -1368,7 +1351,13 @@ function showRoomHelp() {
   });
 
   // Floating Reactions
+  let _lastReactionTime = 0;
+  let _reactionsActive = 0;
+  const MAX_VISIBLE_REACTIONS = 5;
+
   window.spawnReaction = function(emoji) {
+    if (_reactionsActive >= MAX_VISIBLE_REACTIONS) return;
+    _reactionsActive++;
     const el = document.createElement('div');
     el.className = 'floating-reaction';
     el.textContent = emoji;
@@ -1376,15 +1365,27 @@ function showRoomHelp() {
     el.style.animationDuration = `${2 + Math.random()}s`;
     const container = $('#panel-right') || document.body;
     container.appendChild(el);
-    setTimeout(() => { if (el.parentNode) el.remove(); }, 3500);
+    setTimeout(() => {
+      if (el.parentNode) {
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(-40px) scale(0.5)';
+        setTimeout(() => { el.remove(); _reactionsActive--; }, 400);
+      } else {
+        _reactionsActive--;
+      }
+    }, 2500);
   };
 
-  // Use event delegation on reactions bar to avoid timing issues with $$
+  // Use event delegation on reactions bar
   $('.reactions-bar')?.addEventListener('click', (e) => {
     const btn = e.target.closest('.btn-react');
     if (!btn) return;
     const emoji = btn.dataset.emoji;
     if (!emoji) return;
+    // Rate limit: 1 reaction per 400ms
+    const now = Date.now();
+    if (now - _lastReactionTime < 400) return;
+    _lastReactionTime = now;
     sc.emit('send_reaction', { room_id: roomId, emoji: emoji });
     spawnReaction(emoji);
   });
@@ -1409,6 +1410,17 @@ function showRoomHelp() {
 
 
 
+  /* ─── Loading Overlay ────────────────────────────────── */
+  function hideLoadingOverlay(){
+    const overlay = document.getElementById('loading-overlay');
+    if(overlay) {
+      overlay.classList.add('fade-out');
+      setTimeout(() => overlay.remove(), 400);
+      // Mark session so it never shows again
+      sessionStorage.setItem('room_loaded', '1');
+    }
+  }
+
   /* ─── Init ───────────────────────────────────────────── */
 
   await checkAuth();
@@ -1416,6 +1428,9 @@ function showRoomHelp() {
   checkQueuePermissions();
   sc.connect();
   sc.joinRoom(roomId);
+
+  // Hide loading overlay once room is ready
+  hideLoadingOverlay();
 
   // Lightweight debug panel (shows when ?debug=1 is present)
   (function createDebugPanel(){
@@ -1444,13 +1459,6 @@ function showRoomHelp() {
     }catch(e){/* no-op */}
   })();
 
-  // Wire reconnect AFTER connect() so sc.socket exists
-  if(sc.socket){
-    sc.socket.on('connect', () => {
-      sc.joinRoom(roomId);
-      setTimeout(pollQueue, 500);
-    });
-  }
 
   // --- Host Keyboard Shortcuts ---
   document.addEventListener('keydown', (e) => {
@@ -1486,3 +1494,5 @@ function showRoomHelp() {
 </footer>
 </body>
 </html>
+
+

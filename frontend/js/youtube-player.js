@@ -396,16 +396,29 @@ class YouTubePlayer {
     }
   }
 
-  destroy() {
+  stop() {
     this.stopProgressTimer();
     this._hideOverlay();
+    this.isPlaying = false;
+    this.currentVideoId = null;
+    this.positionMs = 0;
+    this._pendingLoad = null;
+    this._pendingPlayAfterUnlock = null;
     if (this._useIFrame && this.ytPlayer) {
-      this.ytPlayer.pauseVideo();
-      this.ytPlayer.destroy();
-      this.ytPlayer = null;
+      try { this.ytPlayer.stopVideo(); } catch(e) {}
     } else {
       this.player.pause();
       this.player.src = '';
+      this.player.load();
+    }
+    this.updateDisplay();
+  }
+
+  destroy() {
+    this.stop();
+    if (this._useIFrame && this.ytPlayer) {
+      try { this.ytPlayer.destroy(); } catch(e) {}
+      this.ytPlayer = null;
     }
   }
 }

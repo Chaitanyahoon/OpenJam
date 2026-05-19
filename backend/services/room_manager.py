@@ -10,8 +10,8 @@ class RoomManager:
         self._rooms: dict = {}
         self._sid_map: dict = {}
 
-    def join_room(self, room_id: str, user_id: str, sid: str, display_name: str, avatar_url: str = None, is_premium: bool = False) -> str | None:
-        """Join a room. Returns error message if capacity reached, None on success."""
+    def join_room(self, room_id: str, user_id: str, sid: str, display_name: str, avatar_url: str = None, is_premium: bool = False) -> tuple:
+        """Join a room. Returns (error_or_none, was_new_user_bool)."""
         if room_id not in self._rooms:
             self._rooms[room_id] = {
                 "users": {},
@@ -29,9 +29,24 @@ class RoomManager:
                 },
             }
 
+        was_new = user_id not in self._rooms[room_id]["users"]
+
         limit = FREE_ROOM_LIMIT if not is_premium else 999
-        if len(self._rooms[room_id]["users"]) >= limit and user_id not in self._rooms[room_id]["users"]:
-            return f"Room is full ({limit} listeners max). Try again later."
+        if not was_new and len(self._rooms[room_id]["users"]) >= limit:
+            return None, False
+
+        if was_new and len(self._rooms[room_id]["users"]) >= limit:
+            return f"Room is full ({limit} listeners max). Try again later.", False
+
+        # Remove old sid mapping for this user if they were already in the room
+        if not was_new:
+            old_info = self._sid_map.get(sid)
+            if old_info and old_info["room_id"] != room_id:
+                self._leave_room_internal(old_info)
+        elif sid in self._sid_map:
+            old_info = self._sid_map[sid]
+            if old_info["room_id"] != room_id:
+                self._leave_room_internal(old_info)
 
         self._rooms[room_id]["users"][user_id] = {
             "sid": sid,
@@ -39,7 +54,16 @@ class RoomManager:
             "avatar_url": avatar_url,
         }
         self._sid_map[sid] = {"user_id": user_id, "room_id": room_id}
-        return None
+        return None, was_new
+
+    def _leave_room_internal(self, info: dict):
+        """Internal cleanup without broadcasting."""
+        room_id = info["room_id"]
+        user_id = info["user_id"]
+        if room_id in self._rooms:
+            self._rooms[room_id]["users"].pop(user_id, None)
+            if not self._rooms[room_id]["users"]:
+                del self._rooms[room_id]
 
     def leave_room(self, sid: str) -> dict | None:
         info = self._sid_map.pop(sid, None)
