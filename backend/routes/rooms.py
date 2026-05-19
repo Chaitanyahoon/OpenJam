@@ -39,7 +39,7 @@ async def list_rooms(
     for room in rooms:
         count = listener_counts.get(room.id, 0)
         
-        # Hide empty rooms unless they were just created (< 15 seconds ago) 
+        # Hide empty rooms unless they were just created (< 30 minutes ago) 
         # to prevent ghost rooms from showing up on the home page while pending deletion
         age_seconds = float('inf')
         if room.created_at:
@@ -51,8 +51,9 @@ async def list_rooms(
                 age_seconds = (now - dt.replace(tzinfo=timezone.utc)).total_seconds()
             except Exception:
                 pass
-
-        if count == 0 and age_seconds > 15:
+        # Keep rooms visible for 30 min even when empty — hosts can leave and rejoin.
+        # room_closer auto-deactivates after 10 min if truly abandoned.
+        if count == 0 and age_seconds > 1800:
             continue
             
         host_name = room.host.display_name if room.host else "Unknown"

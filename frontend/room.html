@@ -1578,17 +1578,21 @@ function showRoomHelp() {
 
   /* ─── Init ───────────────────────────────────────────── */
 
-  // Fire auth + room load IN PARALLEL — cuts cold-start wait in half.
+  // Auth FIRST (sets `me`), then room load (needs `me` for host detection).
   updateLoadStatus('Connecting to server…');
   
   async function initRoom() {
-    // Both requests go out simultaneously
-    const [authResult] = await Promise.all([
-      checkAuth().then(() => { updateLoadStatus('Loading room…'); }),
-      loadRoom()
-    ]);
+    updateLoadStatus('Authenticating…');
+    await checkAuth();
     
-    // Both done — now apply host UI (needs `me` from checkAuth)
+    updateLoadStatus('Loading room…');
+    await loadRoom();
+    
+    // Re-apply host UI now that both `me` and `roomData` are available
+    if (roomData?.room) {
+      isHost = !!(me && roomData.room.host_user_id === me.id);
+      applyHostUI();
+    }
     checkQueuePermissions();
     hideLoadingOverlay();
   }
