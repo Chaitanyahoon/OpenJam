@@ -113,9 +113,6 @@
 
       <!-- HOST-ONLY controls -->
       <div class="controls-row" id="controls-row" style="display:none">
-        <button class="icon-btn" id="btn-prev" title="Previous" aria-label="Previous track">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6V6zm3.5 6 8.5 6V6L9.5 12z"/></svg>
-        </button>
         <button class="icon-btn primary" id="btn-play" title="Play / Pause" aria-label="Play or pause">
           <svg id="ico-play" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
           <svg id="ico-pause" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
@@ -400,9 +397,6 @@ function showRoomHelp() {
 }
 
 </script>
-<script src="/static/js/youtube-player.js"></script>
-<script src="/static/js/socket-client.js"></script>
-<script src="/static/js/lyrics.js"></script>
 <script>
 /* ── Room Controller ──────────────────────────────────────── */
 (async () => {
@@ -1193,7 +1187,7 @@ function showRoomHelp() {
   $('#btn-play')?.addEventListener('click', ()=>{
     if(!isHost) return;
     const playing = yt.isPlaying;
-    if(yt._ready && yt.player){ playing ? yt.player.pauseVideo() : yt.player.playVideo(); }
+    if(yt._ready && yt.player){ playing ? yt.player.pause() : yt.player.play(); }
     setPlayIcon(!playing);
     sc.emit('playback_update', {
       room_id:roomId,
@@ -1207,7 +1201,6 @@ function showRoomHelp() {
     });
   });
   $('#btn-next')?.addEventListener('click', ()=>{ if(isHost) sc.nextTrack(); });
-  $('#btn-prev')?.addEventListener('click', ()=>{ if(isHost) sc.emit('prev_track', { room_id:roomId }); });
   $('#btn-close')?.addEventListener('click', ()=>{
     const modal = document.getElementById('close-modal');
     modal.style.display = 'flex';
@@ -1237,7 +1230,7 @@ function showRoomHelp() {
   /* ─── Volume ─────────────────────────────────────────── */
   function applyVol(v){
     vol = v;
-    if(yt._ready && yt.player?.setVolume) yt.player.setVolume(v);
+    if(yt._ready && yt.player) yt.player.volume = v / 100;
     $('#vol-pct').textContent = `${v}%`;
     const slider = $('#vol-slider');
     if(slider) {
@@ -1252,7 +1245,6 @@ function showRoomHelp() {
     if(muted){ muted=false; applyVol(vol||80); $('#vol-slider').value=vol||80; $('#vol-slider').setAttribute('aria-valuenow', vol||80); }
     else { muted=true; applyVol(0); $('#vol-slider').value=0; $('#vol-slider').setAttribute('aria-valuenow', 0); }
   });
-  const volPoll = setInterval(()=>{ if(yt._ready&&yt.player?.setVolume){ yt.player.setVolume(vol); clearInterval(volPoll); } }, 500);
 
   /* ─── Chat ───────────────────────────────────────────── */
   function addChat(msg){

@@ -2,8 +2,7 @@ services:
   - type: web
     name: openjam
     runtime: docker
-    plan: starter
-    dockerfilePath: ./Dockerfile
+    dockerFilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /health
     envVars:

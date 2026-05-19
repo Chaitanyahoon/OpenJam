@@ -49,7 +49,7 @@ function getInitials(name) {
 }
 
 function showToast(message, type = 'info') {
-  const container = $('#toast-container');
+  const container = $('#toasts');
   if (!container) return;
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
