@@ -148,11 +148,17 @@ async def _resolve_audio_url(video_id: str) -> str | None:
 
     async def _try_ytdlp() -> str | None:
         try:
-            ydl = _get_ydl()
-            info = await asyncio.to_thread(ydl.extract_info, f"https://www.youtube.com/watch?v={video_id}", False)
-            return info["url"]
+            proc = await asyncio.create_subprocess_exec(
+                "yt-dlp", "-f", "bestaudio", "-g",
+                f"https://www.youtube.com/watch?v={video_id}",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
+            url = stdout.decode().strip()
+            return url if url else None
         except Exception as e:
-            logger.error(f"yt-dlp failed for {video_id}: {e}")
+            logger.error(f"yt-dlp -g failed for {video_id}: {e}")
             return None
 
     # Run both in parallel, take the first success
