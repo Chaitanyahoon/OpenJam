@@ -36,10 +36,19 @@ class YouTubePlayer {
   }
 
   _initAudio() {
-    this.player.addEventListener('play', () => this._onStateChange('play'));
+    this.player.addEventListener('loadstart', () => this._showLoadIndicator());
+    this.player.addEventListener('play', () => {
+      this._onStateChange('play');
+      this._hideLoadIndicator();
+    });
     this.player.addEventListener('pause', () => this._onStateChange('pause'));
     this.player.addEventListener('ended', () => this._onStateChange('ended'));
+    this.player.addEventListener('canplay', () => {
+      if (this._stallTimer) { clearTimeout(this._stallTimer); this._stallTimer = null; }
+      this._hideLoadIndicator();
+    });
     this.player.addEventListener('error', () => {
+      this._hideLoadIndicator();
       console.error('Audio stream error, fail count:', this._streamFailCount);
       this._streamFailCount++;
       if (this._streamFailCount >= this._maxStreamFails && !this._useIFrame) {
@@ -54,6 +63,7 @@ class YouTubePlayer {
     // Timeout: if stream doesn't start within 15s, treat as failure
     this.player.addEventListener('stalled', () => {
       if (this._stallTimer) clearTimeout(this._stallTimer);
+      this._showLoadIndicator();
       this._stallTimer = setTimeout(() => {
         if (this.player.readyState < 2 && !this.player.paused) {
           console.warn('Stream stalled for 15s, triggering error');
@@ -71,6 +81,7 @@ class YouTubePlayer {
     });
     this.player.addEventListener('waiting', () => {
       if (this._stallTimer) clearTimeout(this._stallTimer);
+      this._showLoadIndicator();
       this._stallTimer = setTimeout(() => {
         if (this.player.readyState < 2 && !this.player.paused) {
           console.warn('Stream waiting too long, triggering error');
@@ -85,9 +96,6 @@ class YouTubePlayer {
           }
         }
       }, 15000);
-    });
-    this.player.addEventListener('canplay', () => {
-      if (this._stallTimer) { clearTimeout(this._stallTimer); this._stallTimer = null; }
     });
   }
 
@@ -211,6 +219,7 @@ class YouTubePlayer {
   }
 
   _showOverlay() {
+    this._hideLoadIndicator();
     let overlay = document.getElementById('play-unlock-overlay');
     if (!overlay) {
       overlay = document.createElement('div');
@@ -257,6 +266,16 @@ class YouTubePlayer {
       overlay.style.transition = 'opacity 0.3s ease';
       setTimeout(() => overlay.remove(), 300);
     }
+  }
+
+  _showLoadIndicator() {
+    const el = document.getElementById('stream-loader');
+    if (el) el.style.display = 'flex';
+  }
+
+  _hideLoadIndicator() {
+    const el = document.getElementById('stream-loader');
+    if (el) el.style.display = 'none';
   }
 
   _loadVideo(videoId, startSeconds = 0) {
@@ -399,6 +418,7 @@ class YouTubePlayer {
   stop() {
     this.stopProgressTimer();
     this._hideOverlay();
+    this._hideLoadIndicator();
     this.isPlaying = false;
     this.currentVideoId = null;
     this.positionMs = 0;
