@@ -1472,14 +1472,24 @@ function showRoomHelp() {
   sc.connect();
   sc.joinRoom(roomId);
 
-  // Hide overlay after 3s and show thin top bar until data arrives
-  setTimeout(() => {
-    hideLoadingOverlay();
-    if (!_roomLoaded) {
-      const bar = document.getElementById('top-load-bar');
-      if (bar) bar.classList.add('active');
-    }
-  }, 3000);
+  // Detect if socket.io failed to load — show error instead of silent freeze
+  if (typeof io === 'undefined') {
+    const sub = document.getElementById('load-sub');
+    if (sub) sub.textContent = 'Failed to load: socket.io library blocked or unreachable. Try disabling ad-blocker.';
+    const retry = document.getElementById('load-retry');
+    if (retry) retry.style.display = 'inline-flex';
+    const spinner = document.querySelector('.loading-spinner');
+    if (spinner) spinner.style.display = 'none';
+  } else {
+    // Hide overlay after 3s and show thin top bar until data arrives
+    setTimeout(() => {
+      hideLoadingOverlay();
+      if (!_roomLoaded) {
+        const bar = document.getElementById('top-load-bar');
+        if (bar) bar.classList.add('active');
+      }
+    }, 3000);
+  }
 
   // Mobile swipe gestures between tabs (≤640px)
   if (window.innerWidth <= 640) {

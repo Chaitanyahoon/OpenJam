@@ -15,6 +15,11 @@ class SocketClient {
 
     try { this._debug = new URLSearchParams(location.search).has('debug'); } catch (e) { this._debug = false; }
 
+    if (typeof io === 'undefined') {
+      console.error('[openjam] socket.io library not loaded');
+      return;
+    }
+
     const token = this._getCookie('session_token');
     const guestName = localStorage.getItem('openjam_display_name') || '';
 
@@ -29,11 +34,8 @@ class SocketClient {
     });
 
     this.socket.on('connect', () => {
-      // Only auto-join on reconnect (not initial connect — joinRoom is called explicitly)
-      if (this._hasConnected) {
-        if (this.roomId) {
-          this.socket.emit('join_room', { room_id: this.roomId });
-        }
+      if (this.roomId) {
+        this.socket.emit('join_room', { room_id: this.roomId });
       }
       this._hasConnected = true;
       if (this._debug) console.log('[openjam] socket connected, sid=', this.socket.id);
