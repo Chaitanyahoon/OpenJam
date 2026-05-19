@@ -51,9 +51,8 @@ async def list_rooms(
                 age_seconds = (now - dt.replace(tzinfo=timezone.utc)).total_seconds()
             except Exception:
                 pass
-        # Keep rooms visible for 30 min even when empty — hosts can leave and rejoin.
-        # room_closer auto-deactivates after 10 min if truly abandoned.
-        if count == 0 and age_seconds > 1800:
+        # Hide empty rooms after 30s to save resources. Room closer auto-deactivates them.
+        if count == 0 and age_seconds > 30:
             continue
             
         host_name = room.host.display_name if room.host else "Unknown"
@@ -67,6 +66,12 @@ async def list_rooms(
     total = len(visible_rooms)
     return {"rooms": visible_rooms[skip:skip + limit], "total": total}
 
+import time as _time
+
+# Per-user room creation rate limit: {user_id: last_create_timestamp}
+_room_create_times: dict = {}
+_ROOM_CREATE_COOLDOWN = 120  # 2 minutes between room creations
+
 
 @router.post("")
 async def create_room(request: Request, create_room_req: CreateRoomRequest, db: Session = Depends(get_db)):
@@ -77,6 +82,18 @@ async def create_room(request: Request, create_room_req: CreateRoomRequest, db: 
 
     user_id = user_data["id"]
     display_name = user_data["display_name"]
+
+    # Rate limit: 1 room per 2 minutes per user
+    now = _time.time()
+    last_create = _room_create_times.get(user_id, 0)
+    if now - last_create < _ROOM_CREATE_COOLDOWN:
+        remaining = int(_ROOM_CREATE_COOLDOWN - (now - last_create))
+        raise HTTPException(status_code=429, detail=f"Please wait {remaining}s before creating another room")
+
+    # Cap: max 3 active rooms per user
+    active_count = db.query(Room).filter(Room.host_user_id == user_id, Room.is_active == True).count()
+    if active_count >= 3:
+        raise HTTPException(status_code=429, detail="You already have 3 active rooms. Close one first.")
 
     # Ensure a User row exists so the Room FK is satisfied
     user = db.query(User).filter(User.id == user_id).first()
@@ -96,6 +113,8 @@ async def create_room(request: Request, create_room_req: CreateRoomRequest, db: 
     db.add(room)
     db.commit()
     db.refresh(room)
+
+    _room_create_times[user_id] = now
 
     return {"room": room.to_dict(host_name=display_name)}
 
