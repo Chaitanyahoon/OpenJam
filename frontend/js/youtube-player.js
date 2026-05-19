@@ -40,6 +40,7 @@ class YouTubePlayer {
     this.player.addEventListener('pause', () => this._onStateChange('pause'));
     this.player.addEventListener('ended', () => this._onStateChange('ended'));
     this.player.addEventListener('error', () => {
+      console.error('Audio stream error, fail count:', this._streamFailCount);
       this._streamFailCount++;
       if (this._streamFailCount >= this._maxStreamFails && !this._useIFrame) {
         console.warn('Stream failed multiple times, switching to YouTube IFrame fallback');
@@ -49,6 +50,44 @@ class YouTubePlayer {
           this._loadVideo(this.currentVideoId, Math.round(this.positionMs / 1000));
         }
       }
+    });
+    // Timeout: if stream doesn't start within 15s, treat as failure
+    this.player.addEventListener('stalled', () => {
+      if (this._stallTimer) clearTimeout(this._stallTimer);
+      this._stallTimer = setTimeout(() => {
+        if (this.player.readyState < 2 && !this.player.paused) {
+          console.warn('Stream stalled for 15s, triggering error');
+          this._streamFailCount++;
+          if (this._streamFailCount >= this._maxStreamFails && !this._useIFrame) {
+            console.warn('Stream stalled multiple times, switching to YouTube IFrame fallback');
+            this._useIFrame = true;
+            this._initIFramePlayer();
+            if (this.currentVideoId) {
+              this._loadVideo(this.currentVideoId, Math.round(this.positionMs / 1000));
+            }
+          }
+        }
+      }, 15000);
+    });
+    this.player.addEventListener('waiting', () => {
+      if (this._stallTimer) clearTimeout(this._stallTimer);
+      this._stallTimer = setTimeout(() => {
+        if (this.player.readyState < 2 && !this.player.paused) {
+          console.warn('Stream waiting too long, triggering error');
+          this._streamFailCount++;
+          if (this._streamFailCount >= this._maxStreamFails && !this._useIFrame) {
+            console.warn('Stream waiting too long, switching to YouTube IFrame fallback');
+            this._useIFrame = true;
+            this._initIFramePlayer();
+            if (this.currentVideoId) {
+              this._loadVideo(this.currentVideoId, Math.round(this.positionMs / 1000));
+            }
+          }
+        }
+      }, 15000);
+    });
+    this.player.addEventListener('canplay', () => {
+      if (this._stallTimer) { clearTimeout(this._stallTimer); this._stallTimer = null; }
     });
   }
 
@@ -112,6 +151,7 @@ class YouTubePlayer {
       this.isPlaying = true;
       this._userUnlocked = true;
       this._hideOverlay();
+      if (this._loadTimeout) { clearTimeout(this._loadTimeout); this._loadTimeout = null; }
       this.startProgressTimer();
       this._emitControlEvent('play');
     } else if (state === 'pause') {
@@ -237,6 +277,15 @@ class YouTubePlayer {
         if (!this.ytPlayer) this._initIFramePlayer();
       }
     } else {
+      // Set a timeout: if the stream doesn't start loading within 10s, force error
+      if (this._loadTimeout) clearTimeout(this._loadTimeout);
+      this._loadTimeout = setTimeout(() => {
+        if (this.player.readyState === 0 && this.player.src.includes('/stream/')) {
+          console.warn('Stream load timeout after 10s');
+          this.player.dispatchEvent(new Event('error'));
+        }
+      }, 10000);
+
       this.player.src = `/stream/${videoId}`;
       this.player.currentTime = startSeconds;
       this.player.play().catch(e => {

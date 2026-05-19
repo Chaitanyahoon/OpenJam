@@ -16,6 +16,7 @@ from backend.models.user import User
 from backend.middleware.auth import get_current_user_id
 from backend.services.queue_manager import queue_manager
 from backend.services.lastfm import lastfm_service
+from backend.services.invidious import get_stream_url as get_invidious_stream_url
 from backend.schemas import QueueTrackRequest
 
 logger = logging.getLogger(__name__)
@@ -155,8 +156,14 @@ async def pre_resolve_url(video_id: str):
         return  # Already in flight
     _resolving.add(video_id)
     try:
-        await asyncio.to_thread(_get_audio_url, video_id)
-        logger.info(f"Pre-resolved stream URL for {video_id}")
+        # Try Invidious first
+        url = await get_invidious_stream_url(video_id)
+        if not url:
+            # Fallback to yt-dlp
+            url = await asyncio.to_thread(_get_audio_url, video_id)
+        if url:
+            _url_cache[video_id] = (url, time.time() + _URL_CACHE_TTL)
+            logger.info(f"Pre-resolved stream URL for {video_id}")
     except Exception as e:
         logger.warning(f"Pre-resolve failed for {video_id}: {e}")
     finally:
@@ -165,11 +172,22 @@ async def pre_resolve_url(video_id: str):
 
 @router.get("/stream/{video_id}")
 async def stream_audio(video_id: str, request: Request):
+    # Strategy: Invidious (primary) → yt-dlp (fallback)
+    url = None
+
+    # Try Invidious first
     try:
-        url = await asyncio.to_thread(_get_audio_url, video_id)
+        url = await get_invidious_stream_url(video_id)
     except Exception as e:
-        logger.error(f"yt-dlp extraction failed for {video_id}: {e}")
-        raise HTTPException(status_code=404, detail="Could not extract stream")
+        logger.warning(f"Invidious lookup failed for {video_id}: {e}")
+
+    # Fallback to yt-dlp
+    if not url:
+        try:
+            url = await asyncio.to_thread(_get_audio_url, video_id)
+        except Exception as e:
+            logger.error(f"yt-dlp extraction also failed for {video_id}: {e}")
+            raise HTTPException(status_code=404, detail="Could not extract stream")
 
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
     range_header = request.headers.get("Range")
