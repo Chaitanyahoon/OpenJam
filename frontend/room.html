@@ -388,9 +388,6 @@ function switchMobileTab(tab) {
   } else if (tab === 'queue') {
     qTab?.classList.add('active');
     Motion.slidePanel(centre, right, 'right');
-  } else if (tab === 'queue') {
-    qTab?.classList.add('active');
-    Motion.slidePanel(centre, right, 'right');
   } else if (tab === 'chat') {
     cTab?.classList.add('active');
     Motion.slidePanel(right, centre, 'left');
@@ -954,11 +951,6 @@ function showRoomHelp() {
       return `
       <div class="member-item">
         ${avatarHTML(l.display_name || 'Jammer')}
-        <span class="member-name">${esc(l.display_name)}${isSelf ? ' <span class="member-you">(you)</span>' : ''}</span>
-        ${isRoomHost ? `<span class="badge badge-host">Host</span>` : ''}
-      </div>`;
-          <div class="member-online"></div>
-        </div>
         <span class="member-name">${esc(l.display_name)}${isSelf ? ' <span class="member-you">(you)</span>' : ''}</span>
         ${isRoomHost ? `<span class="badge badge-host">Host</span>` : ''}
       </div>`;
