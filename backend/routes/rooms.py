@@ -90,6 +90,14 @@ async def create_room(request: Request, create_room_req: CreateRoomRequest, db: 
         remaining = int(_ROOM_CREATE_COOLDOWN - (now - last_create))
         raise HTTPException(status_code=429, detail=f"Please wait {remaining}s before creating another room")
 
+    # Clean up ghost rooms: deactivate any of this user's rooms with 0 listeners
+    listener_counts = room_manager.get_listener_counts()
+    user_rooms = db.query(Room).filter(Room.host_user_id == user_id, Room.is_active == True).all()
+    for r in user_rooms:
+        if listener_counts.get(r.id, 0) == 0:
+            r.is_active = False
+    db.commit()
+
     # Cap: max 3 active rooms per user
     active_count = db.query(Room).filter(Room.host_user_id == user_id, Room.is_active == True).count()
     if active_count >= 3:
