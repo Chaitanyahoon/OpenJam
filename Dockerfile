@@ -23,7 +23,7 @@ COPY --from=builder /opt/venv /opt/venv
 COPY . .
 
 # Create logs directory
-RUN mkdir -p logs data
+RUN mkdir -p logs
 
 # Health check removed for native PaaS handling
 

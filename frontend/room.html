@@ -33,7 +33,7 @@
   <link rel="preconnect" href="https://www.youtube.com">
   <link rel="preconnect" href="https://www.googleapis.com">
 
-  <link rel="stylesheet" href="/static/css/style.css?v=7">
+  <link rel="stylesheet" href="/static/css/style.css?v=8">
 </head>
 <body>
   <!-- Google Tag Manager (noscript) -->
@@ -276,32 +276,15 @@
 
 </div><!-- /room-grid -->
 
-<!-- Bulk Import Modal -->
-<div class="modal-bg" id="modal-import" role="dialog" aria-modal="true" aria-labelledby="import-title">
-  <div class="modal-box">
-    <h2 class="modal-title" id="import-title">Bulk Import</h2>
-    <div class="modal-field">
-      <label class="modal-label">Paste Tracklist (One song per line)</label>
-      <textarea class="input-field" id="import-text" rows="6" placeholder="Blinding Lights - The Weeknd&#10;Shape of You - Ed Sheeran" style="resize:vertical"></textarea>
-    </div>
-    <div class="modal-actions">
-      <button type="button" class="btn btn-ghost" onclick="document.getElementById('modal-import').classList.remove('open')">Cancel</button>
-      <button type="button" class="btn btn-primary" id="btn-do-import">Import Tracks</button>
-    </div>
-  </div>
-</div>
-
-<!-- Avatar Picker Modal -->
-<div class="modal-bg" id="modal-avatar" role="dialog" aria-modal="true" aria-labelledby="avatar-title">
-  <div class="modal-box avatar-picker-box">
-    <h2 class="modal-title" id="avatar-title">Choose Your Avatar</h2>
-    <p class="avatar-picker-sub">Pick a character that vibes with you 🎵</p>
-    <div class="avatar-grid" id="avatar-grid"></div>
-    <div class="modal-actions">
-      <button type="button" class="btn btn-ghost" onclick="document.getElementById('modal-avatar').classList.remove('open')">Cancel</button>
-      <button type="button" class="btn btn-primary" id="btn-save-avatar" disabled>Save Avatar</button>
-    </div>
-  </div>
+<!-- ══ MOBILE VOLUME BAR ═══════════════════════════════════ -->
+<!-- Only visible on mobile (≤640px via CSS) -->
+<div class="mobile-vol-wrap" id="mobile-vol-wrap">
+  <span class="vol-icon" id="mob-vol-icon" aria-label="Volume control">
+    <svg id="mob-ico-vol" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+    <svg id="mob-ico-mute" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3 3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4 9.91 6.09 12 8.18V4z"/></svg>
+  </span>
+  <input type="range" class="vol-slider" id="mob-vol-slider" min="0" max="100" value="80" aria-label="Volume slider" aria-valuenow="80" title="Volume: 80%">
+  <span class="vol-pct" id="mob-vol-pct">80%</span>
 </div>
 
 <!-- ══ MOBILE BOTTOM TABS ══════════════════════════════════ -->
@@ -378,7 +361,10 @@ function switchMobileTab(tab) {
   // Deactivate all
   [qTab, cTab, mTab].forEach(t => t?.classList.remove('active'));
 
-  if (tab === 'queue') {
+  if (tab === 'nowplaying') {
+    // Now Playing is always visible on mobile as the top strip; just deactivate other tabs
+    // No panel switch needed — panel-left stays visible, panels stay in their current state
+  } else if (tab === 'queue') {
     qTab?.classList.add('active');
     Motion.slidePanel(centre, right, 'right');
   } else if (tab === 'chat') {
@@ -1266,6 +1252,7 @@ function showRoomHelp() {
       yt.player.volume = vol / 100;
       yt.player.muted = (vol === 0);
     }
+    // Update desktop UI
     $('#vol-pct').textContent = `${vol}%`;
     const slider = $('#vol-slider');
     if(slider) {
@@ -1276,9 +1263,31 @@ function showRoomHelp() {
     }
     $('#ico-vol').style.display  = vol>0 ? 'block' : 'none';
     $('#ico-mute').style.display = vol>0 ? 'none'  : 'block';
+    // Update mobile UI
+    $('#mob-vol-pct').textContent = `${vol}%`;
+    const mobSlider = $('#mob-vol-slider');
+    if(mobSlider) {
+      mobSlider.value = vol;
+      mobSlider.style.background = `linear-gradient(to right, var(--amber) ${vol}%, var(--bg-elevated) ${vol}%)`;
+      mobSlider.title = `Volume: ${vol}%`;
+      mobSlider.setAttribute('aria-valuenow', vol);
+    }
+    $('#mob-ico-vol').style.display  = vol>0 ? 'block' : 'none';
+    $('#mob-ico-mute').style.display = vol>0 ? 'none'  : 'block';
   }
   $('#vol-slider')?.addEventListener('input', e=>{ muted=false; applyVol(+e.target.value); });
   $('#vol-icon')?.addEventListener('click', ()=>{
+    if(muted || vol === 0){ 
+      muted=false; 
+      applyVol(vol > 0 ? vol : 80); 
+    } else { 
+      muted=true; 
+      applyVol(0); 
+    }
+  });
+  // Mobile volume slider
+  $('#mob-vol-slider')?.addEventListener('input', e=>{ muted=false; applyVol(+e.target.value); });
+  $('#mob-vol-icon')?.addEventListener('click', ()=>{
     if(muted || vol === 0){ 
       muted=false; 
       applyVol(vol > 0 ? vol : 80); 
