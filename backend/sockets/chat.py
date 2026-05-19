@@ -1,6 +1,7 @@
 """Socket.IO chat event handlers — non-blocking DB via asyncio.to_thread()."""
 
 import asyncio
+import time
 import socketio
 from datetime import datetime, timezone
 from backend.database import SessionLocal
@@ -34,6 +35,10 @@ def _db_save_message(room_id: str, user_id: str, display_name: str, avatar_url, 
         db.close()
 
 
+# Per-user reaction rate limiting
+_last_reaction_time: dict[str, float] = {}
+
+
 def register_chat_handlers(sio: socketio.AsyncServer):
 
     @sio.event
@@ -43,12 +48,10 @@ def register_chat_handlers(sio: socketio.AsyncServer):
         if not session:
             return
 
-        # Accept both 'message' (new) and 'content' (legacy)
         content = (data.get("message") or data.get("content") or "").strip()
         if not content or len(content) > 500:
             return
 
-        # Prefer room_id from payload; fall back to room_manager lookup
         room_id = data.get("room_id")
         if not room_id:
             info = room_manager.get_user_by_sid(sid)
@@ -64,7 +67,15 @@ def register_chat_handlers(sio: socketio.AsyncServer):
             _db_save_message, room_id, user_id, display_name, avatar_url, content
         )
 
+        # Broadcast to the room
         await sio.emit("chat_message", msg_dict, room=room_id)
+
+        # Send delivery ACK back to sender with the message ID
+        ack = {"id": msg_dict["id"]}
+        temp_id = data.get("temp_id")
+        if temp_id:
+            ack["temp_id"] = temp_id
+        await sio.emit("chat_ack", ack, to=sid)
 
 
     @sio.event
@@ -83,9 +94,15 @@ def register_chat_handlers(sio: socketio.AsyncServer):
         emoji = data.get("emoji")
         if not room_id or not emoji:
             return
-            
+
         user_id = session.get("user_id") or f"guest_{sid}"
         display_name = session.get("display_name") or data.get("display_name") or "Jammer"
+
+        # Server-side rate limit: 1 reaction per 500ms per user
+        now = time.time()
+        if user_id in _last_reaction_time and now - _last_reaction_time[user_id] < 0.5:
+            return
+        _last_reaction_time[user_id] = now
 
         # Broadcast the reaction to the room
         await sio.emit("reaction", {

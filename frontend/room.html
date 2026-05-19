@@ -1271,10 +1271,14 @@ function showRoomHelp() {
     _chatRetrying = true;
     const item = _chatQueue[0];
     try {
-      sc.sendChat(item.text);
-      _chatQueue.shift();
+      const ack = await sc.sendChat(item.text);
+      if (ack) {
+        _chatQueue.shift();
+      } else {
+        // No ACK received (timeout), retry
+        await new Promise(r => setTimeout(r, 2000));
+      }
     } catch(e) {
-      // Retry failed, keep in queue
       await new Promise(r => setTimeout(r, 2000));
     }
     _chatRetrying = false;

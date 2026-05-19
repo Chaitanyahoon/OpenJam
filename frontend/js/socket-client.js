@@ -51,6 +51,7 @@ class SocketClient {
       'name_updated', 'skip_votes_updated',
       'reaction', 'user_typing', 'user_stop_typing',
       'join_error', 'heartbeat_ack',
+      'chat_ack',
     ];
     events.forEach(event => {
       this.socket.on(event, (data) => {
@@ -89,8 +90,23 @@ class SocketClient {
   }
 
   sendChat(message) {
-    if (!this._ready()) return;
-    this.socket.emit('send_chat', { room_id: this.roomId, message });
+    if (!this._ready()) return Promise.reject(new Error('Not connected'));
+    return new Promise((resolve) => {
+      const tempId = Math.random().toString(36).slice(2, 10);
+      const handler = (data) => {
+        if (data.temp_id === tempId) {
+          this.socket.off('chat_ack', handler);
+          resolve(data);
+        }
+      };
+      this.socket.on('chat_ack', handler);
+      // Timeout: if no ACK in 10s, reject so retry queue kicks in
+      setTimeout(() => {
+        this.socket.off('chat_ack', handler);
+        resolve(null); // null = no ack, caller should retry
+      }, 10000);
+      this.socket.emit('send_chat', { room_id: this.roomId, message, temp_id: tempId });
+    });
   }
 
   addToQueue(trackData) {

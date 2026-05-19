@@ -5,12 +5,14 @@
 ### Database & Deployment
 - **PostgreSQL migration**: Added `psycopg2-binary`, updated `render.yaml` (removed disk, DATABASE_URL set manually), removed `data/` dir from Dockerfile, documented PostgreSQL URL format in `.env.example`.
 - Fixed `psycopg2 not found` on Render by ensuring all commits were properly pushed.
-- Commits: `9a10e1f`, `b04987f`, `cebf9b8`, `cd83441`
+- Commits: `9a10e1f`, `b04987f`, `cebf9b8`, `cd83441`, `911bba4`, `6e8d1f9`
 
 ### Invidious Proxy (Primary Stream Source)
 - Created `backend/services/invidious.py` — 15 public instances, health-checked every 5 minutes.
 - Updated `backend/routes/queue.py` — `_resolve_audio_url()` tries Invidious first, yt-dlp fallback. Unified caching via shared `_url_cache`.
 - Added 10s load timeout and 15s stall/waiting timeout for faster IFrame fallback.
+- **Fixed**: Added async lock to prevent concurrent health checks.
+- **Fixed**: `stream_audio` now properly closes httpx client on upstream errors, returns 502 instead of proxying non-2xx responses.
 
 ### Audio Playback Fixes
 - **IFrame fallback infinite loop**: `_loadVideo` now queues `_pendingLoad` when `_useIFrame` is true but `ytPlayer` isn't ready.
@@ -51,6 +53,8 @@
 ## Files Modified
 - `backend/services/room_manager.py` — join_room returns (error, was_new)
 - `backend/sockets/connection.py` — broadcast gated by was_new
+- `backend/services/invidious.py` — health check lock to prevent race
+- `backend/routes/queue.py` — stream_audio resource cleanup, 502 on bad upstream
 - `frontend/js/socket-client.js` — _hasConnected flag
 - `frontend/js/youtube-player.js` — stop(), IFrame fix, timeouts
 - `frontend/room.html` — loading overlay, avatar initials, chat retry, reactions rate limit, mobile tabs fix, dedup
@@ -58,7 +62,7 @@
 - `frontend/index.html`, `terms.html`, `privacy.html` — CSS cache version bump
 
 ## Pending Work
-- Chat reliability still needs message persistence tracking.
+- Chat reliability still needs message persistence tracking (server-side).
 - Reactions could use server-side rate limiting.
 - Mobile UI could further improve with swipe gestures between panels.
 
