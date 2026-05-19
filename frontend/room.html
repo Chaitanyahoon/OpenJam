@@ -1217,9 +1217,10 @@ function showRoomHelp() {
   /* ─── Host Controls ──────────────────────────────────── */
   $('#btn-play')?.addEventListener('click', ()=>{
     if(!isHost) return;
-    const playing = yt.isPlaying;
-    if(yt._ready && yt.player){ playing ? yt.player.pause() : yt.player.play(); }
-    setPlayIcon(!playing);
+    // Use actual player state for instant feedback
+    const isActuallyPlaying = yt.player && !yt.player.paused;
+    if(yt._ready && yt.player){ isActuallyPlaying ? yt.player.pause() : yt.player.play().catch(()=>{}); }
+    setPlayIcon(!isActuallyPlaying);
     sc.emit('playback_update', {
       room_id:roomId,
       track_uri: yt.currentVideoId||'',
@@ -1228,7 +1229,7 @@ function showRoomHelp() {
       album_art_url: $('#art-img')?.src||'',
       position_ms: yt.positionMs||0,
       duration_ms: yt.durationMs||0,
-      is_playing: !playing,
+      is_playing: !isActuallyPlaying,
     });
   });
   $('#btn-next')?.addEventListener('click', ()=>{ if(isHost) sc.nextTrack(); });
@@ -1260,21 +1261,31 @@ function showRoomHelp() {
 
   /* ─── Volume ─────────────────────────────────────────── */
   function applyVol(v){
-    vol = v;
-    if(yt._ready && yt.player) yt.player.volume = v / 100;
-    $('#vol-pct').textContent = `${v}%`;
+    vol = Math.max(0, Math.min(100, v));
+    if(yt._ready && yt.player){
+      yt.player.volume = vol / 100;
+      yt.player.muted = (vol === 0);
+    }
+    $('#vol-pct').textContent = `${vol}%`;
     const slider = $('#vol-slider');
     if(slider) {
-      slider.style.background = `linear-gradient(to right, var(--amber) ${v}%, var(--bg-elevated) ${v}%)`;
-      slider.title = `Volume: ${v}%`;
+      slider.value = vol;
+      slider.style.background = `linear-gradient(to right, var(--amber) ${vol}%, var(--bg-elevated) ${vol}%)`;
+      slider.title = `Volume: ${vol}%`;
+      slider.setAttribute('aria-valuenow', vol);
     }
-    $('#ico-vol').style.display  = v>0 ? 'block' : 'none';
-    $('#ico-mute').style.display = v>0 ? 'none'  : 'block';
+    $('#ico-vol').style.display  = vol>0 ? 'block' : 'none';
+    $('#ico-mute').style.display = vol>0 ? 'none'  : 'block';
   }
-  $('#vol-slider')?.addEventListener('input', e=>{ muted=false; applyVol(+e.target.value); e.target.setAttribute('aria-valuenow', e.target.value); });
+  $('#vol-slider')?.addEventListener('input', e=>{ muted=false; applyVol(+e.target.value); });
   $('#vol-icon')?.addEventListener('click', ()=>{
-    if(muted){ muted=false; applyVol(vol||80); $('#vol-slider').value=vol||80; $('#vol-slider').setAttribute('aria-valuenow', vol||80); }
-    else { muted=true; applyVol(0); $('#vol-slider').value=0; $('#vol-slider').setAttribute('aria-valuenow', 0); }
+    if(muted || vol === 0){ 
+      muted=false; 
+      applyVol(vol > 0 ? vol : 80); 
+    } else { 
+      muted=true; 
+      applyVol(0); 
+    }
   });
 
   /* ─── Chat ───────────────────────────────────────────── */
@@ -1347,21 +1358,20 @@ function showRoomHelp() {
     el.className = 'floating-reaction';
     el.textContent = emoji;
     el.style.left = `calc(50% + ${(Math.random() - 0.5) * 80}px)`;
-    // Vary the animation speed slightly for natural feel
     el.style.animationDuration = `${2 + Math.random()}s`;
-    // Append to the right panel or body
     const container = $('#panel-right') || document.body;
     container.appendChild(el);
     setTimeout(() => { if (el.parentNode) el.remove(); }, 3500);
   };
 
-  $$('.btn-react').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const emoji = e.currentTarget.dataset.emoji;
-      if (!emoji) return;
-      sc.socket.emit('send_reaction', { room_id: roomId, emoji: emoji });
-      spawnReaction(emoji); // show locally
-    });
+  // Use event delegation on reactions bar to avoid timing issues with $$
+  $('.reactions-bar')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.btn-react');
+    if (!btn) return;
+    const emoji = btn.dataset.emoji;
+    if (!emoji) return;
+    sc.emit('send_reaction', { room_id: roomId, emoji: emoji });
+    spawnReaction(emoji);
   });
 
   /* ─── Queue Poll Fallback ────────────────────────────── */

@@ -236,8 +236,11 @@ class YouTubePlayer {
       this.player.currentTime = startSeconds;
       this.player.play().catch(e => {
         console.error('Autoplay prevented:', e);
-        this._pendingPlayAfterUnlock = { videoId, startSeconds };
-        this._showOverlay();
+        // Only show overlay if user hasn't unlocked yet
+        if (!this._userUnlocked) {
+          this._pendingPlayAfterUnlock = { videoId, startSeconds };
+          this._showOverlay();
+        }
       });
     }
     setTimeout(() => { this._suppressStateChange = false; }, 1000);
@@ -288,8 +291,11 @@ class YouTubePlayer {
       if (isPlaying) {
         this.player.play().catch(e => {
           console.error('Autoplay prevented on sync:', e);
-          this._pendingPlayAfterUnlock = { videoId: this.currentVideoId, startSeconds: positionMs / 1000 };
-          this._showOverlay();
+          // Only show overlay if user hasn't unlocked yet
+          if (!this._userUnlocked) {
+            this._pendingPlayAfterUnlock = { videoId: this.currentVideoId, startSeconds: positionMs / 1000 };
+            this._showOverlay();
+          }
         });
         this.startProgressTimer();
       } else {
