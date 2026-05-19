@@ -131,18 +131,34 @@ def _get_ydl():
     return _ydl
 
 
-def _get_audio_url(video_id: str) -> str:
-    """Get cached or freshly extracted YouTube stream URL."""
+async def _resolve_audio_url(video_id: str) -> str | None:
+    """Try Invidious first, fallback to yt-dlp. Result is cached in _url_cache."""
+    # Check cache first
     if video_id in _url_cache:
         url, expiry = _url_cache[video_id]
         if time.time() < expiry:
             return url
         del _url_cache[video_id]
 
-    ydl = _get_ydl()
-    info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
-    url = info["url"]
-    _url_cache[video_id] = (url, time.time() + _URL_CACHE_TTL)
+    url = None
+    # Try Invidious (async, fast)
+    try:
+        url = await get_invidious_stream_url(video_id)
+    except Exception as e:
+        logger.warning(f"Invidious failed for {video_id}: {e}")
+
+    # Fallback to yt-dlp (sync, needs thread)
+    if not url:
+        try:
+            ydl = _get_ydl()
+            info = await asyncio.to_thread(ydl.extract_info, f"https://www.youtube.com/watch?v={video_id}", False)
+            url = info["url"]
+        except Exception as e:
+            logger.error(f"yt-dlp also failed for {video_id}: {e}")
+            return None
+
+    if url:
+        _url_cache[video_id] = (url, time.time() + _URL_CACHE_TTL)
     return url
 
 
@@ -156,13 +172,8 @@ async def pre_resolve_url(video_id: str):
         return  # Already in flight
     _resolving.add(video_id)
     try:
-        # Try Invidious first
-        url = await get_invidious_stream_url(video_id)
-        if not url:
-            # Fallback to yt-dlp
-            url = await asyncio.to_thread(_get_audio_url, video_id)
+        url = await _resolve_audio_url(video_id)
         if url:
-            _url_cache[video_id] = (url, time.time() + _URL_CACHE_TTL)
             logger.info(f"Pre-resolved stream URL for {video_id}")
     except Exception as e:
         logger.warning(f"Pre-resolve failed for {video_id}: {e}")
@@ -172,22 +183,9 @@ async def pre_resolve_url(video_id: str):
 
 @router.get("/stream/{video_id}")
 async def stream_audio(video_id: str, request: Request):
-    # Strategy: Invidious (primary) → yt-dlp (fallback)
-    url = None
-
-    # Try Invidious first
-    try:
-        url = await get_invidious_stream_url(video_id)
-    except Exception as e:
-        logger.warning(f"Invidious lookup failed for {video_id}: {e}")
-
-    # Fallback to yt-dlp
+    url = await _resolve_audio_url(video_id)
     if not url:
-        try:
-            url = await asyncio.to_thread(_get_audio_url, video_id)
-        except Exception as e:
-            logger.error(f"yt-dlp extraction also failed for {video_id}: {e}")
-            raise HTTPException(status_code=404, detail="Could not extract stream")
+        raise HTTPException(status_code=404, detail="Could not extract stream")
 
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
     range_header = request.headers.get("Range")
