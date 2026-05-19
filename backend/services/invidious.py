@@ -107,62 +107,52 @@ def _get_sorted_instances() -> list[str]:
 
 
 async def get_stream_url(video_id: str) -> Optional[str]:
-    """Get a direct stream URL for a YouTube video via Invidious.
+    """Get a direct stream URL via Invidious.
 
-    Tries instances in order of reliability until one succeeds.
-    Falls back to yt-dlp if all Invidious instances fail.
+    Tries all instances in parallel with short timeouts and returns the first
+    successful result. yt-dlp runs in parallel via the caller (_resolve_audio_url).
     """
     await _health_check_instances()
 
-    errors = []
-    for instance in _get_sorted_instances():
+    async def _try_instance(instance: str) -> Optional[str]:
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
+            async with httpx.AsyncClient(timeout=5.0) as client:
                 r = await client.get(
                     f"{instance}/api/v1/videos/{video_id}",
                     params={"fields": "formatStreams,adaptiveFormats"},
                 )
                 if r.status_code != 200:
-                    errors.append(f"{instance}: HTTP {r.status_code}")
-                    continue
+                    return None
 
                 data = r.json()
-                # Try adaptive formats first (better quality)
                 formats = data.get("adaptiveFormats", []) or data.get("formatStreams", []) or []
-
-                # Prefer audio-only formats (smaller bandwidth)
                 audio_formats = [f for f in formats if f.get("type", "").startswith("audio")]
                 if audio_formats:
-                    # Pick the best audio format (highest bitrate)
                     best = max(audio_formats, key=lambda f: f.get("bitrate", 0))
                     url = best.get("url")
                     if url:
-                        # Reset health score on success
                         health = _get_instance_health(instance)
                         health["score"] = min(100, health.get("score", 100) + 5)
-                        logger.info(f"Invidious stream URL obtained from {instance}")
                         return url
-
-                # Fallback: any format with video+audio
                 if formats:
-                    best = formats[0]
-                    url = best.get("url")
+                    url = formats[0].get("url")
                     if url:
                         health = _get_instance_health(instance)
                         health["score"] = min(100, health.get("score", 100) + 5)
-                        logger.info(f"Invidious stream URL obtained from {instance}")
                         return url
-
-                errors.append(f"{instance}: no usable formats")
-
-        except Exception as e:
-            errors.append(f"{instance}: {type(e).__name__}")
+        except Exception:
             health = _get_instance_health(instance)
             health["failures"] += 1
             health["score"] = max(0, health.get("score", 100) - 10)
+        return None
 
-    if errors:
-        logger.warning(f"All Invidious instances failed for {video_id}: {'; '.join(errors[:3])}...")
+    instances = _get_sorted_instances()
+    # Run all instances in parallel, return first success
+    for coro in asyncio.as_completed([_try_instance(i) for i in instances]):
+        result = await coro
+        if result:
+            return result
+
     return None
 
 
