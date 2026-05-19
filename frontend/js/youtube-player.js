@@ -400,17 +400,6 @@ class YouTubePlayer {
   }
 
   updateDisplay() {
-    const fillA = document.getElementById('progress-fill');
-    const fillB = document.getElementById('progress');
-    const elapsedB = document.getElementById('time-cur');
-    const totalB = document.getElementById('time-dur');
-
-    const pct = this.durationMs > 0 ? (this.positionMs / this.durationMs) * 100 : 0;
-    if (fillA) fillA.style.width = `${Math.min(pct, 100)}%`;
-    if (fillB) fillB.style.width = `${Math.min(pct, 100)}%`;
-
-    if (elapsedB) elapsedB.textContent = formatTime(this.positionMs);
-    if (totalB) totalB.textContent = formatTime(this.durationMs);
     if (this.onProgressUpdate) {
       this.onProgressUpdate(this.positionMs, this.durationMs, this.isPlaying);
     }

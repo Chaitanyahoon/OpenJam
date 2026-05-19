@@ -732,7 +732,6 @@ function showRoomHelp() {
 
   /* ─── Now Playing ────────────────────────────────────── */
   const BLANK = 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'1\' height=\'1\'%3E%3C/svg%3E';
-  let progressInterval = null;
 
   function updateAmbientArt(track, artImg, ambient, dynBg) {
     if(track.album_art_url && track.album_art_url !== artImg.src){
@@ -813,17 +812,11 @@ function showRoomHelp() {
       lyricsManager.loadLyrics(track.track_name, track.artist, track.track_uri);
     }
 
-    // Progress ticker
-    clearInterval(progressInterval);
+    // Let youtube-player.js drive the progress via onProgressUpdate, 
+    // but do an initial optimistic update based on socket data.
     let pos = track.position_ms || 0;
     const dur = track.duration_ms || 0;
     updateProgress(pos, dur);
-    if(playing){
-      progressInterval = setInterval(()=>{
-        pos = Math.min(pos+1000, dur);
-        updateProgress(pos, dur);
-      }, 1000);
-    }
   }
 
   function updateProgress(pos, dur){
@@ -843,6 +836,9 @@ function showRoomHelp() {
 
   let _upNextShownForUri = null;
   yt.onProgressUpdate = (pos, dur, playing) => {
+    // Drive the main progress bar visually (replaces interval ticker)
+    updateProgress(pos, dur);
+
     // Up Next preview: Trigger when <= 10.5s remaining, and song is >30s long
     if (playing && dur > 30000 && (dur - pos) <= 10500 && (dur - pos) > 9500) {
       if (_upNextShownForUri !== _currentTrackUri && _queueData.length > 0) {
