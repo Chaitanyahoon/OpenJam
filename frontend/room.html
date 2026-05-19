@@ -1561,7 +1561,18 @@ function showRoomHelp() {
   });
 
   window.addEventListener('beforeunload', ()=>{ sc.leaveRoom(roomId); yt.destroy(); });
-})();
+})().catch(e => {
+  console.error('[openjam] init error:', e);
+  const overlay = document.getElementById('loading-overlay');
+  if (overlay) {
+    const sub = document.getElementById('load-sub');
+    if (sub) sub.textContent = 'Something went wrong. Please refresh.';
+    const retry = document.getElementById('load-retry');
+    if (retry) retry.style.display = 'inline-flex';
+    const spinner = document.querySelector('.loading-spinner');
+    if (spinner) spinner.style.display = 'none';
+  }
+});
 
 </script>
 
