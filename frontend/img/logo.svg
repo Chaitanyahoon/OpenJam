@@ -1,21 +1,45 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#ffaa00"/>
-      <stop offset="100%" stop-color="#ff1744"/>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="50%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#ef4444"/>
     </linearGradient>
-    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="15" result="blur"/>
+    <linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#f59e0b"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
       <feMerge>
         <feMergeNode in="blur"/>
         <feMergeNode in="SourceGraphic"/>
       </feMerge>
     </filter>
   </defs>
-  <rect width="512" height="512" rx="120" fill="#050508"/>
-  <circle cx="256" cy="256" r="180" fill="none" stroke="url(#grad)" stroke-width="28" filter="url(#glow)"/>
-  <circle cx="256" cy="256" r="130" fill="none" stroke="rgba(255,170,0,0.4)" stroke-width="6" stroke-dasharray="24 12"/>
-  <circle cx="256" cy="256" r="100" fill="none" stroke="rgba(255,170,0,0.15)" stroke-width="2"/>
-  <circle cx="256" cy="256" r="55" fill="url(#grad)"/>
-  <path d="M242 232 L278 256 L242 280 Z" fill="#050508"/>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="112" fill="#0a0a0f"/>
+
+  <!-- Outer ring — headphone band arc -->
+  <path d="M128 280 Q128 128 256 128 Q384 128 384 280"
+        fill="none" stroke="url(#g1)" stroke-width="32" stroke-linecap="round"
+        filter="url(#glow)"/>
+
+  <!-- Left ear cup -->
+  <rect x="100" y="256" width="56" height="88" rx="20" fill="url(#g2)"/>
+
+  <!-- Right ear cup -->
+  <rect x="356" y="256" width="56" height="88" rx="20" fill="url(#g2)"/>
+
+  <!-- Sound waves from center — 3 arcs -->
+  <path d="M224 316 Q224 288 256 288 Q288 288 288 316"
+        fill="none" stroke="rgba(251,191,36,0.7)" stroke-width="6" stroke-linecap="round"/>
+  <path d="M204 332 Q204 272 256 272 Q308 272 308 332"
+        fill="none" stroke="rgba(251,191,36,0.45)" stroke-width="5" stroke-linecap="round"/>
+  <path d="M184 348 Q184 256 256 256 Q328 256 328 348"
+        fill="none" stroke="rgba(251,191,36,0.25)" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- Center dot — the "jam" accent -->
+  <circle cx="256" cy="388" r="14" fill="url(#g1)"/>
 </svg>
