@@ -1,6 +1,7 @@
 """Open Jam — Main application entry point."""
 
 import logging
+import os
 import socketio
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
@@ -24,6 +25,23 @@ from backend.sockets.queue import register_queue_handlers
 # Initialize logging
 setup_logging()
 logger = get_logger(__name__)
+
+# Sentry error tracking (free tier: 5k errors/month)
+sentry_dsn = os.getenv("SENTRY_DSN")
+if sentry_dsn:
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.starlette import StarletteIntegration
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+        sentry_sdk.init(
+            dsn=sentry_dsn,
+            integrations=[StarletteIntegration(), FastApiIntegration()],
+            traces_sample_rate=0.1,
+            environment=settings.ENVIRONMENT,
+        )
+        logger.info("Sentry initialized")
+    except ImportError:
+        logger.warning("sentry-sdk not installed, error tracking disabled")
 
 # Rate limiting
 limiter = Limiter(key_func=get_remote_address, default_limits=["120/minute"])
@@ -74,7 +92,6 @@ async def health():
     from backend.services.room_manager import room_manager
     from backend.services.room_closer import cancel_room_close
     active_rooms = room_manager.get_active_room_ids()
-    # Keepalive: cancel pending close timers for any room that still has listeners
     for room_id in active_rooms:
         if room_manager.get_listener_count(room_id) > 0:
             cancel_room_close(room_id)
@@ -93,6 +110,16 @@ async def serve_home():
 @app.get("/room/{room_id}")
 async def serve_room(room_id: str):
     return FileResponse("frontend/room.html")
+
+
+@app.get("/privacy")
+async def serve_privacy():
+    return FileResponse("frontend/privacy.html")
+
+
+@app.get("/terms")
+async def serve_terms():
+    return FileResponse("frontend/terms.html")
 
 
 

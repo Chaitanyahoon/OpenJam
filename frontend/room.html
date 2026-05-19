@@ -8,6 +8,14 @@
   <title>Room — Open Jam</title>
   <meta name="description" content="Join this listening room and discover music together.">
   <link rel="icon" href="/static/img/logo.svg" type="image/svg+xml">
+  <!-- Google Analytics 4 (replace MEASUREMENT_ID with your actual ID) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'GA_MEASUREMENT_ID');
+  </script>
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1432,5 +1440,11 @@ function showRoomHelp() {
 /* Apply initial volume slider gradient */
 (function(){ const s=document.getElementById('vol-slider'); if(s) s.style.background=`linear-gradient(to right,var(--amber) 80%,var(--bg-elevated) 80%)`; })();
 </script>
+
+<footer style="text-align:center;padding:24px;font-size:11px;color:var(--text-3);">
+  <a href="/privacy" style="color:var(--text-3);text-decoration:none;margin:0 6px;">Privacy</a>
+  <span>&middot;</span>
+  <a href="/terms" style="color:var(--text-3);text-decoration:none;margin:0 6px;">Terms</a>
+</footer>
 </body>
 </html>
