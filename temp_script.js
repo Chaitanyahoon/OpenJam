@@ -1,376 +1,16 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#050508">
-  <link rel="manifest" href="/static/manifest.json">
-  <title>Room — Open Jam</title>
-  <meta name="description" content="Join this listening room and discover music together.">
-  <link rel="icon" href="/static/img/logo.svg" type="image/svg+xml">
-  <!-- Google Tag Manager -->
-  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
   new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
   j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-  })(window,document,'script','dataLayer','GTM-537CN7FK');</script>
-  <!-- End Google Tag Manager -->
-  <!-- Google tag (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-KLSFKFJFYV"></script>
-  <script>
+  })(window,document,'script','dataLayer','GTM-537CN7FK');
+
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
 
     gtag('config', 'G-KLSFKFJFYV');
-  </script>
-  <!-- Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Righteous&display=swap" rel="stylesheet">
+  
 
-  <!-- Optimization: Preconnect to YouTube APIs -->
-  <link rel="preconnect" href="https://www.youtube.com">
-  <link rel="preconnect" href="https://www.googleapis.com">
-
-  <link rel="stylesheet" href="/static/css/style.css?v=13">
-</head>
-<body>
-  <!-- Google Tag Manager (noscript) -->
-  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-537CN7FK"
-  height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-  <!-- End Google Tag Manager (noscript) -->
-
-  <!-- Dynamic Audio-Visual Backdrop -->
-  <div class="dynamic-bg-wrapper">
-    <img id="dynamic-bg" class="dynamic-bg" src="" alt="">
-  </div>
-
-<!-- Ambient background blur -->
-<div class="room-ambient" id="room-ambient"></div>
-
-<!-- ══ LOADING OVERLAY ══════════════════════════════════════ -->
-<div class="loading-overlay" id="loading-overlay">
-  <div class="loading-content">
-    <div class="loading-anim">
-      <div class="load-vinyl">
-        <div class="load-vinyl-inner"></div>
-      </div>
-      <div class="load-eq">
-        <div class="load-eq-bar"></div>
-        <div class="load-eq-bar"></div>
-        <div class="load-eq-bar"></div>
-        <div class="load-eq-bar"></div>
-        <div class="load-eq-bar"></div>
-      </div>
-    </div>
-    <div class="loading-title" id="load-title">Setting up your room…</div>
-    <div class="loading-sub" id="load-sub">Connecting to server</div>
-    <button class="btn btn-secondary" id="load-retry" style="display:none;margin-top:20px;font-size:13px;" onclick="location.reload()">Refresh page</button>
-  </div>
-</div>
-
-<!-- Top loading bar (shows after overlay hides, while data still loading) -->
-<div class="top-load-bar" id="top-load-bar"></div>
-
-<!-- ══ NAVBAR ══════════════════════════════════════════════ -->
-<nav class="navbar">
-  <a href="/" class="navbar-brand">
-    <svg class="navbar-icon" width="24" height="24" viewBox="0 0 512 512" aria-hidden="true">
-      <defs><linearGradient id="ng" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fbbf24"/><stop offset="100%" stop-color="#f59e0b"/></linearGradient></defs>
-      <path d="M128 290 Q128 128 256 128 Q384 128 384 290" fill="none" stroke="url(#ng)" stroke-width="40" stroke-linecap="round"/>
-      <rect x="96" y="264" width="60" height="92" rx="22" fill="url(#ng)"/>
-      <rect x="356" y="264" width="60" height="92" rx="22" fill="url(#ng)"/>
-    </svg>
-    <div class="navbar-logo">Open<span>Jam</span></div>
-  </a>
-  <div class="navbar-right" id="navbar-right" style="display:none">
-    <div class="navbar-user" id="nav-user-btn" style="cursor:pointer" title="Click to change avatar">
-      <div class="avatar" id="nav-avatar">?</div>
-      <span id="nav-name"></span>
-    </div>
-  </div>
-</nav>
-
-<!-- ══ ROOM INFO BAR ═══════════════════════════════════════ -->
-<div class="room-bar" id="room-bar">
-  <div class="room-bar-left">
-    <div class="badge badge-live"><div class="badge-live-dot"></div>LIVE</div>
-    <div class="room-bar-name" id="bar-name">Loading…</div>
-    <div class="room-bar-host" id="bar-host"></div>
-    <div class="room-bar-tags" id="bar-tags" style="display:none"></div>
-    <!-- Live listener count pill -->
-    <div class="room-listeners" id="bar-listener-count">
-      <div class="room-listeners-dot"></div>
-      <span id="bar-lc-num">0</span>
-      <span style="font-size:10px;font-weight:500;opacity:0.8">listening</span>
-    </div>
-  </div>
-  <div class="room-bar-right">
-    <button class="btn btn-secondary" id="btn-invite" style="font-size:12px" aria-label="Copy room invite link" title="Copy room invite link">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle;margin-right:2px"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg> 
-      Invite
-    </button>
-    <a href="/" class="btn btn-ghost" style="font-size:12px" title="Back to all rooms">← All Rooms</a>
-    <button class="btn btn-danger" id="btn-close" style="display:none;font-size:12px" aria-label="Close this room" title="Close this room">Close Room</button>
-  </div>
-</div>
-
-<!-- ══ ROOM GRID ═══════════════════════════════════════════ -->
-<div class="room-grid" id="room-grid">
-
-  <!-- Ad Slot: Top Banner (hidden by default, enabled via JS when ads are configured) -->
-  <div class="ad-slot ad-slot-top" id="ad-top" style="display:none" aria-label="Advertisement">
-    <div class="ad-placeholder">Ad</div>
-  </div>
-
-  <!-- LEFT — Now Playing -->
-  <div class="panel-left mobile-active" id="panel-left">
-    <div class="np-top">
-      <div class="np-label" style="display:flex; justify-content:space-between; align-items:center; width:100%;">
-        <div style="display:flex; align-items:center;">
-          <div class="eq" id="np-eq" style="display:none; margin-right:8px;">
-            <div class="eq-bar"></div><div class="eq-bar"></div>
-            <div class="eq-bar"></div><div class="eq-bar"></div>
-          </div>
-          <span>Now Playing</span>
-        </div>
-        <button class="btn-toggle-lyrics" id="btn-toggle-lyrics" aria-label="Toggle lyrics display" title="Toggle lyrics display">Lyrics</button>
-      </div>
-
-      <div class="art-wrap">
-        <div class="art-vinyl" id="art-vinyl"></div>
-        <img class="art-img" id="art-img"
-          src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3C/svg%3E"
-          alt="Album art">
-        <!-- New Lyrics View Overlay -->
-        <div class="lyrics-view" id="lyrics-view" style="opacity:0; visibility:hidden;">
-           <div class="lyrics-content" id="lyrics-content"></div>
-        </div>
-        <!-- Album Art Empty Placeholder -->
-        <div class="art-placeholder" id="art-placeholder">
-          <svg width="56" height="56" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55C7.79 13 6 14.79 6 17s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
-        </div>
-      </div>
-
-      <div class="np-title" id="np-title">Nothing playing</div>
-      <div class="np-artist" id="np-artist">Add a track to the queue</div>
-
-      <div class="np-progress">
-        <div class="progress-bar" id="progress-bar" title="Click to seek" style="cursor:pointer">
-          <div class="progress-fill" id="progress" style="width:0%"></div>
-        </div>
-        <div class="np-times">
-          <span id="time-cur">0:00</span>
-          <span id="time-dur">0:00</span>
-        </div>
-      </div>
-
-      <!-- Stream loading indicator (shown while backend resolves the audio URL) -->
-      <div class="stream-loader" id="stream-loader" style="display:none">
-        <div class="stream-loader-bar"></div>
-        <div class="stream-loader-text">Buffering stream…</div>
-      </div>
-
-      <!-- HOST-ONLY controls -->
-      <div class="controls-row" id="controls-row" style="display:none">
-        <button class="icon-btn primary" id="btn-play" title="Play / Pause" aria-label="Play or pause">
-          <svg id="ico-play" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-          <svg id="ico-pause" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-        </button>
-        <button class="icon-btn" id="btn-next" title="Skip" aria-label="Skip to next track">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zm8.5-6 8.5 6V6l-8.5 6z"/></svg>
-        </button>
-      </div>
-      <!-- MEMBER info (non-host) -->
-      <div class="controls-locked" id="controls-locked">
-        <button class="btn-vote-skip" id="btn-vote-skip" aria-label="Vote to skip current track" title="Vote to skip current track">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zm8.5-6 8.5 6V6l-8.5 6z"/></svg>
-          Vote to Skip (0/0)
-        </button>
-      </div>
-    </div>
-
-    <!-- Volume (everyone) -->
-    <div class="volume-row">
-      <span class="vol-icon" id="vol-icon" aria-label="Volume control">
-        <svg id="ico-vol" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
-        <svg id="ico-mute" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3 3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4 9.91 6.09 12 8.18V4z"/></svg>
-      </span>
-      <input type="range" class="vol-slider" id="vol-slider" min="0" max="100" value="80" aria-label="Volume slider" aria-valuenow="80" title="Volume: 80%">
-      <span class="vol-pct" id="vol-pct">80%</span>
-    </div>
-
-    <!-- Hidden YouTube player -->
-    <!-- Removed hidden YouTube player: now using direct audio streaming via yt-dlp backend -->
-  </div>
-
-  <!-- Ad Slot: Between Now Playing and Queue (hidden by default) -->
-  <div class="ad-slot ad-slot-mid" id="ad-mid" style="display:none" aria-label="Advertisement">
-    <div class="ad-placeholder">Ad</div>
-  </div>
-
-  <!-- CENTER — Queue -->
-  <div class="panel-center" id="panel-center">
-    <div class="queue-header">
-      <div class="queue-header-top">
-        <div class="queue-title">Queue</div>
-        <span class="queue-count" id="q-count" title="Tracks in queue">0 tracks</span>
-      </div>
-      <div class="queue-search-wrap" id="q-search-wrap">
-        <div class="input-with-icon" style="flex:1;">
-          <span class="icon-prefix" title="Search tracks">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-          </span>
-          <input type="text" class="input-field" id="q-search" placeholder="Search for any track…" autocomplete="off" aria-describedby="q-search-hint">
-          <button type="button" class="icon-suffix clear-btn" id="q-clear" style="display:none;" title="Clear search">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-          </button>
-          <div class="search-hint" id="q-search-hint">Press Ctrl+K or / to focus search</div>
-        </div>
-        <button class="btn-import" id="btn-import" title="Bulk import tracks">Bulk Add</button>
-        <div class="search-results" id="search-results" role="listbox" aria-label="Search results" aria-live="polite" aria-atomic="true"></div>
-      </div>
-    </div>
-    <div class="queue-list" id="queue-list" aria-label="Music queue">
-      <div class="empty" id="q-empty">
-        <div class="empty-illustration">
-          <svg class="empty-icon-svg" viewBox="0 0 24 24" fill="currentColor"><path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/></svg>
-          <div class="empty-queue-icon">
-            <div class="queue-wave"></div>
-            <div class="queue-wave"></div>
-            <div class="queue-wave"></div>
-          </div>
-        </div>
-        <div class="empty-title">Queue is empty</div>
-        <div class="empty-sub">Search above to add a track</div>
-        <button class="btn btn-ghost" id="btn-queue-help" onclick="showQueueHelp()" style="margin-top:8px;font-size:12px;padding:6px 12px;">
-          How to add tracks?
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- RIGHT — Members + Chat -->
-  <div class="panel-right" id="panel-right">
-
-    <!-- Members (collapsible) -->
-    <div class="members-panel" id="members-panel">
-      <button type="button" class="members-toggle" id="m-toggle" onclick="toggleMembers()" aria-label="Toggle members list" title="Toggle members list" aria-expanded="false">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="color:var(--amber)"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-        <span class="members-toggle-title">Listening Now</span>
-        <span class="members-badge" id="m-count">0</span>
-        <span class="members-chevron">▼</span>
-      </button>
-      <div class="members-list" id="members-list" aria-label="Room members"></div>
-    </div>
-
-    <!-- Chat -->
-    <div class="chat-panel">
-      <div class="chat-header">
-        <div class="chat-header-content">
-          <span>Room Chat</span>
-          <div class="chat-status" id="chat-status">
-            <div class="chat-status-dot"></div>
-            <span id="chat-user-count">0</span> online
-          </div>
-        </div>
-      </div>
-      <div class="chat-messages" id="chat-msgs" aria-live="polite" aria-label="Chat messages">
-        <div class="empty" id="chat-empty">
-          <div class="empty-illustration">
-            <svg class="empty-icon-svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55C7.79 13 6 14.79 6 17s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
-          </div>
-          <div class="empty-title">No messages yet</div>
-          <div class="empty-sub">Say hi to the room!</div>
-          <div class="empty-chat-bubbles">
-            <div class="chat-bubble bubble-1"></div>
-            <div class="chat-bubble bubble-2"></div>
-            <div class="chat-bubble bubble-3"></div>
-          </div>
-        </div>
-      </div>
-      <div class="reactions-bar">
-        <button class="btn-react" data-emoji="❤️">❤️</button>
-        <button class="btn-react" data-emoji="🔥">🔥</button>
-        <button class="btn-react" data-emoji="🤯">🤯</button>
-        <button class="btn-react" data-emoji="🎵">🎵</button>
-        <button class="btn-react" data-emoji="🎉">🎉</button>
-      </div>
-      <div class="chat-input-wrap">
-        <div class="chat-input-column">
-          <textarea class="input-field" id="chat-input" placeholder="Say something…" maxlength="500" autocomplete="off" rows="1"></textarea>
-          <div class="chat-input-hint">Enter = send · Shift+Enter = new line</div>
-        </div>
-        <button type="button" class="chat-send-btn" id="btn-send" disabled aria-label="Send message" title="Send message">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-        </button>
-      </div>
-    </div>
-  </div>
-
-</div><!-- /room-grid -->
-
-<!-- ══ MOBILE VOLUME BAR ═══════════════════════════════════ -->
-<!-- Only visible on mobile (≤640px via CSS) -->
-<div class="mobile-vol-wrap" id="mobile-vol-wrap">
-  <span class="vol-icon" id="mob-vol-icon" aria-label="Volume control">
-    <svg id="mob-ico-vol" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
-    <svg id="mob-ico-mute" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3 3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4 9.91 6.09 12 8.18V4z"/></svg>
-  </span>
-  <input type="range" class="vol-slider" id="mob-vol-slider" min="0" max="100" value="80" aria-label="Volume slider" aria-valuenow="80" title="Volume: 80%">
-  <span class="vol-pct" id="mob-vol-pct">80%</span>
-</div>
-
-<!-- ══ MOBILE BOTTOM TABS ══════════════════════════════════ -->
-<!-- Only visible on mobile (≤640px via CSS) -->
-<nav class="mobile-bottom-tabs" id="mob-tabs" aria-label="Room navigation">
-  <button class="mob-tab active" id="mob-tab-nowplaying" onclick="switchMobileTab('nowplaying')" aria-label="Now Playing">
-    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55C7.79 13 6 14.79 6 17s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
-    <span class="mob-tab-label">Playing</span>
-  </button>
-  <button class="mob-tab" id="mob-tab-queue" onclick="switchMobileTab('queue')" aria-label="Queue">
-    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h16v2H4v-2z"/></svg>
-    <span class="mob-tab-label">Queue</span>
-  </button>
-  <button class="mob-tab" id="mob-tab-chat" onclick="switchMobileTab('chat')" aria-label="Chat">
-    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
-    <span class="mob-tab-badge" id="mob-chat-badge" style="display:none">0</span>
-    <span class="mob-tab-label">Chat</span>
-  </button>
-  <button class="mob-tab" id="mob-tab-members" onclick="switchMobileTab('members')" aria-label="Members">
-    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-    <span class="mob-tab-label">People</span>
-  </button>
-</nav>
-
-<!-- Close Room Modal -->
-<div class="modal-bg" id="close-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); z-index: 1000; align-items: center; justify-content: center;">
-  <div class="modal-box" style="background: var(--bg-1); border: 1px solid var(--border); border-radius: 16px; padding: 24px; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-    <div class="modal-title" style="font-size: 20px; font-weight: 700; margin-bottom: 8px;">Close Room?</div>
-    <p style="color: var(--text-2); margin-bottom: 24px; font-size: 14px;">
-      This will permanently close the room for everyone currently inside. Are you sure?
-    </p>
-    <div class="modal-actions" style="display: flex; gap: 12px; justify-content: center;">
-      <button class="btn btn-secondary" id="btn-close-cancel" aria-label="Cancel closing room">Cancel</button>
-      <button class="btn" id="btn-close-confirm" style="background: #e11d48; color: #fff;" aria-label="Confirm close room">Close Room</button>
-    </div>
-  </div>
-</div>
-
-<!-- Toast stack -->
-<div class="toast-stack" id="toasts" aria-live="assertive" aria-label="Notifications"></div>
-
-
-<!-- Removed YouTube iframe API: all playback is handled via direct audio streaming -->
-<script async src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js" onerror="window._ioFail=true"></script>
-<script async src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-<script src="/static/js/utils.js"></script>
-<script src="/static/js/motion.js"></script>
-<script src="/static/js/youtube-player.js"></script>
-<script src="/static/js/socket-client.js"></script>
-<script src="/static/js/lyrics.js"></script>
-<script>
 /* ── Tiny helpers (aliases for utils.js + room-specific) ── */
 const esc = typeof escapeHtml !== 'undefined' ? escapeHtml : (s => { const d=document.createElement('div');d.textContent=String(s||'');return d.innerHTML; });
 const fmt = typeof formatTime !== 'undefined' ? formatTime : (ms => { if(!ms||ms<0)return'0:00'; const s=Math.floor(ms/1000); return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; });
@@ -479,8 +119,8 @@ function showRoomHelp() {
   }
 }
 
-</script>
-<script>
+
+
 /* ── Room Controller ──────────────────────────────────────── */
 (async () => {
   const roomId = (location.pathname.match(/\/room\/([^/]+)/) || [])[1];
@@ -1545,64 +1185,52 @@ function showRoomHelp() {
       setTimeout(() => overlay.remove(), 400);
       sessionStorage.setItem('room_loaded', '1');
     }
-    // Also remove the top loading bar
-    const bar = document.getElementById('top-load-bar');
-    if (bar) bar.classList.remove('active');
   }
 
-  function updateLoadStatus(msg) {
-    const sub = document.getElementById('load-sub');
-    if (sub && sub.offsetParent !== null) sub.textContent = msg;
-  }
-
-  // Progressive loading status messages (for cold-start scenarios)
+  // Progressive loading status messages
   (function showLoadProgress() {
+    const sub = document.getElementById('load-sub');
     const retryBtn = document.getElementById('load-retry');
+    if (!sub) return;
     const messages = [
-      [3,     'Waking up the server…'],
-      [8,     'Server is starting — hang tight'],
-      [15,    'Still connecting — free tier can take a moment'],
-      [25,    'Almost there…'],
-      [35,    'This is taking longer than usual'],
+      [0,     'Connecting to server'],
+      [5,     'Contacting database'],
+      [10,    'Server is waking up…'],
+      [15,    'Still connecting — this can take a moment'],
+      [20,    'One more moment please'],
     ];
     messages.forEach(([delay, msg]) => {
-      setTimeout(() => updateLoadStatus(msg), delay * 1000);
+      setTimeout(() => { if (sub && sub.offsetParent !== null) sub.textContent = msg; }, delay * 1000);
     });
-    // Show retry button after 40s
+    // Show retry button after 25s
     setTimeout(() => {
       const ol = document.getElementById('loading-overlay');
       if (retryBtn && ol && ol.offsetParent !== null) {
         retryBtn.style.display = 'inline-flex';
       }
-    }, 40000);
+    }, 25000);
   })();
 
   /* ─── Init ───────────────────────────────────────────── */
 
-  // Run auth + room load, then hide the overlay when BOTH complete.
-  updateLoadStatus('Connecting to server');
-  
-  async function initRoom() {
-    updateLoadStatus('Authenticating…');
-    await checkAuth();
-    
-    updateLoadStatus('Loading room data…');
-    await loadRoom();
+  // Fire auth + room load in parallel, but don't block the overlay
+  let _roomLoaded = false;
+  checkAuth();
+  loadRoom().then(() => {
     checkQueuePermissions();
-    
-    // Both done — hide overlay
-    hideLoadingOverlay();
-  }
-  
-  initRoom().catch(e => {
-    console.error('[openjam] init failed:', e);
-    // Don't hide overlay on error — show error state instead
-    updateLoadStatus('Something went wrong. Please refresh.');
-    const retry = document.getElementById('load-retry');
-    if (retry) retry.style.display = 'inline-flex';
-    const spinner = document.querySelector('.loading-spinner');
-    if (spinner) spinner.style.display = 'none';
+    _roomLoaded = true;
+    const bar = document.getElementById('top-load-bar');
+    if (bar) bar.classList.remove('active');
   });
+
+  // Hide overlay after 3s and show thin top bar until data arrives
+  setTimeout(() => {
+    hideLoadingOverlay();
+    if (!_roomLoaded) {
+      const bar = document.getElementById('top-load-bar');
+      if (bar) bar.classList.add('active');
+    }
+  }, 3000);
 
   // Wait for socket.io async CDN to load, then connect
   (function connectWhenReady() {
@@ -1761,19 +1389,7 @@ function showRoomHelp() {
   }
 });
 
-</script>
 
-<script>
+
 /* Apply initial volume slider gradient */
 (function(){ const s=document.getElementById('vol-slider'); if(s) s.style.background=`linear-gradient(to right,var(--amber) 80%,var(--bg-elevated) 80%)`; })();
-</script>
-
-<footer style="text-align:center;padding:24px;font-size:11px;color:var(--text-3);">
-  <a href="/privacy" style="color:var(--text-3);text-decoration:none;margin:0 6px;">Privacy</a>
-  <span>&middot;</span>
-  <a href="/terms" style="color:var(--text-3);text-decoration:none;margin:0 6px;">Terms</a>
-</footer>
-</body>
-</html>
-
-
