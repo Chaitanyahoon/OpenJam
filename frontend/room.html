@@ -53,8 +53,9 @@
 <div class="loading-overlay" id="loading-overlay">
   <div class="loading-content">
     <div class="loading-spinner"><div></div><div></div><div></div></div>
-    <div class="loading-title">Setting up the room for everyone…</div>
-    <div class="loading-sub">This usually takes 20–30 seconds only on first load.</div>
+    <div class="loading-title" id="load-title">Setting up your room…</div>
+    <div class="loading-sub" id="load-sub">Connecting to server</div>
+    <button class="btn btn-secondary" id="load-retry" style="display:none;margin-top:20px;font-size:13px;" onclick="location.reload()">Refresh page</button>
   </div>
 </div>
 
@@ -1426,10 +1427,33 @@ function showRoomHelp() {
     if(overlay) {
       overlay.classList.add('fade-out');
       setTimeout(() => overlay.remove(), 400);
-      // Mark session so it never shows again
       sessionStorage.setItem('room_loaded', '1');
     }
   }
+
+  // Progressive loading status messages
+  (function showLoadProgress() {
+    const sub = document.getElementById('load-sub');
+    const retryBtn = document.getElementById('load-retry');
+    if (!sub) return;
+    const messages = [
+      [0,     'Connecting to server'],
+      [5,     'Contacting database'],
+      [10,    'Server is waking up…'],
+      [15,    'Still connecting — this can take a moment'],
+      [20,    'One more moment please'],
+    ];
+    messages.forEach(([delay, msg]) => {
+      setTimeout(() => { if (sub && sub.offsetParent !== null) sub.textContent = msg; }, delay * 1000);
+    });
+    // Show retry button after 25s
+    setTimeout(() => {
+      const ol = document.getElementById('loading-overlay');
+      if (retryBtn && ol && ol.offsetParent !== null) {
+        retryBtn.style.display = 'inline-flex';
+      }
+    }, 25000);
+  })();
 
   /* ─── Init ───────────────────────────────────────────── */
 

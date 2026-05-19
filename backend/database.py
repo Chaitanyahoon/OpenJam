@@ -14,11 +14,17 @@ if is_sqlite:
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
 
-engine = create_engine(
-    settings.DATABASE_URL,
-    connect_args={"check_same_thread": False} if is_sqlite else {},
-    echo=False,
-)
+engine_kwargs = {"echo": False}
+if is_sqlite:
+    engine_kwargs["connect_args"] = {"check_same_thread": False}
+else:
+    # PostgreSQL connection pooling — keeps connections warm, avoids cold-start
+    engine_kwargs["pool_size"] = 5
+    engine_kwargs["max_overflow"] = 10
+    engine_kwargs["pool_pre_ping"] = True       # verify connection before use
+    engine_kwargs["pool_recycle"] = 300          # recycle every 5 min
+
+engine = create_engine(settings.DATABASE_URL, **engine_kwargs)
 
 
 if is_sqlite:
