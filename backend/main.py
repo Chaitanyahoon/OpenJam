@@ -87,6 +87,11 @@ async def startup():
     logger.info("Open Jam startup complete")
 
 
+@app.get("/ping")
+async def ping():
+    """Lightweight health check — no DB, no room manager. For uptime monitors."""
+    return Response(status_code=200, content="pong")
+
 @app.get("/health")
 async def health():
     from backend.services.room_manager import room_manager
