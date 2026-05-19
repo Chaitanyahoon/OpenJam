@@ -18,11 +18,15 @@ engine_kwargs = {"echo": False}
 if is_sqlite:
     engine_kwargs["connect_args"] = {"check_same_thread": False}
 else:
-    # PostgreSQL — Supabase free tier allows max 2 simultaneous connections
+    # PostgreSQL — Supabase free tier allows max 2 simultaneous connections.
+    # With PgBouncer (port 6543) in transaction mode, 2 connections handle many users.
     engine_kwargs["pool_size"] = 1          # Keep only 1 connection in pool
     engine_kwargs["max_overflow"] = 1       # Allow 1 extra during bursts (total ≤ 2)
     engine_kwargs["pool_pre_ping"] = True   # Verify connection before use
     engine_kwargs["pool_recycle"] = 120     # Recycle every 2 min to stay fresh
+    engine_kwargs["connect_args"] = {
+        "connect_timeout": 10,              # Fail fast if DB is unreachable
+    }
 
 engine = create_engine(settings.DATABASE_URL, **engine_kwargs)
 

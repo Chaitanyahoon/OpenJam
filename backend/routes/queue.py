@@ -132,30 +132,36 @@ def _get_ydl():
 
 
 async def _resolve_audio_url(video_id: str) -> str | None:
-    """Try Invidious first, fallback to yt-dlp. Result is cached in _url_cache."""
-    # Check cache first
+    """Race Invidious vs yt-dlp — use whichever resolves first. Cached in _url_cache."""
     if video_id in _url_cache:
         url, expiry = _url_cache[video_id]
         if time.time() < expiry:
             return url
         del _url_cache[video_id]
 
-    url = None
-    # Try Invidious (async, fast)
-    try:
-        url = await get_invidious_stream_url(video_id)
-    except Exception as e:
-        logger.warning(f"Invidious failed for {video_id}: {e}")
+    async def _try_invidious() -> str | None:
+        try:
+            return await get_invidious_stream_url(video_id)
+        except Exception as e:
+            logger.warning(f"Invidious failed for {video_id}: {e}")
+            return None
 
-    # Fallback to yt-dlp (sync, needs thread)
-    if not url:
+    async def _try_ytdlp() -> str | None:
         try:
             ydl = _get_ydl()
             info = await asyncio.to_thread(ydl.extract_info, f"https://www.youtube.com/watch?v={video_id}", False)
-            url = info["url"]
+            return info["url"]
         except Exception as e:
-            logger.error(f"yt-dlp also failed for {video_id}: {e}")
+            logger.error(f"yt-dlp failed for {video_id}: {e}")
             return None
+
+    # Run both in parallel, take the first success
+    url = None
+    for coro in asyncio.as_completed([_try_invidious(), _try_ytdlp()]):
+        result = await coro
+        if result:
+            url = result
+            break
 
     if url:
         _url_cache[video_id] = (url, time.time() + _URL_CACHE_TTL)
