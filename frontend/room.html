@@ -1579,29 +1579,28 @@ function showRoomHelp() {
 
   /* ─── Init ───────────────────────────────────────────── */
 
-  // Run auth + room load, then hide the overlay when BOTH complete.
-  updateLoadStatus('Connecting to server');
+  // Fire auth + room load IN PARALLEL — cuts cold-start wait in half.
+  updateLoadStatus('Connecting to server…');
   
   async function initRoom() {
-    updateLoadStatus('Authenticating…');
-    await checkAuth();
+    // Both requests go out simultaneously
+    const [authResult] = await Promise.all([
+      checkAuth().then(() => { updateLoadStatus('Loading room…'); }),
+      loadRoom()
+    ]);
     
-    updateLoadStatus('Loading room data…');
-    await loadRoom();
+    // Both done — now apply host UI (needs `me` from checkAuth)
     checkQueuePermissions();
-    
-    // Both done — hide overlay
     hideLoadingOverlay();
   }
   
   initRoom().catch(e => {
     console.error('[openjam] init failed:', e);
-    // Don't hide overlay on error — show error state instead
     updateLoadStatus('Something went wrong. Please refresh.');
     const retry = document.getElementById('load-retry');
     if (retry) retry.style.display = 'inline-flex';
-    const spinner = document.querySelector('.loading-spinner');
-    if (spinner) spinner.style.display = 'none';
+    const anim = document.querySelector('.loading-anim');
+    if (anim) anim.style.display = 'none';
   });
 
   // Wait for socket.io async CDN to load, then connect
