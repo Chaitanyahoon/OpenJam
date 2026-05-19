@@ -39,8 +39,8 @@ INV_INSTANCES = [
 
 # Instance health tracking
 _instance_health: dict[str, dict] = {}
-_health_check_lock = asyncio.Lock()
 _last_health_check = 0.0
+_health_check_lock = asyncio.Lock()  # Guards health check interval
 HEALTH_CHECK_INTERVAL = 300  # 5 minutes between health checks
 
 
@@ -54,10 +54,11 @@ def _get_instance_health(instance: str) -> dict:
 async def _health_check_instances():
     """Lightweight health check: ping instances and measure response time."""
     global _last_health_check
-    now = time.time()
-    if now - _last_health_check < HEALTH_CHECK_INTERVAL:
-        return
-    _last_health_check = now
+    async with _health_check_lock:
+        now = time.time()
+        if now - _last_health_check < HEALTH_CHECK_INTERVAL:
+            return
+        _last_health_check = now
 
     logger.info("Running Invidious instance health check...")
 
