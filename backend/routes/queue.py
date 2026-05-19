@@ -165,7 +165,7 @@ async def _resolve_audio_url(video_id: str) -> str | None:
     async def _try_ytdlp() -> str | None:
         try:
             proc = await asyncio.create_subprocess_exec(
-                "yt-dlp", "-f", "bestaudio", "-g",
+                "yt-dlp", "-f", "251/140/bestaudio", "-g",
                 f"https://www.youtube.com/watch?v={video_id}",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.DEVNULL,

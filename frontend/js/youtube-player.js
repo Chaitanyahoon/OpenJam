@@ -308,6 +308,7 @@ class YouTubePlayer {
       this.player.src = `/stream/${videoId}`;
       this.player.currentTime = startSeconds;
       this.player.play().catch(e => {
+        if (e.name === 'AbortError') return; // Ignore rapid play/pause aborts
         console.error('Autoplay prevented:', e);
         if (!this._userUnlocked) {
           this._pendingPlayAfterUnlock = { videoId, startSeconds };
