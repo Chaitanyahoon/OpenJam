@@ -3,6 +3,7 @@
 import logging
 import os
 import time
+from contextlib import asynccontextmanager
 import socketio
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
@@ -82,13 +83,18 @@ socket_app = socketio.ASGIApp(sio, other_asgi_app=app, socketio_path="/socket.io
 app.mount("/static", StaticFiles(directory="frontend"), name="static")
 
 
-@app.on_event("startup")
-async def startup():
+@asynccontextmanager
+async def lifespan(app):
+    """Application startup/shutdown lifecycle."""
     logger.info("Starting Open Jam application...")
     init_db()
     logger.info(f"CORS allowed origins: {settings.ALLOWED_ORIGINS}")
     logger.info("Database initialized successfully")
     logger.info("Open Jam startup complete")
+    yield
+    logger.info("Open Jam shutting down")
+
+app.router.lifespan_context = lifespan
 
 
 @app.get("/ping")

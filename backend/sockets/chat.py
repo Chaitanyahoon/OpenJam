@@ -35,8 +35,36 @@ def _db_save_message(room_id: str, user_id: str, display_name: str, avatar_url, 
         db.close()
 
 
-# Per-user reaction rate limiting
+# Per-user reaction rate limiting (auto-pruned)
 _last_reaction_time: dict[str, float] = {}
+_reaction_prune_counter = 0
+
+def _prune_reaction_times():
+    """Remove stale entries to prevent memory leak."""
+    global _reaction_prune_counter
+    _reaction_prune_counter += 1
+    if _reaction_prune_counter < 100:  # Prune every 100 reactions
+        return
+    _reaction_prune_counter = 0
+    now = time.time()
+    stale = [k for k, v in _last_reaction_time.items() if now - v > 5.0]
+    for k in stale:
+        del _last_reaction_time[k]
+
+# Per-user chat rate limiting
+_last_chat_time: dict[str, float] = {}
+_chat_prune_counter = 0
+
+def _prune_chat_times():
+    global _chat_prune_counter
+    _chat_prune_counter += 1
+    if _chat_prune_counter < 50:
+        return
+    _chat_prune_counter = 0
+    now = time.time()
+    stale = [k for k, v in _last_chat_time.items() if now - v > 5.0]
+    for k in stale:
+        del _last_chat_time[k]
 
 
 def register_chat_handlers(sio: socketio.AsyncServer):
@@ -60,6 +88,14 @@ def register_chat_handlers(sio: socketio.AsyncServer):
             room_id = info["room_id"]
 
         user_id = session.get("user_id") or f"guest_{sid}"
+
+        # Server-side rate limit: 1 chat message per 500ms per user
+        now = time.time()
+        if user_id in _last_chat_time and now - _last_chat_time[user_id] < 0.5:
+            return
+        _last_chat_time[user_id] = now
+        _prune_chat_times()
+
         display_name = session.get("display_name") or data.get("display_name") or "Jammer"
         avatar_url = session.get("avatar_url")
 
@@ -103,6 +139,7 @@ def register_chat_handlers(sio: socketio.AsyncServer):
         if user_id in _last_reaction_time and now - _last_reaction_time[user_id] < 0.5:
             return
         _last_reaction_time[user_id] = now
+        _prune_reaction_times()
 
         # Broadcast the reaction to the room
         await sio.emit("reaction", {

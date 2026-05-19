@@ -1,5 +1,6 @@
 """Authentication routes — anonymous join flow (no OAuth required)."""
 
+import re
 import uuid
 import logging
 from fastapi import APIRouter, Request
@@ -10,6 +11,15 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+_HTML_TAG_RE = re.compile(r'<[^>]+>')
+
+def _sanitize_name(name: str) -> str:
+    """Strip HTML tags and excessive whitespace from display names."""
+    name = _HTML_TAG_RE.sub('', name).strip()
+    # Collapse multiple spaces
+    name = re.sub(r'\s+', ' ', name)
+    return name
+
 
 @router.post("/join")
 async def join(request: Request):
@@ -19,7 +29,7 @@ async def join(request: Request):
     except Exception:
         body = {}
 
-    display_name = (body.get("display_name") or "").strip()
+    display_name = _sanitize_name(body.get("display_name") or "")
     if not display_name:
         display_name = f"Jammer-{uuid.uuid4().hex[:4].upper()}"
     if len(display_name) > 30:
@@ -32,11 +42,14 @@ async def join(request: Request):
     response = JSONResponse(content={
         "user": {"id": user_id, "display_name": display_name, "avatar_url": None}
     })
+    from backend.config import settings
+    is_prod = settings.ENVIRONMENT == "production"
     response.set_cookie(
         key="session_token",
         value=token,
         httponly=True,
         samesite="lax",
+        secure=is_prod,
         max_age=86400 * 7,
     )
     logger.info(f"Anonymous session created: '{display_name}' ({user_id})")

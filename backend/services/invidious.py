@@ -92,10 +92,14 @@ async def _health_check_instances():
 
 
 def _get_sorted_instances() -> list[str]:
-    """Return instances sorted by health score (best first), with some randomization."""
+    """Return instances sorted by health score (best first), with some randomization.
+    Instances with 10+ consecutive failures are skipped until the next health check."""
     instances = []
     for url in INV_INSTANCES:
         health = _get_instance_health(url)
+        # Skip instances that have failed too many times consecutively
+        if health.get("failures", 0) >= 10:
+            continue
         # Add small random factor to avoid thundering herd on single instance
         jitter = random.uniform(-5, 5)
         score = health.get("score", 100) + jitter

@@ -29,7 +29,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Righteous&display=swap" rel="stylesheet">
   <link rel="preconnect" href="https://www.youtube.com">
   <link rel="preconnect" href="https://www.googleapis.com">
-  <link rel="stylesheet" href="/static/css/style.css?v=10">
+  <link rel="stylesheet" href="/static/css/style.css?v=12">
 </head>
 <body>
   <!-- Google Tag Manager (noscript) -->
@@ -105,6 +105,10 @@
       </div>
     </div>
     
+    <div class="genre-filters" id="genre-filters" style="display:none">
+      <!-- Dynamically populated genre filter chips -->
+    </div>
+
     <div class="rooms-grid" id="rooms-grid">
       <!-- Cards rendered here via JS -->
     </div>
@@ -295,8 +299,44 @@
           if(!r.ok) return;
           const data = await r.json();
           rooms = data.rooms || [];
-          renderRooms(rooms);
+          renderGenreFilters(rooms);
+          let filtered = rooms;
+          const q = $('#search-input').value.toLowerCase();
+          if (q) filtered = filtered.filter(r => r.name.toLowerCase().includes(q) || (r.genre_tags||[]).some(t=>t.toLowerCase().includes(q)));
+          if (_activeGenreFilter) filtered = filtered.filter(r => (r.genre_tags||[]).includes(_activeGenreFilter));
+          renderRooms(filtered);
         } catch(e){ console.error(e); }
+      }
+
+      let _activeGenreFilter = null;
+
+      function renderGenreFilters(roomList) {
+        const allTags = new Set();
+        roomList.forEach(r => (r.genre_tags || []).forEach(t => allTags.add(t)));
+        const container = $('#genre-filters');
+        if (allTags.size === 0) { container.style.display = 'none'; return; }
+        container.style.display = 'flex';
+        container.innerHTML = Array.from(allTags).sort().map(tag =>
+          `<button class="genre-chip${_activeGenreFilter === tag ? ' active' : ''}" data-genre="${esc(tag)}">${esc(tag)}</button>`
+        ).join('');
+        container.querySelectorAll('.genre-chip').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const genre = btn.dataset.genre;
+            if (_activeGenreFilter === genre) {
+              _activeGenreFilter = null;
+              btn.classList.remove('active');
+            } else {
+              _activeGenreFilter = genre;
+              container.querySelectorAll('.genre-chip').forEach(b => b.classList.remove('active'));
+              btn.classList.add('active');
+            }
+            const q = $('#search-input').value.toLowerCase();
+            let filtered = rooms;
+            if (q) filtered = filtered.filter(r => r.name.toLowerCase().includes(q) || (r.genre_tags||[]).some(t=>t.toLowerCase().includes(q)));
+            if (_activeGenreFilter) filtered = filtered.filter(r => (r.genre_tags||[]).includes(_activeGenreFilter));
+            renderRooms(filtered);
+          });
+        });
       }
 
       function renderRooms(list){
@@ -346,7 +386,9 @@
       // Search filter
       $('#search-input').addEventListener('input', e=>{
         const q = e.target.value.toLowerCase();
-        renderRooms(rooms.filter(r => r.name.toLowerCase().includes(q) || (r.genre_tags||[]).some(t=>t.toLowerCase().includes(q))));
+        let filtered = rooms.filter(r => r.name.toLowerCase().includes(q) || (r.genre_tags||[]).some(t=>t.toLowerCase().includes(q)));
+        if (_activeGenreFilter) filtered = filtered.filter(r => (r.genre_tags||[]).includes(_activeGenreFilter));
+        renderRooms(filtered);
       });
 
       // 4. Create Room Modal
@@ -406,7 +448,16 @@
       Motion.entrance('.hero-sub', 'fade-up', 0.2);
       Motion.entrance('.search-wrap', 'fade-up', 0.3);
 
-      setInterval(loadRooms, 5000); // 5s = near real-time listener counts
+      // Refresh rooms periodically — only when tab is visible
+      let _roomPollId = setInterval(loadRooms, 15000);
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+          clearInterval(_roomPollId);
+        } else {
+          loadRooms(); // Immediate refresh on tab focus
+          _roomPollId = setInterval(loadRooms, 15000);
+        }
+      });
     })();
   </script>
 

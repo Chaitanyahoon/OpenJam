@@ -133,4 +133,12 @@ async def close_room(room_id: str, request: Request, db: Session = Depends(get_d
         raise HTTPException(status_code=403, detail="Only the host can close the room")
     room.is_active = False
     db.commit()
+
+    # Force-clean in-memory room state to prevent orphaned sync loops and stale data
+    from backend.sockets.playback import stop_sync_loop
+    from backend.services.room_closer import cancel_room_close
+    stop_sync_loop(room_id)
+    cancel_room_close(room_id)
+    room_manager.force_close_room(room_id)
+
     return {"message": "Room closed"}

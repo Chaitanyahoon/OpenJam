@@ -9,9 +9,16 @@ class RoomManager:
     def __init__(self):
         self._rooms: dict = {}
         self._sid_map: dict = {}
+        self._recently_left: dict = {}  # { "user_id": timestamp }
 
     def join_room(self, room_id: str, user_id: str, sid: str, display_name: str, avatar_url: str = None, is_premium: bool = False) -> tuple:
         """Join a room. Returns (error_or_none, was_new_user_bool)."""
+        import time
+        now = time.time()
+        
+        # Prune old recently_left entries (older than 30s)
+        self._recently_left = {u: ts for u, ts in self._recently_left.items() if now - ts < 30.0}
+
         if room_id not in self._rooms:
             self._rooms[room_id] = {
                 "users": {},
@@ -29,17 +36,20 @@ class RoomManager:
                 },
             }
 
-        was_new = user_id not in self._rooms[room_id]["users"]
+        is_in_room = user_id in self._rooms[room_id]["users"]
+        is_recently_left = user_id in self._recently_left
+        was_new = not is_in_room and not is_recently_left
+
+        # Clear them from recently left since they are joining now
+        if is_recently_left:
+            del self._recently_left[user_id]
 
         limit = FREE_ROOM_LIMIT if not is_premium else 999
-        if not was_new and len(self._rooms[room_id]["users"]) >= limit:
-            return None, False
-
-        if was_new and len(self._rooms[room_id]["users"]) >= limit:
+        if not is_in_room and len(self._rooms[room_id]["users"]) >= limit:
             return f"Room is full ({limit} listeners max). Try again later.", False
 
         # Remove old sid mapping for this user if they were already in the room
-        if not was_new:
+        if not is_in_room:
             old_info = self._sid_map.get(sid)
             if old_info and old_info["room_id"] != room_id:
                 self._leave_room_internal(old_info)
@@ -66,11 +76,16 @@ class RoomManager:
                 del self._rooms[room_id]
 
     def leave_room(self, sid: str) -> dict | None:
+        import time
         info = self._sid_map.pop(sid, None)
         if not info:
             return None
         room_id = info["room_id"]
         user_id = info["user_id"]
+        
+        # Mark as recently left to prevent duplicate join messages on quick reconnect
+        self._recently_left[user_id] = time.time()
+        
         if room_id in self._rooms:
             self._rooms[room_id]["users"].pop(user_id, None)
             if not self._rooms[room_id]["users"]:
@@ -180,5 +195,18 @@ class RoomManager:
                     self._rooms[room_id]["users"][user_id]["display_name"] = new_name
                 if avatar_url:
                     self._rooms[room_id]["users"][user_id]["avatar_url"] = avatar_url
+
+    def force_close_room(self, room_id: str):
+        """Force-remove a room and all its users from in-memory state.
+        Used when host deletes room via REST API."""
+        room = self._rooms.pop(room_id, None)
+        if room:
+            # Clean up all sid mappings for users in this room
+            sids_to_remove = [
+                sid for sid, info in self._sid_map.items()
+                if info["room_id"] == room_id
+            ]
+            for sid in sids_to_remove:
+                del self._sid_map[sid]
 
 room_manager = RoomManager()

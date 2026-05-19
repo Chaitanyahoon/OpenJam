@@ -1,6 +1,7 @@
 """Socket.IO connection and room join/leave handlers."""
 
 import asyncio
+import re
 import socketio
 from backend.database import SessionLocal
 from backend.logger import get_logger
@@ -64,7 +65,8 @@ def register_connection_handlers(sio: socketio.AsyncServer):
             import uuid
             user_id = str(uuid.uuid4())
             if auth and isinstance(auth, dict):
-                display_name = (auth.get("guest_name") or "").strip() or None
+                raw_name = (auth.get("guest_name") or "").strip()
+                display_name = re.sub(r'<[^>]+>', '', raw_name).strip() or None
             if not display_name:
                 import secrets
                 display_name = f"Jammer-{secrets.token_hex(2).upper()}"

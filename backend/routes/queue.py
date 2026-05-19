@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import re
 import time
 
 from fastapi import APIRouter, Request, Depends, HTTPException
@@ -110,29 +111,44 @@ async def get_recommendations():
 # ── Stream URL cache & pre-resolution ──────────────────────────────
 # YouTube CDN URLs expire after ~6 hours. Cache for 5 hours to be safe.
 _URL_CACHE_TTL = 5 * 3600
+_URL_CACHE_MAX = 500  # Max entries to prevent unbounded growth
 _url_cache: dict[str, tuple[str, float]] = {}
 _resolving: set[str] = set()  # Track in-flight resolutions to avoid duplicates
 
-# Reusable yt-dlp instance (expensive to create)
-_ydl = None
+# Reusable httpx client for stream proxying (connection pooling)
+_stream_client: httpx.AsyncClient | None = None
 
-def _get_ydl():
-    global _ydl
-    if _ydl is None:
-        _ydl = yt_dlp.YoutubeDL({
-            "format": "bestaudio/best",
-            "quiet": True,
-            "no_warnings": True,
-            "extract_flat": False,
-            "noplaylist": True,
-            "skip_download": True,
-            "socket_timeout": 10,
-        })
-    return _ydl
+def _get_stream_client() -> httpx.AsyncClient:
+    global _stream_client
+    if _stream_client is None or _stream_client.is_closed:
+        _stream_client = httpx.AsyncClient(follow_redirects=True, timeout=60.0)
+    return _stream_client
+
+# Regex for valid YouTube video IDs
+_VIDEO_ID_RE = re.compile(r'^[a-zA-Z0-9_-]{11}$')
+
+def _is_valid_video_id(video_id: str) -> bool:
+    return bool(_VIDEO_ID_RE.match(video_id))
+
+def _prune_url_cache():
+    """Remove expired entries and cap cache size."""
+    now = time.time()
+    expired = [k for k, (_, exp) in _url_cache.items() if now >= exp]
+    for k in expired:
+        del _url_cache[k]
+    # If still over limit, remove oldest entries
+    if len(_url_cache) > _URL_CACHE_MAX:
+        by_expiry = sorted(_url_cache.items(), key=lambda x: x[1][1])
+        for k, _ in by_expiry[:len(_url_cache) - _URL_CACHE_MAX]:
+            del _url_cache[k]
 
 
 async def _resolve_audio_url(video_id: str) -> str | None:
     """Race Invidious vs yt-dlp — use whichever resolves first. Cached in _url_cache."""
+    if not _is_valid_video_id(video_id):
+        logger.warning(f"Invalid video_id rejected: {video_id!r}")
+        return None
+
     if video_id in _url_cache:
         url, expiry = _url_cache[video_id]
         if time.time() < expiry:
@@ -170,6 +186,7 @@ async def _resolve_audio_url(video_id: str) -> str | None:
             break
 
     if url:
+        _prune_url_cache()
         _url_cache[video_id] = (url, time.time() + _URL_CACHE_TTL)
     return url
 
@@ -195,6 +212,9 @@ async def pre_resolve_url(video_id: str):
 
 @router.get("/stream/{video_id}")
 async def stream_audio(video_id: str, request: Request):
+    if not _is_valid_video_id(video_id):
+        raise HTTPException(status_code=400, detail="Invalid video ID")
+
     url = await _resolve_audio_url(video_id)
     if not url:
         raise HTTPException(status_code=404, detail="Could not extract stream")
@@ -204,7 +224,7 @@ async def stream_audio(video_id: str, request: Request):
     if range_header:
         headers["Range"] = range_header
 
-    client = httpx.AsyncClient(follow_redirects=True, timeout=60.0)
+    client = _get_stream_client()
     try:
         req = client.build_request("GET", url, headers=headers)
         r = await client.send(req, stream=True)
@@ -228,12 +248,9 @@ async def stream_audio(video_id: str, request: Request):
                     yield chunk
             finally:
                 await r.aclose()
-                await client.aclose()
 
         return StreamingResponse(generate(), status_code=206 if r.status_code == 206 else 200, headers=resp_headers)
     except HTTPException:
-        await client.aclose()
         raise
     except Exception:
-        await client.aclose()
         raise HTTPException(status_code=502, detail="Upstream connection failed")

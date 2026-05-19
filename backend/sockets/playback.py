@@ -35,6 +35,13 @@ async def _playback_sync_loop(room_id: str, sio: socketio.AsyncServer):
     while True:
         await asyncio.sleep(2)
 
+        # Stop loop if room is empty or no longer exists
+        if room_manager.get_listener_count(room_id) == 0:
+            from backend.logger import get_logger
+            get_logger(__name__).info(f"Sync loop stopping: room {room_id} has 0 listeners")
+            stop_sync_loop(room_id)
+            return
+
         playback = room_manager.get_playback(room_id)
         if not playback or not playback.get("track_uri"):
             continue

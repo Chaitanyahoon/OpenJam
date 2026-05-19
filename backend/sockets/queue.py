@@ -166,3 +166,48 @@ def register_queue_handlers(sio: socketio.AsyncServer):
             return
 
         await sio.emit("queue_updated", {"queue": queue}, room=room_id)
+
+    @sio.event
+    async def remove_from_queue(sid, data):
+        """Host-only: remove a pending track from the queue."""
+        session = await sio.get_session(sid)
+        if not session:
+            return
+
+        info = room_manager.get_user_by_sid(sid)
+        if not info:
+            return
+        room_id = info["room_id"]
+
+        # Only host can remove tracks
+        if not room_manager.is_host(room_id, sid):
+            await sio.emit("queue_error", {"message": "Only the host can remove tracks"}, to=sid)
+            return
+
+        queue_item_id = data.get("queue_item_id")
+        if not queue_item_id:
+            return
+
+        def _db_remove(room_id, queue_item_id):
+            from backend.models.queue_item import QueueItem
+            db = SessionLocal()
+            try:
+                item = db.query(QueueItem).filter(
+                    QueueItem.id == queue_item_id,
+                    QueueItem.room_id == room_id,
+                    QueueItem.status == "pending",
+                ).first()
+                if item:
+                    db.delete(item)
+                    db.commit()
+                return queue_manager.get_queue(db, room_id, None)
+            finally:
+                db.close()
+
+        try:
+            queue = await asyncio.to_thread(_db_remove, room_id, queue_item_id)
+        except Exception as e:
+            logger.error(f"remove_from_queue error: {e}")
+            return
+
+        await sio.emit("queue_updated", {"queue": queue}, room=room_id)
