@@ -107,7 +107,7 @@ def register_queue_handlers(sio: socketio.AsyncServer):
             track_uri = next_item.get("track_uri", "")
             if track_uri and len(track_uri) == 11:
                 from backend.routes.queue import pre_resolve_url
-                await pre_resolve_url(track_uri)
+                asyncio.create_task(pre_resolve_url(track_uri))
             room_manager.update_playback(
                 room_id=room_id,
                 track_uri=next_item["track_uri"],
