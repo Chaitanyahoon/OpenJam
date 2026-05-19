@@ -18,11 +18,11 @@ engine_kwargs = {"echo": False}
 if is_sqlite:
     engine_kwargs["connect_args"] = {"check_same_thread": False}
 else:
-    # PostgreSQL connection pooling — keeps connections warm, avoids cold-start
-    engine_kwargs["pool_size"] = 5
-    engine_kwargs["max_overflow"] = 10
-    engine_kwargs["pool_pre_ping"] = True       # verify connection before use
-    engine_kwargs["pool_recycle"] = 300          # recycle every 5 min
+    # PostgreSQL — Supabase free tier allows max 2 simultaneous connections
+    engine_kwargs["pool_size"] = 1          # Keep only 1 connection in pool
+    engine_kwargs["max_overflow"] = 1       # Allow 1 extra during bursts (total ≤ 2)
+    engine_kwargs["pool_pre_ping"] = True   # Verify connection before use
+    engine_kwargs["pool_recycle"] = 120     # Recycle every 2 min to stay fresh
 
 engine = create_engine(settings.DATABASE_URL, **engine_kwargs)
 
