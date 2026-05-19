@@ -358,6 +358,19 @@
   </div>
 </div>
 
+<!-- Bulk Import Modal -->
+<div class="modal-bg" id="modal-import" style="position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); z-index: 1000; display: none; align-items: center; justify-content: center;">
+  <div class="modal-box" style="background: var(--bg-1); border: 1px solid var(--border); border-radius: 16px; padding: 24px; max-width: 480px; width: 90%; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+    <div class="modal-title" style="font-size: 18px; font-weight: 700; margin-bottom: 4px;">Bulk Add Tracks</div>
+    <p style="color: var(--text-3); font-size: 13px; margin-bottom: 16px;">One track per line — song name, artist, or paste YouTube URLs.</p>
+    <textarea class="input-field" id="import-text" rows="8" placeholder="e.g.&#10;Blinding Lights - The Weeknd&#10;Bohemian Rhapsody&#10;https://youtube.com/watch?v=..." style="resize:vertical; font-size:13px; width:100%; box-sizing:border-box;"></textarea>
+    <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 16px;">
+      <button class="btn btn-secondary" onclick="$('#modal-import').classList.remove('open'); $('#modal-import').style.display='none';">Cancel</button>
+      <button class="btn btn-primary" id="btn-do-import">Import Tracks</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast stack -->
 <div class="toast-stack" id="toasts" aria-live="assertive" aria-label="Notifications"></div>
 
@@ -938,7 +951,10 @@ function showRoomHelp() {
   };
 
   // Bulk Import Logic
-  $('#btn-import')?.addEventListener('click', () => $('#modal-import').classList.add('open'));
+  $('#btn-import')?.addEventListener('click', () => {
+    const m = $('#modal-import');
+    if (m) { m.style.display = 'flex'; m.classList.add('open'); }
+  });
   $('#btn-do-import')?.addEventListener('click', async () => {
     // Explicitly unlock audio context on gesture
     if (typeof yt !== 'undefined' && yt.unlockAudioContext) {
@@ -949,7 +965,8 @@ function showRoomHelp() {
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
     if(lines.length === 0) return;
     
-    $('#modal-import').classList.remove('open');
+    const importModal = $('#modal-import');
+    if (importModal) { importModal.classList.remove('open'); importModal.style.display = 'none'; }
     $('#import-text').value = '';
     toast(`Importing ${lines.length} tracks...`, 'info');
     
