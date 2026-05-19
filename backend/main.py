@@ -2,6 +2,7 @@
 
 import logging
 import os
+import time
 import socketio
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
@@ -25,6 +26,9 @@ from backend.sockets.queue import register_queue_handlers
 # Initialize logging
 setup_logging()
 logger = get_logger(__name__)
+
+# Track when the app started (to detect cold starts)
+_start_time = time.time()
 
 # Sentry error tracking (free tier: 5k errors/month)
 sentry_dsn = os.getenv("SENTRY_DSN")
@@ -90,7 +94,12 @@ async def startup():
 @app.get("/ping")
 async def ping():
     """Lightweight health check — no DB, no room manager. For uptime monitors."""
-    return Response(status_code=200, content="pong")
+    uptime = int(time.time() - _start_time)
+    return JSONResponse({
+        "status": "pong",
+        "uptime_seconds": uptime,
+        "cold_start": uptime < 30,
+    })
 
 @app.get("/health")
 async def health():
