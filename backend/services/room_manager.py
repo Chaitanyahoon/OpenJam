@@ -2,15 +2,16 @@
 
 from datetime import datetime, timezone
 
+FREE_ROOM_LIMIT = 10
+
 
 class RoomManager:
     def __init__(self):
-        # {room_id: {users: {user_id: {sid, display_name, avatar_url}}, host_sid: str, playback: {...}}}
         self._rooms: dict = {}
-        # {sid: {user_id, room_id}}
         self._sid_map: dict = {}
 
-    def join_room(self, room_id: str, user_id: str, sid: str, display_name: str, avatar_url: str = None):
+    def join_room(self, room_id: str, user_id: str, sid: str, display_name: str, avatar_url: str = None, is_premium: bool = False) -> str | None:
+        """Join a room. Returns error message if capacity reached, None on success."""
         if room_id not in self._rooms:
             self._rooms[room_id] = {
                 "users": {},
@@ -27,12 +28,18 @@ class RoomManager:
                     "skip_voters": set(),
                 },
             }
+
+        limit = FREE_ROOM_LIMIT if not is_premium else 999
+        if len(self._rooms[room_id]["users"]) >= limit and user_id not in self._rooms[room_id]["users"]:
+            return f"Room is full ({limit} listeners max). Try again later."
+
         self._rooms[room_id]["users"][user_id] = {
             "sid": sid,
             "display_name": display_name,
             "avatar_url": avatar_url,
         }
         self._sid_map[sid] = {"user_id": user_id, "room_id": room_id}
+        return None
 
     def leave_room(self, sid: str) -> dict | None:
         info = self._sid_map.pop(sid, None)

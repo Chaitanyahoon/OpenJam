@@ -1,28 +1,31 @@
 /* ========================================
-   OPEN JAM — Audio Player
-   Full-length playback via Native HTML5 Audio
-   ======================================== */
+    OPEN JAM — Audio Player
+    Primary: Native HTML5 Audio via yt-dlp stream
+    Fallback: YouTube IFrame API (when stream fails)
+    ======================================== */
 
 class YouTubePlayer {
   constructor() {
     this.player = new Audio();
+    this.ytPlayer = null;
     this.currentVideoId = null;
     this.positionMs = 0;
     this.durationMs = 0;
     this.isPlaying = false;
     this.progressInterval = null;
     this.onProgressUpdate = null;
-    this._ready = true; // Native audio is always ready to receive commands
-    this._pendingLoad = null;     // { videoId, startSeconds } to load once ready
+    this._ready = true;
+    this._pendingLoad = null;
     this._suppressStateChange = false;
-    this._onPlaybackControl = null; // callback(action, data) for socket emit
-    // Autoplay unlock: browsers block audio without a user gesture
+    this._onPlaybackControl = null;
     this._userUnlocked = false;
-    this._pendingPlayAfterUnlock = null; // { videoId, startSeconds } to play after click
-    
+    this._pendingPlayAfterUnlock = null;
+    this._useIFrame = false;
+    this._streamFailCount = 0;
+    this._maxStreamFails = 2;
+
     this._initAudio();
-    
-    // Global interaction listener to aggressively unlock audio context
+
     const unlockHandler = () => {
       this.unlockAudioContext();
       document.removeEventListener('click', unlockHandler);
@@ -36,15 +39,106 @@ class YouTubePlayer {
     this.player.addEventListener('play', () => this._onStateChange('play'));
     this.player.addEventListener('pause', () => this._onStateChange('pause'));
     this.player.addEventListener('ended', () => this._onStateChange('ended'));
-    this.player.addEventListener('error', (e) => console.error('Audio playback error:', e));
-
-    // Removed legacy YT.Player compatibility methods. All playback uses direct audio streaming.
+    this.player.addEventListener('error', () => {
+      this._streamFailCount++;
+      if (this._streamFailCount >= this._maxStreamFails && !this._useIFrame) {
+        console.warn('Stream failed multiple times, switching to YouTube IFrame fallback');
+        this._useIFrame = true;
+        this._initIFramePlayer();
+        if (this.currentVideoId) {
+          this._loadVideo(this.currentVideoId, Math.round(this.positionMs / 1000));
+        }
+      }
+    });
   }
 
-  /**
-   * Called by the room page once the user has clicked the "Tap to Listen" overlay.
-   * Unlocks the audio context and immediately starts any pending playback.
-   */
+  _initIFramePlayer() {
+    if (this.ytPlayer) return;
+
+    let container = document.getElementById('yt-fallback-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'yt-fallback-container';
+      container.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;';
+      document.body.appendChild(container);
+    }
+
+    if (window.YT && window.YT.Player) {
+      this._createYTPlayer(container);
+      return;
+    }
+
+    const tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(tag);
+    window.onYouTubeIframeAPIReady = () => this._createYTPlayer(container);
+  }
+
+  _createYTPlayer(container) {
+    this.ytPlayer = new YT.Player(container, {
+      height: '1',
+      width: '1',
+      playerVars: {
+        autoplay: 0, controls: 0, disablekb: 1, fs: 0,
+        modestbranding: 1, rel: 0, iv_load_policy: 3, playsinline: 1,
+      },
+      events: {
+        onReady: () => { this._ready = true; this._processPending(); },
+        onStateChange: (e) => {
+          const map = {
+            [YT.PlayerState.PLAYING]: 'play',
+            [YT.PlayerState.PAUSED]: 'pause',
+            [YT.PlayerState.ENDED]: 'ended',
+          };
+          if (map[e.data]) this._onStateChange(map[e.data]);
+        },
+        onError: (e) => console.error('YouTube IFrame error:', e.data),
+      },
+    });
+  }
+
+  _processPending() {
+    if (this._pendingLoad) {
+      const { videoId, startSeconds } = this._pendingLoad;
+      this._pendingLoad = null;
+      this._loadVideo(videoId, startSeconds);
+    }
+  }
+
+  _onStateChange(state) {
+    if (this._suppressStateChange) return;
+
+    if (state === 'play') {
+      this.isPlaying = true;
+      this._userUnlocked = true;
+      this._hideOverlay();
+      this.startProgressTimer();
+      this._emitControlEvent('play');
+    } else if (state === 'pause') {
+      this.isPlaying = false;
+      this.stopProgressTimer();
+      const pos = this._useIFrame
+        ? Math.round(this.ytPlayer.getCurrentTime() * 1000)
+        : Math.round(this.player.currentTime * 1000);
+      this._emitControlEvent('pause', { position_ms: pos });
+    } else if (state === 'ended') {
+      this.isPlaying = false;
+      this.stopProgressTimer();
+      this._emitControlEvent('ended');
+    }
+    this.updateDisplay();
+  }
+
+  _emitControlEvent(action, extra = {}) {
+    if (this._onPlaybackControl) {
+      this._onPlaybackControl(action, { ...extra });
+    }
+  }
+
+  setControlCallback(fn) {
+    this._onPlaybackControl = fn;
+  }
+
   unlockAudio() {
     this._userUnlocked = true;
     this._hideOverlay();
@@ -54,26 +148,24 @@ class YouTubePlayer {
       this._pendingPlayAfterUnlock = null;
       this._loadVideo(videoId, startSeconds);
     } else if (this.currentVideoId && this.isPlaying) {
-      this.player.play().catch(e => console.error('Play blocked:', e));
+      if (this._useIFrame) this.ytPlayer.playVideo();
+      else this.player.play().catch(() => {});
       this.startProgressTimer();
     }
   }
 
-  /**
-   * Called to explicitly unlock the audio context on any user gesture
-   * to ensure playback isn't blocked.
-   */
   unlockAudioContext() {
     if (this._userUnlocked) return;
     this._userUnlocked = true;
     this._hideOverlay();
-    
+
     if (this._pendingPlayAfterUnlock) {
       const { videoId, startSeconds } = this._pendingPlayAfterUnlock;
       this._pendingPlayAfterUnlock = null;
       this._loadVideo(videoId, startSeconds);
     } else if (this.currentVideoId && this.isPlaying) {
-      this.player.play().catch(e => console.error('Play blocked:', e));
+      if (this._useIFrame) this.ytPlayer.playVideo();
+      else this.player.play().catch(() => {});
       this.startProgressTimer();
     }
   }
@@ -127,68 +219,38 @@ class YouTubePlayer {
     }
   }
 
-  _onStateChange(state) {
-    if (this._suppressStateChange) return;
-
-    if (state === 'play') {
-      this.isPlaying = true;
-      this._userUnlocked = true;
-      this._hideOverlay();
-      this.startProgressTimer();
-      this._emitControlEvent('play');
-    } else if (state === 'pause') {
-      this.isPlaying = false;
-      this.stopProgressTimer();
-      const pos = Math.round(this.player.currentTime * 1000);
-      this._emitControlEvent('pause', { position_ms: pos });
-    } else if (state === 'ended') {
-      this.isPlaying = false;
-      this.stopProgressTimer();
-      this._emitControlEvent('ended');
-    }
-    this.updateDisplay();
-  }
-
-  _emitControlEvent(action, extra = {}) {
-    if (this._onPlaybackControl) {
-      this._onPlaybackControl(action, { ...extra });
-    }
-  }
-
-  /** Called by room.js to wire up socket emissions on local user interaction. */
-  setControlCallback(fn) {
-    this._onPlaybackControl = fn;
-  }
-
   _loadVideo(videoId, startSeconds = 0) {
     if (!this._userUnlocked) {
-      // Show overlay and queue the load for after unlock
       this._pendingPlayAfterUnlock = { videoId, startSeconds };
       this._showOverlay();
       return;
     }
 
     this._suppressStateChange = true;
-    this.player.src = `/stream/${videoId}`;
-    this.player.currentTime = startSeconds;
-    this.player.play().catch(e => {
-      console.error('Autoplay prevented:', e);
-      this._pendingPlayAfterUnlock = { videoId, startSeconds };
-      this._showOverlay();
-    });
+    this.currentVideoId = videoId;
+
+    if (this._useIFrame && this.ytPlayer) {
+      this.ytPlayer.loadVideoById({ videoId, startSeconds });
+    } else {
+      this.player.src = `/stream/${videoId}`;
+      this.player.currentTime = startSeconds;
+      this.player.play().catch(e => {
+        console.error('Autoplay prevented:', e);
+        this._pendingPlayAfterUnlock = { videoId, startSeconds };
+        this._showOverlay();
+      });
+    }
     setTimeout(() => { this._suppressStateChange = false; }, 1000);
   }
 
-  /** Called when a new track starts (from socket track_changed or initial load). */
   setTrack(trackData) {
-    const videoId = trackData.track_uri;  // track_uri is now a YouTube video ID
+    const videoId = trackData.track_uri;
     const startSeconds = Math.round((trackData.position_ms || 0) / 1000);
     this.positionMs = trackData.position_ms || 0;
     this.durationMs = trackData.duration_ms || 0;
     this.isPlaying = trackData.is_playing !== false;
 
     if (videoId && videoId !== this.currentVideoId) {
-      this.currentVideoId = videoId;
       this._loadVideo(videoId, startSeconds);
     }
 
@@ -200,37 +262,42 @@ class YouTubePlayer {
     this.updateDisplay();
   }
 
-  /** Called on every playback_sync socket event. */
   syncPosition(positionMs, isPlaying) {
     this.isPlaying = isPlaying;
     this.positionMs = positionMs;
 
     if (!this._userUnlocked) {
-      // Show overlay if there is something actually playing
       if (isPlaying && this.currentVideoId) this._showOverlay();
       this.updateDisplay();
       return;
     }
 
-    const actualMs = Math.round((this.player.currentTime || 0) * 1000);
-    const drift = Math.abs(actualMs - positionMs);
-
-    this._suppressStateChange = true;
-    if (drift > 3000) {
-      this.player.currentTime = positionMs / 1000;
-    }
-    if (isPlaying) {
-      this.player.play().catch(e => {
-        console.error('Autoplay prevented on sync:', e);
-        this._pendingPlayAfterUnlock = { videoId: this.currentVideoId, startSeconds: positionMs / 1000 };
-        this._showOverlay();
-      });
-      this.startProgressTimer();
+    if (this._useIFrame && this.ytPlayer) {
+      const actualMs = Math.round((this.ytPlayer.getCurrentTime() || 0) * 1000);
+      const drift = Math.abs(actualMs - positionMs);
+      this._suppressStateChange = true;
+      if (drift > 3000) this.ytPlayer.seekTo(positionMs / 1000, true);
+      if (isPlaying) { this.ytPlayer.playVideo(); this.startProgressTimer(); }
+      else { this.ytPlayer.pauseVideo(); this.stopProgressTimer(); }
+      setTimeout(() => { this._suppressStateChange = false; }, 500);
     } else {
-      this.player.pause();
-      this.stopProgressTimer();
+      const actualMs = Math.round((this.player.currentTime || 0) * 1000);
+      const drift = Math.abs(actualMs - positionMs);
+      this._suppressStateChange = true;
+      if (drift > 3000) this.player.currentTime = positionMs / 1000;
+      if (isPlaying) {
+        this.player.play().catch(e => {
+          console.error('Autoplay prevented on sync:', e);
+          this._pendingPlayAfterUnlock = { videoId: this.currentVideoId, startSeconds: positionMs / 1000 };
+          this._showOverlay();
+        });
+        this.startProgressTimer();
+      } else {
+        this.player.pause();
+        this.stopProgressTimer();
+      }
+      setTimeout(() => { this._suppressStateChange = false; }, 500);
     }
-    setTimeout(() => { this._suppressStateChange = false; }, 500);
 
     this.updateDisplay();
   }
@@ -238,7 +305,9 @@ class YouTubePlayer {
   startProgressTimer() {
     this.stopProgressTimer();
     this.progressInterval = setInterval(() => {
-      const actualMs = Math.round(this.player.currentTime * 1000);
+      const actualMs = this._useIFrame && this.ytPlayer
+        ? Math.round(this.ytPlayer.getCurrentTime() * 1000)
+        : Math.round(this.player.currentTime * 1000);
       if (actualMs > 0) this.positionMs = actualMs;
       this.updateDisplay();
     }, 1000);
@@ -254,18 +323,14 @@ class YouTubePlayer {
   updateDisplay() {
     const fillA = document.getElementById('progress-fill');
     const fillB = document.getElementById('progress');
-    const elapsedA = document.getElementById('time-elapsed');
     const elapsedB = document.getElementById('time-cur');
-    const totalA = document.getElementById('time-total');
     const totalB = document.getElementById('time-dur');
 
     const pct = this.durationMs > 0 ? (this.positionMs / this.durationMs) * 100 : 0;
     if (fillA) fillA.style.width = `${Math.min(pct, 100)}%`;
     if (fillB) fillB.style.width = `${Math.min(pct, 100)}%`;
 
-    if (elapsedA) elapsedA.textContent = formatTime(this.positionMs);
     if (elapsedB) elapsedB.textContent = formatTime(this.positionMs);
-    if (totalA) totalA.textContent = formatTime(this.durationMs);
     if (totalB) totalB.textContent = formatTime(this.durationMs);
     if (this.onProgressUpdate) {
       this.onProgressUpdate(this.positionMs, this.durationMs, this.isPlaying);
@@ -275,9 +340,13 @@ class YouTubePlayer {
   destroy() {
     this.stopProgressTimer();
     this._hideOverlay();
-    this.player.pause();
-    this.player.src = '';
+    if (this._useIFrame && this.ytPlayer) {
+      this.ytPlayer.pauseVideo();
+      this.ytPlayer.destroy();
+      this.ytPlayer = null;
+    } else {
+      this.player.pause();
+      this.player.src = '';
+    }
   }
-
-  // Removed legacy YT.Player compatibility methods. All playback uses direct audio streaming.
 }

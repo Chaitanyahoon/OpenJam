@@ -10,9 +10,8 @@ class SocketClient {
   }
 
   connect() {
-    if (this.socket) return; // already created
+    if (this.socket) return;
 
-    // Enable verbose client-side logging when URL contains ?debug=1
     try { this._debug = new URLSearchParams(location.search).has('debug'); } catch (e) { this._debug = false; }
 
     const token = this._getCookie('session_token');
@@ -21,7 +20,6 @@ class SocketClient {
     this.socket = io({
       path: '/socket.io',
       auth: { token: token || '', guest_name: guestName },
-      // Force WebSocket first — polling causes 20-25s event delivery delay
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,
@@ -39,7 +37,6 @@ class SocketClient {
     this.socket.on('disconnect', () => {});
     this.socket.on('connect_error', () => {});
 
-    // Wire all events to handler map
     const events = [
       'user_joined', 'user_left',
       'chat_message', 'chat_history',
@@ -48,6 +45,7 @@ class SocketClient {
       'listener_count', 'room_closed',
       'name_updated', 'skip_votes_updated',
       'reaction', 'user_typing', 'user_stop_typing',
+      'join_error', 'heartbeat_ack',
     ];
     events.forEach(event => {
       this.socket.on(event, (data) => {
@@ -57,6 +55,11 @@ class SocketClient {
         }
       });
     });
+
+    // Heartbeat: ping server every 25s to keep connection alive
+    this._heartbeatInterval = setInterval(() => {
+      if (this._ready()) this.socket.emit('heartbeat');
+    }, 25000);
   }
 
   /** Register a handler BEFORE calling connect(). */
@@ -130,6 +133,7 @@ class SocketClient {
   }
 
   disconnect() {
+    if (this._heartbeatInterval) clearInterval(this._heartbeatInterval);
     if (this.socket) {
       this.socket.disconnect();
       this.socket = null;

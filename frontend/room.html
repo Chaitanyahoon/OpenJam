@@ -69,6 +69,11 @@
 <!-- ══ ROOM GRID ═══════════════════════════════════════════ -->
 <div class="room-grid" id="room-grid">
 
+  <!-- Ad Slot: Top Banner (hidden by default, enabled via JS when ads are configured) -->
+  <div class="ad-slot ad-slot-top" id="ad-top" style="display:none" aria-label="Advertisement">
+    <div class="ad-placeholder">Ad</div>
+  </div>
+
   <!-- LEFT — Now Playing -->
   <div class="panel-left" id="panel-left">
     <div class="np-top">
@@ -142,6 +147,11 @@
 
     <!-- Hidden YouTube player -->
     <!-- Removed hidden YouTube player: now using direct audio streaming via yt-dlp backend -->
+  </div>
+
+  <!-- Ad Slot: Between Now Playing and Queue (hidden by default) -->
+  <div class="ad-slot ad-slot-mid" id="ad-mid" style="display:none" aria-label="Advertisement">
+    <div class="ad-placeholder">Ad</div>
   </div>
 
   <!-- CENTER — Queue -->

@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime
+from sqlalchemy import Column, String, DateTime, Boolean
 from backend.database import Base
 
 
@@ -12,6 +12,8 @@ class User(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     display_name = Column(String, nullable=False)
     avatar_url = Column(String, nullable=True)
+    is_premium = Column(Boolean, default=False, nullable=False)
+    stripe_customer_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     def to_dict(self):
@@ -19,5 +21,6 @@ class User(Base):
             "id": self.id,
             "display_name": self.display_name,
             "avatar_url": self.avatar_url,
+            "is_premium": self.is_premium,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }

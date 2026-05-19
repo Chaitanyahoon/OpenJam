@@ -109,7 +109,7 @@ def register_connection_handlers(sio: socketio.AsyncServer):
         user_id = session.get("user_id")
         display_name = session.get("display_name", "Jammer")
         avatar_url = data.get("avatar_url") or session.get("avatar_url")
-        
+
         if data.get("avatar_url"):
             session["avatar_url"] = data.get("avatar_url")
             await sio.save_session(sid, session)
@@ -119,8 +119,23 @@ def register_connection_handlers(sio: socketio.AsyncServer):
             room_manager.leave_room(sid)
             await sio.leave_room(sid, old_info["room_id"])
 
-        room_manager.join_room(room_id, user_id, sid, display_name, avatar_url)
-        
+        # Check premium status for capacity limit
+        is_premium = False
+        def _get_user_premium(user_id):
+            db = SessionLocal()
+            try:
+                from backend.models.user import User
+                user = db.query(User).filter(User.id == user_id).first()
+                return user.is_premium if user else False
+            finally:
+                db.close()
+        is_premium = await asyncio.to_thread(_get_user_premium, user_id)
+
+        error = room_manager.join_room(room_id, user_id, sid, display_name, avatar_url, is_premium=is_premium)
+        if error:
+            await sio.emit("join_error", {"message": error}, to=sid)
+            return
+
         # Check if this user is the room host and set host_sid
         def _check_host(room_id, user_id):
             db = SessionLocal()
@@ -131,9 +146,9 @@ def register_connection_handlers(sio: socketio.AsyncServer):
                     room_manager.set_host(room_id, sid)
             finally:
                 db.close()
-        
+
         await asyncio.to_thread(_check_host, room_id, user_id)
-        
+
         await sio.enter_room(sid, room_id)
         cancel_room_close(room_id)
 
@@ -236,3 +251,8 @@ def register_connection_handlers(sio: socketio.AsyncServer):
             "display_name": session["display_name"],
             "avatar_url": session["avatar_url"]
         }, to=sid)
+
+    @sio.event
+    async def heartbeat(sid):
+        """Client heartbeat — confirms connection is alive."""
+        await sio.emit("heartbeat_ack", {"ts": int(asyncio.get_event_loop().time() * 1000)}, to=sid)
