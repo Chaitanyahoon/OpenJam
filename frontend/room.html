@@ -1436,6 +1436,30 @@ function showRoomHelp() {
   // Hide loading overlay once room is ready
   hideLoadingOverlay();
 
+  // Mobile swipe gestures between tabs (≤640px)
+  if (window.innerWidth <= 640) {
+    let _touchStartX = 0;
+    let _touchStartY = 0;
+    const _tabOrder = ['nowplaying', 'chat', 'members'];
+    const grid = $('#room-grid');
+    if (grid) {
+      grid.addEventListener('touchstart', (e) => {
+        _touchStartX = e.changedTouches[0].screenX;
+        _touchStartY = e.changedTouches[0].screenY;
+      }, { passive: true });
+      grid.addEventListener('touchend', (e) => {
+        const dx = e.changedTouches[0].screenX - _touchStartX;
+        const dy = e.changedTouches[0].screenY - _touchStartY;
+        if (Math.abs(dx) < 50 || Math.abs(dy) > Math.abs(dx) * 1.5) return;
+        const current = _tabOrder.findIndex(t => $(`#mob-tab-${t}`)?.classList.contains('active'));
+        if (current === -1) return;
+        const dir = dx > 0 ? -1 : 1; // swipe right→prev, swipe left→next
+        const next = (current + dir + _tabOrder.length) % _tabOrder.length;
+        switchMobileTab(_tabOrder[next]);
+      }, { passive: true });
+    }
+  }
+
   // Lightweight debug panel (shows when ?debug=1 is present)
   (function createDebugPanel(){
     try{
