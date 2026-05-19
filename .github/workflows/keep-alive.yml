@@ -1,0 +1,15 @@
+name: Keep Render Alive
+
+on:
+  schedule:
+    # Every 14 minutes (Render sleeps after 15min of inactivity)
+    - cron: '*/14 * * * *'
+  workflow_dispatch: # Manual trigger
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping server
+        run: |
+          curl -sf https://openjam.onrender.com/ping || echo "Server may be starting up"
