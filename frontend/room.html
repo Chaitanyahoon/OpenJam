@@ -1203,9 +1203,15 @@ function showRoomHelp() {
   /* ─── Host Controls ──────────────────────────────────── */
   $('#btn-play')?.addEventListener('click', ()=>{
     if(!isHost) return;
-    // Use actual player state for instant feedback
-    const isActuallyPlaying = yt.player && !yt.player.paused;
-    if(yt._ready && yt.player){ isActuallyPlaying ? yt.player.pause() : yt.player.play().catch(()=>{}); }
+    let isActuallyPlaying;
+    if(yt._useIFrame && yt.ytPlayer){
+      const state = yt.ytPlayer.getPlayerState();
+      isActuallyPlaying = state === YT.PlayerState.PLAYING;
+      isActuallyPlaying ? yt.ytPlayer.pauseVideo() : yt.ytPlayer.playVideo();
+    } else {
+      isActuallyPlaying = yt.player && !yt.player.paused;
+      if(yt._ready && yt.player){ isActuallyPlaying ? yt.player.pause() : yt.player.play().catch(()=>{}); }
+    }
     setPlayIcon(!isActuallyPlaying);
     sc.emit('playback_update', {
       room_id:roomId,

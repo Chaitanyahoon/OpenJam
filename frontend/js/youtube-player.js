@@ -229,14 +229,18 @@ class YouTubePlayer {
     this._suppressStateChange = true;
     this.currentVideoId = videoId;
 
-    if (this._useIFrame && this.ytPlayer) {
-      this.ytPlayer.loadVideoById({ videoId, startSeconds });
+    if (this._useIFrame) {
+      if (this.ytPlayer && this._ready) {
+        this.ytPlayer.loadVideoById({ videoId, startSeconds });
+      } else {
+        this._pendingLoad = { videoId, startSeconds };
+        if (!this.ytPlayer) this._initIFramePlayer();
+      }
     } else {
       this.player.src = `/stream/${videoId}`;
       this.player.currentTime = startSeconds;
       this.player.play().catch(e => {
         console.error('Autoplay prevented:', e);
-        // Only show overlay if user hasn't unlocked yet
         if (!this._userUnlocked) {
           this._pendingPlayAfterUnlock = { videoId, startSeconds };
           this._showOverlay();
