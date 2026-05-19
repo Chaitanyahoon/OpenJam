@@ -74,7 +74,7 @@
 </nav>
 
 <!-- ══ ROOM INFO BAR ═══════════════════════════════════════ -->
-<div class="room-bar" id="room-bar" style="display:none">
+<div class="room-bar" id="room-bar">
   <div class="room-bar-left">
     <div class="badge badge-live"><div class="badge-live-dot"></div>LIVE</div>
     <div class="room-bar-name" id="bar-name">Loading…</div>
@@ -1457,14 +1457,14 @@ function showRoomHelp() {
 
   /* ─── Init ───────────────────────────────────────────── */
 
-  await checkAuth();
-  await loadRoom();
-  checkQueuePermissions();
+  // Fire auth + room load in parallel, but don't block the overlay
+  checkAuth();
+  loadRoom().then(checkQueuePermissions);
   sc.connect();
   sc.joinRoom(roomId);
 
-  // Hide loading overlay once room is ready
-  hideLoadingOverlay();
+  // Hide overlay after 3s regardless — data populates as it loads
+  setTimeout(hideLoadingOverlay, 3000);
 
   // Mobile swipe gestures between tabs (≤640px)
   if (window.innerWidth <= 640) {
