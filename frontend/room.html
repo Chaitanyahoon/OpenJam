@@ -706,18 +706,6 @@ function showRoomHelp() {
       Motion.transitionArt(artImg);
       if(dynBg){ dynBg.src = track.album_art_url; dynBg.classList.add('active'); }
       if(ambient){ ambient.style.backgroundImage=`url(${track.album_art_url})`; ambient.classList.add('active'); }
-      
-      // Feature 1: Ambient Mode Dynamic Colors
-      if (track.track_uri) {
-        let hash = 0;
-        for (let i = 0; i < track.track_uri.length; i++) hash = track.track_uri.charCodeAt(i) + ((hash << 5) - hash);
-        const hue = Math.abs(hash) % 360;
-        const root = document.documentElement;
-        root.style.setProperty('--amber', `hsl(${hue}, 100%, 55%)`);
-        root.style.setProperty('--amber-dim', `hsl(${hue}, 100%, 40%)`);
-        root.style.setProperty('--amber-glow', `hsla(${hue}, 100%, 60%, 0.25)`);
-        root.style.setProperty('--amber-muted', `hsla(${hue}, 100%, 60%, 0.12)`);
-      }
     }
   }
 
@@ -755,10 +743,6 @@ function showRoomHelp() {
       artImg.classList.remove('spinning'); vinyl.classList.remove('spinning');
       if(eq) eq.style.display='none';
       if(ambient) ambient.classList.remove('active');
-      document.documentElement.style.removeProperty('--amber');
-      document.documentElement.style.removeProperty('--amber-dim');
-      document.documentElement.style.removeProperty('--amber-glow');
-      document.documentElement.style.removeProperty('--amber-muted');
       const ph = $('#art-placeholder'); if(ph) ph.classList.remove('hidden');
       setPlayIcon(false);
       clearInterval(progressInterval);

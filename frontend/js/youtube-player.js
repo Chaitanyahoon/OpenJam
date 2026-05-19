@@ -173,7 +173,6 @@ class YouTubePlayer {
     this.player.currentTime = startSeconds;
     this.player.play().catch(e => {
       console.error('Autoplay prevented:', e);
-      this._userUnlocked = false;
       this._pendingPlayAfterUnlock = { videoId, startSeconds };
       this._showOverlay();
     });
@@ -223,7 +222,7 @@ class YouTubePlayer {
     if (isPlaying) {
       this.player.play().catch(e => {
         console.error('Autoplay prevented on sync:', e);
-        this._userUnlocked = false;
+        this._pendingPlayAfterUnlock = { videoId: this.currentVideoId, startSeconds: positionMs / 1000 };
         this._showOverlay();
       });
       this.startProgressTimer();
