@@ -334,6 +334,11 @@ input[type=range]::-moz-range-track {
 .eq-bar {
   width: 3px; background: var(--amber); border-radius: 2px;
   animation: eq 0.8s ease-in-out infinite alternate;
+  animation-play-state: paused;
+}
+.eq.playing .eq-bar,
+.eq.active .eq-bar {
+  animation-play-state: running;
 }
 .eq-bar:nth-child(1) { height: 5px; animation-delay: 0s; }
 .eq-bar:nth-child(2) { height: 12px; animation-delay: 0.12s; }
@@ -992,23 +997,37 @@ input[type=range]::-moz-range-track {
 /* Album art — vinyl disc style */
 .art-wrap {
   position: relative; width: 100%; aspect-ratio: 1;
-  margin-bottom: 20px; flex-shrink: 0;
+  margin-bottom: 24px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.player-glow {
+  position: absolute;
+  top: 10%; left: 10%; width: 80%; height: 80%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.3) 0%, rgba(245, 158, 11, 0) 70%);
+  filter: blur(48px); -webkit-filter: blur(48px);
+  z-index: 0; pointer-events: none;
+  opacity: 0; transition: opacity 0.5s ease, width 0.5s ease, height 0.5s ease, top 0.5s ease, left 0.5s ease;
+}
+.vinyl-record-wrap {
+  width: 100%; height: 100%;
+  position: relative; z-index: 1;
+  border-radius: 50%;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  transition: box-shadow 0.4s ease;
 }
 .art-vinyl {
   position: absolute; inset: -16px;
   border-radius: 50%;
   background: repeating-radial-gradient(circle, #111 0, #111 1px, #1a1917 1px, #1a1917 4px);
-  animation: spin 16s linear infinite;
-  animation-play-state: paused;
+  z-index: 0;
 }
-.art-vinyl.spinning { animation-play-state: running; }
 .art-img {
   width: 100%; height: 100%; border-radius: 50%; object-fit: cover;
   background: var(--bg-card); position: relative; z-index: 1;
-  box-shadow: 0 0 0 6px var(--bg-base), var(--shadow-lg), 0 0 0 1px rgba(255,255,255,0.1) inset;
-  transition: box-shadow var(--t-slow), transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 0 0 6px var(--bg-base), 0 0 0 1px rgba(255,255,255,0.1) inset;
+  display: block;
 }
-.art-img.spinning { box-shadow: 0 0 0 6px var(--bg-base), 0 12px 40px rgba(0,0,0,0.6), 0 0 60px rgba(255,170,0,0.25); transform: scale(1.02); }
 
 .np-title {
   font-size: 17px; font-weight: 700; font-family: var(--font-display);
@@ -1926,4 +1945,26 @@ input[type=range]::-moz-range-track {
 @keyframes slideDown {
   from { transform: translateY(-100%); opacity: 0; }
   to   { transform: translateY(0); opacity: 1; }
+}
+
+/* Custom Premium Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px; height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 99px;
+  transition: background var(--t-fast);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--amber);
+}
+
+/* Custom global track glow effect */
+.lyrics-view {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
 }

@@ -139,10 +139,13 @@
       </div>
 
       <div class="art-wrap">
-        <div class="art-vinyl" id="art-vinyl"></div>
-        <img class="art-img" id="art-img"
-          src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3C/svg%3E"
-          alt="Album art">
+        <div class="player-glow" id="player-glow"></div>
+        <div class="vinyl-record-wrap" id="vinyl-record">
+          <div class="art-vinyl" id="art-vinyl"></div>
+          <img class="art-img" id="art-img"
+            src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3C/svg%3E"
+            alt="Album art">
+        </div>
         <!-- New Lyrics View Overlay -->
         <div class="lyrics-view" id="lyrics-view" style="opacity:0; visibility:hidden;">
            <div class="lyrics-content" id="lyrics-content"></div>
@@ -516,6 +519,12 @@ function showRoomHelp() {
   let _premuteVol = vol;
   let _currentTrackUri = null; // track when URI truly changes to avoid reload loops
   let _queueData = [];    // current queue state
+  let _turntableAngle = 0;
+  let _turntableSpeed = 0;
+  const TARGET_TURNTABLE_SPEED = 0.5; // degrees per frame
+  const TURNTABLE_ACCEL = 0.01;
+  const TURNTABLE_DECEL = 0.005;
+  let _turntablePlaying = false;
 
   /* ─── YouTube Player & Lyrics ────────────────────────── */
   const yt = new YouTubePlayer();
@@ -764,7 +773,10 @@ function showRoomHelp() {
     const playing = track.is_playing !== false;
     artImg.classList.toggle('spinning', playing);
     vinyl.classList.toggle('spinning', playing);
-    if(eq) eq.style.display = playing ? 'flex' : 'none';
+    if(eq) {
+      eq.style.display = 'flex';
+      eq.classList.toggle('playing', playing);
+    }
     setPlayIcon(playing);
     updateProgress(track.position_ms||0, track.duration_ms||0);
   }
@@ -803,7 +815,10 @@ function showRoomHelp() {
     const playing = track.is_playing !== false;
     artImg.classList.toggle('spinning', playing);
     vinyl.classList.toggle('spinning', playing);
-    if(eq) eq.style.display = playing ? 'flex' : 'none';
+    if(eq) {
+      eq.style.display = 'flex';
+      eq.classList.toggle('playing', playing);
+    }
     setPlayIcon(playing);
 
     const btnSkip = $('#btn-vote-skip');
@@ -887,6 +902,13 @@ function showRoomHelp() {
     const p=$('#ico-play'), pa=$('#ico-pause');
     if(p) p.style.display = playing ? 'none' : 'block';
     if(pa) pa.style.display = playing ? 'block' : 'none';
+    _turntablePlaying = playing;
+
+    // Toggle equalizer animation classes
+    document.querySelectorAll('.eq').forEach(el => {
+      if (playing) el.classList.add('playing');
+      else el.classList.remove('playing');
+    });
   }
 
   /* ─── Queue ──────────────────────────────────────────── */
@@ -1784,6 +1806,54 @@ function showRoomHelp() {
         sc.socket.on('connect', hideReconnBanner);
       }
     }, 500);
+  })();
+
+  // --- Turntable Platter Animation Loop (with ambient glow) ---
+  (function setupTurntableLoop() {
+    function animateTurntable() {
+      const record = $('#vinyl-record');
+      const glow = $('#player-glow');
+      
+      if (record) {
+        if (_turntablePlaying) {
+          if (_turntableSpeed < TARGET_TURNTABLE_SPEED) {
+            _turntableSpeed += TURNTABLE_ACCEL;
+          }
+        } else {
+          if (_turntableSpeed > 0) {
+            _turntableSpeed -= TURNTABLE_DECEL;
+            if (_turntableSpeed < 0) _turntableSpeed = 0;
+          }
+        }
+        
+        if (_turntableSpeed > 0) {
+          _turntableAngle = (_turntableAngle + _turntableSpeed) % 360;
+          record.style.transform = `rotate(${_turntableAngle}deg)`;
+          
+          // Breathing/pulsing glow effect on play
+          if (_turntablePlaying) {
+            const pulse = 0.25 + Math.sin(Date.now() / 250) * 0.1;
+            const size = 80 + Math.sin(Date.now() / 250) * 5;
+            record.style.boxShadow = `0 0 36px rgba(245, 158, 11, ${pulse * (_turntableSpeed / TARGET_TURNTABLE_SPEED)}), 0 12px 40px rgba(0, 0, 0, 0.65)`;
+            if (glow) {
+              glow.style.opacity = pulse;
+              glow.style.width = `${size}%`;
+              glow.style.height = `${size}%`;
+              glow.style.top = `${(100 - size) / 2}%`;
+              glow.style.left = `${(100 - size) / 2}%`;
+            }
+          } else {
+            record.style.boxShadow = `0 0 36px rgba(245, 158, 11, ${0.1 * (_turntableSpeed / TARGET_TURNTABLE_SPEED)}), 0 12px 40px rgba(0, 0, 0, 0.65)`;
+            if (glow) glow.style.opacity = 0.1 * (_turntableSpeed / TARGET_TURNTABLE_SPEED);
+          }
+        } else {
+          record.style.boxShadow = '0 12px 40px rgba(0, 0, 0, 0.65)';
+          if (glow) glow.style.opacity = '0';
+        }
+      }
+      requestAnimationFrame(animateTurntable);
+    }
+    requestAnimationFrame(animateTurntable);
   })();
 
   // Apply initial volume from localStorage
