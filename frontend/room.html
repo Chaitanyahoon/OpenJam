@@ -1508,10 +1508,21 @@ function showRoomHelp() {
     const el = document.createElement('div');
     el.className = 'floating-reaction';
     el.textContent = emoji;
-    el.style.left = `calc(50% + ${(Math.random() - 0.5) * 80}px)`;
+
+    // Dynamically position the emoji relative to the reactions bar to avoid clipping/GSAP offsets
+    const bar = $('.reactions-bar');
+    if (bar) {
+      const rect = bar.getBoundingClientRect();
+      const randomOffset = (Math.random() - 0.5) * 120;
+      el.style.left = `${rect.left + rect.width / 2 + randomOffset}px`;
+      el.style.bottom = `${window.innerHeight - rect.top}px`;
+    } else {
+      el.style.left = `calc(50% + ${(Math.random() - 0.5) * 80}px)`;
+      el.style.bottom = '80px';
+    }
+
     el.style.animationDuration = `${2 + Math.random()}s`;
-    const container = $('#panel-right') || document.body;
-    container.appendChild(el);
+    document.body.appendChild(el);
     setTimeout(() => {
       if (el.parentNode) {
         el.style.opacity = '0';

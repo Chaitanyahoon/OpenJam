@@ -162,6 +162,14 @@ async def close_room(room_id: str, request: Request, db: Session = Depends(get_d
     room.is_active = False
     db.commit()
 
+    # Emit room_closed socket event to notify other room members instantly
+    sio = getattr(request.app.state, "sio", None)
+    if sio:
+        await sio.emit("room_closed", {
+            "room_id": room_id,
+            "reason": "Host closed the room",
+        }, room=room_id)
+
     # Force-clean in-memory room state to prevent orphaned sync loops and stale data
     from backend.sockets.playback import stop_sync_loop
     from backend.services.room_closer import cancel_room_close

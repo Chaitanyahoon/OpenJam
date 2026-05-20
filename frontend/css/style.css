@@ -198,14 +198,23 @@ h1,h2,h3,h4 { font-family: var(--font-display); line-height: 1.2; }
   background: var(--bg-elevated); color: var(--text-2); border: 1px solid var(--border);
   cursor: pointer; transition: all var(--t-base);
   flex-shrink: 0;
+  outline: none; -webkit-tap-highlight-color: transparent;
 }
 .icon-btn:hover { color: var(--text-1); border-color: var(--amber); background: var(--amber-muted); }
+.icon-btn:focus, .icon-btn:active, .icon-btn:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
 .icon-btn.primary {
   width: 48px; height: 48px;
   background: var(--amber); color: #000; border-color: transparent;
   box-shadow: var(--shadow-amber);
 }
 .icon-btn.primary:hover { background: #fbbf24; transform: scale(1.06); }
+.icon-btn.primary:focus, .icon-btn.primary:active {
+  box-shadow: var(--shadow-amber) !important;
+}
 .icon-btn.large { width: 56px; height: 56px; }
 .icon-btn svg { pointer-events: none; }
 
@@ -1254,13 +1263,42 @@ input[type=range]::-moz-range-track {
   }
 
   /* ── NOW PLAYING PANEL ── */
-  .panel-left .np-top { padding: 16px 20px 0; overflow-y: auto; }
-  .panel-left .art-wrap { width: 80%; max-width: 280px; margin: 0 auto 24px; aspect-ratio: 1; }
-  .panel-left .controls-row { padding-bottom: 24px; }
+  .panel-left .np-top {
+    padding: 24px 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center; /* Center player vertically */
+    align-items: center;     /* Center player horizontally */
+    flex: 1;
+    overflow-y: auto;
+    min-height: 100%;
+  }
+  .panel-left .art-wrap {
+    width: 75%;
+    max-width: 260px;
+    margin: 0 auto 28px;
+    aspect-ratio: 1;
+  }
   .panel-left .np-label,
   .panel-left .np-eq { display: none !important; }
-  .panel-left .np-title { font-size: 18px; margin-bottom: 4px; text-align: center; }
-  .panel-left .np-artist { font-size: 14px; margin-bottom: 16px; text-align: center; }
+  .panel-left .np-title { font-size: 20px; margin-bottom: 6px; text-align: center; width: 100%; }
+  .panel-left .np-artist { font-size: 15px; margin-bottom: 24px; text-align: center; width: 100%; }
+  .panel-left .np-progress { width: 100%; margin-bottom: 8px; }
+  .panel-left .controls-row {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 24px;
+    padding-bottom: 8px;
+  }
+  .panel-left .controls-locked {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding-bottom: 8px;
+  }
   .panel-left .volume-row { display: none !important; }
 
   /* ── Panels — take remaining space ── */
