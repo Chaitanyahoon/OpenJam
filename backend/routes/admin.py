@@ -15,23 +15,30 @@ async def get_all_rooms(
     admin_id: str = Depends(require_admin)
 ):
     """Get all rooms including inactive ones, with current listener counts."""
-    rooms = db.query(Room).options(selectinload(Room.host)).order_by(Room.created_at.desc()).all()
-    
-    redis_rooms = room_manager.store.get_all_rooms()
-    
-    result = []
-    for room in rooms:
-        listeners = 0
-        if room.id in redis_rooms:
-            listeners = len(redis_rooms[room.id].get("users", {}))
-            
-        data = room.to_dict(
-            listener_count=listeners,
-            host_name=room.host.display_name if room.host else "Unknown"
-        )
-        result.append(data)
+    try:
+        rooms = db.query(Room).options(selectinload(Room.host)).order_by(Room.created_at.desc()).all()
         
-    return {"rooms": result}
+        redis_rooms = room_manager.store.get_all_rooms()
+        
+        result = []
+        for room in rooms:
+            listeners = 0
+            if room.id in redis_rooms:
+                room_data = redis_rooms[room.id]
+                if room_data and "users" in room_data:
+                    listeners = len(room_data.get("users", {}) or {})
+                
+            data = room.to_dict(
+                listener_count=listeners,
+                host_name=room.host.display_name if room.host else "Unknown"
+            )
+            result.append(data)
+            
+        return {"rooms": result}
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        return {"error": f"Internal server error: {str(e)}", "traceback": tb}
 
 
 @router.delete("/rooms/{room_id}")

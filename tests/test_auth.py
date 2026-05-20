@@ -61,3 +61,21 @@ def test_admin_get_rooms_unauthorized(client):
     response = client.get("/admin/rooms")
     assert response.status_code in (401, 403)
 
+
+def test_admin_get_rooms_success(client):
+    """Test fetching rooms list as an authorized admin."""
+    # First login
+    login_resp = client.post("/auth/admin-login", json={"password": "openjam-admin-123"})
+    assert login_resp.status_code == 200
+    
+    # Extract session token from cookie
+    session_cookie = login_resp.cookies.get("session_token")
+    assert session_cookie is not None
+    
+    # Use cookie to fetch rooms
+    client.cookies.set("session_token", session_cookie)
+    response = client.get("/admin/rooms")
+    assert response.status_code == 200
+    data = response.json()
+    assert "rooms" in data
+

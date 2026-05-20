@@ -112,6 +112,9 @@
         if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
 
         const data = await res.json();
+        if (data.error) {
+          throw new Error(`${data.error}\nTraceback:\n${data.traceback || ''}`);
+        }
         authContainer.style.display = 'none';
         adminContainer.style.display = 'block';
         renderRooms(data.rooms);
