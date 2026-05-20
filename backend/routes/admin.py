@@ -14,9 +14,9 @@ async def get_all_rooms(
     db: Session = Depends(get_db),
     admin_id: str = Depends(require_admin)
 ):
-    """Get all rooms including inactive ones, with current listener counts."""
+    """Get all active rooms, with current listener counts."""
     try:
-        rooms = db.query(Room).options(selectinload(Room.host)).order_by(Room.created_at.desc()).all()
+        rooms = db.query(Room).options(selectinload(Room.host)).filter(Room.is_active == True).order_by(Room.created_at.desc()).all()
         
         redis_rooms = room_manager.store.get_all_rooms()
         
@@ -39,6 +39,41 @@ async def get_all_rooms(
         import traceback
         tb = traceback.format_exc()
         return {"error": f"Internal server error: {str(e)}", "traceback": tb}
+
+
+@router.delete("/rooms")
+async def force_delete_all_rooms(
+    request: Request,
+    db: Session = Depends(get_db),
+    admin_id: str = Depends(require_admin)
+):
+    """Force close all active rooms, kick everyone, and clean state."""
+    active_rooms = db.query(Room).filter(Room.is_active == True).all()
+    if not active_rooms:
+        return {"success": True, "message": "No active rooms to close."}
+        
+    sio = getattr(request.app.state, "sio", None)
+    from backend.sockets.playback import stop_sync_loop
+    from backend.services.room_closer import cancel_room_close
+    
+    for room in active_rooms:
+        room.is_active = False
+        room_id = room.id
+        
+        # Emit room_closed socket event to notify other room members instantly
+        if sio:
+            await sio.emit("room_closed", {
+                "room_id": room_id,
+                "reason": "Room has been closed by administration",
+            }, room=room_id)
+
+        # Force-clean state
+        stop_sync_loop(room_id)
+        cancel_room_close(room_id)
+        room_manager.force_close_room(room_id)
+        
+    db.commit()
+    return {"success": True, "message": f"All {len(active_rooms)} active rooms have been closed."}
 
 
 @router.delete("/rooms/{room_id}")
