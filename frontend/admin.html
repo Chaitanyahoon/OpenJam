@@ -27,15 +27,15 @@
 <body>
 
   <!-- Login Form -->
-  <div class="auth-container" id="auth-container">
+  <form class="auth-container" id="login-form" style="display:block;">
     <h2>Admin Access</h2>
     <div class="error-msg" id="auth-error">Invalid password.</div>
     <div style="margin-bottom: 15px;">
       <label style="display:block; margin-bottom:8px; color:var(--text-2);">Admin Password</label>
       <input type="password" id="admin-password" class="input-field" style="width: 100%;" placeholder="Enter password...">
     </div>
-    <button class="btn btn-primary" style="width:100%" id="btn-login">Login</button>
-  </div>
+    <button type="submit" class="btn btn-primary" style="width:100%" id="btn-login">Login</button>
+  </form>
 
   <!-- Dashboard -->
   <div class="admin-container" id="admin-container">
@@ -57,7 +57,7 @@
   </div>
 
   <script>
-    const authContainer = document.getElementById('auth-container');
+    const authContainer = document.getElementById('login-form');
     const adminContainer = document.getElementById('admin-container');
     const authError = document.getElementById('auth-error');
     const roomTable = document.getElementById('room-table');
@@ -67,7 +67,8 @@
     // Attempt to load rooms immediately
     loadRooms();
 
-    document.getElementById('btn-login').addEventListener('click', async () => {
+    authContainer.addEventListener('submit', async (e) => {
+      e.preventDefault();
       const password = document.getElementById('admin-password').value;
       if (!password) return;
 
@@ -75,23 +76,32 @@
         const res = await fetch('/auth/admin-login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password })
+          body: JSON.stringify({ password }),
+          credentials: 'include'
         });
         
         if (res.ok) {
           authError.style.display = 'none';
           loadRooms();
         } else {
+          let errorText = "Invalid password.";
+          try {
+            const data = await res.json();
+            if (data.error) errorText = data.error;
+          } catch(e) {}
+          authError.textContent = `${errorText} (Status: ${res.status})`;
           authError.style.display = 'block';
         }
       } catch (err) {
         console.error("Login error", err);
+        authError.textContent = `Network / Connection Error: ${err.message}`;
+        authError.style.display = 'block';
       }
     });
 
     async function loadRooms() {
       try {
-        const res = await fetch('/admin/rooms');
+        const res = await fetch('/admin/rooms', { credentials: 'include' });
         if (res.status === 401 || res.status === 403) {
           // Need to login
           authContainer.style.display = 'block';
@@ -99,7 +109,7 @@
           return;
         }
 
-        if (!res.ok) throw new Error("Failed to fetch rooms");
+        if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
 
         const data = await res.json();
         authContainer.style.display = 'none';
@@ -107,6 +117,8 @@
         renderRooms(data.rooms);
       } catch (err) {
         console.error(err);
+        authError.textContent = `Failed to load dashboard: ${err.message}`;
+        authError.style.display = 'block';
       }
     }
 
