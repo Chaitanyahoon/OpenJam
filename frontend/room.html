@@ -13,6 +13,10 @@
   <meta property="og:type" content="music.playlist">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/static/img/logo.svg" type="image/svg+xml">
+  <!-- PWA — Apple/iOS -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/static/img/icon-192.png">
   <!-- Google Tag Manager -->
   <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
   new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
@@ -1993,6 +1997,14 @@ function showRoomHelp() {
 <script>
 /* Apply initial volume slider gradient */
 (function(){ const s=document.getElementById('vol-slider'); if(s) s.style.background=`linear-gradient(to right,var(--amber) 80%,var(--bg-elevated) 80%)`; })();
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js')
+    .then(reg => console.log('[openjam] SW registered:', reg.scope))
+    .catch(err => console.error('[openjam] SW registration failed:', err));
+}
 </script>
 
 </body>

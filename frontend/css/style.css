@@ -652,7 +652,7 @@ input[type=range]::-moz-range-track {
   border-radius: var(--r-full); padding: 12px 24px;
   font-size: 13px; font-weight: 500; color: var(--text-1);
   box-shadow: 0 12px 40px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.1);
-  min-width: max-content; max-width: 400px;
+  min-width: 200px; max-width: 400px;
   animation: toast-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   text-align: center;
 }
@@ -1298,7 +1298,7 @@ input[type=range]::-moz-range-track {
   .room-grid {
     display: flex;
     flex-direction: column;
-    height: calc(100dvh - 48px - 44px - 40px - 56px); /* nav + bar + vol-bar + bottom-tabs */
+    height: calc(100dvh - 48px - 44px - 40px - 56px - env(safe-area-inset-bottom, 0px)); /* nav + bar + vol-bar + bottom-tabs + safe-area */
     overflow: hidden;
     touch-action: pan-y; /* prevent browser swipe-back gesture */
   }
@@ -1687,7 +1687,6 @@ input[type=range]::-moz-range-track {
   }
 
   .queue-item {
-    padding: var(--s3);
     margin-bottom: var(--s2);
   }
 

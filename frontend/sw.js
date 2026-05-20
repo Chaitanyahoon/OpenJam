@@ -1,4 +1,4 @@
-const CACHE_NAME = 'openjam-static-v1';
+const CACHE_NAME = 'openjam-static-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/static/css/style.css',
@@ -6,7 +6,9 @@ const ASSETS_TO_CACHE = [
   '/static/js/lyrics.js',
   '/static/js/youtube-player.js',
   '/static/js/socket.io.min.js',
-  '/static/js/gsap.min.js'
+  '/static/js/gsap.min.js',
+  '/static/js/motion.js',
+  '/static/js/utils.js'
 ];
 
 self.addEventListener('install', (event) => {
