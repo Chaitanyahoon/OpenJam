@@ -540,6 +540,7 @@ function showRoomHelp() {
     const btn = $('#btn-toggle-lyrics');
     const isVisible = view.classList.toggle('active');
     btn.classList.toggle('active', isVisible);
+    $('#panel-left')?.classList.toggle('lyrics-active', isVisible);
   });
 
   $('#btn-vote-skip')?.addEventListener('click', (e) => {
