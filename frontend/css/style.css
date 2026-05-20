@@ -984,7 +984,7 @@ input[type=range]::-moz-range-track {
 }
 
 .np-top {
-  flex: 1; display: flex; flex-direction: column;
+  flex: none; display: flex; flex-direction: column;
   padding: 20px 20px 0;
   overflow: hidden;
 }
@@ -1303,9 +1303,9 @@ input[type=range]::-moz-range-track {
     flex-direction: column;
     justify-content: center; /* Center player vertically */
     align-items: center;     /* Center player horizontally */
-    flex: 1;
+    flex: none;
     overflow-y: auto;
-    min-height: 100%;
+    min-height: auto;
   }
   .panel-left .art-wrap {
     width: 75%;
