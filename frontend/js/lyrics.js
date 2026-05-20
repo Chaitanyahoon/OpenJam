@@ -109,8 +109,15 @@ class LyricsManager {
       const newEl = document.getElementById(`lyr-${newIdx}`);
       if (newEl) {
         newEl.classList.add('active');
-        // Smooth scroll to center
-        newEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Smooth scroll to center inside container only (prevents shifting outer layout panels)
+        const container = this.container;
+        const parentRect = container.getBoundingClientRect();
+        const elementRect = newEl.getBoundingClientRect();
+        const relativeTop = elementRect.top - parentRect.top;
+        container.scrollTo({
+          top: container.scrollTop + relativeTop - (parentRect.height / 2) + (newEl.clientHeight / 2),
+          behavior: 'smooth'
+        });
       }
     }
   }
