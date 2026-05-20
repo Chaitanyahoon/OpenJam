@@ -21,6 +21,7 @@ class YouTubePlayer {
     this._userUnlocked = false;
     this._pendingPlayAfterUnlock = null;
     this._useIFrame = false;
+    this._useLowBitrate = false;
     this._streamFailCount = 0;
     this._maxStreamFails = 2;
 
@@ -47,19 +48,32 @@ class YouTubePlayer {
       if (this._stallTimer) { clearTimeout(this._stallTimer); this._stallTimer = null; }
       this._hideLoadIndicator();
     });
-    this.player.addEventListener('error', () => {
+
+    const handleAudioError = (source) => {
       this._hideLoadIndicator();
-      console.error('Audio stream error, fail count:', this._streamFailCount);
+      console.error(`Audio stream error from ${source}, fail count:`, this._streamFailCount);
       this._streamFailCount++;
-      if (this._streamFailCount >= this._maxStreamFails && !this._useIFrame) {
+
+      if (this._streamFailCount === 1 && !this._useLowBitrate && this.currentVideoId) {
+        console.warn('Stream failed, trying low bitrate fallback...');
+        if (typeof toast === 'function') toast('Audio stream failed. Trying low-bitrate fallback...', 'info');
+        this._useLowBitrate = true;
+        this.player.src = `/stream/${this.currentVideoId}?low=true`;
+        this.player.currentTime = Math.round(this.positionMs / 1000);
+        this.player.play().catch(() => {});
+      } else if (this._streamFailCount >= this._maxStreamFails && !this._useIFrame) {
         console.warn('Stream failed multiple times, switching to YouTube IFrame fallback');
+        if (typeof toast === 'function') toast('Direct stream failed. Switching to YouTube video fallback...', 'warning');
         this._useIFrame = true;
         this._initIFramePlayer();
         if (this.currentVideoId) {
           this._loadVideo(this.currentVideoId, Math.round(this.positionMs / 1000));
         }
       }
-    });
+    };
+
+    this.player.addEventListener('error', () => handleAudioError('error_event'));
+
     // Timeout: if stream doesn't start within 15s, treat as failure
     this.player.addEventListener('stalled', () => {
       if (this._stallTimer) clearTimeout(this._stallTimer);
@@ -67,33 +81,18 @@ class YouTubePlayer {
       this._stallTimer = setTimeout(() => {
         if (this.player.readyState < 2 && !this.player.paused) {
           console.warn('Stream stalled for 15s, triggering error');
-          this._streamFailCount++;
-          if (this._streamFailCount >= this._maxStreamFails && !this._useIFrame) {
-            console.warn('Stream stalled multiple times, switching to YouTube IFrame fallback');
-            this._useIFrame = true;
-            this._initIFramePlayer();
-            if (this.currentVideoId) {
-              this._loadVideo(this.currentVideoId, Math.round(this.positionMs / 1000));
-            }
-          }
+          handleAudioError('stalled_timeout');
         }
       }, 15000);
     });
+
     this.player.addEventListener('waiting', () => {
       if (this._stallTimer) clearTimeout(this._stallTimer);
       this._showLoadIndicator();
       this._stallTimer = setTimeout(() => {
         if (this.player.readyState < 2 && !this.player.paused) {
           console.warn('Stream waiting too long, triggering error');
-          this._streamFailCount++;
-          if (this._streamFailCount >= this._maxStreamFails && !this._useIFrame) {
-            console.warn('Stream waiting too long, switching to YouTube IFrame fallback');
-            this._useIFrame = true;
-            this._initIFramePlayer();
-            if (this.currentVideoId) {
-              this._loadVideo(this.currentVideoId, Math.round(this.positionMs / 1000));
-            }
-          }
+          handleAudioError('waiting_timeout');
         }
       }, 15000);
     });
@@ -139,7 +138,14 @@ class YouTubePlayer {
           };
           if (map[e.data]) this._onStateChange(map[e.data]);
         },
-        onError: (e) => console.error('YouTube IFrame error:', e.data),
+        onError: (e) => {
+          console.error('YouTube IFrame error:', e.data);
+          let msg = "This track can't be played in your region or is restricted.";
+          if (e.data === 150 || e.data === 101) {
+            msg = "This track can't be played embedded due to restrictions.";
+          }
+          if (typeof toast === 'function') toast(msg, 'error');
+        },
       },
     });
   }
@@ -161,7 +167,10 @@ class YouTubePlayer {
       this._hideOverlay();
       if (this._loadTimeout) { clearTimeout(this._loadTimeout); this._loadTimeout = null; }
       this.startProgressTimer();
-      this._emitControlEvent('play');
+      const pos = this._useIFrame
+        ? Math.round((this.ytPlayer.getCurrentTime() || 0) * 1000)
+        : Math.round((this.player.currentTime || 0) * 1000);
+      this._emitControlEvent('play', { position_ms: pos });
     } else if (state === 'pause') {
       this.isPlaying = false;
       this.stopProgressTimer();
@@ -287,6 +296,8 @@ class YouTubePlayer {
 
     this._suppressStateChange = true;
     this.currentVideoId = videoId;
+    this._streamFailCount = 0;
+    this._useLowBitrate = false;
 
     if (this._useIFrame) {
       if (this.ytPlayer && this._ready) {
@@ -364,7 +375,6 @@ class YouTubePlayer {
       if (isPlaying) {
         this.player.play().catch(e => {
           console.error('Autoplay prevented on sync:', e);
-          // Only show overlay if user hasn't unlocked yet
           if (!this._userUnlocked) {
             this._pendingPlayAfterUnlock = { videoId: this.currentVideoId, startSeconds: positionMs / 1000 };
             this._showOverlay();
@@ -381,6 +391,30 @@ class YouTubePlayer {
     this.updateDisplay();
   }
 
+  /**
+   * Externally set play/pause state without seeking.
+   * Used by playback_sync to keep listener play/pause in sync with host.
+   */
+  setPlayState(playing) {
+    if (!this._userUnlocked || !this.currentVideoId) return;
+    this._suppressStateChange = true;
+    this.isPlaying = playing;
+    if (this._useIFrame && this.ytPlayer) {
+      if (playing) { this.ytPlayer.playVideo(); this.startProgressTimer(); }
+      else { this.ytPlayer.pauseVideo(); this.stopProgressTimer(); }
+    } else if (this.player) {
+      if (playing) {
+        this.player.play().catch(() => {});
+        this.startProgressTimer();
+      } else {
+        this.player.pause();
+        this.stopProgressTimer();
+      }
+    }
+    setTimeout(() => { this._suppressStateChange = false; }, 500);
+    this.updateDisplay();
+  }
+
   startProgressTimer() {
     this.stopProgressTimer();
     this.progressInterval = setInterval(() => {
@@ -388,8 +422,19 @@ class YouTubePlayer {
         ? Math.round(this.ytPlayer.getCurrentTime() * 1000)
         : Math.round(this.player.currentTime * 1000);
       if (actualMs > 0) this.positionMs = actualMs;
+
+      // Extract duration from actual player if it is missing or zero
+      if (this.durationMs <= 0) {
+        const actualDurSec = this._useIFrame && this.ytPlayer
+          ? this.ytPlayer.getDuration()
+          : this.player.duration;
+        if (actualDurSec > 0) {
+          this.durationMs = Math.round(actualDurSec * 1000);
+        }
+      }
+
       this.updateDisplay();
-    }, 1000);
+    }, 250);
   }
 
   stopProgressTimer() {

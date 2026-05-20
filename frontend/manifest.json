@@ -1,11 +1,15 @@
 {
+  "id": "/",
   "name": "OpenJam",
   "short_name": "OpenJam",
   "description": "Collaborative real-time music listening rooms.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#050508",
   "theme_color": "#ffaa00",
+  "categories": ["music", "entertainment"],
   "icons": [
     {
       "src": "/static/img/icon-192.png",
@@ -15,7 +19,8 @@
     {
       "src": "/static/img/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

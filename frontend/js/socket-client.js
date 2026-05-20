@@ -35,7 +35,9 @@ class SocketClient {
 
     this.socket.on('connect', () => {
       if (this.roomId) {
-        this.socket.emit('join_room', { room_id: this.roomId });
+        const payload = { room_id: this.roomId };
+        if (this.password) payload.password = this.password;
+        this.socket.emit('join_room', payload);
       }
       this._hasConnected = true;
       if (this._debug) console.log('[openjam] socket connected, sid=', this.socket.id);
@@ -45,6 +47,7 @@ class SocketClient {
     this.socket.on('connect_error', () => {});
 
     const events = [
+      'connect', 'disconnect',
       'user_joined', 'user_left',
       'chat_message', 'chat_history',
       'queue_updated', 'queue_error',
@@ -53,7 +56,7 @@ class SocketClient {
       'name_updated', 'skip_votes_updated',
       'reaction', 'user_typing', 'user_stop_typing',
       'join_error', 'heartbeat_ack',
-      'chat_ack',
+      'chat_ack', 'join_success',
     ];
     events.forEach(event => {
       this.socket.on(event, (data) => {
@@ -75,13 +78,15 @@ class SocketClient {
     this.handlers[event] = handler;
   }
 
-  joinRoom(roomId) {
+  joinRoom(roomId, password) {
     this.roomId = roomId;
+    if (password) this.password = password;
     if (this._ready()) {
       const avatarUrl = localStorage.getItem('openjam_avatar_url');
-      this.socket.emit('join_room', { room_id: roomId, avatar_url: avatarUrl });
+      const payload = { room_id: roomId, avatar_url: avatarUrl };
+      if (this.password) payload.password = this.password;
+      this.socket.emit('join_room', payload);
     }
-    // If not yet connected, the 'connect' event will join automatically
   }
 
   leaveRoom(roomId) {

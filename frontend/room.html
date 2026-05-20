@@ -5,9 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#050508">
   <link rel="manifest" href="/static/manifest.json">
-  <title>Room — Open Jam</title>
-  <meta name="description" content="Join this listening room and discover music together.">
+  <title>{{OG_TITLE}}</title>
+  <meta name="description" content="{{OG_DESCRIPTION}}">
+  <meta property="og:title" content="{{OG_TITLE}}">
+  <meta property="og:description" content="{{OG_DESCRIPTION}}">
+  <meta property="og:image" content="{{OG_IMAGE}}">
+  <meta property="og:type" content="music.playlist">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/static/img/logo.svg" type="image/svg+xml">
+  <!-- PWA — Apple/iOS -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/static/img/icon-192.png">
   <!-- Google Tag Manager -->
   <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
   new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
@@ -35,7 +44,7 @@
 
   <link rel="stylesheet" href="/static/css/style.css?v=13">
 </head>
-<body>
+<body class="room-page">
   <!-- Google Tag Manager (noscript) -->
   <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-537CN7FK"
   height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
@@ -50,7 +59,8 @@
 <div class="room-ambient" id="room-ambient"></div>
 
 <!-- ══ LOADING OVERLAY ══════════════════════════════════════ -->
-<div class="loading-overlay" id="loading-overlay">
+<!-- ══ LOADING OVERLAY (Shown only on error) ═══════════════ -->
+<div class="loading-overlay" id="loading-overlay" style="display: none;">
   <div class="loading-content">
     <div class="loading-anim">
       <div class="load-vinyl">
@@ -71,7 +81,7 @@
 </div>
 
 <!-- Top loading bar (shows after overlay hides, while data still loading) -->
-<div class="top-load-bar" id="top-load-bar"></div>
+<div class="top-load-bar active" id="top-load-bar"></div>
 
 <!-- ══ NAVBAR ══════════════════════════════════════════════ -->
 <nav class="navbar">
@@ -96,8 +106,8 @@
 <div class="room-bar" id="room-bar">
   <div class="room-bar-left">
     <div class="badge badge-live"><div class="badge-live-dot"></div>LIVE</div>
-    <div class="room-bar-name" id="bar-name">Loading…</div>
-    <div class="room-bar-host" id="bar-host"></div>
+    <div class="room-bar-name skeleton" id="bar-name">Loading…</div>
+    <div class="room-bar-host skeleton" id="bar-host">Loading Host...</div>
     <div class="room-bar-tags" id="bar-tags" style="display:none"></div>
     <!-- Live listener count pill -->
     <div class="room-listeners" id="bar-listener-count">
@@ -107,6 +117,7 @@
     </div>
   </div>
   <div class="room-bar-right">
+    <button class="btn btn-secondary" id="btn-sound-toggle" style="font-size:12px;padding:6px 10px;" aria-label="Toggle sounds" title="Toggle notification sounds">🔊</button>
     <button class="btn btn-secondary" id="btn-invite" style="font-size:12px" aria-label="Copy room invite link" title="Copy room invite link">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle;margin-right:2px"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg> 
       Invite
@@ -139,22 +150,21 @@
       </div>
 
       <div class="art-wrap">
-        <div class="art-vinyl" id="art-vinyl"></div>
-        <img class="art-img" id="art-img"
-          src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3C/svg%3E"
-          alt="Album art">
-        <!-- New Lyrics View Overlay -->
-        <div class="lyrics-view" id="lyrics-view" style="opacity:0; visibility:hidden;">
-           <div class="lyrics-content" id="lyrics-content"></div>
+        <div class="player-glow" id="player-glow"></div>
+        <div class="vinyl-record-wrap" id="vinyl-record">
+          <div class="art-vinyl" id="art-vinyl"></div>
+          <img class="art-img" id="art-img"
+            src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3C/svg%3E"
+            alt="Album art">
         </div>
         <!-- Album Art Empty Placeholder -->
-        <div class="art-placeholder" id="art-placeholder">
+        <div class="art-placeholder skeleton" id="art-placeholder">
           <svg width="56" height="56" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55C7.79 13 6 14.79 6 17s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
         </div>
       </div>
 
-      <div class="np-title" id="np-title">Nothing playing</div>
-      <div class="np-artist" id="np-artist">Add a track to the queue</div>
+      <div class="np-title skeleton" id="np-title">Loading track name...</div>
+      <div class="np-artist skeleton" id="np-artist">Loading artist...</div>
 
       <div class="np-progress">
         <div class="progress-bar" id="progress-bar" title="Click to seek" style="cursor:pointer">
@@ -181,6 +191,9 @@
         <button class="icon-btn" id="btn-next" title="Skip" aria-label="Skip to next track">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zm8.5-6 8.5 6V6l-8.5 6z"/></svg>
         </button>
+        <button class="icon-btn" id="btn-loop" title="Loop: OFF" aria-label="Toggle loop">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
+        </button>
       </div>
       <!-- MEMBER info (non-host) -->
       <div class="controls-locked" id="controls-locked">
@@ -189,6 +202,7 @@
           Vote to Skip (0/0)
         </button>
       </div>
+
     </div>
 
     <!-- Volume (everyone) -->
@@ -201,8 +215,10 @@
       <span class="vol-pct" id="vol-pct">80%</span>
     </div>
 
-    <!-- Hidden YouTube player -->
-    <!-- Removed hidden YouTube player: now using direct audio streaming via yt-dlp backend -->
+    <!-- New Lyrics View Overlay -->
+    <div class="lyrics-view" id="lyrics-view">
+       <div class="lyrics-content" id="lyrics-content"></div>
+    </div>
   </div>
 
   <!-- Ad Slot: Between Now Playing and Queue (hidden by default) -->
@@ -233,6 +249,11 @@
       </div>
     </div>
     <div class="queue-list" id="queue-list" aria-label="Music queue">
+      <div class="queue-skeletons" id="queue-skeletons" style="padding: 10px; display: flex; flex-direction: column; gap: 8px;">
+        <div class="queue-item skeleton-item" style="padding: 8px; display: flex; gap: 10px; align-items: center;"><div class="skeleton" style="width:40px;height:40px;border-radius:4px;"></div><div style="flex:1"><div class="skeleton" style="height:12px;width:60%;margin-bottom:6px"></div><div class="skeleton" style="height:10px;width:40%"></div></div></div>
+        <div class="queue-item skeleton-item" style="padding: 8px; display: flex; gap: 10px; align-items: center;"><div class="skeleton" style="width:40px;height:40px;border-radius:4px;"></div><div style="flex:1"><div class="skeleton" style="height:12px;width:50%;margin-bottom:6px"></div><div class="skeleton" style="height:10px;width:30%"></div></div></div>
+        <div class="queue-item skeleton-item" style="padding: 8px; display: flex; gap: 10px; align-items: center;"><div class="skeleton" style="width:40px;height:40px;border-radius:4px;"></div><div style="flex:1"><div class="skeleton" style="height:12px;width:70%;margin-bottom:6px"></div><div class="skeleton" style="height:10px;width:45%"></div></div></div>
+      </div>
       <div class="empty" id="q-empty">
         <div class="empty-illustration">
           <svg class="empty-icon-svg" viewBox="0 0 24 24" fill="currentColor"><path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/></svg>
@@ -277,6 +298,10 @@
         </div>
       </div>
       <div class="chat-messages" id="chat-msgs" aria-live="polite" aria-label="Chat messages">
+        <div class="chat-skeletons" id="chat-skeletons" style="padding: 10px; display: flex; flex-direction: column; gap: 12px;">
+          <div class="chat-message skeleton-item" style="padding: 6px 0; display: flex; gap: 10px;"><div class="skeleton" style="width:36px;height:36px;border-radius:50%;flex-shrink:0;"></div><div style="flex:1"><div class="skeleton" style="height:11px;width:25%;margin-bottom:6px"></div><div class="skeleton" style="height:13px;width:65%"></div></div></div>
+          <div class="chat-message skeleton-item" style="padding: 6px 0; display: flex; gap: 10px;"><div class="skeleton" style="width:36px;height:36px;border-radius:50%;flex-shrink:0;"></div><div style="flex:1"><div class="skeleton" style="height:11px;width:30%;margin-bottom:6px"></div><div class="skeleton" style="height:13px;width:45%"></div></div></div>
+        </div>
         <div class="empty" id="chat-empty">
           <div class="empty-illustration">
             <svg class="empty-icon-svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55C7.79 13 6 14.79 6 17s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
@@ -290,21 +315,24 @@
           </div>
         </div>
       </div>
-      <div class="reactions-bar">
-        <button class="btn-react" data-emoji="❤️">❤️</button>
-        <button class="btn-react" data-emoji="🔥">🔥</button>
-        <button class="btn-react" data-emoji="🤯">🤯</button>
-        <button class="btn-react" data-emoji="🎵">🎵</button>
-        <button class="btn-react" data-emoji="🎉">🎉</button>
+
+      <!-- Reactions Bar (Everyone) -->
+      <div class="reactions-bar" id="reactions-bar">
+        <button class="btn-react" data-emoji="🔥" aria-label="Reaction 🔥">🔥</button>
+        <button class="btn-react" data-emoji="❤️" aria-label="Reaction ❤️">❤️</button>
+        <button class="btn-react" data-emoji="😂" aria-label="Reaction 😂">😂</button>
+        <button class="btn-react" data-emoji="🎵" aria-label="Reaction 🎵">🎵</button>
+        <button class="btn-react" data-emoji="👏" aria-label="Reaction 👏">👏</button>
       </div>
+
       <div class="chat-input-wrap">
-        <div class="chat-input-column">
+        <div class="chat-input-main">
           <textarea class="input-field" id="chat-input" placeholder="Say something…" maxlength="500" autocomplete="off" rows="1"></textarea>
-          <div class="chat-input-hint">Enter = send · Shift+Enter = new line</div>
+          <button type="button" class="chat-send-btn" id="btn-send" disabled aria-label="Send message" title="Send message">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          </button>
         </div>
-        <button type="button" class="chat-send-btn" id="btn-send" disabled aria-label="Send message" title="Send message">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-        </button>
+        <div class="chat-input-hint">Enter = send · Shift+Enter = new line</div>
       </div>
     </div>
   </div>
@@ -358,6 +386,25 @@
   </div>
 </div>
 
+<!-- Password Required Modal -->
+<div class="modal-bg" id="password-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); z-index: 1100; align-items: center; justify-content: center;">
+  <div class="modal-box" style="background: var(--bg-1); border: 1px solid var(--border); border-radius: 16px; padding: 24px; max-width: 400px; width: 90%; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+    <div class="modal-title" style="font-size: 20px; font-weight: 700; margin-bottom: 8px; text-align: center;"><span style="color:var(--amber);">🔒</span> Private Room</div>
+    <p style="color: var(--text-2); margin-bottom: 16px; font-size: 14px; text-align: center;">
+      This room is private and requires a password to join.
+    </p>
+    <div style="margin-bottom: 20px;">
+      <label class="modal-label" style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-2);">Password</label>
+      <input type="password" class="input-field" id="room-join-password" placeholder="Enter room password" style="width: 100%; box-sizing: border-box;">
+      <div id="password-error-message" style="color: #ef4444; font-size: 12px; margin-top: 6px; display: none;">Invalid password. Please try again.</div>
+    </div>
+    <div class="modal-actions" style="display: flex; gap: 12px; justify-content: flex-end;">
+      <button class="btn btn-secondary" id="btn-password-cancel">Leave</button>
+      <button class="btn btn-primary" id="btn-password-submit">Join Room</button>
+    </div>
+  </div>
+</div>
+
 <!-- Bulk Import Modal -->
 <div class="modal-bg" id="modal-import" style="position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); z-index: 1000; display: none; align-items: center; justify-content: center;">
   <div class="modal-box" style="background: var(--bg-1); border: 1px solid var(--border); border-radius: 16px; padding: 24px; max-width: 480px; width: 90%; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
@@ -376,8 +423,8 @@
 
 
 <!-- Removed YouTube iframe API: all playback is handled via direct audio streaming -->
-<script async src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js" onerror="window._ioFail=true"></script>
-<script async src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<script async src="/static/js/socket.io.min.js" onerror="window._ioFail=true"></script>
+<script async src="/static/js/gsap.min.js"></script>
 <script src="/static/js/utils.js"></script>
 <script src="/static/js/motion.js"></script>
 <script src="/static/js/youtube-player.js"></script>
@@ -388,7 +435,7 @@
 const esc = typeof escapeHtml !== 'undefined' ? escapeHtml : (s => { const d=document.createElement('div');d.textContent=String(s||'');return d.innerHTML; });
 const fmt = typeof formatTime !== 'undefined' ? formatTime : (ms => { if(!ms||ms<0)return'0:00'; const s=Math.floor(ms/1000); return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; });
 const initials = typeof getInitials !== 'undefined' ? getInitials : (n => (n||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2));
-const ago = typeof timeAgo !== 'undefined' ? timeAgo : (d => { const s=Math.floor((Date.now()-new Date(d))/1000); if(s<60)return'just now'; if(s<3600)return`${Math.floor(s/60)}m`; return`${Math.floor(s/3600)}h`; });
+const ago = typeof timeAgo !== 'undefined' ? timeAgo : (d => { const parsed = (typeof d === 'string' && !d.endsWith('Z') && !d.includes('+') && !d.includes('-')) ? (d + 'Z') : d; const s=Math.floor((Date.now()-new Date(parsed))/1000); if(s<60)return'just now'; if(s<3600)return`${Math.floor(s/60)}m`; return`${Math.floor(s/3600)}h`; });
 const toast = typeof showToast !== 'undefined' ? showToast : ((msg,type='info') => { const el=document.createElement('div'); el.className=`toast ${type}`; el.textContent=msg; $('#toasts').appendChild(el); setTimeout(()=>{ el.style.opacity='0'; el.style.transform='translateY(-20px) scale(0.9)'; el.style.transition='all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'; setTimeout(()=>el.remove(),300); },3500); });
 function toggleMembers(){ 
   const panel = $('#members-panel');
@@ -503,10 +550,56 @@ function showRoomHelp() {
   let roomData = null;    // full room data
   let isHost = false;     // am I the room creator?
   let muted = false;
+
+  function playChime() {
+    if (localStorage.getItem('openjam_sounds') === 'false') return;
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(880, ctx.currentTime);
+      gain1.gain.setValueAtTime(0.05, ctx.currentTime);
+      gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+      
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start();
+      osc1.stop(ctx.currentTime + 0.5);
+      
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(1320, ctx.currentTime + 0.1);
+      gain2.gain.setValueAtTime(0, ctx.currentTime);
+      gain2.gain.setValueAtTime(0.05, ctx.currentTime + 0.1);
+      gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+      
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start();
+      osc2.stop(ctx.currentTime + 0.6);
+    } catch(e) {
+      console.warn('Web Audio API chime failed:', e);
+    }
+  }
   let vol = parseInt(localStorage.getItem('openjam_vol') ?? '80', 10) || 80;
   let _premuteVol = vol;
   let _currentTrackUri = null; // track when URI truly changes to avoid reload loops
   let _queueData = [];    // current queue state
+  let _turntableAngle = 0;
+  let _turntableSpeed = 0;
+  const TARGET_TURNTABLE_SPEED = 0.5; // degrees per frame
+  const TURNTABLE_ACCEL = 0.01;
+  const TURNTABLE_DECEL = 0.005;
+  let _turntablePlaying = false;
+  let _loopEnabled = false; // Loop current track
+  let _skipInFlight = false; // Debounce skip clicks
+  let _lastSyncPlaying = null; // Track play/pause state from last sync
+  let hostSyncedOnInit = false; // Prevent initial resetting of position on load
 
   /* ─── YouTube Player & Lyrics ────────────────────────── */
   const yt = new YouTubePlayer();
@@ -515,10 +608,9 @@ function showRoomHelp() {
   $('#btn-toggle-lyrics')?.addEventListener('click', () => {
     const view = $('#lyrics-view');
     const btn = $('#btn-toggle-lyrics');
-    const isVisible = view.style.opacity !== '0';
-    view.style.opacity = isVisible ? '0' : '1';
-    view.style.visibility = isVisible ? 'hidden' : 'visible';
-    btn.classList.toggle('active', !isVisible);
+    const isVisible = view.classList.toggle('active');
+    btn.classList.toggle('active', isVisible);
+    $('#panel-left')?.classList.toggle('lyrics-active', isVisible);
   });
 
   $('#btn-vote-skip')?.addEventListener('click', (e) => {
@@ -565,7 +657,13 @@ function showRoomHelp() {
       is_playing: action === 'play',
     };
     if(action === 'ended'){
-      sc.emit('next_track', { room_id: roomId });
+      if (_loopEnabled && _currentTrackUri) {
+        // Loop: reload the same track from start
+        yt.setTrack({ track_uri: _currentTrackUri, position_ms: 0, duration_ms: yt.durationMs || 0, is_playing: true });
+        sc.emit('playback_update', { ...payload, position_ms: 0, is_playing: true });
+      } else {
+        sc.emit('next_track', { room_id: roomId });
+      }
     } else {
       sc.emit('playback_update', payload);
     }
@@ -586,28 +684,56 @@ function showRoomHelp() {
     }
   });
 
+  sc.on('connect', () => {
+    hostSyncedOnInit = false;
+  });
+
   sc.on('playback_sync',  d => {
     if (d?.track_uri) {
       if (!isHost) {
         // Update DISPLAY only (title/art/progress) — never re-loads the YT player
         updateNPDisplay(d);
-        // Only hard-resync YT position if drift is significant (>3s)
+
+        const serverPlaying = d.is_playing !== false;
         const serverPos = d.position_ms || 0;
         const clientPos = yt.positionMs || 0;
         const drift = Math.abs(serverPos - clientPos);
-        if (drift > 3000) {
-          yt.syncPosition(serverPos, d.is_playing);
+
+        // Sync play/pause state immediately when it changes
+        if (_lastSyncPlaying !== serverPlaying) {
+          _lastSyncPlaying = serverPlaying;
+          yt.setPlayState(serverPlaying);
+          setPlayIcon(serverPlaying);
         }
+
+        // Hard-resync YT position if drift is significant (>3s)
+        if (drift > 3000) {
+          yt.syncPosition(serverPos, serverPlaying);
+        }
+      } else if (!hostSyncedOnInit) {
+        // Host has just joined/reconnected/refreshed — sync to the server's current position once
+        hostSyncedOnInit = true;
+        const serverPlaying = d.is_playing !== false;
+        const serverPos = d.position_ms || 0;
+        yt.syncPosition(serverPos, serverPlaying);
+        setPlayIcon(serverPlaying);
+        _lastSyncPlaying = serverPlaying;
       }
     }
   });
   sc.on('track_changed',  d => {
+    _skipInFlight = false; // Reset skip debounce
     updateNP(d); // Full update — loads new track into YT
-    if(d) toast(`▶ ${d.track_name}`, 'success');
+    if(d) {
+      toast(`▶ ${d.track_name}`, 'success');
+      if (document.hidden) playChime();
+    }
   });
   sc.on('queue_updated',  d => renderQueue(d.queue));
-  sc.on('chat_message',   d => addChat(d));
-  sc.on('reaction',       d => spawnReaction(d.emoji));
+  sc.on('chat_message',   d => {
+    addChat(d);
+    if (document.hidden) playChime();
+  });
   sc.on('chat_history',   d => { if(d.messages?.length) d.messages.forEach(addChat); });
   sc.on('listener_count', d => {
     const barNum      = $('#bar-lc-num');
@@ -622,10 +748,117 @@ function showRoomHelp() {
     if(d.listeners) updateMembers(d.listeners);
   });
 
-  sc.on('user_joined',    d => toast(`${d.display_name} joined`, 'info'));
+  sc.on('user_joined',    d => {
+    toast(`${d.display_name} joined`, 'info');
+    if (document.hidden) playChime();
+  });
   sc.on('user_left',      d => toast(`${d.display_name} left`, 'info'));
   sc.on('room_closed',    d => { toast(d?.reason || 'Room closed', 'info'); setTimeout(()=>location.href='/', 2500); });
   sc.on('queue_error',    d => toast(d.message || 'Action blocked', 'error'));
+
+  sc.on('join_error', d => {
+    if (d.reason === 'password_required' || d.reason === 'invalid_password') {
+      const modal = $('#password-modal');
+      const input = $('#room-join-password');
+      const errMsg = $('#password-error-message');
+      const submitBtn = $('#btn-password-submit');
+      
+      // Re-show the modal and re-enable submit if it was loading
+      modal.style.display = 'flex';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Join Room';
+      input.focus();
+      if (d.reason === 'invalid_password') {
+        errMsg.textContent = 'Invalid password. Please try again.';
+        errMsg.style.display = 'block';
+        input.value = '';
+      } else {
+        errMsg.style.display = 'none';
+      }
+    } else {
+      toast(d.message || 'Failed to join room', 'error');
+      setTimeout(() => location.href = '/', 2000);
+    }
+  });
+
+  sc.on('join_success', d => {
+    // Hide the password modal now that we are confirmed in
+    const modal = $('#password-modal');
+    if (modal) modal.style.display = 'none';
+
+    if (roomData && roomData.password_required) {
+      roomData.password_required = false;
+      loadRoom().then(() => {
+        hideLoadingOverlay();
+      });
+    } else {
+      hideLoadingOverlay();
+    }
+  });
+
+  $('#btn-password-cancel').addEventListener('click', () => {
+    location.href = '/';
+  });
+  
+  $('#btn-password-submit').addEventListener('click', () => {
+    const password = $('#room-join-password').value.trim();
+    const errMsg = $('#password-error-message');
+    if (!password) {
+      errMsg.textContent = 'Please enter a password';
+      errMsg.style.display = 'block';
+      return;
+    }
+    // Show loading state — keep modal visible until server responds
+    const submitBtn = $('#btn-password-submit');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Joining…';
+    errMsg.style.display = 'none';
+    sc.joinRoom(roomId, password);
+    // Modal stays open — it will be hidden by join_success or re-enabled by join_error
+  });
+  
+  $('#room-join-password').addEventListener('keydown', e => {
+    if (e.key === 'Enter') $('#btn-password-submit').click();
+  });
+
+  // Reactions UI event listeners
+  $$('.btn-react').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const emoji = btn.dataset.emoji;
+      sc.emit('send_reaction', { room_id: roomId, emoji: emoji });
+    });
+  });
+
+  sc.on('reaction', d => {
+    const artWrap = $('.art-wrap');
+    if (artWrap) {
+      const floating = document.createElement('span');
+      floating.className = 'floating-emoji';
+      floating.textContent = d.emoji;
+      const wobble = Math.floor(Math.random() * 120) - 60;
+      floating.style.setProperty('--wobble-x', `${wobble}px`);
+      const leftOffset = 45 + Math.floor(Math.random() * 11);
+      floating.style.left = `${leftOffset}%`;
+      artWrap.appendChild(floating);
+      setTimeout(() => floating.remove(), 2000);
+    }
+
+    const msgs = $('#chat-msgs');
+    if (msgs) {
+      const empty = $('#chat-empty');
+      if (empty) empty.style.display = 'none';
+      const el = document.createElement('div');
+      el.className = 'chat-system-msg reaction-alert';
+      el.innerHTML = `
+        <div class="reaction-avatar-small">${avatarHTML(d.display_name)}</div>
+        <div class="reaction-alert-content">
+          <span class="reaction-user-name">${esc(d.display_name)}</span> reacted with <span class="reaction-emoji">${esc(d.emoji)}</span>
+        </div>
+      `;
+      msgs.appendChild(el);
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+  });
 
   const typingUsers = new Set();
   sc.on('user_typing', d => {
@@ -755,7 +988,10 @@ function showRoomHelp() {
     const playing = track.is_playing !== false;
     artImg.classList.toggle('spinning', playing);
     vinyl.classList.toggle('spinning', playing);
-    if(eq) eq.style.display = playing ? 'flex' : 'none';
+    if(eq) {
+      eq.style.display = 'flex';
+      eq.classList.toggle('playing', playing);
+    }
     setPlayIcon(playing);
     updateProgress(track.position_ms||0, track.duration_ms||0);
   }
@@ -794,7 +1030,10 @@ function showRoomHelp() {
     const playing = track.is_playing !== false;
     artImg.classList.toggle('spinning', playing);
     vinyl.classList.toggle('spinning', playing);
-    if(eq) eq.style.display = playing ? 'flex' : 'none';
+    if(eq) {
+      eq.style.display = 'flex';
+      eq.classList.toggle('playing', playing);
+    }
     setPlayIcon(playing);
 
     const btnSkip = $('#btn-vote-skip');
@@ -805,6 +1044,15 @@ function showRoomHelp() {
 
     // Only reload YT player when the actual video ID changes
     if(track.track_uri !== _currentTrackUri){
+      const vinylRecord = $('#vinyl-record');
+      if (vinylRecord) {
+        vinylRecord.classList.remove('vinyl-slide-in');
+        vinylRecord.classList.add('vinyl-slide-out');
+        setTimeout(() => {
+          vinylRecord.classList.remove('vinyl-slide-out');
+          vinylRecord.classList.add('vinyl-slide-in');
+        }, 500);
+      }
       _currentTrackUri = track.track_uri;
       yt.setTrack({ track_uri:track.track_uri, position_ms:track.position_ms||0, duration_ms:track.duration_ms||0, is_playing:playing });
       // Re-apply current volume to the new track immediately
@@ -819,7 +1067,8 @@ function showRoomHelp() {
     updateProgress(pos, dur);
   }
 
-  function updateProgress(pos, dur){
+  function updateProgress(pos, dur, force = false){
+    if (window._isDraggingProgressTime && !force) return;
     $('#time-cur').textContent = fmt(pos);
     $('#time-cur').title = 'Current playback time';
     $('#time-dur').textContent = fmt(dur);
@@ -878,10 +1127,18 @@ function showRoomHelp() {
     const p=$('#ico-play'), pa=$('#ico-pause');
     if(p) p.style.display = playing ? 'none' : 'block';
     if(pa) pa.style.display = playing ? 'block' : 'none';
+    _turntablePlaying = playing;
+
+    // Toggle equalizer animation classes
+    document.querySelectorAll('.eq').forEach(el => {
+      if (playing) el.classList.add('playing');
+      else el.classList.remove('playing');
+    });
   }
 
   /* ─── Queue ──────────────────────────────────────────── */
   function renderQueue(q){
+    _queueData = q || [];
     const list = $('#queue-list');
     if(!list) return;
     const allItems = (q||[]).filter(i => i.status !== 'played');
@@ -913,8 +1170,13 @@ function showRoomHelp() {
       const qNum = isPlaying ? '' : `#${idx - playing.length + 1}`;
       const dur  = item.duration_ms > 0 ? fmt(item.duration_ms) : '';
       const art  = item.album_art_url || '';
+      
+      const dragAttr = (isHost && !isPlaying) ? ' draggable="true"' : '';
+      const dragHandle = (isHost && !isPlaying) ? `<span class="drag-handle" style="cursor:grab; margin-right:8px; font-weight:bold; color:var(--text-muted); font-size:16px;" title="Drag to reorder">≡</span>` : '';
+
       return `
-      <div class="queue-item${isPlaying ? ' playing' : ''}" data-id="${esc(item.id)}">
+      <div class="queue-item${isPlaying ? ' playing' : ''}" data-id="${esc(item.id)}"${dragAttr}>
+        ${dragHandle}
         <img class="queue-item-art" src="${esc(art)}" alt="" onerror="this.src=''">
         <div class="queue-item-info">
           <div class="queue-item-name">${esc(item.track_name || 'Unknown')}</div>
@@ -946,13 +1208,248 @@ function showRoomHelp() {
     sc.emit('remove_from_queue', { room_id: roomId, queue_item_id: id });
   };
 
+  // Host Drag and Drop queue reordering
+  (function() {
+    const list = $('#queue-list');
+    if (!list) return;
+    
+    let draggedId = null;
+    let draggedElement = null;
+
+    list.addEventListener('dragstart', (e) => {
+      if (!isHost) return;
+      const item = e.target.closest('.queue-item');
+      if (!item || item.classList.contains('playing')) {
+        e.preventDefault();
+        return;
+      }
+      draggedId = item.dataset.id;
+      draggedElement = item;
+      e.dataTransfer.setData('text/plain', draggedId);
+      e.dataTransfer.effectAllowed = 'move';
+      
+      setTimeout(() => item.classList.add('dragging'), 0);
+    });
+
+    list.addEventListener('dragover', (e) => {
+      if (!isHost || !draggedId) return;
+      const item = e.target.closest('.queue-item');
+      if (!item || item.classList.contains('playing') || item === draggedElement) {
+        return;
+      }
+      e.preventDefault();
+      
+      const rect = item.getBoundingClientRect();
+      const midpoint = rect.top + rect.height / 2;
+      
+      list.querySelectorAll('.queue-item').forEach(el => {
+        el.classList.remove('drag-over-before', 'drag-over-after');
+      });
+
+      if (e.clientY < midpoint) {
+        item.classList.add('drag-over-before');
+      } else {
+        item.classList.add('drag-over-after');
+      }
+    });
+
+    list.addEventListener('dragleave', (e) => {
+      const item = e.target.closest('.queue-item');
+      if (item) {
+        item.classList.remove('drag-over-before', 'drag-over-after');
+      }
+    });
+
+    list.addEventListener('dragend', () => {
+      if (draggedElement) {
+        draggedElement.classList.remove('dragging');
+      }
+      list.querySelectorAll('.queue-item').forEach(el => {
+        el.classList.remove('drag-over-before', 'drag-over-after');
+      });
+      draggedId = null;
+      draggedElement = null;
+    });
+
+    list.addEventListener('drop', (e) => {
+      if (!isHost || !draggedId) return;
+      e.preventDefault();
+      
+      const targetItem = e.target.closest('.queue-item');
+      if (!targetItem || targetItem.classList.contains('playing') || targetItem === draggedElement) {
+        return;
+      }
+
+      const targetId = targetItem.dataset.id;
+      const isBefore = targetItem.classList.contains('drag-over-before');
+
+      list.querySelectorAll('.queue-item').forEach(el => {
+        el.classList.remove('drag-over-before', 'drag-over-after');
+      });
+
+      const pendingItems = _queueData.filter(i => i.status === 'pending');
+      const playingItems = _queueData.filter(i => i.status === 'playing');
+
+      const draggedIndex = pendingItems.findIndex(i => i.id === draggedId);
+      const targetIndex = pendingItems.findIndex(i => i.id === targetId);
+
+      if (draggedIndex === -1 || targetIndex === -1) return;
+
+      const [movedItem] = pendingItems.splice(draggedIndex, 1);
+
+      let insertIndex = targetIndex;
+      if (!isBefore && draggedIndex > targetIndex) {
+        insertIndex += 1;
+      } else if (isBefore && draggedIndex < targetIndex) {
+        // No offset
+      } else if (!isBefore) {
+        insertIndex += 1;
+      }
+
+      pendingItems.splice(insertIndex, 0, movedItem);
+
+      const orderedIds = pendingItems.map(i => i.id);
+
+      const newQueue = [...playingItems, ...pendingItems];
+      renderQueue(newQueue);
+
+      sc.emit('reorder_queue', { ordered_ids: orderedIds });
+    });
+  })();
+
+  // Audio Visualizer setup using Web Audio API
+  let audioCtx = null;
+  let analyser = null;
+  let source = null;
+  let dataArray = null;
+  let visualizerActive = false;
+
+  function initVisualizer() {
+    if (audioCtx) return;
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 128;
+      const bufferLength = analyser.frequencyBinCount;
+      dataArray = new Uint8Array(bufferLength);
+      
+      source = audioCtx.createMediaElementSource(yt.player);
+      source.connect(analyser);
+      analyser.connect(audioCtx.destination);
+      visualizerActive = true;
+      console.log("[openjam] Web Audio visualizer initialized successfully.");
+    } catch (e) {
+      console.warn("[openjam] Web Audio visualizer setup failed (CORS fallback active):", e);
+      visualizerActive = false;
+    }
+  }
+
+  (function() {
+    const canvas = document.createElement('canvas');
+    canvas.id = 'audio-visualizer';
+    canvas.style.cssText = 'position: absolute; inset: -40px; width: calc(100% + 80px); height: calc(100% + 80px); pointer-events: none; z-index: 2;';
+    const artWrap = $('.art-wrap');
+    if (artWrap) {
+      artWrap.appendChild(canvas);
+    }
+
+    const ctx = canvas.getContext('2d');
+    
+    function resize() {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * (window.devicePixelRatio || 1);
+      canvas.height = rect.height * (window.devicePixelRatio || 1);
+    }
+    
+    window.addEventListener('resize', resize);
+    setTimeout(resize, 500);
+
+    const numBars = 64;
+    let simData = new Array(numBars).fill(0);
+
+    function draw() {
+      requestAnimationFrame(draw);
+      if (!canvas.width) return;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const isPlaying = yt && yt.isPlaying;
+      if (isPlaying && !audioCtx && yt._userUnlocked) {
+        initVisualizer();
+      }
+
+      let data = [];
+      if (visualizerActive && analyser) {
+        analyser.getByteFrequencyData(dataArray);
+        for (let i = 0; i < numBars; i++) {
+          data.push(dataArray[i]);
+        }
+      } else {
+        for (let i = 0; i < numBars; i++) {
+          if (isPlaying) {
+            const speed = Date.now() / 150;
+            const wave1 = Math.sin(speed + i * 0.15) * 40;
+            const wave2 = Math.cos(speed * 0.7 - i * 0.25) * 30;
+            const noise = Math.sin(Date.now() / (10 + (i % 5))) * 15;
+            let target = Math.max(10, 80 + wave1 + wave2 + noise);
+            target *= (1 - (i / numBars) * 0.5);
+            target *= (yt.player.volume || 0.8);
+            simData[i] = simData[i] * 0.8 + target * 0.2;
+          } else {
+            simData[i] = simData[i] * 0.85;
+            if (simData[i] < 0.1) simData[i] = 0;
+          }
+        }
+        data = simData;
+      }
+
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      const baseRadius = cx * 0.76;
+
+      for (let i = 0; i < numBars; i++) {
+        const angle = (i / numBars) * Math.PI * 2;
+        const val = data[i] || 0;
+        const barLength = (val / 255) * (cx * 0.18);
+        
+        if (barLength <= 1) continue;
+
+        const x1 = cx + Math.cos(angle) * baseRadius;
+        const y1 = cy + Math.sin(angle) * baseRadius;
+        const x2 = cx + Math.cos(angle) * (baseRadius + barLength);
+        const y2 = cy + Math.sin(angle) * (baseRadius + barLength);
+
+        const grad = ctx.createLinearGradient(x1, y1, x2, y2);
+        grad.addColorStop(0, 'rgba(245, 158, 11, 0.4)');
+        grad.addColorStop(0.5, 'rgba(245, 158, 11, 0.95)');
+        grad.addColorStop(1, 'rgba(239, 68, 68, 0.95)');
+
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = Math.max(2, Math.round(canvas.width / 200));
+        ctx.lineCap = 'round';
+
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+
+        if (barLength > 4) {
+          ctx.beginPath();
+          ctx.arc(x2, y2, Math.max(1, ctx.lineWidth / 2), 0, Math.PI * 2);
+          ctx.fillStyle = '#ffffff';
+          ctx.fill();
+        }
+      }
+    }
+    draw();
+  })();
+
   // Bulk Import Logic
   $('#btn-import')?.addEventListener('click', () => {
     const m = $('#modal-import');
     if (m) { m.style.display = 'flex'; m.classList.add('open'); }
   });
   $('#btn-do-import')?.addEventListener('click', async () => {
-    // Explicitly unlock audio context on gesture
     if (typeof yt !== 'undefined' && yt.unlockAudioContext) {
       yt.unlockAudioContext();
     }
@@ -964,32 +1461,77 @@ function showRoomHelp() {
     const importModal = $('#modal-import');
     if (importModal) { importModal.classList.remove('open'); importModal.style.display = 'none'; }
     $('#import-text').value = '';
-    toast(`Importing ${lines.length} tracks...`, 'info');
+    
+    toast(`Processing import request...`, 'info');
     
     let addedCount = 0;
+    
     for (const query of lines) {
-      try {
-        const r = await fetch(`/search/tracks?q=${encodeURIComponent(query)}`, {credentials:'include'});
-        if(!r.ok) continue;
-        const data = await r.json();
-        const results = data.tracks;
-        if(results && results.length > 0) {
-          const item = results[0];
-          const vid = await resolveYTServerSide(item.uri);
-          if (vid) {
-            sc.emit('add_to_queue', {
-              room_id: roomId,
-              track_uri: vid,
-              track_name: item.name,
-              artist: item.artist,
-              album_art_url: item.album_art_url,
-              duration_ms: item.duration_ms || 0
-            });
-            addedCount++;
+      const isPlaylist = (query.includes('spotify.com') && query.includes('/playlist/')) ||
+                         (query.includes('youtube.com') && query.includes('list=')) ||
+                         (query.includes('youtu.be') && query.includes('list='));
+                         
+      if (isPlaylist) {
+        toast(`Fetching playlist tracks...`, 'info');
+        try {
+          const r = await fetch(`/search/playlist?url=${encodeURIComponent(query)}`, { credentials: 'include' });
+          if (r.ok) {
+            const data = await r.json();
+            const playlistTracks = data.tracks || [];
+            if (playlistTracks.length > 0) {
+              toast(`Found ${playlistTracks.length} tracks in playlist. Resolving and adding...`, 'info');
+              for (const track of playlistTracks) {
+                let vid = null;
+                if (track.uri && track.uri.length === 11) {
+                  vid = track.uri;
+                } else {
+                  vid = await resolveYTServerSide(track.uri || `${track.name} ${track.artist}`);
+                }
+                
+                if (vid) {
+                  sc.emit('add_to_queue', {
+                    room_id: roomId,
+                    track_uri: vid,
+                    track_name: track.name,
+                    artist: track.artist,
+                    album_art_url: track.album_art_url || `https://img.youtube.com/vi/${vid}/hqdefault.jpg`,
+                    duration_ms: track.duration_ms || 0
+                  });
+                  addedCount++;
+                }
+              }
+            }
+          } else {
+            toast('Failed to load playlist tracks.', 'error');
           }
+        } catch(e) {
+          toast('Error importing playlist: ' + e.message, 'error');
         }
-      } catch(e) {}
+      } else {
+        try {
+          const r = await fetch(`/search/tracks?q=${encodeURIComponent(query)}`, {credentials:'include'});
+          if(!r.ok) continue;
+          const data = await r.json();
+          const results = data.tracks;
+          if(results && results.length > 0) {
+            const item = results[0];
+            const vid = await resolveYTServerSide(item.uri);
+            if (vid) {
+              sc.emit('add_to_queue', {
+                room_id: roomId,
+                track_uri: vid,
+                track_name: item.name,
+                artist: item.artist,
+                album_art_url: item.album_art_url,
+                duration_ms: item.duration_ms || 0
+              });
+              addedCount++;
+            }
+          }
+        } catch(e) {}
+      }
     }
+    
     if (addedCount > 0) toast(`Bulk import complete! Added ${addedCount} tracks.`, 'success');
     else toast('Failed to import any tracks. Try again.', 'error');
   });
@@ -1180,6 +1722,45 @@ function showRoomHelp() {
       else srEl.classList.remove('open');
       return;
     }
+
+    // Intercept YouTube URL
+    const ytMatch = q.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
+    const ytId = ytMatch ? ytMatch[1] : null;
+    if (ytId) {
+      srEl.innerHTML = `<div class="search-results loading">
+        <span class="search-loading-spinner"></span>
+        Resolving YouTube URL…
+      </div>`;
+      srEl.classList.add('open');
+      
+      let name = 'YouTube Video';
+      let artist = 'YouTube';
+      try {
+        const res = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${ytId}`);
+        if (res.ok) {
+          const d = await res.json();
+          name = d.title || name;
+          artist = d.author_name || artist;
+        }
+      } catch(err) {}
+
+      // Clear search input and hide results
+      qSearch.value = '';
+      $('#q-clear').style.display = 'none';
+      srEl.classList.remove('open');
+
+      sc.emit('add_to_queue', {
+        room_id: roomId,
+        track_uri: ytId,
+        track_name: name,
+        artist: artist,
+        album_art_url: `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`,
+        duration_ms: 0
+      });
+      toast(`➕ Queued Direct Link: ${name}`, 'success');
+      return;
+    }
+
     // Show loading skeleton
     srEl.innerHTML = `<div class="search-results loading">
       <span class="search-loading-spinner"></span>
@@ -1217,12 +1798,28 @@ function showRoomHelp() {
 
   document.addEventListener('click', e=>{ if(!e.target.closest('#q-search-wrap')) srEl.classList.remove('open'); });
 
-  // Invite button — copy room URL to clipboard
-  $('#btn-invite')?.addEventListener('click', ()=>{
+  // Invite button — Web Share API with clipboard fallback
+  $('#btn-invite')?.addEventListener('click', () => {
+    const shareData = {
+      title: `${roomData?.room?.name || 'OpenJam Room'}`,
+      text: `Join my real-time collaborative listening room on OpenJam!`,
+      url: location.href
+    };
+    if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+      navigator.share(shareData).catch(err => {
+        if (err.name !== 'AbortError') {
+          copyToClipboard();
+        }
+      });
+    } else {
+      copyToClipboard();
+    }
+  });
+
+  function copyToClipboard() {
     navigator.clipboard.writeText(location.href).then(()=>{
       toast('Room link copied! 🔗', 'success');
     }).catch(()=>{
-      // Fallback for browsers that block clipboard
       const el = document.createElement('textarea');
       el.value = location.href;
       document.body.appendChild(el);
@@ -1231,7 +1828,25 @@ function showRoomHelp() {
       document.body.removeChild(el);
       toast('Room link copied! 🔗', 'success');
     });
-  });
+  }
+
+  // Notification sound toggle
+  const btnSound = $('#btn-sound-toggle');
+  if (btnSound) {
+    const soundsEnabled = localStorage.getItem('openjam_sounds') !== 'false';
+    btnSound.innerHTML = soundsEnabled ? '🔊' : '🔇';
+    btnSound.title = soundsEnabled ? 'Mute notification chimes' : 'Unmute notification chimes';
+    
+    btnSound.addEventListener('click', () => {
+      const current = localStorage.getItem('openjam_sounds') !== 'false';
+      const newVal = !current;
+      localStorage.setItem('openjam_sounds', String(newVal));
+      btnSound.innerHTML = newVal ? '🔊' : '🔇';
+      btnSound.title = newVal ? 'Mute notification chimes' : 'Unmute notification chimes';
+      toast(`Notification sounds ${newVal ? 'enabled' : 'disabled'}`, 'info');
+      if (newVal) playChime();
+    });
+  }
 
   /* ─── Host Controls ──────────────────────────────────── */
   $('#btn-play')?.addEventListener('click', ()=>{
@@ -1257,36 +1872,110 @@ function showRoomHelp() {
       is_playing: !isActuallyPlaying,
     });
   });
-  $('#btn-next')?.addEventListener('click', ()=>{ if(isHost) sc.nextTrack(); });
-
-  // Seek bar click (host-only)
-  document.getElementById('progress-bar')?.addEventListener('click', (e) => {
-    if (!isHost) return;
-    const bar = e.currentTarget;
-    const rect = bar.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const dur = window._lastDur || yt.durationMs || 0;
-    if (!dur) return;
-    const seekMs = Math.round(pct * dur);
-    // Update local player
-    if (yt._useIFrame && yt.ytPlayer && typeof yt.ytPlayer.seekTo === 'function') {
-      yt.ytPlayer.seekTo(seekMs / 1000, true);
-    } else if (yt._ready && yt.player) {
-      yt.player.currentTime = seekMs / 1000;
-    }
-    // Broadcast to room
-    sc.emit('playback_update', {
-      room_id: roomId,
-      track_uri: yt.currentVideoId || '',
-      track_name: $('#np-title')?.textContent || '',
-      artist: $('#np-artist')?.textContent || '',
-      album_art_url: $('#art-img')?.src || '',
-      position_ms: seekMs,
-      duration_ms: dur,
-      is_playing: true,
-    });
-    updateProgress(seekMs, dur);
+  $('#btn-next')?.addEventListener('click', ()=>{
+    if(!isHost || _skipInFlight) return;
+    _skipInFlight = true;
+    sc.nextTrack();
+    // Safety: reset debounce after 5s in case track_changed never fires
+    setTimeout(() => { _skipInFlight = false; }, 5000);
   });
+
+  // Loop toggle button
+  $('#btn-loop')?.addEventListener('click', () => {
+    _loopEnabled = !_loopEnabled;
+    const btn = $('#btn-loop');
+    if (btn) {
+      btn.classList.toggle('active', _loopEnabled);
+      btn.title = _loopEnabled ? 'Loop: ON' : 'Loop: OFF';
+    }
+    toast(_loopEnabled ? '🔁 Loop enabled' : '➡️ Loop disabled', 'info');
+  });
+
+  // Draggable seek bar implementation (host-only)
+  let _isDraggingProgress = false;
+
+  function handleProgressSeek(clientX) {
+    const bar = document.getElementById('progress-bar');
+    if (!bar) return null;
+    const rect = bar.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const dur = window._lastDur || yt.durationMs || 0;
+    if (!dur) return null;
+    const seekMs = Math.round(pct * dur);
+    // Optimistic progress update (force = true)
+    updateProgress(seekMs, dur, true);
+    return { seekMs, dur };
+  }
+
+  const progressBar = document.getElementById('progress-bar');
+  if (progressBar) {
+    progressBar.addEventListener('mousedown', (e) => {
+      if (!isHost) return;
+      _isDraggingProgress = true;
+      window._isDraggingProgressTime = true;
+      handleProgressSeek(e.clientX);
+    });
+
+    progressBar.addEventListener('touchstart', (e) => {
+      if (!isHost) return;
+      _isDraggingProgress = true;
+      window._isDraggingProgressTime = true;
+      if (e.touches && e.touches[0]) {
+        handleProgressSeek(e.touches[0].clientX);
+      }
+    }, { passive: true });
+
+    window.addEventListener('mousemove', (e) => {
+      if (_isDraggingProgress) {
+        handleProgressSeek(e.clientX);
+      }
+    });
+
+    window.addEventListener('touchmove', (e) => {
+      if (_isDraggingProgress && e.touches && e.touches[0]) {
+        handleProgressSeek(e.touches[0].clientX);
+      }
+    }, { passive: true });
+
+    const endDrag = (clientX) => {
+      if (_isDraggingProgress) {
+        _isDraggingProgress = false;
+        window._isDraggingProgressTime = false;
+        const res = handleProgressSeek(clientX);
+        if (res) {
+          const { seekMs, dur } = res;
+          // Update local player
+          if (yt._useIFrame && yt.ytPlayer && typeof yt.ytPlayer.seekTo === 'function') {
+            yt.ytPlayer.seekTo(seekMs / 1000, true);
+          } else if (yt._ready && yt.player) {
+            yt.player.currentTime = seekMs / 1000;
+          }
+          // Broadcast to room
+          sc.emit('playback_update', {
+            room_id: roomId,
+            track_uri: yt.currentVideoId || '',
+            track_name: $('#np-title')?.textContent || '',
+            artist: $('#np-artist')?.textContent || '',
+            album_art_url: $('#art-img')?.src || '',
+            position_ms: seekMs,
+            duration_ms: dur,
+            is_playing: true,
+          });
+        }
+      }
+    };
+
+    window.addEventListener('mouseup', (e) => {
+      endDrag(e.clientX);
+    });
+
+    window.addEventListener('touchend', (e) => {
+      if (_isDraggingProgress) {
+        const clientX = (e.changedTouches && e.changedTouches[0]) ? e.changedTouches[0].clientX : 0;
+        endDrag(clientX);
+      }
+    }, { passive: true });
+  }
   $('#btn-close')?.addEventListener('click', ()=>{
     const modal = document.getElementById('close-modal');
     modal.style.display = 'flex';
@@ -1488,45 +2177,7 @@ function showRoomHelp() {
     }
   });
 
-  // Floating Reactions
-  let _lastReactionTime = 0;
-  let _reactionsActive = 0;
-  const MAX_VISIBLE_REACTIONS = 5;
 
-  window.spawnReaction = function(emoji) {
-    if (_reactionsActive >= MAX_VISIBLE_REACTIONS) return;
-    _reactionsActive++;
-    const el = document.createElement('div');
-    el.className = 'floating-reaction';
-    el.textContent = emoji;
-    el.style.left = `calc(50% + ${(Math.random() - 0.5) * 80}px)`;
-    el.style.animationDuration = `${2 + Math.random()}s`;
-    const container = $('#panel-right') || document.body;
-    container.appendChild(el);
-    setTimeout(() => {
-      if (el.parentNode) {
-        el.style.opacity = '0';
-        el.style.transform = 'translateY(-40px) scale(0.5)';
-        setTimeout(() => { el.remove(); _reactionsActive--; }, 400);
-      } else {
-        _reactionsActive--;
-      }
-    }, 2500);
-  };
-
-  // Use event delegation on reactions bar
-  $('.reactions-bar')?.addEventListener('click', (e) => {
-    const btn = e.target.closest('.btn-react');
-    if (!btn) return;
-    const emoji = btn.dataset.emoji;
-    if (!emoji) return;
-    // Rate limit: 1 reaction per 400ms
-    const now = Date.now();
-    if (now - _lastReactionTime < 400) return;
-    _lastReactionTime = now;
-    sc.emit('send_reaction', { room_id: roomId, emoji: emoji });
-    spawnReaction(emoji);
-  });
 
   /* ─── Queue Poll Fallback ────────────────────────────── */
   let _lastQueueLen = -1;
@@ -1560,6 +2211,11 @@ function showRoomHelp() {
     // Also remove the top loading bar
     const bar = document.getElementById('top-load-bar');
     if (bar) bar.classList.remove('active');
+
+    // Remove skeleton states
+    document.querySelectorAll('.skeleton').forEach(el => el.classList.remove('skeleton'));
+    document.getElementById('queue-skeletons')?.remove();
+    document.getElementById('chat-skeletons')?.remove();
   }
 
   function updateLoadStatus(msg) {
@@ -1607,11 +2263,25 @@ function showRoomHelp() {
       applyHostUI();
     }
     checkQueuePermissions();
-    hideLoadingOverlay();
+    
+    if (roomData?.password_required) {
+      updateLoadStatus('Private Room — Password Required');
+      const modal = $('#password-modal');
+      const input = $('#room-join-password');
+      const errMsg = $('#password-error-message');
+      
+      modal.style.display = 'flex';
+      input.focus();
+      errMsg.style.display = 'none';
+    } else {
+      hideLoadingOverlay();
+    }
   }
   
   initRoom().catch(e => {
     console.error('[openjam] init failed:', e);
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) overlay.style.display = 'flex';
     updateLoadStatus('Something went wrong. Please refresh.');
     const retry = document.getElementById('load-retry');
     if (retry) retry.style.display = 'inline-flex';
@@ -1624,6 +2294,9 @@ function showRoomHelp() {
     if (typeof io !== 'undefined') {
       sc.connect();
       sc.joinRoom(roomId);
+      // After joining, request a live sync from the server so refresh
+      // resumes playback at the correct position instead of restarting.
+      setTimeout(() => sc.requestSync(), 500);
       return;
     }
     if (window._ioFail) {
@@ -1660,6 +2333,43 @@ function showRoomHelp() {
     }
   }
 
+  // Fix layout recovery when viewport resizes (e.g., devtools toggle).
+  // When width crosses 640px boundary, reset panel display states.
+  let _lastWidthClass = window.innerWidth <= 640 ? 'mobile' : 'desktop';
+  window.addEventListener('resize', () => {
+    const nowClass = window.innerWidth <= 640 ? 'mobile' : 'desktop';
+    if (nowClass === _lastWidthClass) return;
+    _lastWidthClass = nowClass;
+    const left   = $('#panel-left');
+    const centre = $('#panel-center');
+    const right  = $('#panel-right');
+    if (nowClass === 'desktop') {
+      // Restore all panels to visible
+      [left, centre, right].forEach(p => {
+        if (p) {
+          p.style.display = '';
+          p.classList.remove('mobile-active');
+          p.style.transform = '';
+          p.style.opacity = '';
+        }
+      });
+    } else {
+      // Entering mobile: show only the queue (default tab)
+      [left, centre, right].forEach(p => {
+        if (p) {
+          p.classList.remove('mobile-active');
+          p.style.display = 'none';
+          p.style.transform = '';
+          p.style.opacity = '';
+        }
+      });
+      if (centre) {
+        centre.style.display = 'flex';
+        centre.classList.add('mobile-active');
+      }
+      switchMobileTab('queue');
+    }
+  });
   // Lightweight debug panel (shows when ?debug=1 is present)
   (function createDebugPanel(){
     try{
@@ -1759,14 +2469,70 @@ function showRoomHelp() {
     }, 500);
   })();
 
+  // --- Turntable Platter Animation Loop (with ambient glow) ---
+  (function setupTurntableLoop() {
+    function animateTurntable() {
+      const record = $('#vinyl-record');
+      const glow = $('#player-glow');
+      
+      if (record) {
+        if (_turntablePlaying) {
+          if (_turntableSpeed < TARGET_TURNTABLE_SPEED) {
+            _turntableSpeed += TURNTABLE_ACCEL;
+          }
+        } else {
+          if (_turntableSpeed > 0) {
+            _turntableSpeed -= TURNTABLE_DECEL;
+            if (_turntableSpeed < 0) _turntableSpeed = 0;
+          }
+        }
+        
+        if (_turntableSpeed > 0) {
+          _turntableAngle = (_turntableAngle + _turntableSpeed) % 360;
+          record.style.transform = `rotate(${_turntableAngle}deg)`;
+          
+          // Breathing/pulsing glow effect on play
+          if (_turntablePlaying) {
+            const pulse = 0.25 + Math.sin(Date.now() / 250) * 0.1;
+            const size = 80 + Math.sin(Date.now() / 250) * 5;
+            record.style.boxShadow = `0 0 36px rgba(245, 158, 11, ${pulse * (_turntableSpeed / TARGET_TURNTABLE_SPEED)}), 0 12px 40px rgba(0, 0, 0, 0.65)`;
+            if (glow) {
+              glow.style.opacity = pulse;
+              glow.style.width = `${size}%`;
+              glow.style.height = `${size}%`;
+              glow.style.top = `${(100 - size) / 2}%`;
+              glow.style.left = `${(100 - size) / 2}%`;
+            }
+          } else {
+            record.style.boxShadow = `0 0 36px rgba(245, 158, 11, ${0.1 * (_turntableSpeed / TARGET_TURNTABLE_SPEED)}), 0 12px 40px rgba(0, 0, 0, 0.65)`;
+            if (glow) glow.style.opacity = 0.1 * (_turntableSpeed / TARGET_TURNTABLE_SPEED);
+          }
+        } else {
+          record.style.boxShadow = '0 12px 40px rgba(0, 0, 0, 0.65)';
+          if (glow) glow.style.opacity = '0';
+        }
+      }
+      requestAnimationFrame(animateTurntable);
+    }
+    requestAnimationFrame(animateTurntable);
+  })();
+
   // Apply initial volume from localStorage
   applyVol(vol);
 
   window.addEventListener('beforeunload', ()=>{ sc.leaveRoom(roomId); yt.destroy(); });
+
+  // Register PWA Service Worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js')
+      .then(reg => console.log('[openjam] Service Worker registered:', reg.scope))
+      .catch(err => console.error('[openjam] Service Worker registration failed:', err));
+  }
 })().catch(e => {
   console.error('[openjam] init error:', e);
   const overlay = document.getElementById('loading-overlay');
   if (overlay) {
+    overlay.style.display = 'flex';
     const sub = document.getElementById('load-sub');
     if (sub) sub.textContent = 'Something went wrong. Please refresh.';
     const retry = document.getElementById('load-retry');
@@ -1783,11 +2549,6 @@ function showRoomHelp() {
 (function(){ const s=document.getElementById('vol-slider'); if(s) s.style.background=`linear-gradient(to right,var(--amber) 80%,var(--bg-elevated) 80%)`; })();
 </script>
 
-<footer style="text-align:center;padding:24px;font-size:11px;color:var(--text-3);">
-  <a href="/privacy" style="color:var(--text-3);text-decoration:none;margin:0 6px;">Privacy</a>
-  <span>&middot;</span>
-  <a href="/terms" style="color:var(--text-3);text-decoration:none;margin:0 6px;">Terms</a>
-</footer>
 </body>
 </html>
 

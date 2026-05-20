@@ -13,6 +13,7 @@ class User(Base):
     display_name = Column(String, nullable=False)
     avatar_url = Column(String, nullable=True)
     is_premium = Column(Boolean, default=False, nullable=False)
+    is_admin = Column(Boolean, default=False, nullable=False)
     stripe_customer_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -22,5 +23,6 @@ class User(Base):
             "display_name": self.display_name,
             "avatar_url": self.avatar_url,
             "is_premium": self.is_premium,
+            "is_admin": self.is_admin,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }

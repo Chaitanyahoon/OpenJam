@@ -16,9 +16,10 @@ from backend.models.queue_item import QueueItem
 from backend.models.user import User
 from backend.middleware.auth import get_current_user_id
 from backend.services.queue_manager import queue_manager
-from backend.services.lastfm import lastfm_service
+from backend.services.music_search import music_search_service as lastfm_service
 from backend.services.invidious import get_stream_url as get_invidious_stream_url
 from backend.schemas import QueueTrackRequest
+from backend.routes.rooms import check_room_access
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["queue"])
@@ -38,6 +39,8 @@ async def add_to_queue(
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
     user_id = user_data["id"]
+    if not check_room_access(room, user_id):
+        raise HTTPException(status_code=403, detail="Room access denied. Password verification required.")
     user_name = user_data["display_name"]
 
     user = db.query(User).filter(User.id == user_id).first()
@@ -47,6 +50,13 @@ async def add_to_queue(
         db.commit()
 
     track_data = track.model_dump() if hasattr(track, "model_dump") else track.dict()
+    
+    uri = track_data.get("uri")
+    if uri and (" " in uri or len(uri) != 11):
+        resolved_id = await asyncio.to_thread(lastfm_service.resolve_youtube, uri)
+        if resolved_id:
+            track_data["uri"] = resolved_id
+
     item = queue_manager.add_track(db, room_id, track_data, user_id, user_name)
 
     # Pre-resolve stream URL in background so playback starts instantly
@@ -61,6 +71,12 @@ async def vote_track(room_id: str, item_id: str, request: Request, db: Session =
     user_data = get_current_user_id(request, include_name=True)
     if not user_data:
         raise HTTPException(status_code=401, detail="Authentication required")
+    room = db.query(Room).filter(Room.id == room_id).first()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    if not check_room_access(room, user_data["id"]):
+        raise HTTPException(status_code=403, detail="Room access denied. Password verification required.")
+
     item = db.query(QueueItem).filter(
         QueueItem.id == item_id,
         QueueItem.room_id == room_id,
@@ -84,9 +100,15 @@ async def search_tracks(q: str = ""):
 
 
 @router.get("/queue/{room_id}")
-async def get_queue(room_id: str, db: Session = Depends(get_db)):
+async def get_queue(room_id: str, request: Request, db: Session = Depends(get_db)):
     """Lightweight queue fetch — used by the frontend 3s poll fallback."""
-    queue = queue_manager.get_queue(db, room_id, None)
+    room = db.query(Room).filter(Room.id == room_id).first()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    user_id = get_current_user_id(request)
+    if not check_room_access(room, user_id):
+        raise HTTPException(status_code=403, detail="Room access denied. Password verification required.")
+    queue = queue_manager.get_queue(db, room_id, user_id)
     return {"queue": queue}
 
 
@@ -143,17 +165,35 @@ def _prune_url_cache():
             del _url_cache[k]
 
 
-async def _resolve_audio_url(video_id: str) -> str | None:
+def _extract_ytdlp_sync(video_id: str, low: bool = False) -> str | None:
+    ydl_opts = {
+        "format": "139/bestaudio" if low else "251/140/bestaudio",
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+    }
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+            return info.get("url")
+    except Exception as e:
+        logger.error(f"yt-dlp Python API failed for {video_id} (low={low}): {e}")
+        return None
+
+
+async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
     """Race Invidious vs yt-dlp — use whichever resolves first. Cached in _url_cache."""
     if not _is_valid_video_id(video_id):
         logger.warning(f"Invalid video_id rejected: {video_id!r}")
         return None
 
-    if video_id in _url_cache:
-        url, expiry = _url_cache[video_id]
+    cache_key = f"{video_id}_low" if low else video_id
+
+    if cache_key in _url_cache:
+        url, expiry = _url_cache[cache_key]
         if time.time() < expiry:
             return url
-        del _url_cache[video_id]
+        del _url_cache[cache_key]
 
     async def _try_invidious() -> str | None:
         try:
@@ -163,19 +203,7 @@ async def _resolve_audio_url(video_id: str) -> str | None:
             return None
 
     async def _try_ytdlp() -> str | None:
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                "yt-dlp", "-f", "251/140/bestaudio", "-g",
-                f"https://www.youtube.com/watch?v={video_id}",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.DEVNULL,
-            )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
-            url = stdout.decode().strip()
-            return url if url else None
-        except Exception as e:
-            logger.error(f"yt-dlp -g failed for {video_id}: {e}")
-            return None
+        return await asyncio.to_thread(_extract_ytdlp_sync, video_id, low)
 
     # Run both in parallel, take the first success
     url = None
@@ -187,7 +215,7 @@ async def _resolve_audio_url(video_id: str) -> str | None:
 
     if url:
         _prune_url_cache()
-        _url_cache[video_id] = (url, time.time() + _URL_CACHE_TTL)
+        _url_cache[cache_key] = (url, time.time() + _URL_CACHE_TTL)
     return url
 
 
@@ -211,11 +239,11 @@ async def pre_resolve_url(video_id: str):
 
 
 @router.get("/stream/{video_id}")
-async def stream_audio(video_id: str, request: Request):
+async def stream_audio(video_id: str, request: Request, low: bool = False):
     if not _is_valid_video_id(video_id):
         raise HTTPException(status_code=400, detail="Invalid video ID")
 
-    url = await _resolve_audio_url(video_id)
+    url = await _resolve_audio_url(video_id, low=low)
     if not url:
         raise HTTPException(status_code=404, detail="Could not extract stream")
 
@@ -254,3 +282,114 @@ async def stream_audio(video_id: str, request: Request):
         raise
     except Exception:
         raise HTTPException(status_code=502, detail="Upstream connection failed")
+
+
+@router.get("/search/playlist")
+async def import_playlist(url: str):
+    """Import tracks from a Spotify or YouTube/YouTube Music playlist."""
+    if not url.strip():
+        raise HTTPException(status_code=400, detail="URL cannot be empty")
+        
+    url_clean = url.strip()
+    
+    # 1. Spotify Playlist
+    if "spotify.com" in url_clean:
+        try:
+            # Parse Spotify Playlist (scraped fallback)
+            match = re.search(r"/playlist/([a-zA-Z0-9]+)", url_clean)
+            if not match:
+                raise HTTPException(status_code=400, detail="Invalid Spotify playlist URL")
+            playlist_id = match.group(1)
+            
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+            client = _get_stream_client()
+            r = await client.get(f"https://open.spotify.com/playlist/{playlist_id}", headers=headers)
+            if r.status_code != 200:
+                raise HTTPException(status_code=r.status_code, detail="Spotify playlist not found or inaccessible")
+            
+            html = r.text
+            tracks = []
+            
+            # Scrape tracks with regex pattern matching "name":"..." and "artists":[...]
+            matches = re.findall(r'"name"\s*:\s*"([^"]+)"\s*,\s*"artists"\s*:\s*\[\s*\{\s*"name"\s*:\s*"([^"]+)"', html)
+            if matches:
+                for name, artist in matches:
+                    try:
+                        name = name.encode().decode('unicode_escape', errors='ignore')
+                        artist = artist.encode().decode('unicode_escape', errors='ignore')
+                    except Exception:
+                        pass
+                    tracks.append({"name": name, "artist": artist, "uri": f"{name} {artist} official audio"})
+            
+            if not tracks:
+                # Alternate pattern
+                matches = re.findall(r'"title"\s*:\s*"([^"]+)"\s*,\s*"subtitle"\s*:\s*"([^"]+)"', html)
+                for title, subtitle in matches:
+                    if title and subtitle and subtitle != "Playlist":
+                        tracks.append({"name": title, "artist": subtitle, "uri": f"{title} {subtitle} official audio"})
+                        
+            # Deduplicate
+            seen = set()
+            deduped = []
+            for t in tracks:
+                key = (t["name"].lower(), t["artist"].lower())
+                if key not in seen:
+                    seen.add(key)
+                    deduped.append(t)
+            
+            return {"tracks": deduped[:100]}
+            
+        except Exception as e:
+            logger.error(f"Spotify playlist import error: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+            
+    # 2. YouTube/YouTube Music Playlist
+    elif "youtube.com" in url_clean or "youtu.be" in url_clean:
+        def _extract_yt_playlist(url_to_parse):
+            ydl_opts = {
+                "extract_flat": True,
+                "quiet": True,
+                "no_warnings": True,
+                "skip_download": True,
+            }
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url_to_parse, download=False)
+                if not info:
+                    return []
+                entries = info.get("entries", [])
+                extracted = []
+                for entry in entries:
+                    if not entry:
+                        continue
+                    title = entry.get("title", "")
+                    artist = "Unknown"
+                    name = title
+                    if " - " in title:
+                        parts = title.split(" - ", 1)
+                        artist = parts[0].strip()
+                        name = parts[1].strip()
+                    elif " | " in title:
+                        parts = title.split(" | ", 1)
+                        artist = parts[0].strip()
+                        name = parts[1].strip()
+                    
+                    video_id = entry.get("id")
+                    uri = video_id if (video_id and len(video_id) == 11) else title
+                    extracted.append({
+                        "name": name,
+                        "artist": artist,
+                        "uri": uri,
+                    })
+                return extracted
+
+        try:
+            tracks = await asyncio.to_thread(_extract_yt_playlist, url_clean)
+            return {"tracks": tracks[:100]}
+        except Exception as e:
+            logger.error(f"YouTube playlist import error: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+            
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported playlist URL format (must be Spotify or YouTube)")

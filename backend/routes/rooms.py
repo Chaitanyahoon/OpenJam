@@ -85,6 +85,14 @@ async def create_room(request: Request, create_room_req: CreateRoomRequest, db: 
 
     # Rate limit: 1 room per 2 minutes per user
     now = _time.time()
+    # Prune expired entries to prevent memory growth
+    stale = [k for k, v in _room_create_times.items() if now - v > _ROOM_CREATE_COOLDOWN]
+    for k in stale:
+        _room_create_times.pop(k, None)
+    # Hard cap size
+    if len(_room_create_times) > 1000:
+        _room_create_times.clear()
+
     last_create = _room_create_times.get(user_id, 0)
     if now - last_create < _ROOM_CREATE_COOLDOWN:
         remaining = int(_ROOM_CREATE_COOLDOWN - (now - last_create))
@@ -111,12 +119,21 @@ async def create_room(request: Request, create_room_req: CreateRoomRequest, db: 
         db.commit()
         db.refresh(user)
 
+    import hashlib
+    password_hash = None
+    is_private = False
+    if create_room_req.password:
+        password_hash = hashlib.sha256(create_room_req.password.encode("utf-8")).hexdigest()
+        is_private = True
+
     room = Room(
         name=create_room_req.name,
         host_user_id=user_id,
         genre_tags=json.dumps(create_room_req.genre_tags),
         description=create_room_req.description,
         queue_mode=create_room_req.queue_mode,
+        password_hash=password_hash,
+        is_private=is_private,
     )
     db.add(room)
     db.commit()
@@ -125,6 +142,28 @@ async def create_room(request: Request, create_room_req: CreateRoomRequest, db: 
     _room_create_times[user_id] = now
 
     return {"room": room.to_dict(host_name=display_name)}
+def check_room_access(room: Room, user_id: str | None) -> bool:
+    """Check if user_id is authorized to access/modify private room details.
+    
+    A user is authorized if they are:
+    1. The host of the room, OR
+    2. Currently listed in the room state AND their socket SID is still alive
+       (prevents stale/ghost entries from granting access).
+    """
+    if not room.is_private:
+        return True
+    if not user_id:
+        return False
+    if room.host_user_id == user_id:
+        return True
+    room_state = room_manager.store.get_room(room.id)
+    if room_state and "users" in room_state and user_id in room_state["users"]:
+        # Verify the user has an active socket connection (SID still live)
+        user_entry = room_state["users"][user_id]
+        sid = user_entry.get("sid") if isinstance(user_entry, dict) else None
+        if sid and room_manager.store.get_sid(sid):
+            return True
+    return False
 
 
 @router.get("/{room_id}")
@@ -133,9 +172,24 @@ async def get_room(room_id: str, request: Request, db: Session = Depends(get_db)
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
     host_name = room.host.display_name if room.host else "Unknown"
-    now_playing = queue_manager.get_now_playing(db, room.id)
     current_user = get_current_user_id(request, include_name=True)
     current_user_id = current_user["id"] if current_user else None
+
+    if room.is_private and not check_room_access(room, current_user_id):
+        return {
+            "room": {
+                "id": room.id,
+                "name": room.name,
+                "is_private": True,
+                "host_name": host_name,
+                "host_user_id": room.host_user_id,
+            },
+            "queue": [],
+            "listeners": [],
+            "password_required": True,
+        }
+
+    now_playing = queue_manager.get_now_playing(db, room.id)
     queue = queue_manager.get_queue(db, room.id, current_user_id)
     listeners = room_manager.get_listeners(room_id)
     return {
@@ -147,6 +201,7 @@ async def get_room(room_id: str, request: Request, db: Session = Depends(get_db)
         "queue": queue,
         "listeners": listeners,
     }
+
 
 
 @router.delete("/{room_id}")
@@ -161,6 +216,14 @@ async def close_room(room_id: str, request: Request, db: Session = Depends(get_d
         raise HTTPException(status_code=403, detail="Only the host can close the room")
     room.is_active = False
     db.commit()
+
+    # Emit room_closed socket event to notify other room members instantly
+    sio = getattr(request.app.state, "sio", None)
+    if sio:
+        await sio.emit("room_closed", {
+            "room_id": room_id,
+            "reason": "Host closed the room",
+        }, room=room_id)
 
     # Force-clean in-memory room state to prevent orphaned sync loops and stale data
     from backend.sockets.playback import stop_sync_loop

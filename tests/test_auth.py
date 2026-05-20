@@ -41,3 +41,41 @@ def test_health_endpoint(client):
     data = response.json()
     assert data["status"] == "ok"
     assert data["app"] == "Open Jam"
+
+
+def test_admin_login_success(client):
+    """Test admin login with correct password."""
+    response = client.post("/auth/admin-login", json={"password": "openjam-admin-123"})
+    assert response.status_code == 200
+    assert "session_token" in response.cookies
+
+
+def test_admin_login_failure(client):
+    """Test admin login with incorrect password."""
+    response = client.post("/auth/admin-login", json={"password": "wrong-password"})
+    assert response.status_code == 401
+
+
+def test_admin_get_rooms_unauthorized(client):
+    """Test fetching rooms list without admin privilege."""
+    response = client.get("/admin/rooms")
+    assert response.status_code in (401, 403)
+
+
+def test_admin_get_rooms_success(client):
+    """Test fetching rooms list as an authorized admin."""
+    # First login
+    login_resp = client.post("/auth/admin-login", json={"password": "openjam-admin-123"})
+    assert login_resp.status_code == 200
+    
+    # Extract session token from cookie
+    session_cookie = login_resp.cookies.get("session_token")
+    assert session_cookie is not None
+    
+    # Use cookie to fetch rooms
+    client.cookies.set("session_token", session_cookie)
+    response = client.get("/admin/rooms")
+    assert response.status_code == 200
+    data = response.json()
+    assert "rooms" in data
+

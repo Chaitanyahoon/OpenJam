@@ -175,6 +175,5 @@ class MusicSearchService:
         return tracks
 
 
-# Keep import alias so nothing else needs to change
-lastfm_service = MusicSearchService()
-
+music_search_service = MusicSearchService()
+lastfm_service = music_search_service  # Keep import alias for backward compatibility
