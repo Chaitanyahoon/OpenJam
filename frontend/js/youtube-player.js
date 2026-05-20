@@ -158,7 +158,10 @@ class YouTubePlayer {
       this._hideOverlay();
       if (this._loadTimeout) { clearTimeout(this._loadTimeout); this._loadTimeout = null; }
       this.startProgressTimer();
-      this._emitControlEvent('play');
+      const pos = this._useIFrame
+        ? Math.round((this.ytPlayer.getCurrentTime() || 0) * 1000)
+        : Math.round((this.player.currentTime || 0) * 1000);
+      this._emitControlEvent('play', { position_ms: pos });
     } else if (state === 'pause') {
       this.isPlaying = false;
       this.stopProgressTimer();
