@@ -45,6 +45,7 @@ class SocketClient {
     this.socket.on('connect_error', () => {});
 
     const events = [
+      'connect', 'disconnect',
       'user_joined', 'user_left',
       'chat_message', 'chat_history',
       'queue_updated', 'queue_error',
