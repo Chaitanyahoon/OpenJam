@@ -363,7 +363,6 @@ class YouTubePlayer {
       if (isPlaying) {
         this.player.play().catch(e => {
           console.error('Autoplay prevented on sync:', e);
-          // Only show overlay if user hasn't unlocked yet
           if (!this._userUnlocked) {
             this._pendingPlayAfterUnlock = { videoId: this.currentVideoId, startSeconds: positionMs / 1000 };
             this._showOverlay();
@@ -377,6 +376,30 @@ class YouTubePlayer {
       setTimeout(() => { this._suppressStateChange = false; }, 500);
     }
 
+    this.updateDisplay();
+  }
+
+  /**
+   * Externally set play/pause state without seeking.
+   * Used by playback_sync to keep listener play/pause in sync with host.
+   */
+  setPlayState(playing) {
+    if (!this._userUnlocked || !this.currentVideoId) return;
+    this._suppressStateChange = true;
+    this.isPlaying = playing;
+    if (this._useIFrame && this.ytPlayer) {
+      if (playing) { this.ytPlayer.playVideo(); this.startProgressTimer(); }
+      else { this.ytPlayer.pauseVideo(); this.stopProgressTimer(); }
+    } else if (this.player) {
+      if (playing) {
+        this.player.play().catch(() => {});
+        this.startProgressTimer();
+      } else {
+        this.player.pause();
+        this.stopProgressTimer();
+      }
+    }
+    setTimeout(() => { this._suppressStateChange = false; }, 500);
     this.updateDisplay();
   }
 

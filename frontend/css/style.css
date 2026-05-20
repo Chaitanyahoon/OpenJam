@@ -1077,6 +1077,12 @@ input[type=range]::-moz-range-track {
   font-size: 11px; color: var(--text-3);
   display: none; /* shown for non-host */
 }
+/* Loop button active state */
+#btn-loop.active {
+  color: var(--accent);
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.4);
+}
 
 /* Volume */
 .volume-row {
@@ -1097,6 +1103,7 @@ input[type=range]::-moz-range-track {
 .queue-header {
   padding: 14px 16px; border-bottom: 1px solid var(--border);
   background: rgba(18,17,16,0.6); backdrop-filter: blur(8px); flex-shrink: 0;
+  position: relative; z-index: 50;
 }
 .queue-header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .queue-title { font-size: 15px; font-weight: 700; font-family: var(--font-display); }

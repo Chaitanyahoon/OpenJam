@@ -189,6 +189,9 @@
         <button class="icon-btn" id="btn-next" title="Skip" aria-label="Skip to next track">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zm8.5-6 8.5 6V6l-8.5 6z"/></svg>
         </button>
+        <button class="icon-btn" id="btn-loop" title="Loop: OFF" aria-label="Toggle loop">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
+        </button>
       </div>
       <!-- MEMBER info (non-host) -->
       <div class="controls-locked" id="controls-locked">
@@ -524,6 +527,9 @@ function showRoomHelp() {
   const TURNTABLE_ACCEL = 0.01;
   const TURNTABLE_DECEL = 0.005;
   let _turntablePlaying = false;
+  let _loopEnabled = false; // Loop current track
+  let _skipInFlight = false; // Debounce skip clicks
+  let _lastSyncPlaying = null; // Track play/pause state from last sync
 
   /* ─── YouTube Player & Lyrics ────────────────────────── */
   const yt = new YouTubePlayer();
@@ -582,7 +588,13 @@ function showRoomHelp() {
       is_playing: action === 'play',
     };
     if(action === 'ended'){
-      sc.emit('next_track', { room_id: roomId });
+      if (_loopEnabled && _currentTrackUri) {
+        // Loop: reload the same track from start
+        yt.setTrack({ track_uri: _currentTrackUri, position_ms: 0, duration_ms: yt.durationMs || 0, is_playing: true });
+        sc.emit('playback_update', { ...payload, position_ms: 0, is_playing: true });
+      } else {
+        sc.emit('next_track', { room_id: roomId });
+      }
     } else {
       sc.emit('playback_update', payload);
     }
@@ -608,17 +620,28 @@ function showRoomHelp() {
       if (!isHost) {
         // Update DISPLAY only (title/art/progress) — never re-loads the YT player
         updateNPDisplay(d);
-        // Only hard-resync YT position if drift is significant (>3s)
+
+        const serverPlaying = d.is_playing !== false;
         const serverPos = d.position_ms || 0;
         const clientPos = yt.positionMs || 0;
         const drift = Math.abs(serverPos - clientPos);
+
+        // Sync play/pause state immediately when it changes
+        if (_lastSyncPlaying !== serverPlaying) {
+          _lastSyncPlaying = serverPlaying;
+          yt.setPlayState(serverPlaying);
+          setPlayIcon(serverPlaying);
+        }
+
+        // Hard-resync YT position if drift is significant (>3s)
         if (drift > 3000) {
-          yt.syncPosition(serverPos, d.is_playing);
+          yt.syncPosition(serverPos, serverPlaying);
         }
       }
     }
   });
   sc.on('track_changed',  d => {
+    _skipInFlight = false; // Reset skip debounce
     updateNP(d); // Full update — loads new track into YT
     if(d) toast(`▶ ${d.track_name}`, 'success');
   });
@@ -1286,7 +1309,24 @@ function showRoomHelp() {
       is_playing: !isActuallyPlaying,
     });
   });
-  $('#btn-next')?.addEventListener('click', ()=>{ if(isHost) sc.nextTrack(); });
+  $('#btn-next')?.addEventListener('click', ()=>{
+    if(!isHost || _skipInFlight) return;
+    _skipInFlight = true;
+    sc.nextTrack();
+    // Safety: reset debounce after 5s in case track_changed never fires
+    setTimeout(() => { _skipInFlight = false; }, 5000);
+  });
+
+  // Loop toggle button
+  $('#btn-loop')?.addEventListener('click', () => {
+    _loopEnabled = !_loopEnabled;
+    const btn = $('#btn-loop');
+    if (btn) {
+      btn.classList.toggle('active', _loopEnabled);
+      btn.title = _loopEnabled ? 'Loop: ON' : 'Loop: OFF';
+    }
+    toast(_loopEnabled ? '🔁 Loop enabled' : '➡️ Loop disabled', 'info');
+  });
 
   // Seek bar click (host-only)
   document.getElementById('progress-bar')?.addEventListener('click', (e) => {
@@ -1620,6 +1660,9 @@ function showRoomHelp() {
     if (typeof io !== 'undefined') {
       sc.connect();
       sc.joinRoom(roomId);
+      // After joining, request a live sync from the server so refresh
+      // resumes playback at the correct position instead of restarting.
+      setTimeout(() => sc.requestSync(), 500);
       return;
     }
     if (window._ioFail) {
@@ -1656,6 +1699,43 @@ function showRoomHelp() {
     }
   }
 
+  // Fix layout recovery when viewport resizes (e.g., devtools toggle).
+  // When width crosses 640px boundary, reset panel display states.
+  let _lastWidthClass = window.innerWidth <= 640 ? 'mobile' : 'desktop';
+  window.addEventListener('resize', () => {
+    const nowClass = window.innerWidth <= 640 ? 'mobile' : 'desktop';
+    if (nowClass === _lastWidthClass) return;
+    _lastWidthClass = nowClass;
+    const left   = $('#panel-left');
+    const centre = $('#panel-center');
+    const right  = $('#panel-right');
+    if (nowClass === 'desktop') {
+      // Restore all panels to visible
+      [left, centre, right].forEach(p => {
+        if (p) {
+          p.style.display = '';
+          p.classList.remove('mobile-active');
+          p.style.transform = '';
+          p.style.opacity = '';
+        }
+      });
+    } else {
+      // Entering mobile: show only the queue (default tab)
+      [left, centre, right].forEach(p => {
+        if (p) {
+          p.classList.remove('mobile-active');
+          p.style.display = 'none';
+          p.style.transform = '';
+          p.style.opacity = '';
+        }
+      });
+      if (centre) {
+        centre.style.display = 'flex';
+        centre.classList.add('mobile-active');
+      }
+      switchMobileTab('queue');
+    }
+  });
   // Lightweight debug panel (shows when ?debug=1 is present)
   (function createDebugPanel(){
     try{

@@ -3,11 +3,23 @@
 import asyncio
 import socketio
 import json
+import time
 from datetime import datetime, timezone
 from backend.services.room_manager import room_manager
 
 # Tracks which rooms have an active sync loop
 _sync_tasks: dict = {}
+
+# Per-room locks to prevent double-advance race conditions
+# (e.g. host 'ended' event + sync loop auto-advance firing simultaneously)
+_advance_locks: dict[str, asyncio.Lock] = {}
+
+
+def _get_advance_lock(room_id: str) -> asyncio.Lock:
+    """Get or create the advance lock for a room."""
+    if room_id not in _advance_locks:
+        _advance_locks[room_id] = asyncio.Lock()
+    return _advance_locks[room_id]
 
 
 def _make_json_safe(data: dict) -> dict:
@@ -28,6 +40,71 @@ def _make_json_safe(data: dict) -> dict:
     return safe_data
 
 
+async def _do_advance(room_id: str, sio: socketio.AsyncServer):
+    """Advance to the next track in the queue. Must be called under _advance_lock."""
+    from backend.database import SessionLocal
+    from backend.services.queue_manager import queue_manager
+
+    def _advance(rid):
+        db = SessionLocal()
+        try:
+            nxt = queue_manager.advance_queue(db, rid)
+            q   = queue_manager.get_queue(db, rid)
+            return nxt, q
+        finally:
+            db.close()
+
+    next_item, queue = await asyncio.to_thread(_advance, room_id)
+
+    if next_item:
+        # Pre-resolve stream URL before emitting so playback starts instantly
+        track_uri = next_item.get("track_uri", "")
+        if track_uri and len(track_uri) == 11:
+            from backend.routes.queue import pre_resolve_url
+            asyncio.create_task(pre_resolve_url(track_uri))
+        room_manager.update_playback(
+            room_id=room_id,
+            track_uri=next_item["track_uri"],
+            track_name=next_item["track_name"],
+            artist=next_item["artist"],
+            album_art_url=next_item.get("album_art_url", ""),
+            position_ms=0,
+            duration_ms=next_item.get("duration_ms", 0),
+            is_playing=True,
+        )
+        ensure_sync_loop(room_id, sio)
+        try:
+            await sio.emit("track_changed", _make_json_safe(next_item), room=room_id)
+        except Exception as e:
+            from backend.logger import get_logger
+            get_logger(__name__).error(f"Failed to emit track_changed for room {room_id}: {e}")
+    else:
+        stop_sync_loop(room_id)
+        room_manager.update_playback(room_id, "", "", "", "", 0, 0, False)
+        try:
+            await sio.emit("track_changed", None, room=room_id)
+        except Exception as e:
+            from backend.logger import get_logger
+            get_logger(__name__).error(f"Failed to emit track_changed (none) for room {room_id}: {e}")
+
+    try:
+        await sio.emit("queue_updated", {"queue": queue}, room=room_id)
+    except Exception as e:
+        from backend.logger import get_logger
+        get_logger(__name__).error(f"Failed to emit queue_updated for room {room_id}: {e}")
+
+    # Pre-resolve the next track in queue in background (fire-and-forget)
+    if queue and len(queue) > 1:
+        next_track_uri = None
+        for item in queue:
+            if item.get("status") != "playing" and item.get("status") != "played":
+                next_track_uri = item.get("track_uri")
+                break
+        if next_track_uri and len(next_track_uri) == 11:
+            from backend.routes.queue import pre_resolve_url
+            asyncio.create_task(pre_resolve_url(next_track_uri))
+
+
 async def _playback_sync_loop(room_id: str, sio: socketio.AsyncServer):
     """Broadcast playback state every 2 seconds, using wall-clock for accurate position."""
     last_tick = datetime.now(timezone.utc)
@@ -44,8 +121,10 @@ async def _playback_sync_loop(room_id: str, sio: socketio.AsyncServer):
 
         playback = room_manager.get_playback(room_id)
         if not playback or not playback.get("track_uri"):
+            last_tick = datetime.now(timezone.utc)
             continue
         if not playback.get("is_playing"):
+            last_tick = datetime.now(timezone.utc)
             continue
 
         # Wall-clock delta — accurate even if loop drifts
@@ -61,57 +140,16 @@ async def _playback_sync_loop(room_id: str, sio: socketio.AsyncServer):
         # Auto-advance when track ends
         duration = playback.get("duration_ms", 0)
         if duration and new_pos >= duration - 500:
-            stop_sync_loop(room_id)
-            # Fire next_track logic inline
-            from backend.database import SessionLocal
-            from backend.services.queue_manager import queue_manager
-
-            def _advance(rid):
-                db = SessionLocal()
-                try:
-                    nxt = queue_manager.advance_queue(db, rid)
-                    q   = queue_manager.get_queue(db, rid)
-                    return nxt, q
-                finally:
-                    db.close()
-
-            next_item, queue = await asyncio.to_thread(_advance, room_id)
-
-            if next_item:
-                # Pre-resolve stream URL before emitting so playback starts instantly
-                track_uri = next_item.get("track_uri", "")
-                if track_uri and len(track_uri) == 11:
-                    from backend.routes.queue import pre_resolve_url
-                    asyncio.create_task(pre_resolve_url(track_uri))
-                room_manager.update_playback(
-                    room_id=room_id,
-                    track_uri=next_item["track_uri"],
-                    track_name=next_item["track_name"],
-                    artist=next_item["artist"],
-                    album_art_url=next_item.get("album_art_url", ""),
-                    position_ms=0,
-                    duration_ms=next_item.get("duration_ms", 0),
-                    is_playing=True,
-                )
-                ensure_sync_loop(room_id, sio)
-                await sio.emit("track_changed", _make_json_safe(next_item), room=room_id)
-            else:
-                room_manager.update_playback(room_id, "", "", "", "", 0, 0, False)
-                await sio.emit("track_changed", None, room=room_id)
-
-            await sio.emit("queue_updated", {"queue": queue}, room=room_id)
-
-            # Pre-resolve the next track in queue in background (fire-and-forget)
-            if queue and len(queue) > 1:
-                next_track_uri = None
-                for item in queue:
-                    if item.get("status") != "playing" and item.get("status") != "played":
-                        next_track_uri = item.get("track_uri")
-                        break
-                if next_track_uri and len(next_track_uri) == 11:
-                    from backend.routes.queue import pre_resolve_url
-                    asyncio.create_task(pre_resolve_url(next_track_uri))
-
+            lock = _get_advance_lock(room_id)
+            if lock.locked():
+                # Another advance is already in progress (e.g. host 'ended' event)
+                return
+            async with lock:
+                # Re-check: the track may have already been advanced by the host
+                fresh = room_manager.get_playback(room_id)
+                if fresh and fresh.get("track_uri") == playback.get("track_uri"):
+                    stop_sync_loop(room_id)
+                    await _do_advance(room_id, sio)
             return
 
         # Update server-side position
@@ -126,10 +164,10 @@ async def _playback_sync_loop(room_id: str, sio: socketio.AsyncServer):
             is_playing=True,
         )
 
-        # Emit only to non-host listeners to prevent host jitter
-        host_sid = room_manager.get_host_sid(room_id)
+        # Emit to all listeners (including host for UI sync, but host player ignores position)
         updated = room_manager.get_playback(room_id)
         try:
+            host_sid = room_manager.get_host_sid(room_id)
             await sio.emit("playback_sync", _make_json_safe(updated), room=room_id, skip_sid=host_sid)
         except Exception as e:
             from backend.logger import get_logger
@@ -224,69 +262,13 @@ def register_playback_handlers(sio: socketio.AsyncServer):
 
     @sio.event
     async def next_track(sid, data):
-        """Any jam member can skip to the next track."""
+        """Any jam member can skip to the next track. Guarded by per-room lock."""
         info = room_manager.get_user_by_sid(sid)
         if not info:
             return
         room_id = info["room_id"]
 
-        from backend.database import SessionLocal
-        from backend.services.queue_manager import queue_manager
-
-        def _advance(room_id):
-            db = SessionLocal()
-            try:
-                next_item = queue_manager.advance_queue(db, room_id)
-                queue = queue_manager.get_queue(db, room_id)
-                return next_item, queue
-            finally:
-                db.close()
-
-        next_item, queue = await asyncio.to_thread(_advance, room_id)
-
-        if next_item:
-            # Pre-resolve stream URL before emitting so playback starts instantly
-            track_uri = next_item.get("track_uri", "")
-            if track_uri and len(track_uri) == 11:
-                from backend.routes.queue import pre_resolve_url
-                asyncio.create_task(pre_resolve_url(track_uri))
-            room_manager.update_playback(
-                room_id=room_id,
-                track_uri=next_item["track_uri"],
-                track_name=next_item["track_name"],
-                artist=next_item["artist"],
-                album_art_url=next_item.get("album_art_url", ""),
-                position_ms=0,
-                duration_ms=next_item.get("duration_ms", 0),
-                is_playing=True,
-            )
-            ensure_sync_loop(room_id, sio)
-            try:
-                await sio.emit("track_changed", _make_json_safe(next_item), room=room_id)
-            except Exception as e:
-                logger.error(f"Failed to emit track_changed for room {room_id}: {e}")
-        else:
+        lock = _get_advance_lock(room_id)
+        async with lock:
             stop_sync_loop(room_id)
-            room_manager.update_playback(room_id, "", "", "", "", 0, 0, False)
-            try:
-                await sio.emit("track_changed", None, room=room_id)
-            except Exception as e:
-                logger.error(f"Failed to emit track_changed (none) for room {room_id}: {e}")
-
-        try:
-            await sio.emit("queue_updated", {"queue": queue}, room=room_id)
-        except Exception as e:
-            logger.error(f"Failed to emit queue_updated for room {room_id}: {e}")
-
-        # Pre-resolve the next track in queue in background (fire-and-forget)
-        if queue and len(queue) > 1:
-            next_track_uri = None
-            for item in queue:
-                if item.get("status") != "playing" and item.get("status") != "played":
-                    next_track_uri = item.get("track_uri")
-                    break
-            if next_track_uri and len(next_track_uri) == 11:
-                from backend.routes.queue import pre_resolve_url
-                asyncio.create_task(pre_resolve_url(next_track_uri))
-
-
+            await _do_advance(room_id, sio)

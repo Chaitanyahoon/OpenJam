@@ -51,16 +51,10 @@ def _get_instance_health(instance: str) -> dict:
     return _instance_health[instance]
 
 
-async def _health_check_instances():
+async def _health_check_instances_bg():
     """Lightweight health check: ping instances and measure response time."""
-    global _last_health_check
-    async with _health_check_lock:
-        now = time.time()
-        if now - _last_health_check < HEALTH_CHECK_INTERVAL:
-            return
-        _last_health_check = now
-
-    logger.info("Running Invidious instance health check...")
+    now = time.time()
+    logger.info("Running Invidious instance health check in background...")
 
     async def check(url: str):
         try:
@@ -88,7 +82,16 @@ async def _health_check_instances():
     tasks = [check(url) for url in INV_INSTANCES]
     results = await asyncio.gather(*tasks, return_exceptions=True)
     healthy = sum(1 for r in results if r is True)
-    logger.info(f"Invidious health check: {healthy}/{len(INV_INSTANCES)} instances healthy")
+    logger.info(f"Invidious health check background task complete: {healthy}/{len(INV_INSTANCES)} instances healthy")
+
+
+def trigger_health_check_if_needed():
+    """Trigger the health check in the background if the interval has passed."""
+    global _last_health_check
+    now = time.time()
+    if now - _last_health_check >= HEALTH_CHECK_INTERVAL:
+        _last_health_check = now
+        asyncio.create_task(_health_check_instances_bg())
 
 
 def _get_sorted_instances() -> list[str]:
@@ -116,7 +119,7 @@ async def get_stream_url(video_id: str) -> Optional[str]:
     Tries all instances in parallel with short timeouts and returns the first
     successful result. yt-dlp runs in parallel via the caller (_resolve_audio_url).
     """
-    await _health_check_instances()
+    trigger_health_check_if_needed()
 
     async def _try_instance(instance: str) -> Optional[str]:
         try:
@@ -162,7 +165,7 @@ async def get_stream_url(video_id: str) -> Optional[str]:
 
 async def get_video_info(video_id: str) -> Optional[dict]:
     """Get video metadata (title, duration, etc.) from Invidious."""
-    await _health_check_instances()
+    trigger_health_check_if_needed()
 
     for instance in _get_sorted_instances():
         try:
