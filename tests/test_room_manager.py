@@ -35,13 +35,24 @@ def test_join_and_leave_room_updates_listener_count():
     assert room_manager.get_listener_count("room-1") == 1
 
 
-def test_last_listener_leave_removes_room_state():
+def test_last_listener_leave_sets_empty_since():
     room_manager.join_room("room-1", "user-1", "sid-1", "Ava")
 
     room_manager.leave_room("sid-1")
 
     assert room_manager.get_listener_count("room-1") == 0
-    assert room_manager.get_active_room_ids() == []
+    # Room should still be in active rooms list (in memory)
+    assert room_manager.get_active_room_ids() == ["room-1"]
+    
+    # Check that empty_since is set
+    room = room_manager.store.get_room("room-1")
+    assert "empty_since" in room
+    assert room["empty_since"] > 0
+    
+    # Rejoining should clear it
+    room_manager.join_room("room-1", "user-2", "sid-2", "Ben")
+    room = room_manager.store.get_room("room-1")
+    assert "empty_since" not in room
 
 
 def test_playback_skip_votes_are_serialized():

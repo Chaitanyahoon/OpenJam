@@ -19,6 +19,7 @@ from backend.logger import setup_logging, get_logger
 from backend.routes.auth import router as auth_router
 from backend.routes.rooms import router as rooms_router
 from backend.routes.queue import router as queue_router
+from backend.routes.admin import router as admin_router
 from backend.sockets.connection import register_connection_handlers
 from backend.sockets.chat import register_chat_handlers
 from backend.sockets.playback import register_playback_handlers
@@ -69,10 +70,10 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Content-Type", "Authorization"],
 )
-
 app.include_router(auth_router)
 app.include_router(rooms_router)
 app.include_router(queue_router)
+app.include_router(admin_router)
 
 register_connection_handlers(sio)
 register_chat_handlers(sio)
@@ -89,6 +90,50 @@ socket_app = socketio.ASGIApp(sio, other_asgi_app=app, socketio_path="/socket.io
 app.mount("/static", StaticFiles(directory="frontend"), name="static")
 
 
+async def _room_cleanup_loop():
+    """Background task to periodically clean up empty rooms."""
+    from backend.database import SessionLocal
+    from backend.models.room import Room
+    from backend.services.room_manager import room_manager
+    import time
+    import asyncio
+    
+    while True:
+        try:
+            await asyncio.sleep(60)
+            now = time.time()
+            # Find rooms in Redis that have been empty for > 5 mins
+            rooms_to_delete = []
+            redis_rooms = room_manager.store.get_all_rooms()
+            
+            for room_id, room_data in redis_rooms.items():
+                if not room_data.get("users") and "empty_since" in room_data:
+                    if now - room_data["empty_since"] > 300: # 5 minutes
+                        rooms_to_delete.append(room_id)
+            
+            if rooms_to_delete:
+                logger.info(f"Auto-cleaning {len(rooms_to_delete)} empty rooms: {rooms_to_delete}")
+                db = SessionLocal()
+                try:
+                    for room_id in rooms_to_delete:
+                        # Deactivate in DB
+                        db_room = db.query(Room).filter(Room.id == room_id).first()
+                        if db_room:
+                            db_room.is_active = False
+                        
+                        # Remove from Redis
+                        room_manager.force_close_room(room_id)
+                    db.commit()
+                except Exception as e:
+                    logger.error(f"Error during room cleanup DB update: {e}")
+                finally:
+                    db.close()
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Unexpected error in room cleanup loop: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app):
     """Application startup/shutdown lifecycle."""
@@ -96,8 +141,14 @@ async def lifespan(app):
     init_db()
     logger.info(f"CORS allowed origins: {settings.ALLOWED_ORIGINS}")
     logger.info("Database initialized successfully")
+    
+    # Start background cleanup task
+    import asyncio
+    cleanup_task = asyncio.create_task(_room_cleanup_loop())
+    
     logger.info("Open Jam startup complete")
     yield
+    cleanup_task.cancel()
     logger.info("Open Jam shutting down")
 
 app.router.lifespan_context = lifespan
@@ -142,6 +193,10 @@ async def health(db=Depends(get_db)):
 @app.get("/")
 async def serve_home():
     return FileResponse("frontend/index.html")
+
+@app.get("/admin")
+async def serve_admin():
+    return FileResponse("frontend/admin.html")
 
 
 @app.get("/room/{room_id}", response_class=HTMLResponse)

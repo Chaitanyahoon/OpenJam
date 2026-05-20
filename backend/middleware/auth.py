@@ -7,8 +7,8 @@ from backend.config import settings
 serializer = URLSafeSerializer(settings.SECRET_KEY)
 
 
-def create_session_token(user_id: str, display_name: str = "") -> str:
-    return serializer.dumps({"user_id": user_id, "display_name": display_name})
+def create_session_token(user_id: str, display_name: str = "", is_admin: bool = False) -> str:
+    return serializer.dumps({"user_id": user_id, "display_name": display_name, "is_admin": is_admin})
 
 
 def get_user_id_from_token(token: str) -> str | None:
@@ -46,6 +46,7 @@ def get_current_user_id(request: Request, include_name: bool = False):
             "id": user_id,
             "display_name": data.get("display_name", "Jammer"),
             "avatar_url": None,
+            "is_admin": data.get("is_admin", False),
         }
     return user_id
 
@@ -59,3 +60,12 @@ def require_auth(request: Request) -> str:
     if not user_id:
         raise HTTPException(status_code=401, detail="Authentication required")
     return user_id
+
+
+def require_admin(request: Request) -> str:
+    user_data = get_current_user_id(request, include_name=True)
+    if not user_data:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    if not user_data.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin privileges required")
+    return user_data["id"]

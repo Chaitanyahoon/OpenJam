@@ -63,6 +63,9 @@ class RoomManager:
         # Refresh room object in case _leave_room_internal changed it
         room = self.store.get_room(room_id) or room
 
+        if "empty_since" in room:
+            del room["empty_since"]
+
         room["users"][user_id] = {
             "sid": sid,
             "display_name": display_name,
@@ -79,10 +82,9 @@ class RoomManager:
         room = self.store.get_room(room_id)
         if room:
             room["users"].pop(user_id, None)
-            if not room["users"]:
-                self.store.del_room(room_id)
-            else:
-                self.store.set_room(room_id, room)
+            if not room["users"] and "empty_since" not in room:
+                room["empty_since"] = time.time()
+            self.store.set_room(room_id, room)
 
     def leave_room(self, sid: str) -> dict | None:
         info = self.store.get_sid(sid)
@@ -100,10 +102,9 @@ class RoomManager:
         room = self.store.get_room(room_id)
         if room:
             room["users"].pop(user_id, None)
-            if not room["users"]:
-                self.store.del_room(room_id)
-            else:
-                self.store.set_room(room_id, room)
+            if not room["users"] and "empty_since" not in room:
+                room["empty_since"] = time.time()
+            self.store.set_room(room_id, room)
         return info
 
     def get_user_by_sid(self, sid: str) -> dict | None:
