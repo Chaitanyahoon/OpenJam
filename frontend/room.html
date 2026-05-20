@@ -153,7 +153,7 @@
             alt="Album art">
         </div>
         <!-- New Lyrics View Overlay -->
-        <div class="lyrics-view" id="lyrics-view" style="opacity:0; visibility:hidden;">
+        <div class="lyrics-view" id="lyrics-view">
            <div class="lyrics-content" id="lyrics-content"></div>
         </div>
         <!-- Album Art Empty Placeholder -->
@@ -540,10 +540,8 @@ function showRoomHelp() {
   $('#btn-toggle-lyrics')?.addEventListener('click', () => {
     const view = $('#lyrics-view');
     const btn = $('#btn-toggle-lyrics');
-    const isVisible = view.style.opacity !== '0';
-    view.style.opacity = isVisible ? '0' : '1';
-    view.style.visibility = isVisible ? 'hidden' : 'visible';
-    btn.classList.toggle('active', !isVisible);
+    const isVisible = view.classList.toggle('active');
+    btn.classList.toggle('active', isVisible);
   });
 
   $('#btn-vote-skip')?.addEventListener('click', (e) => {
@@ -864,6 +862,15 @@ function showRoomHelp() {
 
     // Only reload YT player when the actual video ID changes
     if(track.track_uri !== _currentTrackUri){
+      const vinylRecord = $('#vinyl-record');
+      if (vinylRecord) {
+        vinylRecord.classList.remove('vinyl-slide-in');
+        vinylRecord.classList.add('vinyl-slide-out');
+        setTimeout(() => {
+          vinylRecord.classList.remove('vinyl-slide-out');
+          vinylRecord.classList.add('vinyl-slide-in');
+        }, 500);
+      }
       _currentTrackUri = track.track_uri;
       yt.setTrack({ track_uri:track.track_uri, position_ms:track.position_ms||0, duration_ms:track.duration_ms||0, is_playing:playing });
       // Re-apply current volume to the new track immediately
