@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 import socketio
 from fastapi import FastAPI, Request, Depends
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -144,9 +144,59 @@ async def serve_home():
     return FileResponse("frontend/index.html")
 
 
-@app.get("/room/{room_id}")
-async def serve_room(room_id: str):
-    return FileResponse("frontend/room.html")
+@app.get("/room/{room_id}", response_class=HTMLResponse)
+async def serve_room(room_id: str, request: Request):
+    from backend.database import get_db
+    from backend.models.room import Room
+    from backend.services.queue_manager import queue_manager
+    from sqlalchemy.orm import selectinload
+
+    # Default fallbacks
+    title = "Open Jam Room"
+    description = "Join this listening room and discover music together in real-time."
+    image = "/static/img/cover-banner.png"
+
+    db = next(get_db())
+    try:
+        room = db.query(Room).options(selectinload(Room.host)).filter(Room.id == room_id).first()
+        if room:
+            host_name = room.host.display_name if room.host else "Jammer"
+            title = f"{room.name} — Open Jam"
+            
+            now_playing = queue_manager.get_now_playing(db, room.id)
+            if now_playing:
+                track_name = now_playing.get("track_name", "Unknown Track")
+                artist = now_playing.get("artist", "Unknown Artist")
+                description = f"Listening with {host_name} to {track_name} by {artist}. Join the Jam and listen in sync!"
+                track_art = now_playing.get("album_art_url")
+                if track_art:
+                    image = track_art
+            else:
+                description = f"Hosted by {host_name}. Join the room to queue tracks and listen together!"
+    except Exception as e:
+        logger.error(f"Error generating meta tags: {e}")
+    finally:
+        db.close()
+
+    try:
+        with open("frontend/room.html", "r", encoding="utf-8") as f:
+            html_content = f.read()
+    except Exception as e:
+        logger.error(f"Failed to read room.html: {e}")
+        return HTMLResponse(content="Room not found", status_code=404)
+
+    # Inject Open Graph metadata
+    html_content = html_content.replace("{{OG_TITLE}}", title)
+    html_content = html_content.replace("{{OG_DESCRIPTION}}", description)
+    
+    base_url = str(request.base_url).rstrip("/")
+    if image.startswith("/"):
+        abs_image = f"{base_url}{image}"
+    else:
+        abs_image = image
+
+    html_content = html_content.replace("{{OG_IMAGE}}", abs_image)
+    return HTMLResponse(content=html_content)
 
 
 @app.get("/privacy")
