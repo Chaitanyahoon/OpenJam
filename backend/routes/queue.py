@@ -47,6 +47,13 @@ async def add_to_queue(
         db.commit()
 
     track_data = track.model_dump() if hasattr(track, "model_dump") else track.dict()
+    
+    uri = track_data.get("uri")
+    if uri and (" " in uri or len(uri) != 11):
+        resolved_id = await asyncio.to_thread(lastfm_service.resolve_youtube, uri)
+        if resolved_id:
+            track_data["uri"] = resolved_id
+
     item = queue_manager.add_track(db, room_id, track_data, user_id, user_name)
 
     # Pre-resolve stream URL in background so playback starts instantly
@@ -143,6 +150,22 @@ def _prune_url_cache():
             del _url_cache[k]
 
 
+def _extract_ytdlp_sync(video_id: str) -> str | None:
+    ydl_opts = {
+        "format": "251/140/bestaudio",
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+    }
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+            return info.get("url")
+    except Exception as e:
+        logger.error(f"yt-dlp Python API failed for {video_id}: {e}")
+        return None
+
+
 async def _resolve_audio_url(video_id: str) -> str | None:
     """Race Invidious vs yt-dlp — use whichever resolves first. Cached in _url_cache."""
     if not _is_valid_video_id(video_id):
@@ -163,19 +186,7 @@ async def _resolve_audio_url(video_id: str) -> str | None:
             return None
 
     async def _try_ytdlp() -> str | None:
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                "yt-dlp", "-f", "251/140/bestaudio", "-g",
-                f"https://www.youtube.com/watch?v={video_id}",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.DEVNULL,
-            )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
-            url = stdout.decode().strip()
-            return url if url else None
-        except Exception as e:
-            logger.error(f"yt-dlp -g failed for {video_id}: {e}")
-            return None
+        return await asyncio.to_thread(_extract_ytdlp_sync, video_id)
 
     # Run both in parallel, take the first success
     url = None
