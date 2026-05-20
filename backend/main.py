@@ -5,7 +5,7 @@ import os
 import time
 from contextlib import asynccontextmanager
 import socketio
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,7 +14,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from backend.config import settings
-from backend.database import init_db
+from backend.database import init_db, get_db
 from backend.logger import setup_logging, get_logger
 from backend.routes.auth import router as auth_router
 from backend.routes.rooms import router as rooms_router
@@ -108,7 +108,18 @@ async def ping():
     })
 
 @app.get("/health")
-async def health():
+async def health(db=Depends(get_db)):
+    # Test database connection to keep pooling/database active
+    try:
+        from sqlalchemy import text
+        db.execute(text("SELECT 1"))
+    except Exception as e:
+        logger.error(f"Database health check failed: {e}")
+        return JSONResponse({
+            "status": "error",
+            "detail": "Database connection failed"
+        }, status_code=500)
+
     from backend.services.room_manager import room_manager
     from backend.services.room_closer import cancel_room_close
     active_rooms = room_manager.get_active_room_ids()

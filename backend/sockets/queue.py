@@ -28,6 +28,14 @@ def _db_add_and_get_queue(room_id: str, track_data: dict, user_id: str, display_
             db.add(User(id=user_id, display_name=display_name))
             db.flush()
 
+        # Resolve YouTube Video ID immediately if needed
+        uri = track_data.get("uri")
+        if uri and (" " in uri or len(uri) != 11):
+            from backend.services.lastfm import lastfm_service
+            resolved_id = lastfm_service.resolve_youtube(uri)
+            if resolved_id:
+                track_data["uri"] = resolved_id
+
         queue_manager.add_track(db, room_id, track_data, user_id, display_name)
         # Cross-check DB status with live memory to prevent accidental autoplay interrupts
         live_playback = room_manager.get_playback(room_id)
