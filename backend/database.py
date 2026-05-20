@@ -59,14 +59,17 @@ def init_db():
     
     # Auto-migration: Check if 'is_admin' column exists in 'users' table, and add it if missing
     from sqlalchemy import text
-    with engine.begin() as conn:
-        try:
-            # We wrap in a text() object for SQLAlchemy 2.0 compatibility
+    is_admin_exists = True
+    try:
+        with engine.connect() as conn:
             conn.execute(text("SELECT is_admin FROM users LIMIT 1"))
-        except Exception:
-            try:
-                # Add the missing is_admin column (compatible with PostgreSQL and SQLite)
+    except Exception:
+        is_admin_exists = False
+        
+    if not is_admin_exists:
+        try:
+            with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT FALSE"))
-            except Exception as e:
-                # Log or print the error
-                print(f"Failed to auto-migrate users.is_admin: {e}")
+            print("Successfully added is_admin column to users table.")
+        except Exception as e:
+            print(f"Failed to auto-migrate users.is_admin: {e}")
