@@ -14,6 +14,7 @@ def _db_add_and_get_queue(room_id: str, track_data: dict, user_id: str, display_
     """Add a track and get current queue — runs in thread pool."""
     from backend.models.room import Room
     from backend.models.user import User
+    from backend.models.queue_item import QueueItem
     db = SessionLocal()
     try:
         # Check queue mode permissions
@@ -23,6 +24,15 @@ def _db_add_and_get_queue(room_id: str, track_data: dict, user_id: str, display_
         if room.queue_mode == "curated" and room.host_user_id != user_id:
             raise ValueError("Queue is locked by host")
 
+        # 1. Queue Cap Per User (limit pending tracks to 5)
+        pending_count = db.query(QueueItem).filter(
+            QueueItem.room_id == room_id,
+            QueueItem.added_by_user_id == user_id,
+            QueueItem.status == "pending",
+        ).count()
+        if pending_count >= 5:
+            raise ValueError("You can only queue up to 5 tracks at a time")
+
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             db.add(User(id=user_id, display_name=display_name))
@@ -31,10 +41,21 @@ def _db_add_and_get_queue(room_id: str, track_data: dict, user_id: str, display_
         # Resolve YouTube Video ID immediately if needed
         uri = track_data.get("uri")
         if uri and (" " in uri or len(uri) != 11):
-            from backend.services.lastfm import lastfm_service
+            from backend.services.music_search import music_search_service as lastfm_service
             resolved_id = lastfm_service.resolve_youtube(uri)
             if resolved_id:
                 track_data["uri"] = resolved_id
+                uri = resolved_id
+
+        # 2. Song Deduplication (check if track is pending or playing)
+        if uri:
+            duplicate = db.query(QueueItem).filter(
+                QueueItem.room_id == room_id,
+                QueueItem.track_uri == uri,
+                QueueItem.status.in_(["pending", "playing"]),
+            ).first()
+            if duplicate:
+                raise ValueError("This track is already in the queue")
 
         queue_manager.add_track(db, room_id, track_data, user_id, display_name)
         # Cross-check DB status with live memory to prevent accidental autoplay interrupts
@@ -216,6 +237,76 @@ def register_queue_handlers(sio: socketio.AsyncServer):
             queue = await asyncio.to_thread(_db_remove, room_id, queue_item_id)
         except Exception as e:
             logger.error(f"remove_from_queue error: {e}")
+            return
+
+        await sio.emit("queue_updated", {"queue": queue}, room=room_id)
+
+    @sio.event
+    async def reorder_queue(sid, data):
+        """Host-only: reorder the pending tracks in the queue."""
+        session = await sio.get_session(sid)
+        if not session:
+            return
+
+        info = room_manager.get_user_by_sid(sid)
+        if not info:
+            return
+        room_id = info["room_id"]
+
+        # Only host can reorder tracks
+        if not room_manager.is_host(room_id, sid):
+            await sio.emit("queue_error", {"message": "Only the host can reorder tracks"}, to=sid)
+            return
+
+        ordered_ids = data.get("ordered_ids")  # list of queue item IDs in new order
+        if not ordered_ids:
+            return
+
+        def _db_reorder(room_id, ordered_ids):
+            from backend.models.queue_item import QueueItem
+            from backend.models.vote import Vote
+            db = SessionLocal()
+            try:
+                # Fetch all pending items in this room
+                pending_items = db.query(QueueItem).filter(
+                    QueueItem.room_id == room_id,
+                    QueueItem.status == "pending",
+                ).all()
+                
+                # Build a map of id -> item
+                items_map = {item.id: item for item in pending_items}
+                
+                # Update positions and clear votes in the specified order
+                position = 0
+                for item_id in ordered_ids:
+                    if item_id in items_map:
+                        item = items_map[item_id]
+                        item.position = position
+                        item.votes = 0
+                        # Clear existing votes for this item to ensure custom sorting is respected
+                        db.query(Vote).filter(Vote.queue_item_id == item.id).delete()
+                        position += 1
+                
+                # For any pending items not in the list (if any), put them at the end
+                for item in pending_items:
+                    if item.id not in ordered_ids:
+                        item.position = position
+                        item.votes = 0
+                        db.query(Vote).filter(Vote.queue_item_id == item.id).delete()
+                        position += 1
+                
+                db.commit()
+                return queue_manager.get_queue(db, room_id, None)
+            except Exception as e:
+                db.rollback()
+                raise e
+            finally:
+                db.close()
+
+        try:
+            queue = await asyncio.to_thread(_db_reorder, room_id, ordered_ids)
+        except Exception as e:
+            logger.error(f"reorder_queue error: {e}")
             return
 
         await sio.emit("queue_updated", {"queue": queue}, room=room_id)

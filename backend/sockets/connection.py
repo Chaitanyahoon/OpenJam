@@ -112,6 +112,39 @@ def register_connection_handlers(sio: socketio.AsyncServer):
         display_name = session.get("display_name", "Jammer")
         avatar_url = data.get("avatar_url") or session.get("avatar_url")
 
+        # Check private room password
+        def _check_room_password(room_id, user_id, password_input):
+            import hashlib
+            db = SessionLocal()
+            try:
+                from backend.models.room import Room
+                room = db.query(Room).filter(Room.id == room_id).first()
+                if not room:
+                    return "Room not found"
+                if room.is_private:
+                    # Host doesn't need to enter the password
+                    if room.host_user_id == user_id:
+                        return None
+                    if not password_input:
+                        return "password_required"
+                    hashed_input = hashlib.sha256(password_input.encode("utf-8")).hexdigest()
+                    if hashed_input != room.password_hash:
+                        return "invalid_password"
+                return None
+            finally:
+                db.close()
+
+        password_input = data.get("password")
+        password_err = await asyncio.to_thread(_check_room_password, room_id, user_id, password_input)
+        if password_err:
+            if password_err == "password_required":
+                await sio.emit("join_error", {"message": "This room is private. Password required.", "reason": "password_required"}, to=sid)
+            elif password_err == "invalid_password":
+                await sio.emit("join_error", {"message": "Incorrect password. Please try again.", "reason": "invalid_password"}, to=sid)
+            else:
+                await sio.emit("join_error", {"message": password_err}, to=sid)
+            return
+
         if data.get("avatar_url"):
             session["avatar_url"] = data.get("avatar_url")
             await sio.save_session(sid, session)

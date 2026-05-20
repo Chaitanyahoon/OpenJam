@@ -15,6 +15,8 @@ class Room(Base):
     description = Column(Text, default="")
     is_active = Column(Boolean, default=True, index=True)
     queue_mode = Column(String, default="open")  # open or curated
+    password_hash = Column(String, nullable=True)
+    is_private = Column(Boolean, default=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     
     # Relationship to User (eager loading)
@@ -46,6 +48,7 @@ class Room(Base):
             "description": self.description,
             "is_active": self.is_active,
             "queue_mode": self.queue_mode,
+            "is_private": self.is_private or False,
             "listener_count": listener_count,
             "current_track": current_track,
             "created_at": created_at_iso,

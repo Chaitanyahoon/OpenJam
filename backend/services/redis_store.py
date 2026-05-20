@@ -103,14 +103,14 @@ class RedisStore:
 
     def get_active_room_ids(self) -> list:
         if self.client:
-            keys = self.client.keys("openjam:room:*")
+            keys = list(self.client.scan_iter("openjam:room:*"))
             return [k.replace("openjam:room:", "", 1) for k in keys]
         return list(self._rooms.keys())
 
     def get_sid_map_items(self) -> list:
         """Returns list of (sid, info) pairs."""
         if self.client:
-            keys = self.client.keys("openjam:sid:*")
+            keys = list(self.client.scan_iter("openjam:sid:*"))
             items = []
             for k in keys:
                 val = self.client.get(k)
@@ -123,7 +123,7 @@ class RedisStore:
     def get_all_rooms(self) -> dict:
         """Retrieve all active rooms. Used for aggregating server metrics."""
         if self.client:
-            keys = self.client.keys("openjam:room:*")
+            keys = list(self.client.scan_iter("openjam:room:*"))
             rooms = {}
             for k in keys:
                 val = self.client.get(k)

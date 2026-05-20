@@ -85,6 +85,14 @@ async def create_room(request: Request, create_room_req: CreateRoomRequest, db: 
 
     # Rate limit: 1 room per 2 minutes per user
     now = _time.time()
+    # Prune expired entries to prevent memory growth
+    stale = [k for k, v in _room_create_times.items() if now - v > _ROOM_CREATE_COOLDOWN]
+    for k in stale:
+        _room_create_times.pop(k, None)
+    # Hard cap size
+    if len(_room_create_times) > 1000:
+        _room_create_times.clear()
+
     last_create = _room_create_times.get(user_id, 0)
     if now - last_create < _ROOM_CREATE_COOLDOWN:
         remaining = int(_ROOM_CREATE_COOLDOWN - (now - last_create))
@@ -111,12 +119,21 @@ async def create_room(request: Request, create_room_req: CreateRoomRequest, db: 
         db.commit()
         db.refresh(user)
 
+    import hashlib
+    password_hash = None
+    is_private = False
+    if create_room_req.password:
+        password_hash = hashlib.sha256(create_room_req.password.encode("utf-8")).hexdigest()
+        is_private = True
+
     room = Room(
         name=create_room_req.name,
         host_user_id=user_id,
         genre_tags=json.dumps(create_room_req.genre_tags),
         description=create_room_req.description,
         queue_mode=create_room_req.queue_mode,
+        password_hash=password_hash,
+        is_private=is_private,
     )
     db.add(room)
     db.commit()

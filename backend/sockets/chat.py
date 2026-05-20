@@ -43,13 +43,16 @@ def _prune_reaction_times():
     """Remove stale entries to prevent memory leak."""
     global _reaction_prune_counter
     _reaction_prune_counter += 1
-    if _reaction_prune_counter < 100:  # Prune every 100 reactions
+    if _reaction_prune_counter < 100 and len(_last_reaction_time) < 1000:  # Prune every 100 reactions
         return
     _reaction_prune_counter = 0
     now = time.time()
     stale = [k for k, v in _last_reaction_time.items() if now - v > 5.0]
     for k in stale:
         del _last_reaction_time[k]
+    # Hard cap size
+    if len(_last_reaction_time) > 1000:
+        _last_reaction_time.clear()
 
 # Per-user chat rate limiting
 _last_chat_time: dict[str, float] = {}
@@ -58,13 +61,16 @@ _chat_prune_counter = 0
 def _prune_chat_times():
     global _chat_prune_counter
     _chat_prune_counter += 1
-    if _chat_prune_counter < 50:
+    if _chat_prune_counter < 50 and len(_last_chat_time) < 1000:
         return
     _chat_prune_counter = 0
     now = time.time()
     stale = [k for k, v in _last_chat_time.items() if now - v > 5.0]
     for k in stale:
         del _last_chat_time[k]
+    # Hard cap size
+    if len(_last_chat_time) > 1000:
+        _last_chat_time.clear()
 
 
 def register_chat_handlers(sio: socketio.AsyncServer):

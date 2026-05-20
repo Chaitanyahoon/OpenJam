@@ -73,3 +73,33 @@ def init_db():
             print("Successfully added is_admin column to users table.")
         except Exception as e:
             print(f"Failed to auto-migrate users.is_admin: {e}")
+
+    # Auto-migration: Check if 'password_hash' and 'is_private' columns exist in 'rooms' table, and add them if missing
+    password_hash_exists = True
+    is_private_exists = True
+    
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("SELECT password_hash FROM rooms LIMIT 1"))
+        except Exception:
+            password_hash_exists = False
+        try:
+            conn.execute(text("SELECT is_private FROM rooms LIMIT 1"))
+        except Exception:
+            is_private_exists = False
+            
+    if not password_hash_exists:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE rooms ADD COLUMN password_hash VARCHAR NULL"))
+            print("Successfully added password_hash column to rooms table.")
+        except Exception as e:
+            print(f"Failed to auto-migrate rooms.password_hash: {e}")
+            
+    if not is_private_exists:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE rooms ADD COLUMN is_private BOOLEAN NOT NULL DEFAULT FALSE"))
+            print("Successfully added is_private column to rooms table.")
+        except Exception as e:
+            print(f"Failed to auto-migrate rooms.is_private: {e}")

@@ -1,6 +1,7 @@
 """Tests for room routes."""
 
 import json
+import pytest
 
 def test_list_rooms_empty(client, db_session):
     """Test listing rooms when none exist."""
@@ -162,3 +163,139 @@ def test_close_room_unauthenticated(client, test_room):
     """Test closing room without authentication."""
     response = client.delete(f"/rooms/{test_room.id}")
     assert response.status_code == 401
+
+
+def test_create_private_room(client, auth_headers, test_user, db_session):
+    """Test creating a private room with a password."""
+    import hashlib
+    from backend.models.room import Room
+
+    payload = {
+        "name": "Secret VIP Lounge",
+        "description": "Invite only",
+        "genre_tags": ["jazz", "chill"],
+        "queue_mode": "open",
+        "password": "secretpassword123",
+    }
+    response = client.post("/rooms", json=payload, headers=auth_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["room"]["name"] == "Secret VIP Lounge"
+    assert data["room"]["is_private"] is True
+    assert "password" not in data["room"]
+    assert "password_hash" not in data["room"]
+
+    # Verify database state
+    db_room = db_session.query(Room).filter(Room.id == data["room"]["id"]).first()
+    assert db_room is not None
+    assert db_room.is_private is True
+    expected_hash = hashlib.sha256(b"secretpassword123").hexdigest()
+    assert db_room.password_hash == expected_hash
+
+
+def test_list_private_room(client, auth_headers, test_user, db_session):
+    """Test listing rooms when a private room exists."""
+    import hashlib
+    from backend.models.room import Room
+
+    room = Room(
+        name="Private Room",
+        host_user_id=test_user.id,
+        description="A private room",
+        genre_tags=json.dumps(["jazz"]),
+        queue_mode="open",
+        is_private=True,
+        password_hash=hashlib.sha256(b"shh").hexdigest(),
+    )
+    db_session.add(room)
+    db_session.commit()
+
+    response = client.get("/rooms")
+    assert response.status_code == 200
+    data = response.json()
+    
+    # We should have the default test_room (if loaded) or just this room
+    private_rooms = [r for r in data["rooms"] if r["name"] == "Private Room"]
+    assert len(private_rooms) == 1
+    assert private_rooms[0]["is_private"] is True
+    assert "password" not in private_rooms[0]
+    assert "password_hash" not in private_rooms[0]
+
+
+@pytest.mark.asyncio
+async def test_join_room_private_password_validation(db_session, test_user):
+    """Test the socket join_room handler private room password logic."""
+    import hashlib
+    from backend.models.room import Room
+    from backend.models.user import User
+    from backend.sockets.connection import register_connection_handlers
+    from unittest.mock import AsyncMock, patch
+
+    # 1. Create a private room
+    room = Room(
+        name="Private Room",
+        host_user_id="host_user_id",
+        description="A private room",
+        genre_tags='["jazz"]',
+        queue_mode="open",
+        is_private=True,
+        password_hash=hashlib.sha256(b"secret123").hexdigest(),
+    )
+    db_session.add(room)
+    
+    # Also create a non-host guest user
+    guest = User(id="guest_user_id", display_name="Guest Jammer")
+    db_session.add(guest)
+    db_session.commit()
+
+    # 2. Mock sio (socketio AsyncServer)
+    sio = AsyncMock()
+    
+    # We want to capture the event handlers registered
+    handlers = {}
+    def mock_event(func):
+        handlers[func.__name__] = func
+        return func
+    
+    sio.event = mock_event
+    sio.on = mock_event
+
+    # Register handlers
+    register_connection_handlers(sio)
+    
+    # Retrieve the join_room handler
+    join_room_handler = handlers.get("join_room")
+    assert join_room_handler is not None
+
+    # Patch SessionLocal to return our test database session
+    with patch("backend.sockets.connection.SessionLocal", return_value=db_session):
+        # 3. Try to join without password
+        sio.get_session.return_value = {"user_id": "guest_user_id", "display_name": "Guest Jammer"}
+        
+        await join_room_handler("sid_123", {"room_id": room.id})
+        
+        # Verify join_error is emitted for password_required
+        sio.emit.assert_called_with(
+            "join_error",
+            {"message": "This room is private. Password required.", "reason": "password_required"},
+            to="sid_123"
+        )
+        
+        # 4. Try to join with wrong password
+        sio.emit.reset_mock()
+        await join_room_handler("sid_123", {"room_id": room.id, "password": "wrongpassword"})
+        sio.emit.assert_called_with(
+            "join_error",
+            {"message": "Incorrect password. Please try again.", "reason": "invalid_password"},
+            to="sid_123"
+        )
+        
+        # 5. Try to join with correct password
+        sio.emit.reset_mock()
+        await join_room_handler("sid_123", {"room_id": room.id, "password": "secret123"})
+        
+        # Verify no join_error was emitted
+        error_calls = [c for c in sio.emit.call_args_list if c[0][0] == "join_error"]
+        assert len(error_calls) == 0
+
+

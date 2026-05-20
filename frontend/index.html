@@ -190,6 +190,14 @@
           <option value="curated">DJ Only (Only you can add tracks)</option>
         </select>
       </div>
+      <div class="modal-field" style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <input type="checkbox" id="create-private" style="width:16px;height:16px;cursor:pointer">
+        <label for="create-private" class="modal-label" style="margin-bottom:0;cursor:pointer">Private Room (requires password)</label>
+      </div>
+      <div class="modal-field" id="create-password-wrapper" style="display:none">
+        <label class="modal-label">Room Password</label>
+        <input type="password" class="input-field" id="create-password" placeholder="Enter password to join this room" maxlength="32">
+      </div>
       <div class="modal-actions">
         <button class="btn btn-secondary" id="btn-create-cancel">Cancel</button>
         <button class="btn btn-primary" id="btn-create-submit">Start Jamming</button>
@@ -325,15 +333,21 @@
         const container = $('#genre-filters');
         if (allTags.size === 0) { container.style.display = 'none'; return; }
         container.style.display = 'flex';
-        container.innerHTML = Array.from(allTags).sort().map(tag =>
-          `<button class="genre-chip${_activeGenreFilter === tag ? ' active' : ''}" data-genre="${esc(tag)}">${esc(tag)}</button>`
-        ).join('');
+        container.innerHTML = `<button class="genre-chip${!_activeGenreFilter ? ' active' : ''}" data-genre="all">All</button>` +
+          Array.from(allTags).sort().map(tag =>
+            `<button class="genre-chip${_activeGenreFilter === tag ? ' active' : ''}" data-genre="${esc(tag)}">${esc(tag)}</button>`
+          ).join('');
         container.querySelectorAll('.genre-chip').forEach(btn => {
           btn.addEventListener('click', () => {
             const genre = btn.dataset.genre;
-            if (_activeGenreFilter === genre) {
+            if (genre === 'all') {
+              _activeGenreFilter = null;
+              container.querySelectorAll('.genre-chip').forEach(b => b.classList.remove('active'));
+              btn.classList.add('active');
+            } else if (_activeGenreFilter === genre) {
               _activeGenreFilter = null;
               btn.classList.remove('active');
+              container.querySelector('[data-genre="all"]')?.classList.add('active');
             } else {
               _activeGenreFilter = genre;
               container.querySelectorAll('.genre-chip').forEach(b => b.classList.remove('active'));
@@ -375,7 +389,7 @@
           <div class="room-card" onclick="location.href='/room/${esc(r.id)}'">
             <div class="room-card-top">
               <div style="min-width:0">
-                <div class="room-card-name">${esc(r.name)}</div>
+                <div class="room-card-name">${r.is_private ? '<span style="color:var(--amber);margin-right:6px;" title="Private room">🔒</span>' : ''}${esc(r.name)}</div>
                 <div class="room-card-host">Hosted by ${esc(r.host_name||'Unknown')}</div>
               </div>
               <div class="room-listeners">
@@ -416,9 +430,22 @@
       };
       $('#btn-create-room').addEventListener('click', openCreateModal);
       $('#btn-empty-create')?.addEventListener('click', openCreateModal);
+      $('#create-private').addEventListener('change', (e) => {
+        if(e.target.checked) {
+          $('#create-password-wrapper').style.display = 'block';
+          $('#create-password').focus();
+        } else {
+          $('#create-password-wrapper').style.display = 'none';
+          $('#create-password').value = '';
+        }
+      });
+
       $('#btn-create-cancel').addEventListener('click', ()=>{
         $('#create-modal').classList.remove('open');
         $('#create-name').value=''; $('#create-desc').value='';
+        $('#create-private').checked = false;
+        $('#create-password-wrapper').style.display = 'none';
+        $('#create-password').value = '';
         selectedTags.clear(); $$('#tag-grid .tag').forEach(t=>t.classList.remove('active'));
       });
       
@@ -427,14 +454,17 @@
         const name = $('#create-name').value.trim();
         const desc = $('#create-desc').value.trim();
         const mode = $('#create-mode').value;
+        const isPrivate = $('#create-private').checked;
+        const password = isPrivate ? $('#create-password').value.trim() : null;
         
         if(!name) return toast('Room name is required', 'error');
+        if(isPrivate && !password) return toast('Password is required for a private room', 'error');
         btn.disabled = true; btn.textContent = 'Creating...';
         
         try {
           const r = await fetch('/rooms', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, description:desc, genre_tags:Array.from(selectedTags), queue_mode:mode }),
+            body: JSON.stringify({ name, description:desc, genre_tags:Array.from(selectedTags), queue_mode:mode, password }),
             credentials: 'include'
           });
           if(r.ok){

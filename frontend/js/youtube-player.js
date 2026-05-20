@@ -56,12 +56,14 @@ class YouTubePlayer {
 
       if (this._streamFailCount === 1 && !this._useLowBitrate && this.currentVideoId) {
         console.warn('Stream failed, trying low bitrate fallback...');
+        if (typeof toast === 'function') toast('Audio stream failed. Trying low-bitrate fallback...', 'info');
         this._useLowBitrate = true;
         this.player.src = `/stream/${this.currentVideoId}?low=true`;
         this.player.currentTime = Math.round(this.positionMs / 1000);
         this.player.play().catch(() => {});
       } else if (this._streamFailCount >= this._maxStreamFails && !this._useIFrame) {
         console.warn('Stream failed multiple times, switching to YouTube IFrame fallback');
+        if (typeof toast === 'function') toast('Direct stream failed. Switching to YouTube video fallback...', 'warning');
         this._useIFrame = true;
         this._initIFramePlayer();
         if (this.currentVideoId) {
@@ -136,7 +138,14 @@ class YouTubePlayer {
           };
           if (map[e.data]) this._onStateChange(map[e.data]);
         },
-        onError: (e) => console.error('YouTube IFrame error:', e.data),
+        onError: (e) => {
+          console.error('YouTube IFrame error:', e.data);
+          let msg = "This track can't be played in your region or is restricted.";
+          if (e.data === 150 || e.data === 101) {
+            msg = "This track can't be played embedded due to restrictions.";
+          }
+          if (typeof toast === 'function') toast(msg, 'error');
+        },
       },
     });
   }

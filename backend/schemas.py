@@ -11,13 +11,15 @@ class CreateRoomRequest(BaseModel):
     description: str = Field("", max_length=500, description="Room description")
     genre_tags: list[str] = Field(default_factory=list, max_length=5, description="Genre tags (max 5)")
     queue_mode: str = Field("open", pattern="^(open|moderated|curated)$", description="Queue mode: open or curated")
+    password: Optional[str] = Field(None, max_length=100, description="Optional password for private rooms")
     
     class Config:
         examples = [{
             "name": "Indie Night",
             "description": "Chill indie vibes",
             "genre_tags": ["indie", "chill"],
-            "queue_mode": "open"
+            "queue_mode": "open",
+            "password": "secretpassword"
         }]
 
 
@@ -39,6 +41,7 @@ class RoomResponse(BaseModel):
     queue_mode: str
     genre_tags: list[str]
     is_active: bool
+    is_private: bool = False
     created_at: datetime
     current_track: Optional[dict] = None
     

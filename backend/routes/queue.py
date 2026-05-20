@@ -16,7 +16,7 @@ from backend.models.queue_item import QueueItem
 from backend.models.user import User
 from backend.middleware.auth import get_current_user_id
 from backend.services.queue_manager import queue_manager
-from backend.services.lastfm import lastfm_service
+from backend.services.music_search import music_search_service as lastfm_service
 from backend.services.invidious import get_stream_url as get_invidious_stream_url
 from backend.schemas import QueueTrackRequest
 
@@ -267,3 +267,114 @@ async def stream_audio(video_id: str, request: Request, low: bool = False):
         raise
     except Exception:
         raise HTTPException(status_code=502, detail="Upstream connection failed")
+
+
+@router.get("/search/playlist")
+async def import_playlist(url: str):
+    """Import tracks from a Spotify or YouTube/YouTube Music playlist."""
+    if not url.strip():
+        raise HTTPException(status_code=400, detail="URL cannot be empty")
+        
+    url_clean = url.strip()
+    
+    # 1. Spotify Playlist
+    if "spotify.com" in url_clean:
+        try:
+            # Parse Spotify Playlist (scraped fallback)
+            match = re.search(r"/playlist/([a-zA-Z0-9]+)", url_clean)
+            if not match:
+                raise HTTPException(status_code=400, detail="Invalid Spotify playlist URL")
+            playlist_id = match.group(1)
+            
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+            client = _get_stream_client()
+            r = await client.get(f"https://open.spotify.com/playlist/{playlist_id}", headers=headers)
+            if r.status_code != 200:
+                raise HTTPException(status_code=r.status_code, detail="Spotify playlist not found or inaccessible")
+            
+            html = r.text
+            tracks = []
+            
+            # Scrape tracks with regex pattern matching "name":"..." and "artists":[...]
+            matches = re.findall(r'"name"\s*:\s*"([^"]+)"\s*,\s*"artists"\s*:\s*\[\s*\{\s*"name"\s*:\s*"([^"]+)"', html)
+            if matches:
+                for name, artist in matches:
+                    try:
+                        name = name.encode().decode('unicode_escape', errors='ignore')
+                        artist = artist.encode().decode('unicode_escape', errors='ignore')
+                    except Exception:
+                        pass
+                    tracks.append({"name": name, "artist": artist, "uri": f"{name} {artist} official audio"})
+            
+            if not tracks:
+                # Alternate pattern
+                matches = re.findall(r'"title"\s*:\s*"([^"]+)"\s*,\s*"subtitle"\s*:\s*"([^"]+)"', html)
+                for title, subtitle in matches:
+                    if title and subtitle and subtitle != "Playlist":
+                        tracks.append({"name": title, "artist": subtitle, "uri": f"{title} {subtitle} official audio"})
+                        
+            # Deduplicate
+            seen = set()
+            deduped = []
+            for t in tracks:
+                key = (t["name"].lower(), t["artist"].lower())
+                if key not in seen:
+                    seen.add(key)
+                    deduped.append(t)
+            
+            return {"tracks": deduped[:100]}
+            
+        except Exception as e:
+            logger.error(f"Spotify playlist import error: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+            
+    # 2. YouTube/YouTube Music Playlist
+    elif "youtube.com" in url_clean or "youtu.be" in url_clean:
+        def _extract_yt_playlist(url_to_parse):
+            ydl_opts = {
+                "extract_flat": True,
+                "quiet": True,
+                "no_warnings": True,
+                "skip_download": True,
+            }
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url_to_parse, download=False)
+                if not info:
+                    return []
+                entries = info.get("entries", [])
+                extracted = []
+                for entry in entries:
+                    if not entry:
+                        continue
+                    title = entry.get("title", "")
+                    artist = "Unknown"
+                    name = title
+                    if " - " in title:
+                        parts = title.split(" - ", 1)
+                        artist = parts[0].strip()
+                        name = parts[1].strip()
+                    elif " | " in title:
+                        parts = title.split(" | ", 1)
+                        artist = parts[0].strip()
+                        name = parts[1].strip()
+                    
+                    video_id = entry.get("id")
+                    uri = video_id if (video_id and len(video_id) == 11) else title
+                    extracted.append({
+                        "name": name,
+                        "artist": artist,
+                        "uri": uri,
+                    })
+                return extracted
+
+        try:
+            tracks = await asyncio.to_thread(_extract_yt_playlist, url_clean)
+            return {"tracks": tracks[:100]}
+        except Exception as e:
+            logger.error(f"YouTube playlist import error: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+            
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported playlist URL format (must be Spotify or YouTube)")
