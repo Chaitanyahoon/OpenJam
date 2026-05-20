@@ -72,7 +72,7 @@
       if (!password) return;
 
       try {
-        const res = await fetch('/api/auth/admin-login', {
+        const res = await fetch('/auth/admin-login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ password })
@@ -91,7 +91,7 @@
 
     async function loadRooms() {
       try {
-        const res = await fetch('/api/admin/rooms');
+        const res = await fetch('/admin/rooms');
         if (res.status === 401 || res.status === 403) {
           // Need to login
           authContainer.style.display = 'block';
@@ -144,7 +144,7 @@
       }
       
       try {
-        const res = await fetch(`/api/admin/rooms/${roomId}`, { method: 'DELETE' });
+        const res = await fetch(`/admin/rooms/${roomId}`, { method: 'DELETE' });
         if (res.ok) {
           loadRooms();
         } else {

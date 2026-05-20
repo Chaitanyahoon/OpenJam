@@ -1,6 +1,6 @@
 """Admin routes for moderation and room management."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session, selectinload
 from backend.database import get_db
 from backend.models.room import Room
@@ -37,6 +37,7 @@ async def get_all_rooms(
 @router.delete("/rooms/{room_id}")
 async def force_delete_room(
     room_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     admin_id: str = Depends(require_admin)
 ):
@@ -48,7 +49,19 @@ async def force_delete_room(
     room.is_active = False
     db.commit()
     
-    # Clean up from redis/memory and kick users
+    # Emit room_closed socket event to notify other room members instantly
+    sio = getattr(request.app.state, "sio", None)
+    if sio:
+        await sio.emit("room_closed", {
+            "room_id": room_id,
+            "reason": "Room has been closed by administration",
+        }, room=room_id)
+
+    # Force-clean in-memory room state to prevent orphaned sync loops and stale data
+    from backend.sockets.playback import stop_sync_loop
+    from backend.services.room_closer import cancel_room_close
+    stop_sync_loop(room_id)
+    cancel_room_close(room_id)
     room_manager.force_close_room(room_id)
     
     return {"success": True, "message": f"Room {room_id} has been force-closed and deleted."}
