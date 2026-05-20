@@ -406,10 +406,12 @@
         });
       });
 
-      $('#btn-create-room').addEventListener('click', ()=> {
+      const openCreateModal = () => {
         if(!me) return toast('You must join first', 'error');
         $('#create-modal').classList.add('open');
-      });
+      };
+      $('#btn-create-room').addEventListener('click', openCreateModal);
+      $('#btn-empty-create')?.addEventListener('click', openCreateModal);
       $('#btn-create-cancel').addEventListener('click', ()=>{
         $('#create-modal').classList.remove('open');
         $('#create-name').value=''; $('#create-desc').value='';
