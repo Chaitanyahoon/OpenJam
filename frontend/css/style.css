@@ -269,7 +269,7 @@ h1,h2,h3,h4 { font-family: var(--font-display); line-height: 1.2; }
 .progress-bar:hover .progress-fill::after { transform: translateY(-50%) scale(1.4); }
 .progress-fill {
   height: 3px; background: var(--amber);
-  border-radius: var(--r-full); transition: width 1s linear;
+  border-radius: var(--r-full); transition: width 0.1s linear;
   position: relative;
 }
 .progress-fill::after {
@@ -1103,6 +1103,7 @@ input[type=range]::-moz-range-track {
   backdrop-filter: blur(16px) saturate(1.4);
   border-left: 1px solid rgba(255,255,255,0.08) !important;
   border-right: 1px solid rgba(255,255,255,0.08) !important;
+  position: relative;
 }
 .queue-header {
   padding: 14px 16px; border-bottom: 1px solid var(--border);

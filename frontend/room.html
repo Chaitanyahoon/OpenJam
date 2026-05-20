@@ -152,10 +152,6 @@
             src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3C/svg%3E"
             alt="Album art">
         </div>
-        <!-- New Lyrics View Overlay -->
-        <div class="lyrics-view" id="lyrics-view">
-           <div class="lyrics-content" id="lyrics-content"></div>
-        </div>
         <!-- Album Art Empty Placeholder -->
         <div class="art-placeholder skeleton" id="art-placeholder">
           <svg width="56" height="56" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55C7.79 13 6 14.79 6 17s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
@@ -265,6 +261,10 @@
           How to add tracks?
         </button>
       </div>
+    </div>
+    <!-- New Lyrics View Overlay -->
+    <div class="lyrics-view" id="lyrics-view">
+       <div class="lyrics-content" id="lyrics-content"></div>
     </div>
   </div>
 
@@ -885,7 +885,8 @@ function showRoomHelp() {
     updateProgress(pos, dur);
   }
 
-  function updateProgress(pos, dur){
+  function updateProgress(pos, dur, force = false){
+    if (window._isDraggingProgressTime && !force) return;
     $('#time-cur').textContent = fmt(pos);
     $('#time-cur').title = 'Current playback time';
     $('#time-dur').textContent = fmt(dur);
@@ -1349,34 +1350,91 @@ function showRoomHelp() {
     toast(_loopEnabled ? '🔁 Loop enabled' : '➡️ Loop disabled', 'info');
   });
 
-  // Seek bar click (host-only)
-  document.getElementById('progress-bar')?.addEventListener('click', (e) => {
-    if (!isHost) return;
-    const bar = e.currentTarget;
+  // Draggable seek bar implementation (host-only)
+  let _isDraggingProgress = false;
+
+  function handleProgressSeek(clientX) {
+    const bar = document.getElementById('progress-bar');
+    if (!bar) return null;
     const rect = bar.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     const dur = window._lastDur || yt.durationMs || 0;
-    if (!dur) return;
+    if (!dur) return null;
     const seekMs = Math.round(pct * dur);
-    // Update local player
-    if (yt._useIFrame && yt.ytPlayer && typeof yt.ytPlayer.seekTo === 'function') {
-      yt.ytPlayer.seekTo(seekMs / 1000, true);
-    } else if (yt._ready && yt.player) {
-      yt.player.currentTime = seekMs / 1000;
-    }
-    // Broadcast to room
-    sc.emit('playback_update', {
-      room_id: roomId,
-      track_uri: yt.currentVideoId || '',
-      track_name: $('#np-title')?.textContent || '',
-      artist: $('#np-artist')?.textContent || '',
-      album_art_url: $('#art-img')?.src || '',
-      position_ms: seekMs,
-      duration_ms: dur,
-      is_playing: true,
+    // Optimistic progress update (force = true)
+    updateProgress(seekMs, dur, true);
+    return { seekMs, dur };
+  }
+
+  const progressBar = document.getElementById('progress-bar');
+  if (progressBar) {
+    progressBar.addEventListener('mousedown', (e) => {
+      if (!isHost) return;
+      _isDraggingProgress = true;
+      window._isDraggingProgressTime = true;
+      handleProgressSeek(e.clientX);
     });
-    updateProgress(seekMs, dur);
-  });
+
+    progressBar.addEventListener('touchstart', (e) => {
+      if (!isHost) return;
+      _isDraggingProgress = true;
+      window._isDraggingProgressTime = true;
+      if (e.touches && e.touches[0]) {
+        handleProgressSeek(e.touches[0].clientX);
+      }
+    }, { passive: true });
+
+    window.addEventListener('mousemove', (e) => {
+      if (_isDraggingProgress) {
+        handleProgressSeek(e.clientX);
+      }
+    });
+
+    window.addEventListener('touchmove', (e) => {
+      if (_isDraggingProgress && e.touches && e.touches[0]) {
+        handleProgressSeek(e.touches[0].clientX);
+      }
+    }, { passive: true });
+
+    const endDrag = (clientX) => {
+      if (_isDraggingProgress) {
+        _isDraggingProgress = false;
+        window._isDraggingProgressTime = false;
+        const res = handleProgressSeek(clientX);
+        if (res) {
+          const { seekMs, dur } = res;
+          // Update local player
+          if (yt._useIFrame && yt.ytPlayer && typeof yt.ytPlayer.seekTo === 'function') {
+            yt.ytPlayer.seekTo(seekMs / 1000, true);
+          } else if (yt._ready && yt.player) {
+            yt.player.currentTime = seekMs / 1000;
+          }
+          // Broadcast to room
+          sc.emit('playback_update', {
+            room_id: roomId,
+            track_uri: yt.currentVideoId || '',
+            track_name: $('#np-title')?.textContent || '',
+            artist: $('#np-artist')?.textContent || '',
+            album_art_url: $('#art-img')?.src || '',
+            position_ms: seekMs,
+            duration_ms: dur,
+            is_playing: true,
+          });
+        }
+      }
+    };
+
+    window.addEventListener('mouseup', (e) => {
+      endDrag(e.clientX);
+    });
+
+    window.addEventListener('touchend', (e) => {
+      if (_isDraggingProgress) {
+        const clientX = (e.changedTouches && e.changedTouches[0]) ? e.changedTouches[0].clientX : 0;
+        endDrag(clientX);
+      }
+    }, { passive: true });
+  }
   $('#btn-close')?.addEventListener('click', ()=>{
     const modal = document.getElementById('close-modal');
     modal.style.display = 'flex';

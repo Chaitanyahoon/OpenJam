@@ -413,8 +413,19 @@ class YouTubePlayer {
         ? Math.round(this.ytPlayer.getCurrentTime() * 1000)
         : Math.round(this.player.currentTime * 1000);
       if (actualMs > 0) this.positionMs = actualMs;
+
+      // Extract duration from actual player if it is missing or zero
+      if (this.durationMs <= 0) {
+        const actualDurSec = this._useIFrame && this.ytPlayer
+          ? this.ytPlayer.getDuration()
+          : this.player.duration;
+        if (actualDurSec > 0) {
+          this.durationMs = Math.round(actualDurSec * 1000);
+        }
+      }
+
       this.updateDisplay();
-    }, 1000);
+    }, 250);
   }
 
   stopProgressTimer() {
