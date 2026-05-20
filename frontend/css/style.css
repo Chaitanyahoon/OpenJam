@@ -79,6 +79,11 @@ body {
   overflow-x: hidden;
   position: relative;
 }
+body.room-page {
+  overflow: hidden !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+}
 
 /* ---- Dynamic Background ---- */
 .dynamic-bg-wrapper {
@@ -265,6 +270,7 @@ h1,h2,h3,h4 { font-family: var(--font-display); line-height: 1.2; }
   overflow: visible; position: relative; cursor: pointer;
   padding: 6px 0; margin: -6px 0; /* Bigger click target */
   background-clip: content-box;
+  touch-action: none;
 }
 .progress-bar:hover .progress-fill::after { transform: translateY(-50%) scale(1.4); }
 .progress-fill {
