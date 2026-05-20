@@ -456,8 +456,14 @@
         } else {
           loadRooms(); // Immediate refresh on tab focus
           _roomPollId = setInterval(loadRooms, 15000);
-        }
       });
+
+      // Register PWA Service Worker
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js')
+          .then(reg => console.log('[openjam] Service Worker registered:', reg.scope))
+          .catch(err => console.error('[openjam] Service Worker registration failed:', err));
+      }
     })();
   </script>
 

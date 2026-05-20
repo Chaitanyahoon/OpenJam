@@ -1751,13 +1751,46 @@ input[type=range]::-moz-range-track {
 .loading-overlay {
   position: fixed; inset: 0; z-index: 9999;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(10, 9, 8, 0.95); backdrop-filter: blur(20px);
+  background: rgba(10, 9, 8, 0.4); backdrop-filter: blur(8px);
   transition: opacity 0.5s ease;
 }
 .loading-overlay.fade-out {
   opacity: 0;
   pointer-events: none;
 }
+
+/* ── Shimmering Skeleton Loader ── */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: transparent !important;
+  border-color: transparent !important;
+  border-radius: 4px;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.08) 20%,
+    rgba(255, 255, 255, 0.15) 60%,
+    transparent 100%
+  );
+  animation: shimmer 1.5s infinite;
+}
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+.skeleton * {
+  visibility: hidden !important;
+}
+
 .loading-content {
   text-align: center;
   max-width: 320px;

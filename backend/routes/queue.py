@@ -150,9 +150,9 @@ def _prune_url_cache():
             del _url_cache[k]
 
 
-def _extract_ytdlp_sync(video_id: str) -> str | None:
+def _extract_ytdlp_sync(video_id: str, low: bool = False) -> str | None:
     ydl_opts = {
-        "format": "251/140/bestaudio",
+        "format": "139/bestaudio" if low else "251/140/bestaudio",
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
@@ -162,21 +162,23 @@ def _extract_ytdlp_sync(video_id: str) -> str | None:
             info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
             return info.get("url")
     except Exception as e:
-        logger.error(f"yt-dlp Python API failed for {video_id}: {e}")
+        logger.error(f"yt-dlp Python API failed for {video_id} (low={low}): {e}")
         return None
 
 
-async def _resolve_audio_url(video_id: str) -> str | None:
+async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
     """Race Invidious vs yt-dlp — use whichever resolves first. Cached in _url_cache."""
     if not _is_valid_video_id(video_id):
         logger.warning(f"Invalid video_id rejected: {video_id!r}")
         return None
 
-    if video_id in _url_cache:
-        url, expiry = _url_cache[video_id]
+    cache_key = f"{video_id}_low" if low else video_id
+
+    if cache_key in _url_cache:
+        url, expiry = _url_cache[cache_key]
         if time.time() < expiry:
             return url
-        del _url_cache[video_id]
+        del _url_cache[cache_key]
 
     async def _try_invidious() -> str | None:
         try:
@@ -186,7 +188,7 @@ async def _resolve_audio_url(video_id: str) -> str | None:
             return None
 
     async def _try_ytdlp() -> str | None:
-        return await asyncio.to_thread(_extract_ytdlp_sync, video_id)
+        return await asyncio.to_thread(_extract_ytdlp_sync, video_id, low)
 
     # Run both in parallel, take the first success
     url = None
@@ -198,7 +200,7 @@ async def _resolve_audio_url(video_id: str) -> str | None:
 
     if url:
         _prune_url_cache()
-        _url_cache[video_id] = (url, time.time() + _URL_CACHE_TTL)
+        _url_cache[cache_key] = (url, time.time() + _URL_CACHE_TTL)
     return url
 
 
@@ -222,11 +224,11 @@ async def pre_resolve_url(video_id: str):
 
 
 @router.get("/stream/{video_id}")
-async def stream_audio(video_id: str, request: Request):
+async def stream_audio(video_id: str, request: Request, low: bool = False):
     if not _is_valid_video_id(video_id):
         raise HTTPException(status_code=400, detail="Invalid video ID")
 
-    url = await _resolve_audio_url(video_id)
+    url = await _resolve_audio_url(video_id, low=low)
     if not url:
         raise HTTPException(status_code=404, detail="Could not extract stream")
 

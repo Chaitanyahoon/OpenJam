@@ -24,6 +24,9 @@ class Settings:
 
     DATABASE_URL: str = os.getenv("DATABASE_URL") or default_database_url.__func__()
 
+    # Redis state store
+    REDIS_URL: str = os.getenv("REDIS_URL")
+
     # Security
     SECRET_KEY: str = os.getenv("SECRET_KEY", "change-me-in-production")
 

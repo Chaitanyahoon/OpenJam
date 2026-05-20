@@ -7,11 +7,19 @@ from backend.services.room_manager import room_manager
 
 @pytest.fixture(autouse=True)
 def reset_room_manager():
-    room_manager._rooms.clear()
-    room_manager._sid_map.clear()
+    def _clear():
+        if room_manager.store.client:
+            keys = room_manager.store.client.keys("openjam:*")
+            if keys:
+                room_manager.store.client.delete(*keys)
+        else:
+            room_manager.store._rooms.clear()
+            room_manager.store._sid_map.clear()
+            room_manager.store._recently_left.clear()
+
+    _clear()
     yield
-    room_manager._rooms.clear()
-    room_manager._sid_map.clear()
+    _clear()
 
 
 def test_join_and_leave_room_updates_listener_count():

@@ -78,6 +78,11 @@ register_chat_handlers(sio)
 register_playback_handlers(sio)
 register_queue_handlers(sio)
 
+@app.get("/sw.js")
+async def serve_sw():
+    return FileResponse("frontend/sw.js", media_type="application/javascript")
+
+
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app, socketio_path="/socket.io")
 
 app.mount("/static", StaticFiles(directory="frontend"), name="static")

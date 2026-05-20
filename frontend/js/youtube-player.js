@@ -21,6 +21,7 @@ class YouTubePlayer {
     this._userUnlocked = false;
     this._pendingPlayAfterUnlock = null;
     this._useIFrame = false;
+    this._useLowBitrate = false;
     this._streamFailCount = 0;
     this._maxStreamFails = 2;
 
@@ -47,11 +48,19 @@ class YouTubePlayer {
       if (this._stallTimer) { clearTimeout(this._stallTimer); this._stallTimer = null; }
       this._hideLoadIndicator();
     });
-    this.player.addEventListener('error', () => {
+
+    const handleAudioError = (source) => {
       this._hideLoadIndicator();
-      console.error('Audio stream error, fail count:', this._streamFailCount);
+      console.error(`Audio stream error from ${source}, fail count:`, this._streamFailCount);
       this._streamFailCount++;
-      if (this._streamFailCount >= this._maxStreamFails && !this._useIFrame) {
+
+      if (this._streamFailCount === 1 && !this._useLowBitrate && this.currentVideoId) {
+        console.warn('Stream failed, trying low bitrate fallback...');
+        this._useLowBitrate = true;
+        this.player.src = `/stream/${this.currentVideoId}?low=true`;
+        this.player.currentTime = Math.round(this.positionMs / 1000);
+        this.player.play().catch(() => {});
+      } else if (this._streamFailCount >= this._maxStreamFails && !this._useIFrame) {
         console.warn('Stream failed multiple times, switching to YouTube IFrame fallback');
         this._useIFrame = true;
         this._initIFramePlayer();
@@ -59,7 +68,10 @@ class YouTubePlayer {
           this._loadVideo(this.currentVideoId, Math.round(this.positionMs / 1000));
         }
       }
-    });
+    };
+
+    this.player.addEventListener('error', () => handleAudioError('error_event'));
+
     // Timeout: if stream doesn't start within 15s, treat as failure
     this.player.addEventListener('stalled', () => {
       if (this._stallTimer) clearTimeout(this._stallTimer);
@@ -67,33 +79,18 @@ class YouTubePlayer {
       this._stallTimer = setTimeout(() => {
         if (this.player.readyState < 2 && !this.player.paused) {
           console.warn('Stream stalled for 15s, triggering error');
-          this._streamFailCount++;
-          if (this._streamFailCount >= this._maxStreamFails && !this._useIFrame) {
-            console.warn('Stream stalled multiple times, switching to YouTube IFrame fallback');
-            this._useIFrame = true;
-            this._initIFramePlayer();
-            if (this.currentVideoId) {
-              this._loadVideo(this.currentVideoId, Math.round(this.positionMs / 1000));
-            }
-          }
+          handleAudioError('stalled_timeout');
         }
       }, 15000);
     });
+
     this.player.addEventListener('waiting', () => {
       if (this._stallTimer) clearTimeout(this._stallTimer);
       this._showLoadIndicator();
       this._stallTimer = setTimeout(() => {
         if (this.player.readyState < 2 && !this.player.paused) {
           console.warn('Stream waiting too long, triggering error');
-          this._streamFailCount++;
-          if (this._streamFailCount >= this._maxStreamFails && !this._useIFrame) {
-            console.warn('Stream waiting too long, switching to YouTube IFrame fallback');
-            this._useIFrame = true;
-            this._initIFramePlayer();
-            if (this.currentVideoId) {
-              this._loadVideo(this.currentVideoId, Math.round(this.positionMs / 1000));
-            }
-          }
+          handleAudioError('waiting_timeout');
         }
       }, 15000);
     });
@@ -287,6 +284,8 @@ class YouTubePlayer {
 
     this._suppressStateChange = true;
     this.currentVideoId = videoId;
+    this._streamFailCount = 0;
+    this._useLowBitrate = false;
 
     if (this._useIFrame) {
       if (this.ytPlayer && this._ready) {
