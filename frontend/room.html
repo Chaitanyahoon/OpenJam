@@ -302,13 +302,7 @@
           </div>
         </div>
       </div>
-      <div class="reactions-bar">
-        <button class="btn-react" data-emoji="❤️">❤️</button>
-        <button class="btn-react" data-emoji="🔥">🔥</button>
-        <button class="btn-react" data-emoji="🤯">🤯</button>
-        <button class="btn-react" data-emoji="🎵">🎵</button>
-        <button class="btn-react" data-emoji="🎉">🎉</button>
-      </div>
+
       <div class="chat-input-wrap">
         <div class="chat-input-column">
           <textarea class="input-field" id="chat-input" placeholder="Say something…" maxlength="500" autocomplete="off" rows="1"></textarea>
@@ -625,7 +619,6 @@ function showRoomHelp() {
   });
   sc.on('queue_updated',  d => renderQueue(d.queue));
   sc.on('chat_message',   d => addChat(d));
-  sc.on('reaction',       d => spawnReaction(d.emoji));
   sc.on('chat_history',   d => { if(d.messages?.length) d.messages.forEach(addChat); });
   sc.on('listener_count', d => {
     const barNum      = $('#bar-lc-num');
@@ -1519,58 +1512,7 @@ function showRoomHelp() {
     }
   });
 
-  // Floating Reactions
-  let _lastReactionTime = 0;
-  let _reactionsActive = 0;
-  const MAX_VISIBLE_REACTIONS = 5;
 
-  window.spawnReaction = function(emoji) {
-    if (_reactionsActive >= MAX_VISIBLE_REACTIONS) return;
-    _reactionsActive++;
-    const el = document.createElement('div');
-    el.className = 'floating-reaction';
-    el.textContent = emoji;
-
-    // Dynamically position the emoji. If reactions bar is visible, align with it.
-    // Otherwise (e.g., hidden panel on mobile), fall back to bottom-right of viewport.
-    const bar = $('.reactions-bar');
-    const rect = bar ? bar.getBoundingClientRect() : null;
-    if (rect && rect.width > 0 && rect.height > 0 && rect.top > 0) {
-      const randomOffset = (Math.random() - 0.5) * 120;
-      el.style.left = `${rect.left + rect.width / 2 + randomOffset}px`;
-      el.style.bottom = `${window.innerHeight - rect.top}px`;
-    } else {
-      const randomOffset = (Math.random() - 0.5) * 60;
-      el.style.right = `${36 + randomOffset}px`;
-      el.style.bottom = '80px';
-    }
-
-    el.style.animationDuration = `${2 + Math.random()}s`;
-    document.body.appendChild(el);
-    setTimeout(() => {
-      if (el.parentNode) {
-        el.style.opacity = '0';
-        el.style.transform = 'translateY(-40px) scale(0.5)';
-        setTimeout(() => { el.remove(); _reactionsActive--; }, 400);
-      } else {
-        _reactionsActive--;
-      }
-    }, 2500);
-  };
-
-  // Use event delegation on reactions bar
-  $('.reactions-bar')?.addEventListener('click', (e) => {
-    const btn = e.target.closest('.btn-react');
-    if (!btn) return;
-    const emoji = btn.dataset.emoji;
-    if (!emoji) return;
-    // Rate limit: 1 reaction per 400ms
-    const now = Date.now();
-    if (now - _lastReactionTime < 400) return;
-    _lastReactionTime = now;
-    sc.emit('send_reaction', { room_id: roomId, emoji: emoji });
-    spawnReaction(emoji);
-  });
 
   /* ─── Queue Poll Fallback ────────────────────────────── */
   let _lastQueueLen = -1;
