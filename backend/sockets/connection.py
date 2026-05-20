@@ -94,10 +94,10 @@ def register_connection_handlers(sio: socketio.AsyncServer):
             }, room=room_id)
             if room_manager.get_listener_count(room_id) > 0:
                 if not room_manager.get_host_sid(room_id):
-                    schedule_room_close(room_id, sio, SessionLocal, delay=300)
+                    schedule_room_close(room_id, sio, SessionLocal, delay=180) # 3 minutes if host disconnects
             else:
                 # Room is empty — close quickly to prevent ghost rooms and save resources
-                schedule_room_close(room_id, sio, SessionLocal, delay=60)
+                schedule_room_close(room_id, sio, SessionLocal, delay=120) # 2 minutes if empty
 
     @sio.event
     async def join_room(sid, data):

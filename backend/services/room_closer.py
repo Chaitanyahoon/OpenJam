@@ -22,6 +22,12 @@ async def _close_room_after_delay(room_id: str, delay: int, sio, db_factory):
                 "room_id": room_id,
                 "reason": "Host disconnected — room closed automatically",
             }, room=room_id)
+            
+            # Clean up redis, memory, and sync loops
+            from backend.sockets.playback import stop_sync_loop
+            from backend.services.room_manager import room_manager
+            stop_sync_loop(room_id)
+            room_manager.force_close_room(room_id)
     finally:
         db.close()
     _pending_close.pop(room_id, None)

@@ -95,39 +95,64 @@ async def _room_cleanup_loop():
     from backend.database import SessionLocal
     from backend.models.room import Room
     from backend.services.room_manager import room_manager
+    from datetime import datetime, timezone
     import time
     import asyncio
     
     while True:
         try:
-            await asyncio.sleep(60)
-            now = time.time()
-            # Find rooms in Redis that have been empty for > 5 mins
+            await asyncio.sleep(30)
+            now_unix = time.time()
+            now_dt = datetime.now(timezone.utc)
+            
             rooms_to_delete = []
-            redis_rooms = room_manager.store.get_all_rooms()
             
-            for room_id, room_data in redis_rooms.items():
-                if not room_data.get("users") and "empty_since" in room_data:
-                    if now - room_data["empty_since"] > 300: # 5 minutes
-                        rooms_to_delete.append(room_id)
-            
-            if rooms_to_delete:
-                logger.info(f"Auto-cleaning {len(rooms_to_delete)} empty rooms: {rooms_to_delete}")
-                db = SessionLocal()
-                try:
+            db = SessionLocal()
+            try:
+                # Query all active rooms directly from DB to find ghosts
+                active_db_rooms = db.query(Room).filter(Room.is_active == True).all()
+                for r in active_db_rooms:
+                    room_data = room_manager.store.get_room(r.id)
+                    if not room_data:
+                        # Room is active in DB but doesn't exist in Redis
+                        # Calculate age based on created_at
+                        compare_dt = now_dt
+                        if r.created_at and r.created_at.tzinfo is None:
+                            compare_dt = datetime.now()
+                        
+                        age_seconds = (compare_dt - r.created_at).total_seconds() if r.created_at else 9999
+                        # If the room has been in DB for > 120 seconds but never joined/created in Redis, deactivate it
+                        if age_seconds > 120:
+                            rooms_to_delete.append(r.id)
+                    else:
+                        # Room is in Redis. Check if empty
+                        users = room_data.get("users", {})
+                        if not users:
+                            empty_since = room_data.get("empty_since")
+                            if empty_since:
+                                if now_unix - empty_since > 120:  # 2 minutes
+                                    rooms_to_delete.append(r.id)
+                            else:
+                                # No empty_since set but users is empty. Set it now.
+                                room_data["empty_since"] = now_unix
+                                room_manager.store.set_room(r.id, room_data)
+                
+                if rooms_to_delete:
+                    logger.info(f"Auto-cleaning {len(rooms_to_delete)} empty/ghost rooms: {rooms_to_delete}")
                     for room_id in rooms_to_delete:
-                        # Deactivate in DB
                         db_room = db.query(Room).filter(Room.id == room_id).first()
                         if db_room:
                             db_room.is_active = False
                         
-                        # Remove from Redis
+                        # Clean up redis/playback state
+                        from backend.sockets.playback import stop_sync_loop
+                        stop_sync_loop(room_id)
                         room_manager.force_close_room(room_id)
                     db.commit()
-                except Exception as e:
-                    logger.error(f"Error during room cleanup DB update: {e}")
-                finally:
-                    db.close()
+            except Exception as e:
+                logger.error(f"Error during room cleanup DB update: {e}")
+            finally:
+                db.close()
         except asyncio.CancelledError:
             break
         except Exception as e:
