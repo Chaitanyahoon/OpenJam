@@ -1026,25 +1026,26 @@ input[type=range]::-moz-range-track {
 
 /* Stream loading indicator */
 .stream-loader {
-  display: flex; align-items: center; gap: 8px;
-  padding: 0 20px 12px; margin-top: -8px;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 999px; padding: 6px 14px; margin: 8px auto 16px;
+  width: fit-content; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.05);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
 }
 .stream-loader-bar {
-  flex: 1; height: 3px; background: rgba(255,255,255,0.08); border-radius: 4px; overflow: hidden;
-  position: relative;
+  width: 14px; height: 14px;
+  border: 2px solid rgba(245, 158, 11, 0.2);
+  border-top-color: var(--amber);
+  border-radius: 50%;
+  animation: stream-spin 0.8s linear infinite;
+  background: transparent;
+  flex-shrink: 0;
 }
-.stream-loader-bar::after {
-  content: ''; position: absolute; inset: 0;
-  background: linear-gradient(90deg, transparent, var(--amber), transparent);
-  animation: stream-load 1.4s ease-in-out infinite;
-  border-radius: 4px;
-}
-@keyframes stream-load {
-  0%   { transform: translateX(-100%); }
-  100% { transform: translateX(200%); }
+@keyframes stream-spin {
+  to { transform: rotate(360deg); }
 }
 .stream-loader-text {
-  font-size: 10px; color: var(--text-3); white-space: nowrap; font-family: var(--font-mono);
+  font-size: 11px; color: var(--amber); font-weight: 500; letter-spacing: 0.5px;
 }
 
 /* Controls — ONLY VISIBLE TO HOST */

@@ -1509,15 +1509,17 @@ function showRoomHelp() {
     el.className = 'floating-reaction';
     el.textContent = emoji;
 
-    // Dynamically position the emoji relative to the reactions bar to avoid clipping/GSAP offsets
+    // Dynamically position the emoji. If reactions bar is visible, align with it.
+    // Otherwise (e.g., hidden panel on mobile), fall back to bottom-right of viewport.
     const bar = $('.reactions-bar');
-    if (bar) {
-      const rect = bar.getBoundingClientRect();
+    const rect = bar ? bar.getBoundingClientRect() : null;
+    if (rect && rect.width > 0 && rect.height > 0 && rect.top > 0) {
       const randomOffset = (Math.random() - 0.5) * 120;
       el.style.left = `${rect.left + rect.width / 2 + randomOffset}px`;
       el.style.bottom = `${window.innerHeight - rect.top}px`;
     } else {
-      el.style.left = `calc(50% + ${(Math.random() - 0.5) * 80}px)`;
+      const randomOffset = (Math.random() - 0.5) * 60;
+      el.style.right = `${36 + randomOffset}px`;
       el.style.bottom = '80px';
     }
 
