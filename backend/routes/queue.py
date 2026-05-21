@@ -296,54 +296,96 @@ async def import_playlist(url: str):
     if "spotify.com" in url_clean:
         try:
             import json
-            # Parse Spotify Playlist (scraped fallback)
             match = re.search(r"/playlist/([a-zA-Z0-9]+)", url_clean)
             if not match:
                 raise HTTPException(status_code=400, detail="Invalid Spotify playlist URL")
             playlist_id = match.group(1)
             
-            headers = {
+            sp_headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 "Accept-Language": "en-US,en;q=0.9",
                 "Referer": "https://open.spotify.com/",
             }
             client = _get_stream_client()
+            
+            # ── Tier 1: Parse embed page __NEXT_DATA__ ──
             embed_url = f"https://open.spotify.com/embed/playlist/{playlist_id}"
-            r = await client.get(embed_url, headers=headers, follow_redirects=True)
+            r = await client.get(embed_url, headers=sp_headers, follow_redirects=True)
             if r.status_code != 200:
                 raise HTTPException(status_code=r.status_code, detail="Spotify playlist not found or inaccessible")
             
             html = r.text
             tracks = []
+            embed_had_404 = False
+            anon_token = None
             
-            # Parse Next.js pageProps data from embed
             next_data_match = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', html)
             if next_data_match:
                 try:
                     next_data = json.loads(next_data_match.group(1))
                     page_props = next_data.get("props", {}).get("pageProps", {})
-                    state = page_props.get("state", {})
-                    if "data" in state and "entity" in state["data"]:
-                        entity = state["data"]["entity"]
-                        track_list = entity.get("trackList", [])
-                        for track in track_list:
-                            title = track.get("title")
-                            artist = track.get("subtitle", "Unknown Artist")
-                            if title:
-                                artist = artist.replace("\xa0", " ").strip()
-                                title = title.strip()
-                                tracks.append({
-                                    "name": title,
-                                    "artist": artist,
-                                    "uri": f"{title} {artist} official audio",
-                                    "duration_ms": track.get("duration", 0)
-                                })
+                    
+                    if page_props.get("status") == 404:
+                        embed_had_404 = True
+                    else:
+                        state = page_props.get("state", {})
+                        if "data" in state and "entity" in state["data"]:
+                            entity = state["data"]["entity"]
+                            track_list = entity.get("trackList", [])
+                            for track in track_list:
+                                title = track.get("title")
+                                artist = track.get("subtitle", "Unknown Artist")
+                                if title:
+                                    artist = artist.replace("\xa0", " ").strip()
+                                    title = title.strip()
+                                    tracks.append({
+                                        "name": title,
+                                        "artist": artist,
+                                        "uri": f"{title} {artist} official audio",
+                                        "duration_ms": track.get("duration", 0)
+                                    })
                 except Exception as parse_err:
                     logger.error(f"Error parsing Spotify embed __NEXT_DATA__: {parse_err}")
             
-            # Fallback patterns if __NEXT_DATA__ did not yield tracks
+            # ── Tier 2: Anonymous token + Web API fallback ──
+            if not tracks and embed_had_404:
+                logger.info(f"Spotify embed returned 404 for {playlist_id}, trying anonymous API fallback")
+                try:
+                    # Fetch a known-working embed to extract an anonymous access token
+                    seed_url = "https://open.spotify.com/embed/playlist/37i9dQZF1DX4sWSpwq3LiO"
+                    seed_r = await client.get(seed_url, headers=sp_headers, follow_redirects=True)
+                    token_match = re.search(r'"accessToken"\s*:\s*"([^"]+)"', seed_r.text)
+                    if token_match:
+                        anon_token = token_match.group(1)
+                        api_url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
+                        api_params = {
+                            "limit": 100,
+                            "fields": "items(track(name,artists(name),duration_ms)),total,next"
+                        }
+                        api_r = await client.get(
+                            api_url,
+                            headers={"Authorization": f"Bearer {anon_token}"},
+                            params=api_params
+                        )
+                        if api_r.status_code == 200:
+                            api_data = api_r.json()
+                            for item in api_data.get("items", []):
+                                t = item.get("track")
+                                if t and t.get("name"):
+                                    artists = ", ".join(a["name"] for a in t.get("artists", []))
+                                    tracks.append({
+                                        "name": t["name"],
+                                        "artist": artists,
+                                        "uri": f"{t['name']} {artists} official audio",
+                                        "duration_ms": t.get("duration_ms", 0)
+                                    })
+                        else:
+                            logger.warning(f"Spotify API fallback returned {api_r.status_code} for {playlist_id}")
+                except Exception as api_err:
+                    logger.error(f"Spotify API fallback error: {api_err}")
+            
+            # ── Tier 3: Regex fallback on raw HTML ──
             if not tracks:
-                # Scrape tracks with regex pattern matching "name":"..." and "artists":[...]
                 matches = re.findall(r'"name"\s*:\s*"([^"]+)"\s*,\s*"artists"\s*:\s*\[\s*\{\s*"name"\s*:\s*"([^"]+)"', html)
                 if matches:
                     for name, artist in matches:
@@ -355,12 +397,11 @@ async def import_playlist(url: str):
                         tracks.append({"name": name, "artist": artist, "uri": f"{name} {artist} official audio"})
                 
                 if not tracks:
-                    # Alternate pattern
                     matches = re.findall(r'"title"\s*:\s*"([^"]+)"\s*,\s*"subtitle"\s*:\s*"([^"]+)"', html)
                     for title, subtitle in matches:
                         if title and subtitle and subtitle != "Playlist":
                             tracks.append({"name": title, "artist": subtitle, "uri": f"{title} {subtitle} official audio"})
-                        
+            
             # Deduplicate
             seen = set()
             deduped = []
@@ -370,8 +411,16 @@ async def import_playlist(url: str):
                     seen.add(key)
                     deduped.append(t)
             
+            if not deduped:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Could not extract tracks from this playlist. Make sure the playlist is set to Public on Spotify and try again."
+                )
+            
             return {"tracks": deduped[:100]}
             
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"Spotify playlist import error: {e}")
             raise HTTPException(status_code=500, detail=str(e))
