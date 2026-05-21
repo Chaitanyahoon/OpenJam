@@ -65,6 +65,13 @@ class YouTubePlayer {
       } else if (this._streamFailCount >= this._maxStreamFails && !this._useIFrame) {
         console.warn('Stream failed multiple times, switching to YouTube IFrame fallback');
         if (typeof toast === 'function') toast('Direct stream failed. Switching to YouTube video fallback...', 'warning');
+        
+        try {
+          this.player.pause();
+          this.player.src = '';
+          this.player.load();
+        } catch (e) {}
+
         this._useIFrame = true;
         this._initIFramePlayer();
         if (this.currentVideoId) {
@@ -298,9 +305,19 @@ class YouTubePlayer {
     }
 
     this._suppressStateChange = true;
+    
+    if (videoId !== this.currentVideoId) {
+      this._streamFailCount = 0;
+      this._useLowBitrate = false;
+      if (this._useIFrame) {
+        this._useIFrame = false;
+        if (this.ytPlayer) {
+          try { this.ytPlayer.pauseVideo(); } catch (e) {}
+        }
+      }
+    }
+
     this.currentVideoId = videoId;
-    this._streamFailCount = 0;
-    this._useLowBitrate = false;
 
     if (this._useIFrame) {
       if (this.ytPlayer && this._ready) {
@@ -470,12 +487,14 @@ class YouTubePlayer {
     this.positionMs = 0;
     this._pendingLoad = null;
     this._pendingPlayAfterUnlock = null;
-    if (this._useIFrame && this.ytPlayer) {
-      try { this.ytPlayer.stopVideo(); } catch(e) {}
-    } else {
+    try {
       this.player.pause();
       this.player.src = '';
       this.player.load();
+    } catch (e) {}
+
+    if (this.ytPlayer) {
+      try { this.ytPlayer.stopVideo(); } catch (e) {}
     }
     this.updateDisplay();
     this._updateMediaSessionPlaybackState();
