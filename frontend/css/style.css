@@ -1321,6 +1321,7 @@ input[type=range]::-moz-range-track {
   .room-bar { padding: 0 12px; height: 44px; }
   .room-bar-name { font-size: 13px; }
   .room-bar-host { display: none; }
+  #btn-sound-toggle { display: none; }
   /* Collapse room bar buttons on small screens */
   #btn-invite span, #btn-invite svg ~ * { display: none; }
   .room-bar-right .btn { padding: 6px 10px; font-size: 11px; }
@@ -1484,9 +1485,10 @@ input[type=range]::-moz-range-track {
 
   /* ── P7: Responsive queue items ── */
   .queue-item { padding: 10px 8px; gap: 10px; }
-  .queue-item-thumb { width: 40px; height: 40px; border-radius: var(--r-sm); }
-  .queue-item-title { font-size: 13px; }
+  .queue-item-art { width: 40px; height: 40px; border-radius: var(--r-sm); }
+  .queue-item-name { font-size: 13px; }
   .queue-item-artist { font-size: 11px; }
+  .search-hint { display: none; }
 
   /* ── P7: Members panel — compact ── */
   .members-list { max-height: 30vh; }
@@ -1502,7 +1504,12 @@ input[type=range]::-moz-range-track {
 
   /* ── P7: Volume bar refinements ── */
   .mobile-vol-wrap { padding: 6px 14px; }
-  .mobile-vol-wrap .vol-slider { height: 24px; }
+  .mobile-vol-wrap .vol-slider {
+    -webkit-appearance: none; appearance: none;
+    height: 4px;
+    padding: 10px 0;
+    background-clip: content-box;
+  }
 
 /* Add rhythmic scaling for EQ bars when playing */
 .eq-bar {
