@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Known Invidious instances (refreshed 2026). Public instances that
 # generally allow API access for stream URL extraction.
-INV_INSTANCES = [
+DEFAULT_INV_INSTANCES = [
     "https://vid.puffyan.us",
     "https://invidious.fdn.fr",
     "https://invidious.private.coffee",
@@ -36,7 +36,7 @@ INV_INSTANCES = [
 ]
 
 # Piped instances — another YouTube alt-frontend with streaming API
-PIPED_INSTANCES = [
+DEFAULT_PIPED_INSTANCES = [
     "https://pipedapi.kavin.rocks",
     "https://pipedapi.adminforge.de",
     "https://pipedapi.r4fo.com",
@@ -44,12 +44,16 @@ PIPED_INSTANCES = [
     "https://api.piped.projectsegfau.lt",
 ]
 
+# Mutable instance lists updated dynamically
+INV_INSTANCES = list(DEFAULT_INV_INSTANCES)
+PIPED_INSTANCES = list(DEFAULT_PIPED_INSTANCES)
+
 # Instance health tracking
 _instance_health: dict[str, dict] = {}
-_last_health_check = 0.0
-_health_check_lock = asyncio.Lock()  # Guards health check interval
-HEALTH_CHECK_INTERVAL = 300  # 5 minutes between health checks
-
+_piped_health: dict[str, dict] = {}
+_stream_origin_instances: dict[str, str] = {}
+_last_health_check: float = 0.0
+HEALTH_CHECK_INTERVAL: float = 1800.0
 
 def _get_instance_health(instance: str) -> dict:
     """Get or create health record for an instance."""
@@ -58,10 +62,103 @@ def _get_instance_health(instance: str) -> dict:
     return _instance_health[instance]
 
 
+def _get_piped_health(instance: str) -> dict:
+    """Get or create health record for a Piped instance."""
+    if instance not in _piped_health:
+        _piped_health[instance] = {"score": 100, "failures": 0, "last_check": 0}
+    return _piped_health[instance]
+
+
+async def update_instances_dynamically():
+    """Fetch fresh instances lists from public Invidious and Piped APIs."""
+    global INV_INSTANCES, PIPED_INSTANCES
+    logger.info("Fetching dynamic lists of Invidious and Piped instances...")
+    
+    # 1. Invidious Instances
+    try:
+        url = "https://api.invidious.io/instances.json"
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            r = await client.get(url)
+            if r.status_code == 200:
+                data = r.json()
+                new_inv = []
+                for domain, info in data:
+                    if not info:
+                        continue
+                    uri = info.get("uri")
+                    if not uri:
+                        continue
+                    if not uri.startswith("https://"):
+                        continue
+                    if any(x in uri for x in [".onion", ".i2p", ".ygg", "localhost"]):
+                        continue
+                    
+                    monitor = info.get("monitor") or {}
+                    if monitor.get("down", False):
+                        continue
+                    
+                    stats = info.get("stats") or {}
+                    playback = stats.get("playback") or {}
+                    ratio = playback.get("ratio", 0.0)
+                    
+                    new_inv.append((uri, ratio))
+                
+                new_inv.sort(key=lambda x: x[1], reverse=True)
+                filtered_uris = [x[0] for x in new_inv]
+                if filtered_uris:
+                    merged = list(filtered_uris)
+                    for x in DEFAULT_INV_INSTANCES:
+                        if x not in merged:
+                            merged.append(x)
+                    INV_INSTANCES = merged
+                    logger.info(f"Dynamically updated Invidious instances. Active count: {len(INV_INSTANCES)}")
+    except Exception as e:
+        logger.warning(f"Failed to dynamically fetch Invidious instances: {e}")
+
+    # 2. Piped Instances
+    try:
+        url = "https://piped-instances.kavin.rocks"
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            r = await client.get(url)
+            if r.status_code == 200:
+                data = r.json()
+                new_piped = []
+                for item in data:
+                    api_url = item.get("api_url")
+                    if not api_url:
+                        continue
+                    if not api_url.startswith("https://"):
+                        continue
+                    if any(x in api_url for x in [".onion", ".i2p", ".ygg", "localhost"]):
+                        continue
+                    
+                    uptime = item.get("uptime_24h", 0.0)
+                    new_piped.append((api_url, uptime))
+                
+                new_piped.sort(key=lambda x: x[1], reverse=True)
+                filtered_apis = [x[0] for x in new_piped]
+                if filtered_apis:
+                    merged = list(filtered_apis)
+                    for x in DEFAULT_PIPED_INSTANCES:
+                        if x not in merged:
+                            merged.append(x)
+                    PIPED_INSTANCES = merged
+                    logger.info(f"Dynamically updated Piped instances. Active count: {len(PIPED_INSTANCES)}")
+    except Exception as e:
+        logger.warning(f"Failed to dynamically fetch Piped instances: {e}")
+
+
 async def _health_check_instances_bg():
     """Lightweight health check: ping instances and measure response time."""
     now = time.time()
-    logger.info("Running Invidious instance health check in background...")
+    logger.info("Running Invidious & Piped instance health check in background...")
+    
+    # Prune origin instances mapping cache
+    if len(_stream_origin_instances) > 500:
+        _stream_origin_instances.clear()
+
+    # Dynamically update the pools first
+    await update_instances_dynamically()
 
     async def check(url: str):
         try:
@@ -69,7 +166,6 @@ async def _health_check_instances_bg():
                 r = await client.get(f"{url}/api/v1/status")
                 if r.status_code == 200:
                     data = r.json()
-                    # Check if the instance is actually functional
                     if data.get("version"):
                         _instance_health[url] = {
                             "score": 100,
@@ -86,10 +182,31 @@ async def _health_check_instances_bg():
         health["last_check"] = now
         return False
 
-    tasks = [check(url) for url in INV_INSTANCES]
+    async def check_piped(url: str):
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                r = await client.get(url)
+                if r.status_code in (200, 404):
+                    _piped_health[url] = {
+                        "score": 100,
+                        "failures": 0,
+                        "last_check": now,
+                        "latency_ms": r.elapsed.total_seconds() * 1000,
+                    }
+                    return True
+        except Exception:
+            pass
+        health = _get_piped_health(url)
+        health["failures"] += 1
+        health["score"] = max(0, health["score"] - 20)
+        health["last_check"] = now
+        return False
+
+    # Check all Invidious and Piped instances in parallel
+    tasks = [check(url) for url in INV_INSTANCES] + [check_piped(url) for url in PIPED_INSTANCES]
     results = await asyncio.gather(*tasks, return_exceptions=True)
     healthy = sum(1 for r in results if r is True)
-    logger.info(f"Invidious health check background task complete: {healthy}/{len(INV_INSTANCES)} instances healthy")
+    logger.info(f"Health check background task complete: {healthy}/{len(INV_INSTANCES) + len(PIPED_INSTANCES)} instances healthy")
 
 
 def trigger_health_check_if_needed():
@@ -102,30 +219,64 @@ def trigger_health_check_if_needed():
 
 
 def _get_sorted_instances() -> list[str]:
-    """Return instances sorted by health score (best first), with some randomization.
-    Instances with 10+ consecutive failures are skipped until the next health check."""
+    """Return Invidious instances sorted by health score (best first), with some randomization."""
     instances = []
     for url in INV_INSTANCES:
         health = _get_instance_health(url)
-        # Skip instances that have failed too many times consecutively
         if health.get("failures", 0) >= 10:
             continue
-        # Add small random factor to avoid thundering herd on single instance
         jitter = random.uniform(-5, 5)
         score = health.get("score", 100) + jitter
         instances.append((url, score))
-
-    # Sort by score descending
     instances.sort(key=lambda x: x[1], reverse=True)
     return [url for url, _ in instances]
 
 
-async def get_stream_url(video_id: str) -> Optional[str]:
-    """Get a direct stream URL via Invidious.
+def _get_sorted_piped_instances() -> list[str]:
+    """Return Piped instances sorted by health score (best first), with some randomization."""
+    instances = []
+    for url in PIPED_INSTANCES:
+        health = _get_piped_health(url)
+        if health.get("failures", 0) >= 10:
+            continue
+        jitter = random.uniform(-5, 5)
+        score = health.get("score", 100) + jitter
+        instances.append((url, score))
+    instances.sort(key=lambda x: x[1], reverse=True)
+    return [url for url, _ in instances]
 
-    Tries all instances in parallel with short timeouts and returns the first
-    successful result. yt-dlp runs in parallel via the caller (_resolve_audio_url).
-    """
+
+def report_stream_failure(stream_url: str):
+    """Called when proxying a stream URL fails. Penalizes the instance's health score."""
+    try:
+        origin = _stream_origin_instances.get(stream_url)
+        if not origin:
+            from urllib.parse import urlparse
+            parsed = urlparse(stream_url)
+            if parsed.scheme and parsed.netloc:
+                host = f"{parsed.scheme}://{parsed.netloc}"
+                if host in _instance_health:
+                    origin = host
+                elif host in _piped_health:
+                    origin = host
+        
+        if origin:
+            if origin in _instance_health:
+                health = _get_instance_health(origin)
+                health["failures"] += 1
+                health["score"] = max(0, health["score"] - 30)
+                logger.info(f"Penalized Invidious instance {origin} (score={health['score']}) due to stream proxy failure")
+            elif origin in _piped_health:
+                health = _get_piped_health(origin)
+                health["failures"] += 1
+                health["score"] = max(0, health["score"] - 30)
+                logger.info(f"Penalized Piped instance {origin} (score={health['score']}) due to stream proxy failure")
+    except Exception as e:
+        logger.warning(f"Error reporting stream failure for {stream_url}: {e}")
+
+
+async def get_stream_url(video_id: str) -> Optional[str]:
+    """Get a direct stream URL via Invidious or Piped."""
     trigger_health_check_if_needed()
 
     async def _try_instance(instance: str) -> Optional[str]:
@@ -147,12 +298,14 @@ async def get_stream_url(video_id: str) -> Optional[str]:
                     if url:
                         health = _get_instance_health(instance)
                         health["score"] = min(100, health.get("score", 100) + 5)
+                        _stream_origin_instances[url] = instance
                         return url
                 if formats:
                     url = formats[0].get("url")
                     if url:
                         health = _get_instance_health(instance)
                         health["score"] = min(100, health.get("score", 100) + 5)
+                        _stream_origin_instances[url] = instance
                         return url
         except Exception:
             health = _get_instance_health(instance)
@@ -170,18 +323,22 @@ async def get_stream_url(video_id: str) -> Optional[str]:
                 data = r.json()
                 audio_streams = data.get("audioStreams", [])
                 if audio_streams:
-                    # Pick highest bitrate audio stream
                     best = max(audio_streams, key=lambda s: s.get("bitrate", 0))
                     url = best.get("url")
                     if url:
+                        health = _get_piped_health(instance)
+                        health["score"] = min(100, health.get("score", 100) + 5)
+                        _stream_origin_instances[url] = instance
                         return url
         except Exception:
-            pass
+            health = _get_piped_health(instance)
+            health["failures"] += 1
+            health["score"] = max(0, health.get("score", 100) - 10)
         return None
 
     instances = _get_sorted_instances()
-    # Run Invidious + Piped instances all in parallel, return first success
-    all_tasks = [_try_instance(i) for i in instances] + [_try_piped(p) for p in PIPED_INSTANCES]
+    piped_instances = _get_sorted_piped_instances()
+    all_tasks = [_try_instance(i) for i in instances] + [_try_piped(p) for p in piped_instances]
     for coro in asyncio.as_completed(all_tasks):
         result = await coro
         if result:

@@ -17,7 +17,7 @@ from backend.models.user import User
 from backend.middleware.auth import get_current_user_id
 from backend.services.queue_manager import queue_manager
 from backend.services.music_search import music_search_service as lastfm_service
-from backend.services.invidious import get_stream_url as get_invidious_stream_url
+from backend.services.invidious import get_stream_url as get_invidious_stream_url, report_stream_failure
 from backend.schemas import QueueTrackRequest
 from backend.routes.rooms import check_room_access
 
@@ -255,45 +255,67 @@ async def stream_audio(video_id: str, request: Request, low: bool = False):
     if not _is_valid_video_id(video_id):
         raise HTTPException(status_code=400, detail="Invalid video ID")
 
-    url = await _resolve_audio_url(video_id, low=low)
-    if not url:
-        raise HTTPException(status_code=404, detail="Could not extract stream")
+    cache_key = f"{video_id}_low" if low else video_id
+    max_attempts = 2
+    last_error_detail = "Could not extract stream"
 
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
-    range_header = request.headers.get("Range")
-    if range_header:
-        headers["Range"] = range_header
+    for attempt in range(1, max_attempts + 1):
+        url = await _resolve_audio_url(video_id, low=low)
+        if not url:
+            raise HTTPException(status_code=404, detail="Could not extract stream")
 
-    client = _get_stream_client()
-    try:
-        req = client.build_request("GET", url, headers=headers)
-        r = await client.send(req, stream=True)
-
-        if r.status_code not in (200, 206):
-            await r.aclose()
-            raise HTTPException(status_code=502, detail=f"Upstream returned {r.status_code}")
-
-        resp_headers = {
-            "Accept-Ranges": "bytes",
-            "Content-Type": r.headers.get("Content-Type", "audio/webm"),
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
-        if "Content-Range" in r.headers:
-            resp_headers["Content-Range"] = r.headers["Content-Range"]
-        if "Content-Length" in r.headers:
-            resp_headers["Content-Length"] = r.headers["Content-Length"]
+        range_header = request.headers.get("Range")
+        if range_header:
+            headers["Range"] = range_header
 
-        async def generate():
-            try:
-                async for chunk in r.aiter_bytes(chunk_size=65536):
-                    yield chunk
-            finally:
+        client = _get_stream_client()
+        try:
+            logger.info(f"Streaming from url: {url} (attempt {attempt}/{max_attempts})")
+            req = client.build_request("GET", url, headers=headers)
+            r = await client.send(req, stream=True)
+
+            if r.status_code not in (200, 206):
                 await r.aclose()
+                logger.warning(f"Upstream returned status {r.status_code} for {video_id} on attempt {attempt}")
+                report_stream_failure(url)
+                if cache_key in _url_cache:
+                    del _url_cache[cache_key]
+                last_error_detail = f"Upstream returned status {r.status_code}"
+                continue
 
-        return StreamingResponse(generate(), status_code=206 if r.status_code == 206 else 200, headers=resp_headers)
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(status_code=502, detail="Upstream connection failed")
+            resp_headers = {
+                "Accept-Ranges": "bytes",
+                "Content-Type": r.headers.get("Content-Type", "audio/webm"),
+            }
+            if "Content-Range" in r.headers:
+                resp_headers["Content-Range"] = r.headers["Content-Range"]
+            if "Content-Length" in r.headers:
+                resp_headers["Content-Length"] = r.headers["Content-Length"]
+
+            async def generate():
+                try:
+                    async for chunk in r.aiter_bytes(chunk_size=65536):
+                        yield chunk
+                finally:
+                    await r.aclose()
+
+            return StreamingResponse(
+                generate(),
+                status_code=206 if r.status_code == 206 else 200,
+                headers=resp_headers,
+            )
+        except Exception as e:
+            logger.warning(f"Connection or stream failure for {video_id} on attempt {attempt}: {e}")
+            report_stream_failure(url)
+            if cache_key in _url_cache:
+                del _url_cache[cache_key]
+            last_error_detail = f"Upstream connection failed: {e}"
+            continue
+
+    raise HTTPException(status_code=502, detail=last_error_detail)
 
 
 @router.get("/search/playlist")

@@ -183,3 +183,89 @@ def test_spotify_playlist_import_success(client, auth_headers):
         assert len(data["tracks"]) == 1
         assert data["tracks"][0]["name"] == "Chereve"
         assert data["tracks"][0]["artist"] == "Aria Vega"
+
+
+def test_stream_audio_retry_failover(client):
+    from unittest.mock import patch, AsyncMock
+    import httpx
+    
+    mock_resolved_urls = ["http://failed-instance.com/stream", "http://success-instance.com/stream"]
+    url_index = 0
+    
+    async def mock_resolve(*args, **kwargs):
+        nonlocal url_index
+        if url_index < len(mock_resolved_urls):
+            url = mock_resolved_urls[url_index]
+            url_index += 1
+            return url
+        return None
+        
+    mock_send_count = 0
+    async def mock_send(req, **kwargs):
+        nonlocal mock_send_count
+        mock_send_count += 1
+        if mock_send_count == 1:
+            raise httpx.ConnectError("Mock connection failure")
+        else:
+            resp = httpx.Response(200, content=b"fake-audio-bytes")
+            resp.aclose = AsyncMock()
+            return resp
+
+    mock_client = AsyncMock()
+    mock_client.build_request = lambda method, url, **kwargs: httpx.Request(method, url)
+    mock_client.send = mock_send
+
+    with patch("backend.routes.queue._resolve_audio_url", side_effect=mock_resolve), \
+         patch("backend.routes.queue._get_stream_client", return_value=mock_client), \
+         patch("backend.routes.queue.report_stream_failure") as mock_report:
+         
+        response = client.get("/stream/dQw4w9WgXcQ")
+        
+        assert response.status_code == 200
+        assert response.content == b"fake-audio-bytes"
+        assert mock_send_count == 2
+        mock_report.assert_called_once_with("http://failed-instance.com/stream")
+
+
+def test_stream_audio_status_code_retry_failover(client):
+    from unittest.mock import patch, AsyncMock
+    import httpx
+    
+    mock_resolved_urls = ["http://403-instance.com/stream", "http://success-instance.com/stream"]
+    url_index = 0
+    
+    async def mock_resolve(*args, **kwargs):
+        nonlocal url_index
+        if url_index < len(mock_resolved_urls):
+            url = mock_resolved_urls[url_index]
+            url_index += 1
+            return url
+        return None
+        
+    mock_send_count = 0
+    async def mock_send(req, **kwargs):
+        nonlocal mock_send_count
+        mock_send_count += 1
+        if mock_send_count == 1:
+            resp = httpx.Response(403)
+            resp.aclose = AsyncMock()
+            return resp
+        else:
+            resp = httpx.Response(200, content=b"fake-audio-bytes-2")
+            resp.aclose = AsyncMock()
+            return resp
+
+    mock_client = AsyncMock()
+    mock_client.build_request = lambda method, url, **kwargs: httpx.Request(method, url)
+    mock_client.send = mock_send
+
+    with patch("backend.routes.queue._resolve_audio_url", side_effect=mock_resolve), \
+         patch("backend.routes.queue._get_stream_client", return_value=mock_client), \
+         patch("backend.routes.queue.report_stream_failure") as mock_report:
+         
+        response = client.get("/stream/dQw4w9WgXcQ")
+        
+        assert response.status_code == 200
+        assert response.content == b"fake-audio-bytes-2"
+        assert mock_send_count == 2
+        mock_report.assert_called_once_with("http://403-instance.com/stream")
