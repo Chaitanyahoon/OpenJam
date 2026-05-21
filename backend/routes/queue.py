@@ -167,7 +167,7 @@ def _prune_url_cache():
 
 def _extract_ytdlp_sync(video_id: str, low: bool = False) -> str | None:
     ydl_opts = {
-        "format": "worstaudio" if low else "bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best",
+        "format": "worstaudio/bestaudio/best" if low else "bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best",
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,

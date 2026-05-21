@@ -275,6 +275,25 @@ def report_stream_failure(stream_url: str):
         logger.warning(f"Error reporting stream failure for {stream_url}: {e}")
 
 
+def _rewrite_googlevideo_url(url: str, instance: str) -> str:
+    if "googlevideo.com" in url:
+        from urllib.parse import urlparse, urlunparse
+        try:
+            parsed_url = urlparse(url)
+            parsed_instance = urlparse(instance)
+            return urlunparse((
+                parsed_instance.scheme,
+                parsed_instance.netloc,
+                parsed_url.path,
+                parsed_url.params,
+                parsed_url.query,
+                parsed_url.fragment
+            ))
+        except Exception:
+            pass
+    return url
+
+
 async def get_stream_url(video_id: str) -> Optional[str]:
     """Get a direct stream URL via Invidious or Piped."""
     trigger_health_check_if_needed()
@@ -296,6 +315,7 @@ async def get_stream_url(video_id: str) -> Optional[str]:
                     best = max(audio_formats, key=lambda f: f.get("bitrate", 0))
                     url = best.get("url")
                     if url:
+                        url = _rewrite_googlevideo_url(url, instance)
                         health = _get_instance_health(instance)
                         health["score"] = min(100, health.get("score", 100) + 5)
                         _stream_origin_instances[url] = instance
@@ -303,6 +323,7 @@ async def get_stream_url(video_id: str) -> Optional[str]:
                 if formats:
                     url = formats[0].get("url")
                     if url:
+                        url = _rewrite_googlevideo_url(url, instance)
                         health = _get_instance_health(instance)
                         health["score"] = min(100, health.get("score", 100) + 5)
                         _stream_origin_instances[url] = instance
