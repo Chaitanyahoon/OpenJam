@@ -135,4 +135,51 @@ def test_queue_no_cap_limit(db_session, test_room, test_user):
             assert len(queue) == i + 1
 
 
+def test_spotify_playlist_import_success(client, auth_headers):
+    from unittest.mock import AsyncMock, patch
+    import httpx
 
+    mock_html = """
+    <html>
+      <body>
+        <script id="__NEXT_DATA__" type="application/json">
+        {
+          "props": {
+            "pageProps": {
+              "state": {
+                "data": {
+                  "entity": {
+                    "trackList": [
+                      {
+                        "title": "Chereve",
+                        "subtitle": "Aria Vega",
+                        "duration": 219000
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+        </script>
+      </body>
+    </html>
+    """
+
+    mock_response = httpx.Response(200, text=mock_html)
+
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = mock_response
+
+        response = client.get(
+            "/search/playlist?url=https://open.spotify.com/playlist/37i9dQZF1DX10zKzsJ2jva",
+            headers=auth_headers
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "tracks" in data
+        assert len(data["tracks"]) == 1
+        assert data["tracks"][0]["name"] == "Chereve"
+        assert data["tracks"][0]["artist"] == "Aria Vega"

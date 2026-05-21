@@ -295,6 +295,7 @@ async def import_playlist(url: str):
     # 1. Spotify Playlist
     if "spotify.com" in url_clean:
         try:
+            import json
             # Parse Spotify Playlist (scraped fallback)
             match = re.search(r"/playlist/([a-zA-Z0-9]+)", url_clean)
             if not match:
@@ -302,33 +303,63 @@ async def import_playlist(url: str):
             playlist_id = match.group(1)
             
             headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Referer": "https://open.spotify.com/",
             }
             client = _get_stream_client()
-            r = await client.get(f"https://open.spotify.com/playlist/{playlist_id}", headers=headers)
+            embed_url = f"https://open.spotify.com/embed/playlist/{playlist_id}"
+            r = await client.get(embed_url, headers=headers, follow_redirects=True)
             if r.status_code != 200:
                 raise HTTPException(status_code=r.status_code, detail="Spotify playlist not found or inaccessible")
             
             html = r.text
             tracks = []
             
-            # Scrape tracks with regex pattern matching "name":"..." and "artists":[...]
-            matches = re.findall(r'"name"\s*:\s*"([^"]+)"\s*,\s*"artists"\s*:\s*\[\s*\{\s*"name"\s*:\s*"([^"]+)"', html)
-            if matches:
-                for name, artist in matches:
-                    try:
-                        name = name.encode().decode('unicode_escape', errors='ignore')
-                        artist = artist.encode().decode('unicode_escape', errors='ignore')
-                    except Exception:
-                        pass
-                    tracks.append({"name": name, "artist": artist, "uri": f"{name} {artist} official audio"})
+            # Parse Next.js pageProps data from embed
+            next_data_match = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', html)
+            if next_data_match:
+                try:
+                    next_data = json.loads(next_data_match.group(1))
+                    page_props = next_data.get("props", {}).get("pageProps", {})
+                    state = page_props.get("state", {})
+                    if "data" in state and "entity" in state["data"]:
+                        entity = state["data"]["entity"]
+                        track_list = entity.get("trackList", [])
+                        for track in track_list:
+                            title = track.get("title")
+                            artist = track.get("subtitle", "Unknown Artist")
+                            if title:
+                                artist = artist.replace("\xa0", " ").strip()
+                                title = title.strip()
+                                tracks.append({
+                                    "name": title,
+                                    "artist": artist,
+                                    "uri": f"{title} {artist} official audio",
+                                    "duration_ms": track.get("duration", 0)
+                                })
+                except Exception as parse_err:
+                    logger.error(f"Error parsing Spotify embed __NEXT_DATA__: {parse_err}")
             
+            # Fallback patterns if __NEXT_DATA__ did not yield tracks
             if not tracks:
-                # Alternate pattern
-                matches = re.findall(r'"title"\s*:\s*"([^"]+)"\s*,\s*"subtitle"\s*:\s*"([^"]+)"', html)
-                for title, subtitle in matches:
-                    if title and subtitle and subtitle != "Playlist":
-                        tracks.append({"name": title, "artist": subtitle, "uri": f"{title} {subtitle} official audio"})
+                # Scrape tracks with regex pattern matching "name":"..." and "artists":[...]
+                matches = re.findall(r'"name"\s*:\s*"([^"]+)"\s*,\s*"artists"\s*:\s*\[\s*\{\s*"name"\s*:\s*"([^"]+)"', html)
+                if matches:
+                    for name, artist in matches:
+                        try:
+                            name = name.encode().decode('unicode_escape', errors='ignore')
+                            artist = artist.encode().decode('unicode_escape', errors='ignore')
+                        except Exception:
+                            pass
+                        tracks.append({"name": name, "artist": artist, "uri": f"{name} {artist} official audio"})
+                
+                if not tracks:
+                    # Alternate pattern
+                    matches = re.findall(r'"title"\s*:\s*"([^"]+)"\s*,\s*"subtitle"\s*:\s*"([^"]+)"', html)
+                    for title, subtitle in matches:
+                        if title and subtitle and subtitle != "Playlist":
+                            tracks.append({"name": title, "artist": subtitle, "uri": f"{title} {subtitle} official audio"})
                         
             # Deduplicate
             seen = set()
