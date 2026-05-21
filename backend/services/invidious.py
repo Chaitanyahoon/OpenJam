@@ -17,8 +17,8 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# Known Invidious instances (as of 2026). These are public instances
-# that are generally reliable and allow API access.
+# Known Invidious instances (refreshed 2026). Public instances that
+# generally allow API access for stream URL extraction.
 INV_INSTANCES = [
     "https://vid.puffyan.us",
     "https://invidious.fdn.fr",
@@ -30,11 +30,18 @@ INV_INSTANCES = [
     "https://invidious.flokinet.to",
     "https://yt.artemislena.eu",
     "https://invidious.privacyredirect.com",
-    "https://invidious.lilith.zone",
-    "https://inv.bp.projectsegfau.lt",
     "https://invidious.protokolla.fi",
     "https://iv.datura.network",
     "https://yewtu.be",
+]
+
+# Piped instances — another YouTube alt-frontend with streaming API
+PIPED_INSTANCES = [
+    "https://pipedapi.kavin.rocks",
+    "https://pipedapi.adminforge.de",
+    "https://pipedapi.r4fo.com",
+    "https://pipedapi.leptons.xyz",
+    "https://api.piped.projectsegfau.lt",
 ]
 
 # Instance health tracking
@@ -153,9 +160,29 @@ async def get_stream_url(video_id: str) -> Optional[str]:
             health["score"] = max(0, health.get("score", 100) - 10)
         return None
 
+    async def _try_piped(instance: str) -> Optional[str]:
+        """Try to get audio stream URL from a Piped API instance."""
+        try:
+            async with httpx.AsyncClient(timeout=6.0) as client:
+                r = await client.get(f"{instance}/streams/{video_id}")
+                if r.status_code != 200:
+                    return None
+                data = r.json()
+                audio_streams = data.get("audioStreams", [])
+                if audio_streams:
+                    # Pick highest bitrate audio stream
+                    best = max(audio_streams, key=lambda s: s.get("bitrate", 0))
+                    url = best.get("url")
+                    if url:
+                        return url
+        except Exception:
+            pass
+        return None
+
     instances = _get_sorted_instances()
-    # Run all instances in parallel, return first success
-    for coro in asyncio.as_completed([_try_instance(i) for i in instances]):
+    # Run Invidious + Piped instances all in parallel, return first success
+    all_tasks = [_try_instance(i) for i in instances] + [_try_piped(p) for p in PIPED_INSTANCES]
+    for coro in asyncio.as_completed(all_tasks):
         result = await coro
         if result:
             return result

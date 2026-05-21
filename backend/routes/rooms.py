@@ -29,18 +29,22 @@ async def list_rooms(
     rooms = query.order_by(Room.created_at.desc()).all()
 
     listener_counts = room_manager.get_listener_counts()
-    result = []
     
-    # Current time for checking new empty rooms 
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc)
-    
+
+    # Get current user for ghost-room exception
+    from backend.middleware.auth import get_current_user_id
+    current_user = get_current_user_id(request, include_name=True)
+    current_user_id = current_user["id"] if current_user else None
+
     visible_rooms = []
     for room in rooms:
         count = listener_counts.get(room.id, 0)
         
-        # Hide empty rooms unless they were just created (< 30 minutes ago) 
-        # to prevent ghost rooms from showing up on the home page while pending deletion
+        # Hide empty rooms unless:
+        # 1. They were just created (< 30 seconds ago), OR
+        # 2. The current user is the host (prevents ghost room for the creator)
         age_seconds = float('inf')
         if room.created_at:
             try:
@@ -51,8 +55,8 @@ async def list_rooms(
                 age_seconds = (now - dt.replace(tzinfo=timezone.utc)).total_seconds()
             except Exception:
                 pass
-        # Hide empty rooms after 30s to save resources. Room closer auto-deactivates them.
-        if count == 0 and age_seconds > 30:
+        is_my_room = current_user_id and room.host_user_id == current_user_id
+        if count == 0 and age_seconds > 30 and not is_my_room:
             continue
             
         host_name = room.host.display_name if room.host else "Unknown"

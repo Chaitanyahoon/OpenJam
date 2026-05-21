@@ -148,11 +148,13 @@ class YouTubePlayer {
         },
         onError: (e) => {
           console.error('YouTube IFrame error:', e.data);
-          let msg = "This track can't be played in your region or is restricted.";
           if (e.data === 150 || e.data === 101) {
-            msg = "This track can't be played embedded due to restrictions.";
+            if (typeof toast === 'function') toast('This track is restricted. Skipping...', 'warning');
+            // Auto-advance: treat as ended so the next track plays
+            setTimeout(() => this._onStateChange('ended'), 500);
+          } else {
+            if (typeof toast === 'function') toast("This track can't be played in your region.", 'error');
           }
-          if (typeof toast === 'function') toast(msg, 'error');
         },
       },
     });
@@ -309,12 +311,8 @@ class YouTubePlayer {
     if (videoId !== this.currentVideoId) {
       this._streamFailCount = 0;
       this._useLowBitrate = false;
-      if (this._useIFrame) {
-        this._useIFrame = false;
-        if (this.ytPlayer) {
-          try { this.ytPlayer.pauseVideo(); } catch (e) {}
-        }
-      }
+      // Keep IFrame mode sticky — if streams failed once, they'll keep failing
+      // for the whole session (server-side yt-dlp/Invidious issue)
     }
 
     this.currentVideoId = videoId;
@@ -382,14 +380,18 @@ class YouTubePlayer {
       return;
     }
 
-    if (this._useIFrame && this.ytPlayer) {
+    if (this._useIFrame && this.ytPlayer && typeof this.ytPlayer.getCurrentTime === 'function') {
       const actualMs = Math.round((this.ytPlayer.getCurrentTime() || 0) * 1000);
       const drift = Math.abs(actualMs - positionMs);
       this._suppressStateChange = true;
-      if (drift > 3000) this.ytPlayer.seekTo(positionMs / 1000, true);
-      if (isPlaying) { this.ytPlayer.playVideo(); this.startProgressTimer(); }
-      else { this.ytPlayer.pauseVideo(); this.stopProgressTimer(); }
+      if (drift > 3000 && typeof this.ytPlayer.seekTo === 'function') this.ytPlayer.seekTo(positionMs / 1000, true);
+      if (isPlaying) { if (typeof this.ytPlayer.playVideo === 'function') this.ytPlayer.playVideo(); this.startProgressTimer(); }
+      else { if (typeof this.ytPlayer.pauseVideo === 'function') this.ytPlayer.pauseVideo(); this.stopProgressTimer(); }
       setTimeout(() => { this._suppressStateChange = false; }, 500);
+    } else if (this._useIFrame) {
+      // IFrame not ready yet, just update state
+      this.updateDisplay();
+      return;
     } else {
       const actualMs = Math.round((this.player.currentTime || 0) * 1000);
       const drift = Math.abs(actualMs - positionMs);
@@ -424,9 +426,9 @@ class YouTubePlayer {
     if (!this._userUnlocked || !this.currentVideoId) return;
     this._suppressStateChange = true;
     this.isPlaying = playing;
-    if (this._useIFrame && this.ytPlayer) {
+    if (this._useIFrame && this.ytPlayer && typeof this.ytPlayer.playVideo === 'function') {
       if (playing) { this.ytPlayer.playVideo(); this.startProgressTimer(); }
-      else { this.ytPlayer.pauseVideo(); this.stopProgressTimer(); }
+      else { if (typeof this.ytPlayer.pauseVideo === 'function') this.ytPlayer.pauseVideo(); this.stopProgressTimer(); }
     } else if (this.player) {
       if (playing) {
         this.player.play().catch(() => {});
@@ -445,19 +447,26 @@ class YouTubePlayer {
   startProgressTimer() {
     this.stopProgressTimer();
     this.progressInterval = setInterval(() => {
-      const actualMs = this._useIFrame && this.ytPlayer
-        ? Math.round(this.ytPlayer.getCurrentTime() * 1000)
-        : Math.round(this.player.currentTime * 1000);
+      let actualMs = 0;
+      try {
+        if (this._useIFrame && this.ytPlayer && typeof this.ytPlayer.getCurrentTime === 'function') {
+          actualMs = Math.round(this.ytPlayer.getCurrentTime() * 1000);
+        } else if (this.player) {
+          actualMs = Math.round(this.player.currentTime * 1000);
+        }
+      } catch (e) { /* ytPlayer not ready yet */ }
       if (actualMs > 0) this.positionMs = actualMs;
 
       // Extract duration from actual player if it is missing or zero
       if (this.durationMs <= 0) {
-        const actualDurSec = this._useIFrame && this.ytPlayer
-          ? this.ytPlayer.getDuration()
-          : this.player.duration;
-        if (actualDurSec > 0) {
-          this.durationMs = Math.round(actualDurSec * 1000);
-        }
+        try {
+          const actualDurSec = (this._useIFrame && this.ytPlayer && typeof this.ytPlayer.getDuration === 'function')
+            ? this.ytPlayer.getDuration()
+            : (this.player ? this.player.duration : 0);
+          if (actualDurSec > 0) {
+            this.durationMs = Math.round(actualDurSec * 1000);
+          }
+        } catch (e) { /* ytPlayer not ready yet */ }
       }
 
       this.updateDisplay();
