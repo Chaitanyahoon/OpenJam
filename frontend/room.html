@@ -644,6 +644,30 @@ function showRoomHelp() {
   });
 
   yt.setControlCallback((action, extra={}) => {
+    if (action === 'nexttrack') {
+      if (isHost) {
+        $('#btn-next')?.click();
+      } else {
+        $('#btn-vote-skip')?.click();
+      }
+      return;
+    }
+    if (action === 'seek') {
+      if (isHost) {
+        sc.emit('playback_update', {
+          room_id: roomId,
+          track_uri: yt.currentVideoId || '',
+          track_name: $('#np-title')?.textContent || '',
+          artist: $('#np-artist')?.textContent || '',
+          album_art_url: $('#art-img')?.src || '',
+          position_ms: extra.position_ms,
+          duration_ms: yt.durationMs || 0,
+          is_playing: yt.isPlaying,
+        });
+      }
+      return;
+    }
+
     if(!isHost) return; // only host fires socket events
     const pos = extra.position_ms ?? yt.positionMs;
     const payload = {
@@ -659,7 +683,15 @@ function showRoomHelp() {
     if(action === 'ended'){
       if (_loopEnabled && _currentTrackUri) {
         // Loop: reload the same track from start
-        yt.setTrack({ track_uri: _currentTrackUri, position_ms: 0, duration_ms: yt.durationMs || 0, is_playing: true });
+        yt.setTrack({
+          track_uri: _currentTrackUri,
+          position_ms: 0,
+          duration_ms: yt.durationMs || 0,
+          is_playing: true,
+          track_name: $('#np-title')?.textContent || '',
+          artist: $('#np-artist')?.textContent || '',
+          album_art_url: $('#art-img')?.src || ''
+        });
         sc.emit('playback_update', { ...payload, position_ms: 0, is_playing: true });
       } else {
         sc.emit('next_track', { room_id: roomId });
@@ -1054,7 +1086,15 @@ function showRoomHelp() {
         }, 500);
       }
       _currentTrackUri = track.track_uri;
-      yt.setTrack({ track_uri:track.track_uri, position_ms:track.position_ms||0, duration_ms:track.duration_ms||0, is_playing:playing });
+      yt.setTrack({
+        track_uri: track.track_uri,
+        position_ms: track.position_ms || 0,
+        duration_ms: track.duration_ms || 0,
+        is_playing: playing,
+        track_name: track.track_name,
+        artist: track.artist,
+        album_art_url: track.album_art_url
+      });
       // Re-apply current volume to the new track immediately
       applyVol(vol);
       lyricsManager.loadLyrics(track.track_name, track.artist, track.track_uri);

@@ -26,6 +26,7 @@ class YouTubePlayer {
     this._maxStreamFails = 2;
 
     this._initAudio();
+    this._initMediaSession();
 
     const unlockHandler = () => {
       this.unlockAudioContext();
@@ -184,6 +185,8 @@ class YouTubePlayer {
       this._emitControlEvent('ended');
     }
     this.updateDisplay();
+    this._updateMediaSessionPlaybackState();
+    this._updateMediaSessionPositionState();
   }
 
   _emitControlEvent(action, extra = {}) {
@@ -347,6 +350,9 @@ class YouTubePlayer {
       this.stopProgressTimer();
     }
     this.updateDisplay();
+    this._updateMediaSessionMetadata(trackData.track_name, trackData.artist, trackData.album_art_url);
+    this._updateMediaSessionPlaybackState();
+    this._updateMediaSessionPositionState();
   }
 
   syncPosition(positionMs, isPlaying) {
@@ -389,6 +395,8 @@ class YouTubePlayer {
     }
 
     this.updateDisplay();
+    this._updateMediaSessionPlaybackState();
+    this._updateMediaSessionPositionState();
   }
 
   /**
@@ -413,6 +421,8 @@ class YouTubePlayer {
     }
     setTimeout(() => { this._suppressStateChange = false; }, 500);
     this.updateDisplay();
+    this._updateMediaSessionPlaybackState();
+    this._updateMediaSessionPositionState();
   }
 
   startProgressTimer() {
@@ -434,6 +444,7 @@ class YouTubePlayer {
       }
 
       this.updateDisplay();
+      this._updateMediaSessionPositionState();
     }, 250);
   }
 
@@ -467,6 +478,10 @@ class YouTubePlayer {
       this.player.load();
     }
     this.updateDisplay();
+    this._updateMediaSessionPlaybackState();
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.metadata = null;
+    }
   }
 
   destroy() {
@@ -474,6 +489,115 @@ class YouTubePlayer {
     if (this._useIFrame && this.ytPlayer) {
       try { this.ytPlayer.destroy(); } catch(e) {}
       this.ytPlayer = null;
+    }
+  }
+
+  /* ─── Media Session API Integration ──────────────────── */
+  _initMediaSession() {
+    if (!('mediaSession' in navigator)) return;
+
+    navigator.mediaSession.setActionHandler('play', () => {
+      console.log('[MediaSession] OS Play trigger');
+      if (this._useIFrame && this.ytPlayer) {
+        this.ytPlayer.playVideo();
+      } else if (this.player) {
+        this.player.play().catch(() => {});
+      }
+      this.isPlaying = true;
+      this.startProgressTimer();
+      this._emitControlEvent('play');
+    });
+
+    navigator.mediaSession.setActionHandler('pause', () => {
+      console.log('[MediaSession] OS Pause trigger');
+      if (this._useIFrame && this.ytPlayer) {
+        this.ytPlayer.pauseVideo();
+      } else if (this.player) {
+        this.player.pause();
+      }
+      this.isPlaying = false;
+      this.stopProgressTimer();
+      this._emitControlEvent('pause');
+    });
+
+    navigator.mediaSession.setActionHandler('nexttrack', () => {
+      console.log('[MediaSession] OS Next Track trigger');
+      this._emitControlEvent('nexttrack');
+    });
+
+    navigator.mediaSession.setActionHandler('previoustrack', () => {
+      console.log('[MediaSession] OS Previous Track trigger');
+      this._emitControlEvent('previoustrack');
+    });
+
+    try {
+      navigator.mediaSession.setActionHandler('seekto', (details) => {
+        console.log('[MediaSession] OS Seekto trigger:', details);
+        const seekTime = details.seekTime;
+        if (this._useIFrame && this.ytPlayer && typeof this.ytPlayer.seekTo === 'function') {
+          this.ytPlayer.seekTo(seekTime, true);
+        } else if (this.player) {
+          this.player.currentTime = seekTime;
+        }
+        this.positionMs = Math.round(seekTime * 1000);
+        this._emitControlEvent('seek', { position_ms: this.positionMs });
+      });
+    } catch (e) {
+      console.warn('[MediaSession] seekto action handler not supported:', e);
+    }
+  }
+
+  _updateMediaSessionMetadata(trackName, artistName, albumArtUrl) {
+    if (!('mediaSession' in navigator)) return;
+
+    const defaultArtwork = [
+      { src: '/static/img/logo.png', sizes: '96x96', type: 'image/png' },
+      { src: '/static/img/logo.png', sizes: '128x128', type: 'image/png' },
+      { src: '/static/img/logo.png', sizes: '192x192', type: 'image/png' },
+      { src: '/static/img/logo.png', sizes: '256x256', type: 'image/png' },
+      { src: '/static/img/logo.png', sizes: '384x384', type: 'image/png' },
+      { src: '/static/img/logo.png', sizes: '512x512', type: 'image/png' },
+    ];
+
+    const artwork = albumArtUrl 
+      ? [
+          { src: albumArtUrl, sizes: '96x96', type: 'image/jpeg' },
+          { src: albumArtUrl, sizes: '128x128', type: 'image/jpeg' },
+          { src: albumArtUrl, sizes: '192x192', type: 'image/jpeg' },
+          { src: albumArtUrl, sizes: '256x256', type: 'image/jpeg' },
+          { src: albumArtUrl, sizes: '384x384', type: 'image/jpeg' },
+          { src: albumArtUrl, sizes: '512x512', type: 'image/jpeg' },
+        ]
+      : defaultArtwork;
+
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: trackName || 'OpenJam Track',
+      artist: artistName || 'OpenJam DJ',
+      album: 'OpenJam Live Room',
+      artwork: artwork
+    });
+  }
+
+  _updateMediaSessionPlaybackState() {
+    if (!('mediaSession' in navigator)) return;
+    navigator.mediaSession.playbackState = this.isPlaying ? 'playing' : 'paused';
+  }
+
+  _updateMediaSessionPositionState() {
+    if (!('mediaSession' in navigator) || !('setPositionState' in navigator.mediaSession)) return;
+    const durSec = (this.durationMs || 0) / 1000;
+    const posSec = (this.positionMs || 0) / 1000;
+
+    if (durSec > 0 && posSec >= 0 && posSec <= durSec) {
+      try {
+        navigator.mediaSession.setPositionState({
+          duration: durSec,
+          playbackRate: 1.0,
+          position: posSec
+        });
+      } catch (e) {
+        console.warn('[MediaSession] Error setting position state:', e);
+      }
     }
   }
 }
