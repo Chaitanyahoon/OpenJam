@@ -57,14 +57,25 @@ def init_db():
     from backend.models import User, Room, QueueItem, ChatMessage, Vote  # noqa: F401
     Base.metadata.create_all(bind=engine)
     
-    # Auto-migration: Check if 'is_admin' column exists in 'users' table, and add it if missing
+    # Auto-migration: Check if 'is_admin', 'is_premium', 'stripe_customer_id' columns exist in 'users' table, and add them if missing
     from sqlalchemy import text
     is_admin_exists = True
-    try:
-        with engine.connect() as conn:
+    is_premium_exists = True
+    stripe_customer_id_exists = True
+    
+    with engine.connect() as conn:
+        try:
             conn.execute(text("SELECT is_admin FROM users LIMIT 1"))
-    except Exception:
-        is_admin_exists = False
+        except Exception:
+            is_admin_exists = False
+        try:
+            conn.execute(text("SELECT is_premium FROM users LIMIT 1"))
+        except Exception:
+            is_premium_exists = False
+        try:
+            conn.execute(text("SELECT stripe_customer_id FROM users LIMIT 1"))
+        except Exception:
+            stripe_customer_id_exists = False
         
     if not is_admin_exists:
         try:
@@ -73,6 +84,22 @@ def init_db():
             print("Successfully added is_admin column to users table.")
         except Exception as e:
             print(f"Failed to auto-migrate users.is_admin: {e}")
+
+    if not is_premium_exists:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN is_premium BOOLEAN NOT NULL DEFAULT FALSE"))
+            print("Successfully added is_premium column to users table.")
+        except Exception as e:
+            print(f"Failed to auto-migrate users.is_premium: {e}")
+
+    if not stripe_customer_id_exists:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN stripe_customer_id VARCHAR NULL"))
+            print("Successfully added stripe_customer_id column to users table.")
+        except Exception as e:
+            print(f"Failed to auto-migrate users.stripe_customer_id: {e}")
 
     # Auto-migration: Check if 'password_hash' and 'is_private' columns exist in 'rooms' table, and add them if missing
     password_hash_exists = True
