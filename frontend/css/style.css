@@ -146,11 +146,16 @@ h1,h2,h3,h4 { font-family: var(--font-display); line-height: 1.2; }
 .btn-primary:hover::after {
   left: 200%; transition: 0.7s ease-in-out;
 }
+.btn:active,
 .btn-primary:active,
 .btn-secondary:active,
 .btn-ghost:active,
 .btn-danger:active,
 .icon-btn:active,
+.btn-react:active,
+.mob-tab:active,
+.vote-btn:active,
+.remove-btn:active,
 .room-card:active {
   transform: scale(0.96) translateY(0);
   filter: brightness(0.9);
@@ -401,6 +406,18 @@ input[type=range]::-moz-range-track {
   box-shadow: 0 8px 24px rgba(0,0,0,0.2);
 }
 .queue-item:hover::before { transform: scaleY(1); }
+.drag-handle {
+  cursor: grab;
+  margin-right: 8px;
+  font-weight: bold;
+  color: var(--text-3);
+  font-size: 16px;
+  user-select: none;
+  transition: color var(--t-fast);
+}
+.drag-handle:hover {
+  color: var(--amber);
+}
 .queue-item.dragging {
   opacity: 0.4 !important;
   transform: scale(0.96) !important;
@@ -1388,11 +1405,16 @@ input[type=range]::-moz-range-track {
 
   /* ── Panels — take remaining space ── */
   .panel-left, .panel-center, .panel-right {
-    flex: 1;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     overflow: hidden;
     display: none; /* JS tabs control visibility */
     border: none;
     border-right: none;
+    will-change: transform;
   }
   .panel-left.mobile-active,
   .panel-center.mobile-active,

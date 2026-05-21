@@ -446,7 +446,7 @@ function toggleMembers(){
 
 /* ── Mobile tab switching ──────────────────────────────────── */
 let _mobUnread = 0;
-function switchMobileTab(tab) {
+function switchMobileTab(tab, skipAnimation = false) {
   const left    = $('#panel-left');
   const centre  = $('#panel-center');
   const right   = $('#panel-right');
@@ -486,7 +486,16 @@ function switchMobileTab(tab) {
     // Ensure both panels are visible for the GSAP animation
     nextPanel.style.display = 'flex';
     nextPanel.classList.add('mobile-active');
-    Motion.slidePanel(nextPanel, currentPanel, direction);
+    
+    if (!skipAnimation) {
+      Motion.slidePanel(nextPanel, currentPanel, direction);
+    } else {
+      // Swipe gestures already moved the panels, so snap instantly!
+      gsap.set(nextPanel, { x: 0, opacity: 1 });
+      currentPanel.style.display = 'none';
+      currentPanel.style.transform = '';
+    }
+    
     currentPanel.classList.remove('mobile-active');
   }
 
@@ -551,40 +560,151 @@ function showRoomHelp() {
   let isHost = false;     // am I the room creator?
   let muted = false;
 
+  let sharedAudioCtx = null;
+  function getAudioCtx() {
+    if (!sharedAudioCtx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        sharedAudioCtx = new AudioCtx();
+      }
+    }
+    if (sharedAudioCtx && sharedAudioCtx.state === 'suspended') {
+      sharedAudioCtx.resume();
+    }
+    return sharedAudioCtx;
+  }
+
   function playChime() {
     if (localStorage.getItem('openjam_sounds') === 'false') return;
     try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
+      const ctx = getAudioCtx();
+      if (!ctx) return;
+      
+      const now = ctx.currentTime;
       
       const osc1 = ctx.createOscillator();
       const gain1 = ctx.createGain();
       osc1.type = 'sine';
-      osc1.frequency.setValueAtTime(880, ctx.currentTime);
-      gain1.gain.setValueAtTime(0.05, ctx.currentTime);
-      gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-      
+      osc1.frequency.setValueAtTime(523.25, now); // C5
+      gain1.gain.setValueAtTime(0.04, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
       osc1.connect(gain1);
       gain1.connect(ctx.destination);
-      osc1.start();
-      osc1.stop(ctx.currentTime + 0.5);
+      osc1.start(now);
+      osc1.stop(now + 0.4);
       
       const osc2 = ctx.createOscillator();
       const gain2 = ctx.createGain();
       osc2.type = 'sine';
-      osc2.frequency.setValueAtTime(1320, ctx.currentTime + 0.1);
-      gain2.gain.setValueAtTime(0, ctx.currentTime);
-      gain2.gain.setValueAtTime(0.05, ctx.currentTime + 0.1);
-      gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
-      
+      osc2.frequency.setValueAtTime(659.25, now + 0.08); // E5
+      gain2.gain.setValueAtTime(0, now);
+      gain2.gain.setValueAtTime(0.04, now + 0.08);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
       osc2.connect(gain2);
       gain2.connect(ctx.destination);
-      osc2.start();
-      osc2.stop(ctx.currentTime + 0.6);
+      osc2.start(now + 0.08);
+      osc2.stop(now + 0.5);
+
+      const osc3 = ctx.createOscillator();
+      const gain3 = ctx.createGain();
+      osc3.type = 'sine';
+      osc3.frequency.setValueAtTime(880, now + 0.16); // A5
+      gain3.gain.setValueAtTime(0, now);
+      gain3.gain.setValueAtTime(0.04, now + 0.16);
+      gain3.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+      osc3.connect(gain3);
+      gain3.connect(ctx.destination);
+      osc3.start(now + 0.16);
+      osc3.stop(now + 0.6);
     } catch(e) {
       console.warn('Web Audio API chime failed:', e);
     }
+  }
+
+  function playChatSound() {
+    if (localStorage.getItem('openjam_sounds') === 'false') return;
+    try {
+      const ctx = getAudioCtx();
+      if (!ctx) return;
+      
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(600, now);
+      osc.frequency.exponentialRampToValueAtTime(300, now + 0.1);
+      
+      gain.gain.setValueAtTime(0.025, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.1);
+    } catch(e) {}
+  }
+
+  function playReactionSound() {
+    if (localStorage.getItem('openjam_sounds') === 'false') return;
+    try {
+      const ctx = getAudioCtx();
+      if (!ctx) return;
+      
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.type = 'sine';
+      const baseFreq = 580 + Math.random() * 220;
+      osc.frequency.setValueAtTime(baseFreq, now);
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.8, now + 0.08);
+      
+      gain.gain.setValueAtTime(0.035, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.08);
+    } catch(e) {}
+  }
+
+  let lastScratchSoundTime = 0;
+  function playScratchSound(velocity) {
+    if (localStorage.getItem('openjam_sounds') === 'false') return;
+    const nowMs = Date.now();
+    if (nowMs - lastScratchSoundTime < 80) return;
+    lastScratchSoundTime = nowMs;
+    
+    try {
+      const ctx = getAudioCtx();
+      if (!ctx) return;
+      
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const filter = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+      
+      osc.type = 'triangle';
+      const baseFreq = 90 + Math.min(velocity * 900, 700);
+      osc.frequency.setValueAtTime(baseFreq, now);
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.35, now + 0.12);
+      
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(1100, now);
+      filter.Q.setValueAtTime(7.5, now);
+      
+      gain.gain.setValueAtTime(Math.min(velocity * 0.12, 0.15), now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+      
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.start(now);
+      osc.stop(now + 0.12);
+    } catch(e) {}
   }
   let vol = parseInt(localStorage.getItem('openjam_vol') ?? '80', 10) || 80;
   let _premuteVol = vol;
@@ -596,6 +716,7 @@ function showRoomHelp() {
   const TURNTABLE_ACCEL = 0.01;
   const TURNTABLE_DECEL = 0.005;
   let _turntablePlaying = false;
+  let _isScratching = false;
   let _loopEnabled = false; // Loop current track
   let _skipInFlight = false; // Debounce skip clicks
   let _lastSyncPlaying = null; // Track play/pause state from last sync
@@ -764,7 +885,11 @@ function showRoomHelp() {
   sc.on('queue_updated',  d => renderQueue(d.queue));
   sc.on('chat_message',   d => {
     addChat(d);
-    if (document.hidden) playChime();
+    if (document.hidden) {
+      playChime();
+    } else if (!me || d.user_id !== me.id) {
+      playChatSound();
+    }
   });
   sc.on('chat_history',   d => { if(d.messages?.length) d.messages.forEach(addChat); });
   sc.on('listener_count', d => {
@@ -782,7 +907,11 @@ function showRoomHelp() {
 
   sc.on('user_joined',    d => {
     toast(`${d.display_name} joined`, 'info');
-    if (document.hidden) playChime();
+    if (document.hidden) {
+      playChime();
+    } else if (!me || d.id !== me.id) {
+      playChime();
+    }
   });
   sc.on('user_left',      d => toast(`${d.display_name} left`, 'info'));
   sc.on('room_closed',    d => { toast(d?.reason || 'Room closed', 'info'); setTimeout(()=>location.href='/', 2500); });
@@ -862,6 +991,7 @@ function showRoomHelp() {
   });
 
   sc.on('reaction', d => {
+    playReactionSound();
     const artWrap = $('.art-wrap');
     if (artWrap) {
       const floating = document.createElement('span');
@@ -1248,7 +1378,7 @@ function showRoomHelp() {
     sc.emit('remove_from_queue', { room_id: roomId, queue_item_id: id });
   };
 
-  // Host Drag and Drop queue reordering
+  // Host Drag and Drop queue reordering (with Desktop Drag-and-Drop & Mobile Touch-Drag-and-Drop support)
   (function() {
     const list = $('#queue-list');
     if (!list) return;
@@ -1256,6 +1386,7 @@ function showRoomHelp() {
     let draggedId = null;
     let draggedElement = null;
 
+    // Desktop HTML5 drag-and-drop
     list.addEventListener('dragstart', (e) => {
       if (!isHost) return;
       const item = e.target.closest('.queue-item');
@@ -1327,11 +1458,16 @@ function showRoomHelp() {
         el.classList.remove('drag-over-before', 'drag-over-after');
       });
 
+      performReorder(draggedId, targetId, isBefore);
+    });
+
+    // Helper to perform reordering
+    function performReorder(dId, tId, isBefore) {
       const pendingItems = _queueData.filter(i => i.status === 'pending');
       const playingItems = _queueData.filter(i => i.status === 'playing');
 
-      const draggedIndex = pendingItems.findIndex(i => i.id === draggedId);
-      const targetIndex = pendingItems.findIndex(i => i.id === targetId);
+      const draggedIndex = pendingItems.findIndex(i => i.id === dId);
+      const targetIndex = pendingItems.findIndex(i => i.id === tId);
 
       if (draggedIndex === -1 || targetIndex === -1) return;
 
@@ -1349,12 +1485,96 @@ function showRoomHelp() {
       pendingItems.splice(insertIndex, 0, movedItem);
 
       const orderedIds = pendingItems.map(i => i.id);
-
       const newQueue = [...playingItems, ...pendingItems];
       renderQueue(newQueue);
 
       sc.emit('reorder_queue', { ordered_ids: orderedIds });
-    });
+    }
+
+    // Mobile Touch Drag-and-Drop via Pointer/Touch tracking
+    let touchDraggedId = null;
+    let touchDraggedElement = null;
+
+    list.addEventListener('touchstart', (e) => {
+      if (!isHost) return;
+      const handle = e.target.closest('.drag-handle');
+      if (!handle) return;
+      
+      const item = handle.closest('.queue-item');
+      if (!item || item.classList.contains('playing')) return;
+
+      touchDraggedId = item.dataset.id;
+      touchDraggedElement = item;
+      
+      // Visual feedback
+      touchDraggedElement.classList.add('dragging');
+    }, { passive: true });
+
+    list.addEventListener('touchmove', (e) => {
+      if (!isHost || !touchDraggedElement) return;
+
+      const touch = e.touches[0];
+      const targetEl = document.elementFromPoint(touch.clientX, touch.clientY);
+      const item = targetEl ? targetEl.closest('.queue-item') : null;
+
+      if (e.cancelable) e.preventDefault(); // Prevent scrolling screen while dragging
+
+      // Clear previous hover indicators on other items
+      list.querySelectorAll('.queue-item').forEach(el => {
+        if (el !== item) {
+          el.classList.remove('drag-over-before', 'drag-over-after');
+        }
+      });
+
+      if (!item || item.classList.contains('playing') || item === touchDraggedElement) {
+        return;
+      }
+
+      const rect = item.getBoundingClientRect();
+      const midpoint = rect.top + rect.height / 2;
+
+      if (touch.clientY < midpoint) {
+        item.classList.remove('drag-over-after');
+        item.classList.add('drag-over-before');
+      } else {
+        item.classList.remove('drag-over-before');
+        item.classList.add('drag-over-after');
+      }
+    }, { passive: false });
+
+    list.addEventListener('touchend', (e) => {
+      if (!isHost || !touchDraggedElement) return;
+
+      const touch = e.changedTouches[0];
+      const targetEl = document.elementFromPoint(touch.clientX, touch.clientY);
+      const targetItem = targetEl ? targetEl.closest('.queue-item') : null;
+
+      touchDraggedElement.classList.remove('dragging');
+
+      list.querySelectorAll('.queue-item').forEach(el => {
+        el.classList.remove('drag-over-before', 'drag-over-after');
+      });
+
+      if (targetItem && !targetItem.classList.contains('playing') && targetItem !== touchDraggedElement) {
+        const rect = targetItem.getBoundingClientRect();
+        const isBefore = touch.clientY < (rect.top + rect.height / 2);
+        performReorder(touchDraggedId, targetItem.dataset.id, isBefore);
+      }
+
+      touchDraggedId = null;
+      touchDraggedElement = null;
+    }, { passive: true });
+
+    list.addEventListener('touchcancel', () => {
+      if (touchDraggedElement) {
+        touchDraggedElement.classList.remove('dragging');
+      }
+      list.querySelectorAll('.queue-item').forEach(el => {
+        el.classList.remove('drag-over-before', 'drag-over-after');
+      });
+      touchDraggedId = null;
+      touchDraggedElement = null;
+    }, { passive: true });
   })();
 
   // Audio Visualizer setup using Web Audio API
@@ -2349,29 +2569,411 @@ function showRoomHelp() {
     setTimeout(connectWhenReady, 200);
   })();
 
-  // Mobile swipe gestures between tabs (≤640px)
-  if (window.innerWidth <= 640) {
+  // Mobile swipe gestures between tabs (always registered, checked dynamically)
+  (function setupMobileSwipeGestures() {
     let _touchStartX = 0;
     let _touchStartY = 0;
-    const _tabOrder = ['nowplaying', 'queue', 'chat', 'members'];
+    let _isSwiping = false;
+    let _isScrolling = false;
+    let _activeIdx = 1;
+    let _width = 0;
+    let _currentPanel = null;
+    let _prevPanel = null;
+    let _nextPanel = null;
+
+    const left    = $('#panel-left');
+    const centre  = $('#panel-center');
+    const right   = $('#panel-right');
+    const _panels = [left, centre, right];
+
     const grid = $('#room-grid');
     if (grid) {
       grid.addEventListener('touchstart', (e) => {
-        _touchStartX = e.changedTouches[0].screenX;
-        _touchStartY = e.changedTouches[0].screenY;
+        if (window.innerWidth > 640) return;
+        
+        // Ignore swipe if started on sliders, buttons, inputs, visualizer, or lyrics
+        const target = e.target;
+        if (target.closest('.vol-slider') || 
+            target.closest('.progress-bar') || 
+            target.closest('.lyrics-view') || 
+            target.closest('.input-field') || 
+            target.closest('.clear-btn') || 
+            target.closest('.icon-btn') || 
+            target.closest('.btn-react') || 
+            target.closest('.drag-handle') ||
+            target.closest('.art-wrap')) {
+          _touchStartX = 0;
+          _touchStartY = 0;
+          return;
+        }
+
+        _touchStartX = e.touches[0].clientX;
+        _touchStartY = e.touches[0].clientY;
+        _isSwiping = false;
+        _isScrolling = false;
+        _width = grid.getBoundingClientRect().width;
+        
+        _activeIdx = _panels.findIndex(p => p?.classList.contains('mobile-active'));
+        if (_activeIdx === -1) _activeIdx = 1; // fallback to queue (index 1)
+        
+        _currentPanel = _panels[_activeIdx];
+        _prevPanel = _activeIdx > 0 ? _panels[_activeIdx - 1] : null;
+        _nextPanel = _activeIdx < _panels.length - 1 ? _panels[_activeIdx + 1] : null;
+        
+        // Stop any running animations on panels to avoid jumpiness
+        if (_currentPanel) gsap.killTweensOf(_currentPanel);
+        if (_prevPanel) gsap.killTweensOf(_prevPanel);
+        if (_nextPanel) gsap.killTweensOf(_nextPanel);
       }, { passive: true });
+
+      grid.addEventListener('touchmove', (e) => {
+        if (window.innerWidth > 640 || !_touchStartX) return;
+        
+        const touch = e.touches[0];
+        const dx = touch.clientX - _touchStartX;
+        const dy = touch.clientY - _touchStartY;
+        
+        // Determine whether user is scrolling vertically or swiping horizontally
+        if (!_isSwiping && !_isScrolling) {
+          if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+            if (Math.abs(dy) > Math.abs(dx)) {
+              _isScrolling = true;
+            } else {
+              _isSwiping = true;
+              
+              // Prepare displays for siblings when starting swipe
+              if (_prevPanel) {
+                _prevPanel.style.display = 'flex';
+                _prevPanel.style.transform = `translate3d(${-_width}px, 0, 0)`;
+              }
+              if (_nextPanel) {
+                _nextPanel.style.display = 'flex';
+                _nextPanel.style.transform = `translate3d(${_width}px, 0, 0)`;
+              }
+            }
+          }
+        }
+        
+        if (_isSwiping) {
+          // Prevent horizontal body rubber-banding / gestures
+          if (e.cancelable) e.preventDefault();
+          
+          let tx = dx;
+          if (dx > 0) { // dragging right, reveals previous panel
+            if (!_prevPanel) {
+              // Left boundary resistance
+              tx = dx * 0.25;
+              if (_currentPanel) _currentPanel.style.transform = `translate3d(${tx}px, 0, 0)`;
+            } else {
+              if (_currentPanel) _currentPanel.style.transform = `translate3d(${tx}px, 0, 0)`;
+              if (_prevPanel) _prevPanel.style.transform = `translate3d(${-_width + tx}px, 0, 0)`;
+            }
+          } else { // dragging left, reveals next panel
+            if (!_nextPanel) {
+              // Right boundary resistance
+              tx = dx * 0.25;
+              if (_currentPanel) _currentPanel.style.transform = `translate3d(${tx}px, 0, 0)`;
+            } else {
+              if (_currentPanel) _currentPanel.style.transform = `translate3d(${tx}px, 0, 0)`;
+              if (_nextPanel) _nextPanel.style.transform = `translate3d(${_width + tx}px, 0, 0)`;
+            }
+          }
+        }
+      }, { passive: false });
+
       grid.addEventListener('touchend', (e) => {
-        const dx = e.changedTouches[0].screenX - _touchStartX;
-        const dy = e.changedTouches[0].screenY - _touchStartY;
-        if (Math.abs(dx) < 50 || Math.abs(dy) > Math.abs(dx) * 1.5) return;
-        const current = _tabOrder.findIndex(t => $(`#mob-tab-${t}`)?.classList.contains('active'));
-        if (current === -1) return;
-        const dir = dx > 0 ? -1 : 1; // swipe right→prev, swipe left→next
-        const next = (current + dir + _tabOrder.length) % _tabOrder.length;
-        switchMobileTab(_tabOrder[next]);
+        if (window.innerWidth > 640 || !_touchStartX) return;
+        
+        const dx = e.changedTouches[0].clientX - _touchStartX;
+        _touchStartX = 0;
+        _touchStartY = 0;
+        
+        if (_isSwiping) {
+          const threshold = _width * 0.22;
+          
+          if (dx > threshold && _prevPanel) {
+            // Slide fully to previous
+            gsap.to(_currentPanel, {
+              x: _width,
+              duration: 0.25,
+              ease: 'power2.out',
+              onComplete: () => {
+                _currentPanel.style.display = 'none';
+                _currentPanel.style.transform = '';
+              }
+            });
+            gsap.to(_prevPanel, {
+              x: 0,
+              duration: 0.25,
+              ease: 'power2.out',
+              onComplete: () => {
+                _prevPanel.style.transform = '';
+                const prevTabMap = ['nowplaying', 'queue', 'chat'];
+                switchMobileTab(prevTabMap[_activeIdx - 1], true);
+              }
+            });
+          } else if (dx < -threshold && _nextPanel) {
+            // Slide fully to next
+            gsap.to(_currentPanel, {
+              x: -_width,
+              duration: 0.25,
+              ease: 'power2.out',
+              onComplete: () => {
+                _currentPanel.style.display = 'none';
+                _currentPanel.style.transform = '';
+              }
+            });
+            gsap.to(_nextPanel, {
+              x: 0,
+              duration: 0.25,
+              ease: 'power2.out',
+              onComplete: () => {
+                _nextPanel.style.transform = '';
+                const nextTabMap = ['nowplaying', 'queue', 'chat'];
+                switchMobileTab(nextTabMap[_activeIdx + 1], true);
+              }
+            });
+          } else {
+            // Bounce back
+            gsap.to(_currentPanel, {
+              x: 0,
+              duration: 0.25,
+              ease: 'back.out(1.5)',
+              onComplete: () => {
+                _currentPanel.style.transform = '';
+              }
+            });
+            if (_prevPanel) {
+              gsap.to(_prevPanel, {
+                x: -_width,
+                duration: 0.25,
+                ease: 'power2.out',
+                onComplete: () => {
+                  _prevPanel.style.display = 'none';
+                  _prevPanel.style.transform = '';
+                }
+              });
+            }
+            if (_nextPanel) {
+              gsap.to(_nextPanel, {
+                x: _width,
+                duration: 0.25,
+                ease: 'power2.out',
+                onComplete: () => {
+                  _nextPanel.style.display = 'none';
+                  _nextPanel.style.transform = '';
+                }
+              });
+            }
+          }
+        }
+        _isSwiping = false;
+        _isScrolling = false;
       }, { passive: true });
     }
-  }
+  })();
+
+  // Now Playing Vinyl Scratch and Swipe Gestures (Play/Pause/Skip/Seek)
+  (function setupVinylRecordGestures() {
+    const record = $('#vinyl-record');
+    const artWrap = $('.art-wrap');
+    if (!record || !artWrap) return;
+
+    let startAngleDeg = 0;
+    let lastAngleDeg = 0;
+    let lastTime = 0;
+    let startTime = 0;
+    let totalRotateDelta = 0;
+    
+    // Helper to calculate the current angle (in degrees) of a coordinate relative to the record center
+    function getAngleAtPoint(clientX, clientY) {
+      const rect = record.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const dx = clientX - centerX;
+      const dy = clientY - centerY;
+      // Math.atan2 returns radians in range [-PI, PI].
+      // We convert it to degrees [-180, 180]
+      return Math.atan2(dy, dx) * (180 / Math.PI);
+    }
+
+    function onStart(clientX, clientY) {
+      _isScratching = true;
+      startTime = Date.now();
+      lastTime = startTime;
+      totalRotateDelta = 0;
+
+      // Start angle
+      lastAngleDeg = getAngleAtPoint(clientX, clientY);
+      startAngleDeg = lastAngleDeg;
+
+      // Resume Audio Context if needed
+      getAudioCtx();
+
+      // Apply tactile press feedback: squash slightly (scale 0.94) and skew
+      record.style.transition = 'none';
+      record.style.transform = `rotate(${_turntableAngle}deg) scale(0.94) skewX(-3deg)`;
+      
+      // Stop dynamic auto-rotations while dragging
+      gsap.killTweensOf(record);
+    }
+
+    function onMove(clientX, clientY) {
+      if (!_isScratching) return;
+
+      const currentAngleDeg = getAngleAtPoint(clientX, clientY);
+      let angleDiff = currentAngleDeg - lastAngleDeg;
+
+      // Normalize angle difference to [-180, 180] to handle wrap-around
+      if (angleDiff > 180) angleDiff -= 360;
+      else if (angleDiff < -180) angleDiff += 360;
+
+      // Accumulate the net change to detect flicks
+      totalRotateDelta += angleDiff;
+
+      // Update global turntable angle
+      _turntableAngle = (_turntableAngle + angleDiff) % 360;
+      if (_turntableAngle < 0) _turntableAngle += 360;
+
+      // Update record rotation with visual feedback
+      record.style.transform = `rotate(${_turntableAngle}deg) scale(0.94) skewX(-3deg)`;
+
+      // Calculate speed and play scratch sound
+      const now = Date.now();
+      const dt = now - lastTime;
+      if (dt > 0) {
+        const speed = Math.abs(angleDiff) / dt; // degrees per ms
+        if (speed > 0.05) {
+          playScratchSound(speed * 8);
+        }
+      }
+
+      lastAngleDeg = currentAngleDeg;
+      lastTime = now;
+    }
+
+    function onEnd(clientX, clientY) {
+      if (!_isScratching) return;
+      _isScratching = false;
+
+      // Reset record styles with smooth snap back transition
+      record.style.transition = 'transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1.1)';
+      record.style.transform = `rotate(${_turntableAngle}deg)`;
+
+      const duration = Date.now() - startTime;
+      
+      // Flick vs Tap vs Drag analysis
+      if (duration < 250 && Math.abs(totalRotateDelta) < 15) {
+        // TAP / CLICK GESTURE: Play/Pause track
+        console.log('[Gesture] Tap on vinyl -> Toggle Play/Pause');
+        if (isHost) {
+          $('#btn-play')?.click();
+        } else {
+          toast('Only host can pause/resume room. Tap "Vote to Skip" to skip!', 'info');
+        }
+      } else if (duration < 450 && Math.abs(totalRotateDelta) > 30) {
+        // FLICK GESTURE!
+        if (totalRotateDelta < 0) {
+          // Counter-clockwise flick: Skip/Vote-skip track with fast reverse spin animation
+          console.log('[Gesture] CCW Flick on vinyl -> Trigger Skip');
+          
+          // Animate fast reverse spin
+          const targetAngle = _turntableAngle - 360;
+          gsap.to(record, {
+            rotation: targetAngle,
+            duration: 0.5,
+            ease: 'power3.out',
+            onComplete: () => {
+              _turntableAngle = targetAngle % 360;
+              record.style.transform = `rotate(${_turntableAngle}deg)`;
+            }
+          });
+
+          if (isHost) {
+            $('#btn-next')?.click();
+          } else {
+            $('#btn-vote-skip')?.click();
+          }
+        } else {
+          // Clockwise flick: Restart song / seek to 0 with fast forward spin animation
+          console.log('[Gesture] CW Flick on vinyl -> Restart track');
+          
+          // Animate fast forward spin
+          const targetAngle = _turntableAngle + 360;
+          gsap.to(record, {
+            rotation: targetAngle,
+            duration: 0.5,
+            ease: 'power3.out',
+            onComplete: () => {
+              _turntableAngle = targetAngle % 360;
+              record.style.transform = `rotate(${_turntableAngle}deg)`;
+            }
+          });
+
+          if (isHost) {
+            if (yt._useIFrame && yt.ytPlayer && typeof yt.ytPlayer.seekTo === 'function') {
+              yt.ytPlayer.seekTo(0, true);
+            } else if (yt._ready && yt.player) {
+              yt.player.currentTime = 0;
+            }
+            sc.emit('playback_update', {
+              room_id: roomId,
+              track_uri: yt.currentVideoId || '',
+              track_name: $('#np-title')?.textContent || '',
+              artist: $('#np-artist')?.textContent || '',
+              album_art_url: $('#art-img')?.src || '',
+              position_ms: 0,
+              duration_ms: yt.durationMs || 0,
+              is_playing: yt.isPlaying,
+            });
+            toast('Restarting track...', 'info');
+          } else {
+            toast('Only host can restart the track', 'warning');
+          }
+        }
+      }
+    }
+
+    // Touch events delegation
+    artWrap.addEventListener('touchstart', (e) => {
+      // Ignore if multi-touch
+      if (e.touches.length > 1) return;
+      const touch = e.touches[0];
+      onStart(touch.clientX, touch.clientY);
+    }, { passive: true });
+
+    artWrap.addEventListener('touchmove', (e) => {
+      if (!_isScratching) return;
+      if (e.cancelable) e.preventDefault();
+      const touch = e.touches[0];
+      onMove(touch.clientX, touch.clientY);
+    }, { passive: false });
+
+    artWrap.addEventListener('touchend', (e) => {
+      if (!_isScratching) return;
+      const touch = e.changedTouches[0];
+      onEnd(touch.clientX, touch.clientY);
+    }, { passive: true });
+
+    // Mouse events delegation (for desktop turntable fun!)
+    artWrap.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      onStart(e.clientX, e.clientY);
+      
+      const onMouseMove = (moveEv) => {
+        onMove(moveEv.clientX, moveEv.clientY);
+      };
+      
+      const onMouseUp = (upEv) => {
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+        onEnd(upEv.clientX, upEv.clientY);
+      };
+      
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    });
+  })();
 
   // Fix layout recovery when viewport resizes (e.g., devtools toggle).
   // When width crosses 640px boundary, reset panel display states.
@@ -2516,40 +3118,46 @@ function showRoomHelp() {
       const glow = $('#player-glow');
       
       if (record) {
-        if (_turntablePlaying) {
-          if (_turntableSpeed < TARGET_TURNTABLE_SPEED) {
-            _turntableSpeed += TURNTABLE_ACCEL;
+        if (!_isScratching) {
+          if (_turntablePlaying) {
+            if (_turntableSpeed < TARGET_TURNTABLE_SPEED) {
+              _turntableSpeed += TURNTABLE_ACCEL;
+            }
+          } else {
+            if (_turntableSpeed > 0) {
+              _turntableSpeed -= TURNTABLE_DECEL;
+              if (_turntableSpeed < 0) _turntableSpeed = 0;
+            }
           }
-        } else {
+          
           if (_turntableSpeed > 0) {
-            _turntableSpeed -= TURNTABLE_DECEL;
-            if (_turntableSpeed < 0) _turntableSpeed = 0;
+            _turntableAngle = (_turntableAngle + _turntableSpeed) % 360;
+            record.style.transform = `rotate(${_turntableAngle}deg)`;
           }
         }
         
-        if (_turntableSpeed > 0) {
-          _turntableAngle = (_turntableAngle + _turntableSpeed) % 360;
-          record.style.transform = `rotate(${_turntableAngle}deg)`;
-          
-          // Breathing/pulsing glow effect on play
-          if (_turntablePlaying) {
-            const pulse = 0.25 + Math.sin(Date.now() / 250) * 0.1;
-            const size = 80 + Math.sin(Date.now() / 250) * 5;
-            record.style.boxShadow = `0 0 36px rgba(245, 158, 11, ${pulse * (_turntableSpeed / TARGET_TURNTABLE_SPEED)}), 0 12px 40px rgba(0, 0, 0, 0.65)`;
-            if (glow) {
-              glow.style.opacity = pulse;
-              glow.style.width = `${size}%`;
-              glow.style.height = `${size}%`;
-              glow.style.top = `${(100 - size) / 2}%`;
-              glow.style.left = `${(100 - size) / 2}%`;
-            }
-          } else {
-            record.style.boxShadow = `0 0 36px rgba(245, 158, 11, ${0.1 * (_turntableSpeed / TARGET_TURNTABLE_SPEED)}), 0 12px 40px rgba(0, 0, 0, 0.65)`;
-            if (glow) glow.style.opacity = 0.1 * (_turntableSpeed / TARGET_TURNTABLE_SPEED);
+        // Breathing/pulsing glow effect on play
+        if (_turntablePlaying) {
+          const pulse = 0.25 + Math.sin(Date.now() / 250) * 0.1;
+          const size = 80 + Math.sin(Date.now() / 250) * 5;
+          const currentSpeedRatio = _isScratching ? 1 : (_turntableSpeed / TARGET_TURNTABLE_SPEED);
+          record.style.boxShadow = `0 0 36px rgba(245, 158, 11, ${pulse * currentSpeedRatio}), 0 12px 40px rgba(0, 0, 0, 0.65)`;
+          if (glow) {
+            glow.style.opacity = pulse;
+            glow.style.width = `${size}%`;
+            glow.style.height = `${size}%`;
+            glow.style.top = `${(100 - size) / 2}%`;
+            glow.style.left = `${(100 - size) / 2}%`;
           }
         } else {
-          record.style.boxShadow = '0 12px 40px rgba(0, 0, 0, 0.65)';
-          if (glow) glow.style.opacity = '0';
+          const currentSpeedRatio = _isScratching ? 1 : (_turntableSpeed / TARGET_TURNTABLE_SPEED);
+          if (currentSpeedRatio > 0) {
+            record.style.boxShadow = `0 0 36px rgba(245, 158, 11, ${0.1 * currentSpeedRatio}), 0 12px 40px rgba(0, 0, 0, 0.65)`;
+            if (glow) glow.style.opacity = 0.1 * currentSpeedRatio;
+          } else {
+            record.style.boxShadow = '0 12px 40px rgba(0, 0, 0, 0.65)';
+            if (glow) glow.style.opacity = '0';
+          }
         }
       }
       requestAnimationFrame(animateTurntable);
