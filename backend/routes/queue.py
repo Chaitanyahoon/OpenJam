@@ -167,15 +167,27 @@ def _prune_url_cache():
 
 def _extract_ytdlp_sync(video_id: str, low: bool = False) -> str | None:
     ydl_opts = {
-        "format": "139/bestaudio" if low else "251/140/bestaudio",
+        "format": "worstaudio" if low else "bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best",
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
+        "geo_bypass": True,
+        "extractor_retries": 2,
+        "socket_timeout": 10,
+        "source_address": "0.0.0.0",
+        "nocheckcertificate": True,
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
-            return info.get("url")
+            url = info.get("url")
+            if not url and info.get("formats"):
+                # Fallback: pick the best audio format manually
+                audio_fmts = [f for f in info["formats"] if f.get("acodec") != "none" and f.get("url")]
+                if audio_fmts:
+                    audio_fmts.sort(key=lambda f: f.get("abr") or f.get("tbr") or 0, reverse=not low)
+                    url = audio_fmts[0]["url"]
+            return url
     except Exception as e:
         logger.error(f"yt-dlp Python API failed for {video_id} (low={low}): {e}")
         return None

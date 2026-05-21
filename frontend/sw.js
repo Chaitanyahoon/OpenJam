@@ -1,4 +1,4 @@
-const CACHE_NAME = 'openjam-static-v2';
+const CACHE_NAME = 'openjam-static-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/static/css/style.css',
@@ -36,13 +36,20 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Only cache GET requests, avoid caching socket.io polling or API routes or /stream/
   const url = new URL(event.request.url);
+
+  // Skip cross-origin requests entirely (GTM, fonts, analytics, YouTube, etc.)
+  if (url.origin !== self.location.origin) return;
+
+  // Only cache GET requests, avoid caching socket.io polling or API routes or /stream/
   if (event.request.method !== 'GET' || 
       url.pathname.startsWith('/socket.io') || 
       url.pathname.startsWith('/auth') || 
       url.pathname.startsWith('/rooms') || 
-      url.pathname.startsWith('/stream')) {
+      url.pathname.startsWith('/stream') ||
+      url.pathname.startsWith('/queue') ||
+      url.pathname.startsWith('/search') ||
+      url.pathname.startsWith('/admin')) {
     return;
   }
 

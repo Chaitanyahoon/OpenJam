@@ -145,34 +145,69 @@ class MusicSearchService:
             logger.warning(f"YouTube scrape fallback failed for '{query}': {e}")
         return None
 
+    _reco_cache: list = []
+    _reco_cache_date: str = ""
+
     def get_recommendations(self, limit: int = 12) -> list:
-        """Return popular tracks from the iTunes top songs chart."""
-        try:
-            req = urllib.request.Request(
-                "https://itunes.apple.com/us/rss/topsongs/limit=20/json",
-                headers={"User-Agent": "OpenJam/1.0"},
-            )
-            with urllib.request.urlopen(req, timeout=8) as resp:
-                data = json.loads(resp.read().decode())
-        except Exception as e:
-            logger.error(f"Recommendations error: {e}")
+        """Return trending tracks from iTunes Top Songs, with daily rotation.
+        
+        Caches results per calendar day so they feel fresh each day.
+        Shuffles deterministically using the date as seed for variety.
+        """
+        import random
+        from datetime import date
+
+        today = date.today().isoformat()
+        if self._reco_cache and self._reco_cache_date == today:
+            return self._reco_cache[:limit]
+
+        # Fetch from multiple iTunes genre charts for variety
+        charts = [
+            "https://itunes.apple.com/us/rss/topsongs/limit=25/json",                   # Overall
+            "https://itunes.apple.com/us/rss/topsongs/limit=15/genre=14/json",           # Pop
+            "https://itunes.apple.com/us/rss/topsongs/limit=15/genre=18/json",           # Hip-Hop
+            "https://itunes.apple.com/us/rss/topsongs/limit=10/genre=21/json",           # Rock
+        ]
+
+        all_tracks = []
+        seen_names = set()
+
+        for chart_url in charts:
+            try:
+                req = urllib.request.Request(chart_url, headers={"User-Agent": "OpenJam/1.0"})
+                with urllib.request.urlopen(req, timeout=6) as resp:
+                    data = json.loads(resp.read().decode())
+                entries = data.get("feed", {}).get("entry", [])
+                for entry in entries:
+                    name = entry.get("im:name", {}).get("label", "")
+                    artist = entry.get("im:artist", {}).get("label", "")
+                    dedup_key = f"{name.lower()}_{artist.lower()}"
+                    if dedup_key in seen_names:
+                        continue
+                    seen_names.add(dedup_key)
+                    art100 = entry.get("im:image", [{}])[-1].get("label", "")
+                    art = art100.replace("55x55bb", "600x600bb").replace("170x170bb", "600x600bb")
+                    all_tracks.append({
+                        "name": name,
+                        "artist": artist,
+                        "album_art_url": art,
+                        "uri": f"{name} {artist} official audio",
+                        "duration_ms": 0,
+                    })
+            except Exception as e:
+                logger.warning(f"Chart fetch failed for {chart_url}: {e}")
+                continue
+
+        if not all_tracks:
             return []
 
-        entries = data.get("feed", {}).get("entry", [])
-        tracks = []
-        for entry in entries[:limit]:
-            name = entry.get("im:name", {}).get("label", "")
-            artist = entry.get("im:artist", {}).get("label", "")
-            art100 = entry.get("im:image", [{}])[-1].get("label", "")
-            art = art100.replace("55x55bb", "600x600bb").replace("170x170bb", "600x600bb")
-            tracks.append({
-                "name": name,
-                "artist": artist,
-                "album_art_url": art,
-                "uri": f"{name} {artist} official audio",
-                "duration_ms": 0,
-            })
-        return tracks
+        # Deterministic daily shuffle — same order for everyone today, different tomorrow
+        rng = random.Random(today)
+        rng.shuffle(all_tracks)
+
+        self._reco_cache = all_tracks
+        self._reco_cache_date = today
+        return all_tracks[:limit]
 
 
 music_search_service = MusicSearchService()

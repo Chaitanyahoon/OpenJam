@@ -250,13 +250,16 @@ def register_playback_handlers(sio: socketio.AsyncServer):
         if added:
             votes = room_manager.get_skip_votes(room_id)
             listeners = room_manager.get_listener_count(room_id)
-            if listeners > 0 and (votes / listeners) > 0.5:
+            # Dynamic threshold: ceil(listeners / 2)
+            # 2 people → 1, 3 → 2, 4 → 2, 5 → 3, 6 → 3, etc.
+            required = max(1, (listeners + 1) // 2)
+            if votes >= required:
                 # threshold reached, skip!
                 await next_track(sid, {"room_id": room_id})
             else:
                 # broadcast vote update
                 try:
-                    await sio.emit("skip_votes_updated", {"votes": votes, "required": (listeners // 2) + 1}, room=room_id)
+                    await sio.emit("skip_votes_updated", {"votes": votes, "required": required}, room=room_id)
                 except Exception as e:
                     logger.error(f"Failed to emit skip_votes_updated for room {room_id}: {e}")
 

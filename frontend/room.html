@@ -14,7 +14,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/static/img/logo.svg" type="image/svg+xml">
   <!-- PWA — Apple/iOS -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="apple-touch-icon" href="/static/img/icon-192.png">
   <!-- Google Tag Manager -->
@@ -903,6 +903,12 @@ function showRoomHelp() {
     const mobTab = $('#mob-tab-members');
     if(mobTab){ const lbl = mobTab.querySelector('.mob-tab-label'); if(lbl) lbl.textContent = count > 0 ? `People (${count})` : 'People'; }
     if(d.listeners) updateMembers(d.listeners);
+    // Dynamically update vote-to-skip required count
+    const btnSkip = $('#btn-vote-skip');
+    if(btnSkip && !btnSkip.classList.contains('voted')) {
+      const required = Math.max(1, Math.ceil(count / 2));
+      btnSkip.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zm8.5-6 8.5 6V6l-8.5 6z"/></svg> Vote to Skip (0/${required})`;
+    }
   });
 
   sc.on('user_joined',    d => {
@@ -1202,6 +1208,7 @@ function showRoomHelp() {
     if(btnSkip) {
         btnSkip.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zm8.5-6 8.5 6V6l-8.5 6z"/></svg> Vote to Skip (0/0)`;
         btnSkip.disabled = false;
+        btnSkip.classList.remove('voted');
     }
 
     // Only reload YT player when the actual video ID changes
@@ -2112,7 +2119,7 @@ function showRoomHelp() {
   $('#btn-play')?.addEventListener('click', ()=>{
     if(!isHost) return;
     let isActuallyPlaying;
-    if(yt._useIFrame && yt.ytPlayer){
+    if(yt._useIFrame && yt.ytPlayer && typeof yt.ytPlayer.getPlayerState === 'function'){
       const state = yt.ytPlayer.getPlayerState();
       isActuallyPlaying = state === YT.PlayerState.PLAYING;
       isActuallyPlaying ? yt.ytPlayer.pauseVideo() : yt.ytPlayer.playVideo();
@@ -2387,7 +2394,6 @@ function showRoomHelp() {
         <div class="chat-msg-bubble">
           <div class="chat-msg-header">
             <span class="chat-msg-name">${esc(msg.user_name)}</span>
-            <span class="chat-msg-time">${ago(msg.timestamp)}</span>
           </div>
           <div class="chat-msg-text">${esc(msg.content).replace(/(https?:\/\/[^\s&lt;]+)/g, '<a href="$1" target="_blank" rel="noopener" style="color:#60a5fa;text-decoration:underline">$1</a>')}</div>
         </div>
