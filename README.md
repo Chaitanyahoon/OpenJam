@@ -1,101 +1,86 @@
 <div align="center">
   <br />
-  <p align="center">
-    <img src="https://img.shields.io/badge/Vibe-Immortal-ff0066?style=for-the-badge" />
-    <img src="https://img.shields.io/badge/Nickelback-Blocked-black?style=for-the-badge" />
-    <img src="https://img.shields.io/badge/Status-Grooving-00f2ff?style=for-the-badge" />
-  </p>
-  
-  <h1 align="center">🌊 OPEN JAM</h1>
-  
-  <p align="center">
-    <b>Stop listening to music alone like a misunderstood protagonist in a 2000s indie movie.</b><br />
-    A high-fidelity social listening experience that actually stays in sync.
-  </p>
+  <h1>🎶 Open Jam — Social Listening, but make it classy</h1>
+  <p style="max-width:720px;">A cozy little web app that lets you share a listening room with friends so everyone hears the same thing at the same time — without the awkward "did you press play?" conversation.</p>
 
-  <p align="center">
-    <a href="https://openjam.onrender.com/"><strong>Enter the Chaos &raquo;</strong></a>
-  </p>
-  
+  <div style="margin-top:18px;display:flex;gap:12px;justify-content:center;align-items:center;">
+    <img src="https://img.shields.io/badge/Vibe-Immortal-ff0066?style=for-the-badge" alt="vibe" />
+    <img src="https://img.shields.io/badge/Status-Grooving-00f2ff?style=for-the-badge" alt="status" />
+  </div>
+
   <br />
+  <img src="docs/img/vibecat.gif" alt="vibecat" width="520" style="border-radius:20px;box-shadow:0 24px 80px rgba(2,6,23,0.6);border:1px solid rgba(255,255,255,0.04);margin-top:18px;">
+  <p style="opacity:0.85;margin-top:8px;font-style:italic;">vibecat approves this playlist</p>
 </div>
 
 ---
 
-### 🎧 THE VISION (Or: Why we built this)
+**What is this?**
 
-Let’s face it: sharing music online usually involves sending a link that your friend "promises" to check out later (they won't). **OpenJam** fixes this. It’s a digital room where you can force—*ahem*, invite—your friends to listen to your superior music taste in real-time. 
-
-<div align="center">
-  <br />
-  <img src="docs/img/vibecat.gif" width="450" style="border-radius: 30px; box-shadow: 0 20px 80px rgba(0, 242, 255, 0.2); border: 2px solid rgba(255,255,255,0.1);" />
-  <p align="center"><i>Actual footage of a user discovering their friend likes Lo-Fi beats.</i></p>
-  <br />
-</div>
+Open Jam is a tiny, opinionated social music app: create a room, invite friends, queue tracks (resolved to YouTube), and listen in sync. It's built for maximum vibes and minimal friction.
 
 ---
 
-### ✨ THE GOOD STUFF
+**Highlights**
 
-*   🌀 **Millisecond-Perfect Sync** — We spent way too much time on socket logic so you don't have to count "3... 2... 1... PLAY" over a Discord call.
-*   🎨 **The Mood Ring UI** — The interface changes colors based on the album art. It’s basically a lava lamp for your browser.
-*   🎭 **Persona Picker** — Choose a cute animal avatar. It won’t make your music taste better, but it’ll make you look more trustworthy.
-*   💬 **Live Heckling & Emoji Streams** — A real-time chat for praising the DJ, plus floating emoji reactions when a drop hits just right.
-*   🗳️ **Democratic Playback** — Use the power of the vote to skip tracks. Finally, a way to legally silence your friend's obsession with 10-minute experimental jazz.
-*   🔒 **Fortified Private Rooms** — Keep unwanted guests out with secure password-protected rooms backed by live session verification.
-*   📊 **Visualizer & Lyrics** — Enjoy a beautiful real-time audio visualizer alongside synchronized auto-scrolling lyrics.
-*   📥 **Playlist Imports & Clean Queues** — Import public YouTube playlists in bulk with automatic duplicate prevention and host queue controls.
-*   📱 **PWA Magic** — Install it on your phone or desktop so you can judge people's music choices on the go.
-
+- Millisecond-friendly playback sync so people stop blaming their connection.
+- Host controls + democratic voting for skips (civilized mob rule).
+- Lightweight stack: FastAPI backend, Socket.IO realtime, vanilla JS frontend.
+- Server-side YouTube resolution (no API key required) and a friendly PWA UI.
 
 ---
 
-### 🛠️ THE RECIPE
+How to run (quick)
 
-| Ingredient | Role | Why? |
-| :--- | :--- | :--- |
-| **FastAPI** | The Brains | Because waiting for a server is so 2015. |
-| **Socket.IO** | The Pulse | The secret sauce that keeps everyone vibing at the exact same time. |
-| **SQLite** | The Memory | A tiny database that packs a punch. No "Cloud" nonsense needed. |
-| **Vanilla JS** | The Art | No 500MB React folders here. Just pure, organic, artisanal ES6. |
-| **YouTube API** | The Source | If it's on YouTube, you can jam to it. (Yes, even that one song). |
+1) Clone & install
 
----
-
-### 🚀 HOW TO SUMMON THE VIBE
-
-#### 1. Grab the code
 ```bash
 git clone https://github.com/Chaitanyahoon/OpenJam.git
-cd openjam
-python -m venv .venv && source .venv/bin/activate # Unix
-# .venv\Scripts\activate # Windows
+cd OpenJam
+python -m venv .venv
+# macOS / Linux
+source .venv/bin/activate
+# Windows (PowerShell)
+.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-#### 2. Tell the server who's boss
-Create a `.env` in the root (Don't share your Secret Key, or the vibes will be compromised):
+2) Configure (create `.env`)
+
 ```env
-SECRET_KEY=something-cooler-than-password123
-ENVIRONMENT=production
+SECRET_KEY=please-change-this-super-secret
+ENVIRONMENT=development
 ALLOWED_ORIGINS=http://localhost:8000
 ```
 
-#### 3. Ignition
+3) Run
+
 ```bash
 python run.py
+# then visit http://localhost:8000/room/<your-room-id>
 ```
-*Head to `http://localhost:8000` and start your musical empire.*
 
 ---
 
-### 🌌 THE LEGAL STUFF (Kind of)
+Troubleshooting playback (the common culprits)
 
-*   **Audio Unlock**: Browsers hate fun. You *must* click anywhere on the page once to "unlock" the audio. It’s like a secret handshake.
-*   **License**: MIT. Use it, break it, build something cooler. Just don't blame us if your friends' music taste ruins your day.
+- Audio is silent? Click the page once to "Tap to listen" — browsers require a user gesture to unlock audio.
+- Nothing plays for you but the host hears it? Make sure there's an active host (room creator). Playback sync uses host updates.
+- Socket events missing? Open the room with `?debug=1` (e.g. `/room/abc?debug=1`) to see socket connection and YouTube player status in the bottom-right debug panel.
+- Search/queue resolution fails? We resolve search queries to YouTube IDs server-side using `ytmusicapi` or a safe HTML fallback — occasional resolution failures depend on the remote source.
 
-<div align="center">
-  <br />
-  <p>Built with ❤️ and way too much caffeine.</p>
-  <p><b>OPEN JAM</b> — SOCIAL LISTENING, REINVENTED.</p>
-</div>
+---
+
+Contributing
+
+- Found a bug? Open an issue.
+- Want to make the README funnier? Congratulations, you're already here.
+- Pull requests welcome — keep changes focused and test locally.
+
+---
+
+License & thanks
+
+MIT. Built with coffee, cat memes, and an unreasonable devotion to good timing.
+
+Enjoy the vibes. 😸
