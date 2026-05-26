@@ -14,6 +14,7 @@ class YouTubePlayer {
     this.isPlaying = false;
     this.progressInterval = null;
     this.onProgressUpdate = null;
+    this.onStreamFailUpdate = null;
     this._ready = true;
     this._pendingLoad = null;
     this._suppressStateChange = false;
@@ -23,7 +24,7 @@ class YouTubePlayer {
     this._useIFrame = false;
     this._useLowBitrate = false;
     this._streamFailCount = 0;
-    this._maxStreamFails = 2;
+    this._maxStreamFails = 1;  // Switch to IFrame after 1 fail (don't waste user's time)
 
     this._initAudio();
     this._initMediaSession();
@@ -57,14 +58,14 @@ class YouTubePlayer {
 
       if (this._streamFailCount === 1 && !this._useLowBitrate && this.currentVideoId) {
         console.warn('Stream failed, trying low bitrate fallback...');
-        if (typeof toast === 'function') toast('Audio stream failed. Trying low-bitrate fallback...', 'info');
+        if (this.onStreamFailUpdate) this.onStreamFailUpdate("Trying alternative source…");
         this._useLowBitrate = true;
         this.player.src = `/stream/${this.currentVideoId}?low=true`;
         this.player.currentTime = Math.round(this.positionMs / 1000);
         this.player.play().catch(() => {});
       } else if (this._streamFailCount >= this._maxStreamFails && !this._useIFrame) {
         console.warn('Stream failed multiple times, switching to YouTube IFrame fallback');
-        if (typeof toast === 'function') toast('Direct stream failed. Switching to YouTube video fallback...', 'warning');
+        if (this.onStreamFailUpdate) this.onStreamFailUpdate("Playing via YouTube video");
         
         try {
           this.player.pause();
@@ -130,8 +131,8 @@ class YouTubePlayer {
 
   _createYTPlayer(container) {
     this.ytPlayer = new YT.Player(container, {
-      height: '1',
-      width: '1',
+      height: '100%',
+      width: '100%',
       playerVars: {
         autoplay: 0, controls: 0, disablekb: 1, fs: 0,
         modestbranding: 1, rel: 0, iv_load_policy: 3, playsinline: 1,
@@ -148,12 +149,13 @@ class YouTubePlayer {
         },
         onError: (e) => {
           console.error('YouTube IFrame error:', e.data);
+          if (this.onStreamFailUpdate) this.onStreamFailUpdate("This track is unavailable");
           if (e.data === 150 || e.data === 101) {
             if (typeof toast === 'function') toast('This track is restricted. Skipping...', 'warning');
-            // Auto-advance: treat as ended so the next track plays
-            setTimeout(() => this._onStateChange('ended'), 500);
+            setTimeout(() => this._onStateChange('ended'), 2000);
           } else {
             if (typeof toast === 'function') toast("This track can't be played in your region.", 'error');
+            setTimeout(() => this._onStateChange('ended'), 2000);
           }
         },
       },
@@ -311,8 +313,10 @@ class YouTubePlayer {
     if (videoId !== this.currentVideoId) {
       this._streamFailCount = 0;
       this._useLowBitrate = false;
-      // Keep IFrame mode sticky — if streams failed once, they'll keep failing
-      // for the whole session (server-side yt-dlp/Invidious issue)
+      // Reset IFrame mode per-track — give server-side streaming another chance
+      if (this._useIFrame) {
+        this._useIFrame = false;
+      }
     }
 
     this.currentVideoId = videoId;
@@ -325,7 +329,8 @@ class YouTubePlayer {
         if (!this.ytPlayer) this._initIFramePlayer();
       }
     } else {
-      // Set a timeout: if the stream doesn't start loading within 10s, force error
+      if (this.onStreamFailUpdate) this.onStreamFailUpdate("Connecting to audio stream…");
+
       if (this._loadTimeout) clearTimeout(this._loadTimeout);
       this._loadTimeout = setTimeout(() => {
         if (this.player.readyState === 0 && this.player.src.includes('/stream/')) {
@@ -335,7 +340,11 @@ class YouTubePlayer {
       }, 10000);
 
       this.player.src = `/stream/${videoId}`;
-      this.player.currentTime = startSeconds;
+      if (startSeconds > 0) {
+        this.player.addEventListener('loadedmetadata', () => {
+          this.player.currentTime = startSeconds;
+        }, { once: true });
+      }
       this.player.play().catch(e => {
         if (e.name === 'AbortError') return; // Ignore rapid play/pause aborts
         console.error('Autoplay prevented:', e);
@@ -357,10 +366,27 @@ class YouTubePlayer {
 
     if (videoId && videoId !== this.currentVideoId) {
       this._loadVideo(videoId, startSeconds);
+    } else if (videoId) {
+      if (this._useIFrame) {
+        if (this.ytPlayer && this._ready && typeof this.ytPlayer.seekTo === 'function') {
+          this.ytPlayer.seekTo(startSeconds, true);
+        }
+      } else if (this.player) {
+        this.player.currentTime = startSeconds;
+      }
     }
 
     if (this.isPlaying && this._userUnlocked) {
       this.startProgressTimer();
+      if (videoId === this.currentVideoId) {
+        if (this._useIFrame) {
+          if (this.ytPlayer && this._ready && typeof this.ytPlayer.playVideo === 'function') {
+            this.ytPlayer.playVideo();
+          }
+        } else if (this.player && this.player.paused) {
+          this.player.play().catch(() => {});
+        }
+      }
     } else {
       this.stopProgressTimer();
     }

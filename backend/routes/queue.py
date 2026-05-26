@@ -165,6 +165,37 @@ def _prune_url_cache():
             del _url_cache[k]
 
 
+# ── Cookie support for yt-dlp ───────────────────────────────────────
+_cookie_path: str | None = None
+
+def _get_cookie_path() -> str | None:
+    """Write YOUTUBE_COOKIES env var to a temp file and return its path."""
+    global _cookie_path
+    if _cookie_path:
+        import os as _os
+        if _os.path.exists(_cookie_path):
+            return _cookie_path
+    
+    import os as _os
+    cookie_str = _os.getenv("YOUTUBE_COOKIES", "").strip()
+    if not cookie_str:
+        return None
+    
+    try:
+        import tempfile
+        # Replace literal \n with actual newlines
+        cookie_content = cookie_str.replace("\\n", "\n")
+        fd, path = tempfile.mkstemp(suffix=".txt", prefix="ytcookies_")
+        with _os.fdopen(fd, "w") as f:
+            f.write(cookie_content)
+        _cookie_path = path
+        logger.info(f"YouTube cookies written to {path}")
+        return path
+    except Exception as e:
+        logger.warning(f"Failed to write YouTube cookies: {e}")
+        return None
+
+
 def _extract_ytdlp_sync(video_id: str, low: bool = False) -> str | None:
     ydl_opts = {
         "format": "worstaudio/bestaudio/best" if low else "bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best",
@@ -172,11 +203,26 @@ def _extract_ytdlp_sync(video_id: str, low: bool = False) -> str | None:
         "no_warnings": True,
         "skip_download": True,
         "geo_bypass": True,
-        "extractor_retries": 2,
-        "socket_timeout": 10,
+        "extractor_retries": 3,
+        "socket_timeout": 12,
         "source_address": "0.0.0.0",
         "nocheckcertificate": True,
+        # Use web player client — less restricted than default
+        "extractor_args": {"youtube": {"player_client": ["web"]}},
     }
+
+    # Browser impersonation (requires curl-cffi)
+    try:
+        from yt_dlp.networking.impersonate import ImpersonateTarget
+        ydl_opts["impersonate"] = ImpersonateTarget.from_str("chrome")
+    except (ImportError, Exception) as e:
+        logger.debug(f"yt-dlp impersonation not available: {e}")
+
+    # Cookie support for bypassing bot detection
+    cookie_file = _get_cookie_path()
+    if cookie_file:
+        ydl_opts["cookiefile"] = cookie_file
+
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
@@ -187,14 +233,19 @@ def _extract_ytdlp_sync(video_id: str, low: bool = False) -> str | None:
                 if audio_fmts:
                     audio_fmts.sort(key=lambda f: f.get("abr") or f.get("tbr") or 0, reverse=not low)
                     url = audio_fmts[0]["url"]
+            if url:
+                logger.info(f"yt-dlp resolved stream URL for {video_id}")
             return url
     except Exception as e:
-        logger.error(f"yt-dlp Python API failed for {video_id} (low={low}): {e}")
+        logger.error(f"yt-dlp failed for {video_id} (low={low}): {e}")
         return None
 
 
 async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
-    """Race Invidious vs yt-dlp — use whichever resolves first. Cached in _url_cache."""
+    """Race all extraction methods — Invidious, Piped, yt-dlp, Cobalt.
+    
+    Uses whichever resolves first. Results cached in _url_cache.
+    """
     if not _is_valid_video_id(video_id):
         logger.warning(f"Invalid video_id rejected: {video_id!r}")
         return None
@@ -217,9 +268,18 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
     async def _try_ytdlp() -> str | None:
         return await asyncio.to_thread(_extract_ytdlp_sync, video_id, low)
 
-    # Run both in parallel, take the first success
+    async def _try_cobalt() -> str | None:
+        try:
+            from backend.services.cobalt import get_cobalt_stream_url
+            return await get_cobalt_stream_url(video_id)
+        except Exception as e:
+            logger.warning(f"Cobalt failed for {video_id}: {e}")
+            return None
+
+    # Race all methods in parallel — first success wins
+    tasks = [_try_invidious(), _try_ytdlp(), _try_cobalt()]
     url = None
-    for coro in asyncio.as_completed([_try_invidious(), _try_ytdlp()]):
+    for coro in asyncio.as_completed(tasks):
         result = await coro
         if result:
             url = result
@@ -507,3 +567,60 @@ async def import_playlist(url: str):
             
     else:
         raise HTTPException(status_code=400, detail="Unsupported playlist URL format (must be Spotify or YouTube)")
+
+
+@router.get("/stream/health")
+async def stream_health():
+    """Diagnostic: test all extraction methods against a known video.
+    
+    Use this to check which methods are working on your deployment.
+    """
+    test_id = "dQw4w9WgXcQ"  # Rick Astley — always available on YouTube
+    results = {}
+
+    # Test yt-dlp
+    try:
+        url = await asyncio.to_thread(_extract_ytdlp_sync, test_id)
+        results["ytdlp"] = {
+            "status": "ok" if url else "no_url",
+            "url_preview": (url[:80] + "...") if url else None,
+        }
+    except Exception as e:
+        results["ytdlp"] = {"status": "error", "error": str(e)[:200]}
+
+    # Test Invidious/Piped
+    try:
+        url = await get_invidious_stream_url(test_id)
+        results["invidious_piped"] = {
+            "status": "ok" if url else "no_url",
+            "url_preview": (url[:80] + "...") if url else None,
+        }
+    except Exception as e:
+        results["invidious_piped"] = {"status": "error", "error": str(e)[:200]}
+
+    # Test Cobalt
+    try:
+        from backend.services.cobalt import get_cobalt_stream_url
+        url = await get_cobalt_stream_url(test_id)
+        results["cobalt"] = {
+            "status": "ok" if url else "no_url_or_not_configured",
+            "url_preview": (url[:80] + "...") if url else None,
+        }
+    except Exception as e:
+        results["cobalt"] = {"status": "error", "error": str(e)[:200]}
+
+    # Summary
+    working = [k for k, v in results.items() if v.get("status") == "ok"]
+    results["summary"] = {
+        "working_methods": working,
+        "total_working": len(working),
+        "recommendation": (
+            "All methods working!" if len(working) == 3
+            else f"{len(working)}/3 methods working. " + (
+                "Consider adding YOUTUBE_COOKIES or COBALT_API_URL env vars."
+                if len(working) < 2 else "Acceptable reliability."
+            )
+        ),
+    }
+
+    return results

@@ -71,6 +71,7 @@ async def _do_advance(room_id: str, sio: socketio.AsyncServer):
             position_ms=0,
             duration_ms=next_item.get("duration_ms", 0),
             is_playing=True,
+            loop=False,
         )
         ensure_sync_loop(room_id, sio)
         try:
@@ -80,7 +81,7 @@ async def _do_advance(room_id: str, sio: socketio.AsyncServer):
             get_logger(__name__).error(f"Failed to emit track_changed for room {room_id}: {e}")
     else:
         stop_sync_loop(room_id)
-        room_manager.update_playback(room_id, "", "", "", "", 0, 0, False)
+        room_manager.update_playback(room_id, "", "", "", "", 0, 0, False, False)
         try:
             await sio.emit("track_changed", None, room=room_id)
         except Exception as e:
@@ -140,6 +141,25 @@ async def _playback_sync_loop(room_id: str, sio: socketio.AsyncServer):
         # Auto-advance when track ends
         duration = playback.get("duration_ms", 0)
         if duration and new_pos >= duration - 500:
+            if playback.get("loop"):
+                room_manager.update_playback(
+                    room_id=room_id,
+                    track_uri=playback["track_uri"],
+                    track_name=playback.get("track_name", ""),
+                    artist=playback.get("artist", ""),
+                    album_art_url=playback.get("album_art_url", ""),
+                    position_ms=0,
+                    duration_ms=duration,
+                    is_playing=True,
+                    loop=True,
+                )
+                try:
+                    await sio.emit("playback_sync", _make_json_safe(room_manager.get_playback(room_id)), room=room_id)
+                except Exception as e:
+                    from backend.logger import get_logger
+                    get_logger(__name__).error(f"Failed to emit playback_sync on loop for room {room_id}: {e}")
+                return
+
             lock = _get_advance_lock(room_id)
             if lock.locked():
                 # Another advance is already in progress (e.g. host 'ended' event)
@@ -162,6 +182,7 @@ async def _playback_sync_loop(room_id: str, sio: socketio.AsyncServer):
             position_ms=new_pos,
             duration_ms=playback.get("duration_ms", 0),
             is_playing=True,
+            loop=playback.get("loop", False),
         )
 
         # Emit to all listeners (including host for UI sync, but host player ignores position)
@@ -221,6 +242,7 @@ def register_playback_handlers(sio: socketio.AsyncServer):
             position_ms=data.get("position_ms", 0),
             duration_ms=data.get("duration_ms", 0),
             is_playing=data.get("is_playing", False),
+            loop=data.get("loop", False),
         )
         if data.get("is_playing"):
             ensure_sync_loop(room_id, sio)

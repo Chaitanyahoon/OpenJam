@@ -19,6 +19,12 @@ ENV PATH="/opt/venv/bin:$PATH" \
 # Copy venv from builder
 COPY --from=builder /opt/venv /opt/venv
 
+# Install runtime dependencies (ffmpeg for yt-dlp audio extraction)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy application code
 COPY . .
 

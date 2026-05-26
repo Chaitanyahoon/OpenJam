@@ -1,4 +1,4 @@
-const CACHE_NAME = 'openjam-static-v3';
+const CACHE_NAME = 'openjam-static-v5';
 const ASSETS_TO_CACHE = [
   '/',
   '/static/css/style.css',
@@ -8,7 +8,11 @@ const ASSETS_TO_CACHE = [
   '/static/js/socket.io.min.js',
   '/static/js/gsap.min.js',
   '/static/js/motion.js',
-  '/static/js/utils.js'
+  '/static/js/utils.js',
+  '/static/js/room-controller.js',
+  '/static/js/queue-ui.js',
+  '/static/js/chat-ui.js',
+  '/static/js/member-ui.js'
 ];
 
 self.addEventListener('install', (event) => {

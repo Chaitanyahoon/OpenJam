@@ -16,6 +16,7 @@ class MusicSearchService:
 
     def __init__(self):
         self._ytmusic = None  # Lazy singleton
+        self._resolve_cache = {}  # In-memory track query resolution cache
 
     def _get_ytmusic(self):
         """Lazy-init a singleton YTMusic instance (reused across requests)."""
@@ -81,22 +82,29 @@ class MusicSearchService:
         """Resolve a YouTube video ID from a search query.
         
         Strategy:
-        1. Try ytmusicapi (best quality, music-specific)
-        2. Fallback: scrape YouTube search results HTML
+        1. Check memory cache (fast, 0ms)
+        2. Try ytmusicapi (best quality, music-specific)
+        3. Fallback: scrape YouTube search results HTML
         """
         if not query or not query.strip():
             return None
 
         q = query.strip()
 
+        if q in self._resolve_cache:
+            logger.debug(f"Resolved query from cache: '{q}' → {self._resolve_cache[q]}")
+            return self._resolve_cache[q]
+
         # Method 1: ytmusicapi
         video_id = self._resolve_via_ytmusic(q)
         if video_id:
+            self._resolve_cache[q] = video_id
             return video_id
 
         # Method 2: YouTube HTML search fallback
         video_id = self._resolve_via_youtube_scrape(q)
         if video_id:
+            self._resolve_cache[q] = video_id
             return video_id
 
         logger.warning(f"All resolve methods failed for query: '{q}'")

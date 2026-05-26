@@ -20,19 +20,18 @@ logger = logging.getLogger(__name__)
 # Known Invidious instances (refreshed 2026). Public instances that
 # generally allow API access for stream URL extraction.
 DEFAULT_INV_INSTANCES = [
-    "https://vid.puffyan.us",
     "https://invidious.fdn.fr",
     "https://invidious.private.coffee",
     "https://inv.tux.pizza",
     "https://invidious.lunar.icu",
     "https://iv.ggtyler.dev",
     "https://inv.nadeko.net",
-    "https://invidious.flokinet.to",
-    "https://yt.artemislena.eu",
-    "https://invidious.privacyredirect.com",
     "https://invidious.protokolla.fi",
     "https://iv.datura.network",
     "https://yewtu.be",
+    "https://invidious.nerdvpn.de",
+    "https://inv.pistasjis.net",
+    "https://invidious.einfachzocken.eu",
 ]
 
 # Piped instances — another YouTube alt-frontend with streaming API
@@ -42,6 +41,8 @@ DEFAULT_PIPED_INSTANCES = [
     "https://pipedapi.r4fo.com",
     "https://pipedapi.leptons.xyz",
     "https://api.piped.projectsegfau.lt",
+    "https://pipedapi.in.projectsegfau.lt",
+    "https://pipedapi.darkness.services",
 ]
 
 # Mutable instance lists updated dynamically
@@ -53,7 +54,7 @@ _instance_health: dict[str, dict] = {}
 _piped_health: dict[str, dict] = {}
 _stream_origin_instances: dict[str, str] = {}
 _last_health_check: float = 0.0
-HEALTH_CHECK_INTERVAL: float = 1800.0
+HEALTH_CHECK_INTERVAL: float = 600.0  # 10 minutes (was 30min)
 
 def _get_instance_health(instance: str) -> dict:
     """Get or create health record for an instance."""
@@ -223,7 +224,7 @@ def _get_sorted_instances() -> list[str]:
     instances = []
     for url in INV_INSTANCES:
         health = _get_instance_health(url)
-        if health.get("failures", 0) >= 10:
+        if health.get("failures", 0) >= 5:
             continue
         jitter = random.uniform(-5, 5)
         score = health.get("score", 100) + jitter
@@ -237,7 +238,7 @@ def _get_sorted_piped_instances() -> list[str]:
     instances = []
     for url in PIPED_INSTANCES:
         health = _get_piped_health(url)
-        if health.get("failures", 0) >= 10:
+        if health.get("failures", 0) >= 5:
             continue
         jitter = random.uniform(-5, 5)
         score = health.get("score", 100) + jitter

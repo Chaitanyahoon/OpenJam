@@ -32,6 +32,7 @@ class RoomManager:
                     "position_ms": 0,
                     "duration_ms": 0,
                     "is_playing": False,
+                    "loop": False,
                     "updated_at": None,
                     "skip_voters": set(),
                 },
@@ -151,7 +152,7 @@ class RoomManager:
         return {rid: len(data["users"]) for rid, data in rooms.items()}
 
     def update_playback(self, room_id: str, track_uri: str, track_name: str, artist: str,
-                        album_art_url: str, position_ms: int, duration_ms: int, is_playing: bool):
+                        album_art_url: str, position_ms: int, duration_ms: int, is_playing: bool, loop: bool = False):
         room = self.store.get_room(room_id)
         if room:
             # Carry over old skip voters if the track uri hasn't changed (just a pause/play/seek update)
@@ -168,6 +169,7 @@ class RoomManager:
                 "position_ms": position_ms,
                 "duration_ms": duration_ms,
                 "is_playing": is_playing,
+                "loop": loop,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
                 "skip_voters": skip_voters,
             }

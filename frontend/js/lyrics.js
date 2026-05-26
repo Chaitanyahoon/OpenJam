@@ -84,6 +84,28 @@ class LyricsManager {
     this.container.innerHTML = '<div style="height:40%"></div>' + // padding top
       this.lyricsData.map((l, i) => `<div class="lyric-line" id="lyr-${i}">${escapeHtml(l.text)}</div>`).join('') +
       '<div style="height:50%"></div>'; // padding bottom
+
+    if (window.gsap) {
+      window.gsap.fromTo(this.container.querySelectorAll('.lyric-line'),
+        { opacity: 0, y: 20, filter: 'blur(3px)' },
+        { opacity: 1, y: 0, filter: 'blur(1px)', duration: 0.6, stagger: 0.04, ease: 'power2.out' }
+      );
+    }
+  }
+
+  scrollToActiveLine(force = false) {
+    if (this.activeLineIdx === -1) return;
+    const el = document.getElementById(`lyr-${this.activeLineIdx}`);
+    if (el) {
+      const container = this.container;
+      const parentRect = container.getBoundingClientRect();
+      const elementRect = el.getBoundingClientRect();
+      const relativeTop = elementRect.top - parentRect.top;
+      container.scrollTo({
+        top: container.scrollTop + relativeTop - (parentRect.height / 2) + (el.clientHeight / 2),
+        behavior: 'smooth'
+      });
+    }
   }
 
   sync(currentMs) {
@@ -109,15 +131,7 @@ class LyricsManager {
       const newEl = document.getElementById(`lyr-${newIdx}`);
       if (newEl) {
         newEl.classList.add('active');
-        // Smooth scroll to center inside container only (prevents shifting outer layout panels)
-        const container = this.container;
-        const parentRect = container.getBoundingClientRect();
-        const elementRect = newEl.getBoundingClientRect();
-        const relativeTop = elementRect.top - parentRect.top;
-        container.scrollTo({
-          top: container.scrollTop + relativeTop - (parentRect.height / 2) + (newEl.clientHeight / 2),
-          behavior: 'smooth'
-        });
+        this.scrollToActiveLine(false);
       }
     }
   }
