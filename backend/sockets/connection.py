@@ -79,25 +79,78 @@ def register_connection_handlers(sio: socketio.AsyncServer):
         })
         logger.info(f"Connected {sid} as '{display_name}'")
 
+    async def _handle_user_departure(room_id: str, user_id: str, display_name: str, was_host: bool):
+        # Emit user_left
+        await sio.emit("user_left", {
+            "user_id": user_id,
+            "display_name": display_name,
+        }, room=room_id)
+        
+        # Emit listener count and updated listeners list
+        await sio.emit("listener_count", {
+            "count": room_manager.get_listener_count(room_id),
+            "listeners": room_manager.get_listeners(room_id),
+        }, room=room_id)
+        
+        if was_host:
+            listeners = room_manager.get_listeners(room_id)
+            if listeners:
+                # Promote the first remaining listener
+                new_host = listeners[0]
+                new_user_id = new_host["user_id"]
+                new_name = new_host["display_name"]
+                
+                # Retrieve the SID of the new host from the room state
+                room_state = room_manager.store.get_room(room_id)
+                new_sid = None
+                if room_state and "users" in room_state and new_user_id in room_state["users"]:
+                    new_sid = room_state["users"][new_user_id].get("sid")
+                
+                if new_sid:
+                    room_manager.set_host(room_id, new_sid)
+                
+                # Persist ownership change in the database
+                def _update_db_host(rid, uid):
+                    db = SessionLocal()
+                    try:
+                        from backend.models.room import Room
+                        room = db.query(Room).filter(Room.id == rid).first()
+                        if room:
+                            room.host_user_id = uid
+                            db.commit()
+                    finally:
+                        db.close()
+                await asyncio.to_thread(_update_db_host, room_id, new_user_id)
+                
+                # Cancel pending room closes since a new host successfully took over
+                cancel_room_close(room_id)
+                
+                # Notify all listeners of the new host
+                await sio.emit("host_changed", {
+                    "host_user_id": new_user_id,
+                    "host_name": new_name
+                }, room=room_id)
+                logger.info(f"Host left room {room_id}. Promoted {new_name} ({new_sid}) to host.")
+            else:
+                # No one left in the room, schedule close
+                schedule_room_close(room_id, sio, SessionLocal, delay=120)
+        else:
+            # Non-host departed. If room is now empty, schedule close
+            if room_manager.get_listener_count(room_id) == 0:
+                schedule_room_close(room_id, sio, SessionLocal, delay=120)
+
     @sio.event
     async def disconnect(sid):
-        info = room_manager.leave_room(sid)
+        info = room_manager.get_user_by_sid(sid)
         if info:
             room_id = info["room_id"]
+            user_id = info["user_id"]
+            was_host = room_manager.is_host(room_id, sid)
             session = await sio.get_session(sid)
-            await sio.emit("user_left", {
-                "user_id": info["user_id"],
-                "display_name": session.get("display_name", "Jammer") if session else "Jammer",
-            }, room=room_id)
-            await sio.emit("listener_count", {
-                "count": room_manager.get_listener_count(room_id),
-            }, room=room_id)
-            if room_manager.get_listener_count(room_id) > 0:
-                if not room_manager.get_host_sid(room_id):
-                    schedule_room_close(room_id, sio, SessionLocal, delay=180) # 3 minutes if host disconnects
-            else:
-                # Room is empty — close quickly to prevent ghost rooms and save resources
-                schedule_room_close(room_id, sio, SessionLocal, delay=120) # 2 minutes if empty
+            display_name = session.get("display_name", "Jammer") if session else "Jammer"
+            
+            room_manager.leave_room(sid)
+            await _handle_user_departure(room_id, user_id, display_name, was_host)
 
     @sio.event
     async def join_room(sid, data):
@@ -212,19 +265,17 @@ def register_connection_handlers(sio: socketio.AsyncServer):
 
     @sio.event
     async def leave_room(sid, data):
-        info = room_manager.leave_room(sid)
+        info = room_manager.get_user_by_sid(sid)
         if info:
             room_id = info["room_id"]
-            await sio.leave_room(sid, room_id)
+            user_id = info["user_id"]
+            was_host = room_manager.is_host(room_id, sid)
             session = await sio.get_session(sid)
-            await sio.emit("user_left", {
-                "user_id": info["user_id"],
-                "display_name": session.get("display_name", "Jammer") if session else "Jammer",
-            }, room=room_id)
-            await sio.emit("listener_count", {
-                "count": room_manager.get_listener_count(room_id),
-                "listeners": room_manager.get_listeners(room_id),
-            }, room=room_id)
+            display_name = session.get("display_name", "Jammer") if session else "Jammer"
+            
+            room_manager.leave_room(sid)
+            await sio.leave_room(sid, room_id)
+            await _handle_user_departure(room_id, user_id, display_name, was_host)
 
     @sio.event
     async def set_guest_name(sid, data):

@@ -790,7 +790,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           const lbl = mobTab.querySelector('.mob-tab-label');
           if (lbl) lbl.textContent = count > 0 ? `People (${count})` : 'People';
         }
-        if (d.listeners && window.updateMembers) window.updateMembers(d.listeners);
+        if (d.listeners) {
+          if (app.roomData) app.roomData.listeners = d.listeners;
+          if (window.updateMembers) window.updateMembers(d.listeners);
+        }
         
         const btnSkip = $('#btn-vote-skip');
         if (btnSkip && !btnSkip.classList.contains('voted')) {
@@ -808,6 +811,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       app.sc.on('user_left', d => {
         toast(`${d.display_name} left`, 'info');
+      });
+
+      app.sc.on('host_changed', d => {
+        if (app.roomData && app.roomData.room) {
+          app.roomData.room.host_user_id = d.host_user_id;
+          app.roomData.room.host_name = d.host_name;
+        }
+        app.isHost = !!(app.me && d.host_user_id === app.me.id);
+        app.applyHostUI();
+        
+        const hostEl = $('#bar-host');
+        if (hostEl) hostEl.textContent = `Hosted by ${d.host_name}`;
+        
+        if (window.checkQueuePermissions) window.checkQueuePermissions();
+        if (window.renderQueue) window.renderQueue(app._queueData);
+        if (app.roomData && app.roomData.listeners && window.updateMembers) {
+          window.updateMembers(app.roomData.listeners);
+        }
+        
+        toast(`${d.host_name} is now the host and controls playback!`, 'info');
       });
 
       app.sc.on('room_closed', d => {

@@ -441,5 +441,90 @@ def test_private_room_stale_session(client, db_session, test_user):
     assert res_after.json().get("password_required") is True
 
 
+@pytest.mark.asyncio
+async def test_host_ownership_transfer(db_session, test_user):
+    """Test that when a host leaves or disconnects, ownership is promoted to the next listener."""
+    from backend.models.room import Room
+    from backend.models.user import User
+    from backend.sockets.connection import register_connection_handlers
+    from backend.services.room_manager import room_manager
+    from unittest.mock import AsyncMock, patch
+
+    # 1. Create a room and another listener user
+    room = Room(
+        name="Lobby Room",
+        host_user_id=test_user.id,
+        description="Public lobby",
+        genre_tags='["pop"]',
+        queue_mode="open",
+        is_private=False,
+    )
+    db_session.add(room)
+    
+    listener_user = User(id="listener_id", display_name="Listener Ben")
+    db_session.add(listener_user)
+    db_session.commit()
+
+    room_id = room.id
+
+    # Clear room_manager state for this room id
+    room_manager.store.del_room(room_id)
+
+    # 2. Mock Socket.IO server
+    sio = AsyncMock()
+    handlers = {}
+    def mock_event(func):
+        handlers[func.__name__] = func
+        return func
+    sio.event = mock_event
+    sio.on = mock_event
+
+    # Register socket event handlers
+    register_connection_handlers(sio)
+    disconnect_handler = handlers.get("disconnect")
+    leave_room_handler = handlers.get("leave_room")
+    assert disconnect_handler is not None
+    assert leave_room_handler is not None
+
+    # Patch SessionLocal to return our test database session and mock close to be a noop
+    original_close = db_session.close
+    db_session.close = lambda: None
+    try:
+        with patch("backend.sockets.connection.SessionLocal", return_value=db_session):
+            # Join Host
+            room_manager.join_room(room_id, test_user.id, "host_sid", test_user.display_name)
+            room_manager.set_host(room_id, "host_sid")
+            
+            # Join Listener
+            room_manager.join_room(room_id, listener_user.id, "listener_sid", listener_user.display_name)
+
+            # Mock sessions in socket.io
+            async def mock_get_session(sid):
+                if sid == "host_sid":
+                    return {"user_id": test_user.id, "display_name": test_user.display_name}
+                return {"user_id": listener_user.id, "display_name": listener_user.display_name}
+            sio.get_session.side_effect = mock_get_session
+
+            # 3. Simulate Host disconnecting
+            await disconnect_handler("host_sid")
+
+            # Verify host promotion occurred in memory
+            active_host_sid = room_manager.get_host_sid(room_id)
+            assert active_host_sid == "listener_sid"
+
+            # Verify host promotion occurred in DB
+            db_session.refresh(room)
+            assert room.host_user_id == listener_user.id
+
+            # Verify that host_changed event was emitted to the room
+            sio.emit.assert_any_call("host_changed", {
+                "host_user_id": listener_user.id,
+                "host_name": listener_user.display_name
+            }, room=room_id)
+    finally:
+        db_session.close = original_close
+
+
+
 
 
