@@ -255,6 +255,11 @@ window.roomApp = {
       Motion.transitionArt(artImg);
       if (dynBg) { dynBg.src = track.album_art_url; dynBg.classList.add('active'); }
       if (ambient) { ambient.style.backgroundImage = `url(${track.album_art_url})`; ambient.classList.add('active'); }
+      
+      const app = window.roomApp;
+      if (app && app.ambientGlow) {
+        app.ambientGlow.updateArtwork(track.album_art_url);
+      }
     }
   },
 
@@ -298,6 +303,7 @@ window.roomApp = {
       vinyl.classList.add('spinning'); 
       if (eq) eq.style.display = 'none';
       if (ambient) ambient.classList.remove('active');
+      if (this.ambientGlow) { this.ambientGlow.stop(); }
       const ph = $('#art-placeholder'); if (ph) ph.classList.remove('hidden');
       this.setPlayIcon(false);
       this.yt.stopProgressTimer();
@@ -557,6 +563,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Initialize dependencies
   app.yt = new YouTubePlayer();
+  app.ambientGlow = new AmbientGlowManager('ambient-canvas');
   app.lyricsManager = new LyricsManager($('#lyrics-content'));
   
   // Custom stream fallbacks status update callback
@@ -571,6 +578,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         $('#btn-next')?.click();
       } else {
         $('#btn-vote-skip')?.click();
+      }
+      return;
+    }
+    if (action === 'previoustrack') {
+      if (app.isHost) {
+        if (app.yt._useIFrame && app.yt.ytPlayer) {
+          try { app.yt.ytPlayer.seekTo(0, true); } catch (e) {}
+        } else if (app.yt.player) {
+          app.yt.player.currentTime = 0;
+        }
+        app.yt.positionMs = 0;
+        app.sc.emit('playback_update', {
+          room_id: app.roomId,
+          track_uri: app.yt.currentVideoId || '',
+          track_name: $('#np-title')?.textContent || '',
+          artist: $('#np-artist')?.textContent || '',
+          album_art_url: $('#art-img')?.src || '',
+          position_ms: 0,
+          duration_ms: app.yt.durationMs || 0,
+          is_playing: app.yt.isPlaying,
+          loop: app._loopEnabled,
+        });
       }
       return;
     }
