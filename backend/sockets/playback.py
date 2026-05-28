@@ -138,9 +138,9 @@ async def _playback_sync_loop(room_id: str, sio: socketio.AsyncServer):
             playback.get("duration_ms", 0) or 999_999_999,
         )
 
-        # Auto-advance when track ends
+        # Auto-advance when track ends (with an 8-second grace period to let the host client handle it first)
         duration = playback.get("duration_ms", 0)
-        if duration and new_pos >= duration - 500:
+        if duration and new_pos >= duration + 8000:
             if playback.get("loop"):
                 room_manager.update_playback(
                     room_id=room_id,
@@ -158,7 +158,8 @@ async def _playback_sync_loop(room_id: str, sio: socketio.AsyncServer):
                 except Exception as e:
                     from backend.logger import get_logger
                     get_logger(__name__).error(f"Failed to emit playback_sync on loop for room {room_id}: {e}")
-                return
+                last_tick = datetime.now(timezone.utc)
+                continue
 
             lock = _get_advance_lock(room_id)
             if lock.locked():

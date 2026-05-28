@@ -25,6 +25,7 @@ class YouTubePlayer {
     this._useLowBitrate = false;
     this._streamFailCount = 0;
     this._maxStreamFails = 1;  // Switch to IFrame after 1 fail (don't waste user's time)
+    this.volume = 80; // Default volume (persists across tracks)
 
     this._initAudio();
     this._initMediaSession();
@@ -61,6 +62,7 @@ class YouTubePlayer {
         if (this.onStreamFailUpdate) this.onStreamFailUpdate("Trying alternative source…");
         this._useLowBitrate = true;
         this.player.src = `/stream/${this.currentVideoId}?low=true`;
+        this.setVolume(this.volume);
         this.player.currentTime = Math.round(this.positionMs / 1000);
         this.player.play().catch(() => {});
       } else if (this._streamFailCount >= this._maxStreamFails && !this._useIFrame) {
@@ -138,7 +140,11 @@ class YouTubePlayer {
         modestbranding: 1, rel: 0, iv_load_policy: 3, playsinline: 1,
       },
       events: {
-        onReady: () => { this._ready = true; this._processPending(); },
+        onReady: () => { 
+          this._ready = true; 
+          this.setVolume(this.volume);
+          this._processPending(); 
+        },
         onStateChange: (e) => {
           const map = {
             [YT.PlayerState.PLAYING]: 'play',
@@ -340,6 +346,7 @@ class YouTubePlayer {
       }, 10000);
 
       this.player.src = `/stream/${videoId}`;
+      this.setVolume(this.volume);
       if (startSeconds > 0) {
         this.player.addEventListener('loadedmetadata', () => {
           this.player.currentTime = startSeconds;
@@ -652,6 +659,19 @@ class YouTubePlayer {
       } catch (e) {
         console.warn('[MediaSession] Error setting position state:', e);
       }
+    }
+  }
+
+  setVolume(vol) {
+    this.volume = vol;
+    if (this._useIFrame && this.ytPlayer && typeof this.ytPlayer.setVolume === 'function') {
+      this.ytPlayer.setVolume(vol);
+      if (typeof this.ytPlayer.unMute === 'function') {
+        vol === 0 ? this.ytPlayer.mute() : this.ytPlayer.unMute();
+      }
+    } else if (this.player) {
+      this.player.volume = vol / 100;
+      this.player.muted = (vol === 0);
     }
   }
 }

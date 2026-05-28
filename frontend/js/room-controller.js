@@ -417,16 +417,7 @@ window.roomApp = {
 
   applyVol(v) {
     this.vol = Math.max(0, Math.min(100, v));
-
-    if (this.yt._useIFrame && this.yt.ytPlayer && typeof this.yt.ytPlayer.setVolume === 'function') {
-      this.yt.ytPlayer.setVolume(this.vol);
-      if (typeof this.yt.ytPlayer.unMute === 'function') {
-        this.vol === 0 ? this.yt.ytPlayer.mute() : this.yt.ytPlayer.unMute();
-      }
-    } else if (this.yt._ready && this.yt.player) {
-      this.yt.player.volume = this.vol / 100;
-      this.yt.player.muted = (this.vol === 0);
-    }
+    this.yt.setVolume(this.vol);
 
     $('#vol-pct').textContent = `${this.vol}%`;
     const slider = $('#vol-slider');

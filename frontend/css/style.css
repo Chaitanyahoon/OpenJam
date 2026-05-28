@@ -1045,12 +1045,12 @@ input[type=range]::-moz-range-track {
 
 /* ---- LEFT: Now Playing ---- */
 .panel-left {
-  background: rgba(18, 17, 24, 0.72) !important;
-  backdrop-filter: blur(16px) saturate(1.4);
-  border-right: 1px solid var(--border) !important;
+  background: rgba(10, 10, 15, 0.6) !important;
+  backdrop-filter: blur(24px) saturate(1.6);
+  border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
   display: flex; flex-direction: column;
   overflow: hidden; min-width: 0;
-  box-shadow: 4px 0 24px rgba(0,0,0,0.3);
+  box-shadow: 4px 0 32px rgba(0,0,0,0.5);
 }
 
 .np-top {
@@ -1246,10 +1246,10 @@ input[type=range]::-moz-range-track {
 /* ---- CENTER: Queue ---- */
 .panel-center {
   display: flex; flex-direction: column; overflow: hidden; min-width: 0;
-  background: rgba(18, 17, 24, 0.72) !important;
-  backdrop-filter: blur(16px) saturate(1.4);
-  border-left: 1px solid var(--border) !important;
-  border-right: 1px solid var(--border) !important;
+  background: rgba(10, 10, 15, 0.5) !important;
+  backdrop-filter: blur(24px) saturate(1.6);
+  border-left: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
   position: relative;
 }
 .queue-header {
@@ -1289,11 +1289,11 @@ input[type=range]::-moz-range-track {
 
 /* ---- RIGHT: Members + Chat ---- */
 .panel-right {
-  background: rgba(18, 17, 24, 0.72) !important;
-  backdrop-filter: blur(16px) saturate(1.4);
-  border-left: 1px solid var(--border) !important;
+  background: rgba(10, 10, 15, 0.6) !important;
+  backdrop-filter: blur(24px) saturate(1.6);
+  border-left: 1px solid rgba(255, 255, 255, 0.05) !important;
   display: flex; flex-direction: column; overflow: hidden; min-width: 0;
-  box-shadow: -4px 0 24px rgba(0,0,0,0.3);
+  box-shadow: -4px 0 32px rgba(0,0,0,0.5);
 }
 
 /* Members */
@@ -1990,15 +1990,15 @@ input[type=range]::-moz-range-track {
   scroll-behavior: smooth; font-family: var(--font-ui);
 }
 .lyric-line {
-  font-size: 32px; font-weight: 700; color: rgba(255,255,255,0.25);
-  margin-bottom: 28px; transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); line-height: 1.5;
+  font-size: 32px; font-weight: 700; color: rgba(255,255,255,0.22);
+  margin-bottom: 28px; transition: opacity 0.5s ease, transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.5s ease, color 0.5s ease, text-shadow 0.5s ease; line-height: 1.5;
   text-shadow: 0 4px 12px rgba(0,0,0,0.6); cursor: pointer;
-  text-align: center; transform: scale(0.95); filter: blur(1px);
+  text-align: center; transform: scale(0.95); filter: blur(1.5px);
 }
-.lyric-line:hover { color: rgba(255,255,255,0.7); transform: scale(0.98); filter: blur(0); }
+.lyric-line:hover { color: rgba(255,255,255,0.75); transform: scale(0.98); filter: blur(0); }
 .lyric-line.active {
-  color: var(--amber) !important; transform: scale(1.12) !important; filter: blur(0) !important;
-  text-shadow: 0 0 30px rgba(255, 170, 0, 0.6);
+  color: var(--amber) !important; opacity: 1 !important; transform: scale(1.08) !important; filter: blur(0) !important;
+  text-shadow: 0 0 24px rgba(255, 170, 0, 0.4), 0 0 48px rgba(255, 170, 0, 0.2) !important;
 }
 @media (max-width: 640px) {
   .lyric-line {
