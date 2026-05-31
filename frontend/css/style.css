@@ -2560,6 +2560,22 @@ input[type=range]::-moz-range-track {
   margin-top: 2px;
 }
 
+/* ---- 3D Room Cards & Particle Bursts ---- */
+.card-shine {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+  mix-blend-mode: overlay;
+  border-radius: 24px;
+}
+
+.emoji-particle {
+  pointer-events: none;
+  filter: drop-shadow(0 0 4px var(--amber-glow));
+  z-index: 10000;
+}
+
 
 
 

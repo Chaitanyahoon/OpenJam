@@ -141,10 +141,62 @@
             yoyo: true,
             repeat: 1
           });
+          triggerEmojiBurst(btn, emoji);
         }
         if (app.sc) app.sc.emit('send_reaction', { room_id: app.roomId, emoji: emoji });
       });
     });
+
+    function triggerEmojiBurst(element, emoji) {
+      if (!window.gsap) return;
+      
+      const activeCount = document.querySelectorAll('.emoji-particle').length;
+      if (activeCount >= 40) return; // Safeguard performance by capping max active particles
+
+      const rect = element.getBoundingClientRect();
+      const btnX = rect.left + rect.width / 2;
+      const btnY = rect.top + rect.height / 2;
+      const maxSpawns = 8 + Math.floor(Math.random() * 6);
+      const numParticles = Math.min(maxSpawns, 40 - activeCount);
+      
+      for (let i = 0; i < numParticles; i++) {
+        const p = document.createElement('div');
+        p.className = 'emoji-particle';
+        p.textContent = Math.random() < 0.35 ? emoji : (Math.random() < 0.5 ? '✨' : '🎵');
+        
+        const size = 12 + Math.random() * 12;
+        p.style.cssText = `
+          position: fixed;
+          left: ${btnX}px;
+          top: ${btnY}px;
+          font-size: ${size}px;
+          pointer-events: none;
+          z-index: 10000;
+          user-select: none;
+          will-change: transform, opacity;
+        `;
+        document.body.appendChild(p);
+        
+        const angle = Math.random() * Math.PI * 2;
+        const velocity = 35 + Math.random() * 85;
+        const targetX = Math.cos(angle) * velocity;
+        const targetY = Math.sin(angle) * velocity - (20 + Math.random() * 40);
+        
+        const duration = 0.5 + Math.random() * 0.5;
+        const rotation = (Math.random() - 0.5) * 360;
+        
+        window.gsap.to(p, {
+          x: targetX,
+          y: targetY,
+          rotation: rotation,
+          opacity: 0,
+          scale: 0.3,
+          duration: duration,
+          ease: 'power2.out',
+          onComplete: () => p.remove()
+        });
+      }
+    }
 
     // Spawning engine for floating emoji reactions
     window.spawnFloatingEmoji = function(emoji) {

@@ -384,6 +384,54 @@
     }
   });
 
+  // 3D Card Tilting & Shine Effects (via delegation on #rooms-grid)
+  const roomsGrid = $('#rooms-grid');
+  if (roomsGrid) {
+    roomsGrid.addEventListener('mousemove', (e) => {
+      // Avoid tilting on touch devices
+      if (!window.matchMedia('(hover: hover)').matches) return;
+
+      const card = e.target.closest('.room-card');
+      if (!card) return;
+
+      const rect = card.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      const xc = rect.width / 2;
+      const yc = rect.height / 2;
+      
+      // Calculate rotation limits (-8deg to 8deg)
+      const rotateX = -(yc - y) / 12;
+      const rotateY = (xc - x) / 12;
+
+      card.style.setProperty('transform', `perspective(800px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.02, 1.02, 1.02)`, 'important');
+
+      // Add dynamic shine flare inside card
+      let shine = card.querySelector('.card-shine');
+      if (!shine) {
+        shine = document.createElement('div');
+        shine.className = 'card-shine';
+        card.appendChild(shine);
+      }
+      const pctX = (x / rect.width) * 100;
+      const pctY = (y / rect.height) * 100;
+      shine.style.background = `radial-gradient(circle at ${pctX}% ${pctY}%, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0) 60%)`;
+    });
+
+    roomsGrid.addEventListener('mouseout', (e) => {
+      const card = e.target.closest('.room-card');
+      if (!card) return;
+
+      const related = e.relatedTarget;
+      if (related && card.contains(related)) return;
+
+      card.style.removeProperty('transform');
+      const shine = card.querySelector('.card-shine');
+      if (shine) shine.remove();
+    });
+  }
+
   // Let's go
   await checkAuth();
   await loadRooms();
