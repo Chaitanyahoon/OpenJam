@@ -35,7 +35,8 @@ class SocketClient {
 
     this.socket.on('connect', () => {
       if (this.roomId) {
-        const payload = { room_id: this.roomId };
+        const avatarUrl = localStorage.getItem('openjam_avatar_url');
+        const payload = { room_id: this.roomId, avatar_url: avatarUrl };
         if (this.password) payload.password = this.password;
         this.socket.emit('join_room', payload);
       }

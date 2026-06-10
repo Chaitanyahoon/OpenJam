@@ -223,7 +223,14 @@ window.roomApp = {
 
     $('#bar-name').textContent = room.name;
     $('#bar-name').title = room.name;
-    $('#bar-host').textContent = `Hosted by ${room.host_name || 'Unknown'}`;
+    const barHost = $('#bar-host');
+    if (barHost) {
+      barHost.classList.remove('skeleton');
+      const hostAvatar = room.host_avatar_url 
+        ? `<img class="room-host-avatar" src="${esc(room.host_avatar_url)}" alt="${esc(room.host_name)}" />` 
+        : `<div class="room-host-avatar-fallback" style="background:${this.nameColor(room.host_name || 'Unknown')}">${initials(room.host_name || 'Unknown')}</div>`;
+      barHost.innerHTML = `${hostAvatar} <span>Hosted by <strong style="color:var(--text-1)">${esc(room.host_name || 'Unknown')}</strong></span>`;
+    }
     const barTags = $('#bar-tags');
     if (barTags) {
       const labels = [

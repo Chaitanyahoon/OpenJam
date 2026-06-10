@@ -9,6 +9,12 @@
   const $$ = s => document.querySelectorAll(s);
   const esc = s => { const d=document.createElement('div'); d.textContent=String(s||''); return d.innerHTML; };
   const initials = n => (n||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+  const nameColor = n => {
+    let h = 0;
+    for (let i = 0; i < (n || '').length; i++) h = n.charCodeAt(i) + ((h << 5) - h);
+    const hue = Math.abs(h) % 360;
+    return `hsl(${hue}, 60%, 55%)`;
+  };
   const toast = (msg,type='info') => {
     const el=document.createElement('div'); el.className=`toast ${type}`; el.textContent=msg;
     $('#toasts').appendChild(el); setTimeout(()=>{ el.style.opacity='0'; el.style.transform='translateX(20px)'; el.style.transition='all 0.3s'; setTimeout(()=>el.remove(),300); },3500);
@@ -309,7 +315,12 @@
         <div class="room-card-top">
           <div style="min-width:0">
             <div class="room-card-name">${r.is_private ? '<span style="color:var(--amber);margin-right:6px;" title="Private room">🔒</span>' : ''}${esc(r.name)}</div>
-            <div class="room-card-host">Hosted by ${esc(r.host_name||'Unknown')}</div>
+            <div class="room-card-host">
+              ${r.host_avatar_url 
+                ? `<img class="room-host-avatar" src="${esc(r.host_avatar_url)}" alt="${esc(r.host_name)}" />` 
+                : `<div class="room-host-avatar-fallback" style="background:${nameColor(r.host_name || 'Unknown')}">${initials(r.host_name || 'Unknown')}</div>`}
+              <span>Hosted by <strong style="color:var(--text-2)">${esc(r.host_name||'Unknown')}</strong></span>
+            </div>
           </div>
           <div class="room-listeners${r.listener_count > 0 ? ' pulse-listeners' : ''}">
             <div class="room-listeners-dot"></div>

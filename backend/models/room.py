@@ -22,7 +22,7 @@ class Room(Base):
     # Relationship to User (eager loading)
     host = relationship("User", foreign_keys=[host_user_id])
 
-    def to_dict(self, listener_count=0, current_track=None, host_name=None):
+    def to_dict(self, listener_count=0, current_track=None, host_name=None, host_avatar_url=None):
         import json
         try:
             tags = json.loads(self.genre_tags) if self.genre_tags else []
@@ -43,7 +43,8 @@ class Room(Base):
             "id": self.id,
             "name": self.name,
             "host_user_id": self.host_user_id,
-            "host_name": host_name,
+            "host_name": host_name or (self.host.display_name if self.host else "Unknown"),
+            "host_avatar_url": host_avatar_url or (self.host.avatar_url if self.host else None),
             "genre_tags": tags,
             "description": self.description,
             "is_active": self.is_active,

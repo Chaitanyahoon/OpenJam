@@ -70,13 +70,6 @@ async def list_rooms(
     total = len(visible_rooms)
     return {"rooms": visible_rooms[skip:skip + limit], "total": total}
 
-import time as _time
-
-# Per-user room creation rate limit: {user_id: last_create_timestamp}
-_room_create_times: dict = {}
-_ROOM_CREATE_COOLDOWN = 120  # 2 minutes between room creations
-
-
 @router.post("")
 async def create_room(request: Request, create_room_req: CreateRoomRequest, db: Session = Depends(get_db)):
     """Create a new room. Upserts a lightweight User record for the host."""
@@ -87,39 +80,25 @@ async def create_room(request: Request, create_room_req: CreateRoomRequest, db: 
     user_id = user_data["id"]
     display_name = user_data["display_name"]
 
-    # Rate limit: 1 room per 2 minutes per user
-    now = _time.time()
-    # Prune expired entries to prevent memory growth
-    stale = [k for k, v in _room_create_times.items() if now - v > _ROOM_CREATE_COOLDOWN]
-    for k in stale:
-        _room_create_times.pop(k, None)
-    # Hard cap size
-    if len(_room_create_times) > 1000:
-        _room_create_times.clear()
-
-    last_create = _room_create_times.get(user_id, 0)
-    if now - last_create < _ROOM_CREATE_COOLDOWN:
-        remaining = int(_ROOM_CREATE_COOLDOWN - (now - last_create))
-        raise HTTPException(status_code=429, detail=f"Please wait {remaining}s before creating another room")
-
     # Clean up ghost rooms: deactivate any of this user's rooms with 0 listeners
     listener_counts = room_manager.get_listener_counts()
     user_rooms = db.query(Room).filter(Room.host_user_id == user_id, Room.is_active == True).all()
     for r in user_rooms:
-        if listener_counts.get(r.id, 0) == 0:
+        count = listener_counts.get(r.id, 0)
+        if count == 0:
             r.is_active = False
-    db.commit()
-
-    # Cap: max 3 active rooms per user
-    active_count = db.query(Room).filter(Room.host_user_id == user_id, Room.is_active == True).count()
-    if active_count >= 3:
-        raise HTTPException(status_code=429, detail="You already have 3 active rooms. Close one first.")
 
     # Ensure a User row exists so the Room FK is satisfied
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        user = User(id=user_id, display_name=display_name)
+        user = User(id=user_id, display_name=display_name, avatar_url=user_data.get("avatar_url"))
         db.add(user)
+        db.commit()
+        db.refresh(user)
+    else:
+        user.display_name = display_name
+        if user_data.get("avatar_url"):
+            user.avatar_url = user_data.get("avatar_url")
         db.commit()
         db.refresh(user)
 
@@ -143,9 +122,7 @@ async def create_room(request: Request, create_room_req: CreateRoomRequest, db: 
     db.commit()
     db.refresh(room)
 
-    _room_create_times[user_id] = now
-
-    return {"room": room.to_dict(host_name=display_name)}
+    return {"room": room.to_dict(host_name=display_name, host_avatar_url=user_data.get("avatar_url"))}
 def check_room_access(room: Room, user_id: str | None) -> bool:
     """Check if user_id is authorized to access/modify private room details.
     
