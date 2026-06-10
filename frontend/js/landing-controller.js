@@ -54,8 +54,10 @@
         navAvatar.innerHTML = `<img src="${me.avatar_url}" alt="${esc(me.display_name)}">`;
         navAvatar.style.border = '2px solid #5865F2';
         localStorage.setItem('openjam_avatar_url', me.avatar_url);
+        $$('.btn-discord-cta').forEach(el => el.style.display = 'none');
       } else {
         navAvatar.textContent = initials(me.display_name);
+        $$('.btn-discord-cta').forEach(el => el.style.display = 'inline-flex');
       }
 
       $('#nav-name').textContent = me.display_name;
@@ -63,11 +65,24 @@
       localStorage.setItem('openjam_display_name', me.display_name);
       $$('.btn-open-join-trigger').forEach(el => el.style.display = 'none');
       $$('.btn-create-room-trigger').forEach(el => el.style.display = 'inline-flex');
+
+      const desc = $('#hero-description');
+      if (desc) {
+        desc.innerHTML = me.avatar_url 
+          ? `Welcome back! Logged in as <strong style="color:#a5b4fc">@${esc(me.display_name)}</strong> via Discord. Create a room below or join an active jam!`
+          : `Welcome back! Logged in as <strong style="color:var(--amber)">${esc(me.display_name)}</strong>. Create a room below or join an active jam!`;
+      }
     } else {
       $('#join-modal').classList.remove('active');
       $('#navbar-user').style.display = 'none';
       $$('.btn-open-join-trigger').forEach(el => el.style.display = 'inline-flex');
       $$('.btn-create-room-trigger').forEach(el => el.style.display = 'none');
+      $$('.btn-discord-cta').forEach(el => el.style.display = 'inline-flex');
+
+      const desc = $('#hero-description');
+      if (desc) {
+        desc.textContent = 'Social Listening, but make it classy. Create a listening room, queue tracks from YouTube, and listen together in perfect sync.';
+      }
     }
 
     // Handle Discord OAuth errors from redirect
