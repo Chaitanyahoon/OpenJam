@@ -2255,6 +2255,10 @@ body:not(.room-page) .navbar {
 @media (max-width: 640px) {
   /* ── Navbar shrink ── */
   .navbar { padding: 0 14px; height: 48px; }
+  body.room-page .navbar {
+    height: calc(48px + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+  }
   body:not(.room-page) .navbar {
     margin: 8px auto 0;
     width: calc(100% - 16px);
@@ -2277,7 +2281,7 @@ body:not(.room-page) .navbar {
   .room-grid {
     display: flex;
     flex-direction: column;
-    height: calc(100dvh - 48px - 44px - 40px - 56px - env(safe-area-inset-bottom, 0px)); /* nav + bar + vol-bar + bottom-tabs + safe-area */
+    height: calc(100dvh - 188px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); /* nav + bar + vol-bar + bottom-tabs + safe-areas */
     overflow: hidden;
     touch-action: pan-y; /* prevent browser swipe-back gesture */
   }
@@ -2476,9 +2480,17 @@ body:not(.room-page) .navbar {
   .modal-bg.active .modal-box { transform: translateY(0); }
 
   /* Safe area insets (iPhone notch / home bar) */
-  .navbar         { padding-top: env(safe-area-inset-top, 0); }
+  body.room-page .navbar {
+    height: calc(48px + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  body:not(.room-page) .navbar {
+    padding-top: 0;
+  }
   .mobile-bottom-tabs {
-    padding-bottom: env(safe-area-inset-bottom, 0);
+    height: calc(56px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    box-sizing: border-box;
   }
 
   /* ── P7: Responsive queue items ── */
@@ -2501,7 +2513,13 @@ body:not(.room-page) .navbar {
   .search-results { left: 0; right: 0; border-radius: 0 0 var(--r-lg) var(--r-lg); }
 
   /* ── P7: Volume bar refinements ── */
-  .mobile-vol-wrap { padding: 6px 14px; }
+  .mobile-vol-wrap {
+    padding: 6px 14px;
+    height: 40px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+  }
   .mobile-vol-wrap .vol-slider {
     -webkit-appearance: none; appearance: none;
     height: 4px;

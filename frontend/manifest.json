@@ -10,7 +10,7 @@
   "orientation": "portrait",
   "background_color": "#050508",
   "theme_color": "#ffaa00",
-  "categories": ["music", "entertainment"],
+  "categories": ["music", "social", "entertainment"],
   "icons": [
     {
       "src": "/static/img/icon-192.png",
@@ -22,6 +22,31 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Instant Jam",
+      "short_name": "Instant Jam",
+      "description": "Start a quick listening room instantly",
+      "url": "/?instant=true",
+      "icons": [{ "src": "/static/img/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/static/img/cover-banner.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "OpenJam Listening Room on Desktop"
+    },
+    {
+      "src": "/static/img/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "OpenJam Vinyl Player"
     }
   ]
 }

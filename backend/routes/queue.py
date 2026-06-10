@@ -311,11 +311,18 @@ async def pre_resolve_url(video_id: str):
 
 
 @router.get("/stream/{video_id}")
-async def stream_audio(video_id: str, request: Request, low: bool = False):
+async def stream_audio(video_id: str, request: Request, low: bool = False, nocache: bool = False):
     if not _is_valid_video_id(video_id):
         raise HTTPException(status_code=400, detail="Invalid video ID")
 
     cache_key = f"{video_id}_low" if low else video_id
+    if nocache and cache_key in _url_cache:
+        try:
+            del _url_cache[cache_key]
+            logger.info(f"Invalidated stream cache for {cache_key} due to nocache=true")
+        except KeyError:
+            pass
+
     max_attempts = 2
     last_error_detail = "Could not extract stream"
 

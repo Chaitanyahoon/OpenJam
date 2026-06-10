@@ -4,6 +4,8 @@
     Fallback: YouTube IFrame API (when stream fails)
     ======================================== */
 
+const SILENT_WAV_B64 = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQAAAAA=";
+
 class YouTubePlayer {
   constructor() {
     this.player = new Audio();
@@ -52,19 +54,31 @@ class YouTubePlayer {
   }
 
   _initAudio() {
-    this.player.addEventListener('loadstart', () => this._showLoadIndicator());
+    this.player.addEventListener('loadstart', () => {
+      if (this.player.src && this.player.src.startsWith('data:')) return;
+      this._showLoadIndicator();
+    });
     this.player.addEventListener('play', () => {
+      if (this.player.src && this.player.src.startsWith('data:')) return;
       this._onStateChange('play');
       this._hideLoadIndicator();
     });
-    this.player.addEventListener('pause', () => this._onStateChange('pause'));
-    this.player.addEventListener('ended', () => this._onStateChange('ended'));
+    this.player.addEventListener('pause', () => {
+      if (this.player.src && this.player.src.startsWith('data:')) return;
+      this._onStateChange('pause');
+    });
+    this.player.addEventListener('ended', () => {
+      if (this.player.src && this.player.src.startsWith('data:')) return;
+      this._onStateChange('ended');
+    });
     this.player.addEventListener('canplay', () => {
+      if (this.player.src && this.player.src.startsWith('data:')) return;
       if (this._stallTimer) { clearTimeout(this._stallTimer); this._stallTimer = null; }
       this._hideLoadIndicator();
     });
 
     const handleAudioError = (source) => {
+      if (this.player.src && this.player.src.startsWith('data:')) return;
       this._hideLoadIndicator();
       console.error(`Audio stream error from ${source}, fail count:`, this._streamFailCount);
       this._streamFailCount++;
@@ -77,28 +91,58 @@ class YouTubePlayer {
         this.setVolume(this.volume);
         this.player.currentTime = Math.round(this.positionMs / 1000);
         this.player.play().catch(() => {});
-      } else if (this._streamFailCount >= this._maxStreamFails && !this._useIFrame) {
-        console.warn('Stream failed multiple times, switching to YouTube IFrame fallback');
-        if (this.onStreamFailUpdate) this.onStreamFailUpdate("Playing via YouTube video");
-        
-        try {
-          this.player.pause();
-          this.player.src = '';
-          this.player.load();
-        } catch (e) {}
+      } else if (this._streamFailCount === 2 && this.currentVideoId) {
+        console.warn('Stream failed again, trying low bitrate with cache-buster...');
+        if (this.onStreamFailUpdate) this.onStreamFailUpdate("Refreshing stream metadata…");
+        this.player.src = `/stream/${this.currentVideoId}?low=true&nocache=true`;
+        this.setVolume(this.volume);
+        this.player.currentTime = Math.round(this.positionMs / 1000);
+        this.player.play().catch(() => {});
+      } else if (this._streamFailCount === 3 && this.currentVideoId) {
+        console.warn('Stream failed 3 times, trying fresh standard stream...');
+        if (this.onStreamFailUpdate) this.onStreamFailUpdate("Retrying standard source…");
+        this.player.src = `/stream/${this.currentVideoId}?nocache=true`;
+        this.setVolume(this.volume);
+        this.player.currentTime = Math.round(this.positionMs / 1000);
+        this.player.play().catch(() => {});
+      } else if (this._streamFailCount >= 4) {
+        if (this._isMobile) {
+          console.error('Mobile stream failed completely after 4 attempts.');
+          const isHost = window.roomApp && window.roomApp.isHost;
+          if (isHost) {
+            if (typeof toast === 'function') toast("Playback failed after multiple retries. Skipping...", "error");
+            this._emitControlEvent('nexttrack');
+          } else {
+            if (typeof toast === 'function') toast("Playback failed. Submitting a vote to skip...", "warning");
+            this._emitControlEvent('nexttrack');
+          }
+        } else if (!this._useIFrame) {
+          console.warn('Stream failed completely, switching to YouTube IFrame fallback');
+          if (this.onStreamFailUpdate) this.onStreamFailUpdate("Playing via YouTube video");
+          
+          try {
+            this.player.pause();
+            this.player.src = '';
+            this.player.load();
+          } catch (e) {}
 
-        this._useIFrame = true;
-        this._initIFramePlayer();
-        if (this.currentVideoId) {
-          this._loadVideo(this.currentVideoId, Math.round(this.positionMs / 1000));
+          this._useIFrame = true;
+          this._initIFramePlayer();
+          if (this.currentVideoId) {
+            this._loadVideo(this.currentVideoId, Math.round(this.positionMs / 1000));
+          }
         }
       }
     };
 
-    this.player.addEventListener('error', () => handleAudioError('error_event'));
+    this.player.addEventListener('error', () => {
+      if (this.player.src && this.player.src.startsWith('data:')) return;
+      handleAudioError('error_event');
+    });
 
     // Timeout: if stream doesn't start within 15s, treat as failure
     this.player.addEventListener('stalled', () => {
+      if (this.player.src && this.player.src.startsWith('data:')) return;
       if (this._stallTimer) clearTimeout(this._stallTimer);
       this._showLoadIndicator();
       this._stallTimer = setTimeout(() => {
@@ -110,6 +154,7 @@ class YouTubePlayer {
     });
 
     this.player.addEventListener('waiting', () => {
+      if (this.player.src && this.player.src.startsWith('data:')) return;
       if (this._stallTimer) clearTimeout(this._stallTimer);
       this._showLoadIndicator();
       this._stallTimer = setTimeout(() => {
@@ -215,8 +260,18 @@ class YouTubePlayer {
     } else if (state === 'ended') {
       this.isPlaying = false;
       this.stopProgressTimer();
-      this._releaseWakeLock();
-      this._stopSilentKeepAlive();
+      if (this._isMobile) {
+        // Keep audio session alive on mobile during track transition
+        try {
+          this.player.src = SILENT_WAV_B64;
+          this.player.loop = true;
+          this.player.play().catch(() => {});
+          console.log('[MediaBG] Playing silent transition audio');
+        } catch (e) {}
+      } else {
+        this._releaseWakeLock();
+        this._stopSilentKeepAlive();
+      }
       this._emitControlEvent('ended');
     }
     this.updateDisplay();
@@ -363,6 +418,7 @@ class YouTubePlayer {
         }
       }, 10000);
 
+      this.player.loop = false;
       this.player.src = `/stream/${videoId}`;
       this.setVolume(this.volume);
       if (startSeconds > 0) {
