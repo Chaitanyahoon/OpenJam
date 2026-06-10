@@ -302,9 +302,9 @@
              <div class="room-card-track-bg" style="background-image: url('${t.album_art_url||''}')"></div>
              <div class="room-card-track">
                <img class="room-card-art" src="${t.album_art_url||''}" onerror="this.src=''">
-               <div style="min-width:0;flex:1;z-index:2;">
-                 <div class="room-card-track-name" style="display:inline-flex;align-items:center;width:100%;">
-                   <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">${esc(t.track_name)}</span>
+               <div class="room-card-track-info-inner">
+                 <div class="room-card-track-name">
+                   <span class="room-card-track-title-text">${esc(t.track_name)}</span>
                    <div class="card-now-playing-equalizer"><span></span><span></span><span></span><span></span></div>
                  </div>
                  <div class="room-card-track-artist">${esc(t.artist)}</div>
@@ -319,19 +319,19 @@
           <div class="room-card-join-btn">Join Jam ➔</div>
         </div>
         <div class="room-card-top">
-          <div style="min-width:0">
-            <div class="room-card-name">${r.is_private ? '<span style="color:var(--amber);margin-right:6px;" title="Private room">🔒</span>' : ''}${esc(r.name)}</div>
+          <div class="room-card-top-left">
+            <div class="room-card-name">${r.is_private ? '<span class="room-card-private-icon" title="Private room">🔒</span>' : ''}${esc(r.name)}</div>
             <div class="room-card-host">
               ${r.host_avatar_url 
                 ? `<img class="room-host-avatar" src="${esc(r.host_avatar_url)}" alt="${esc(r.host_name)}" />` 
                 : `<div class="room-host-avatar-fallback" style="background:${nameColor(r.host_name || 'Unknown')}">${initials(r.host_name || 'Unknown')}</div>`}
-              <span>Hosted by <strong style="color:var(--text-2)">${esc(r.host_name||'Unknown')}</strong></span>
+              <span>Hosted by <strong>${esc(r.host_name||'Unknown')}</strong></span>
             </div>
           </div>
           <div class="room-listeners${r.listener_count > 0 ? ' pulse-listeners' : ''}">
             <div class="room-listeners-dot"></div>
             <span>${r.listener_count ?? 0}</span>
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" style="opacity:.7"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
           </div>
         </div>
         <div class="room-card-tags">
