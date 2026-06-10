@@ -209,6 +209,13 @@ window.roomApp = {
     }
     if (!this.me) { location.href = '/'; return; }
 
+    localStorage.setItem('openjam_display_name', this.me.display_name);
+    if (this.me.avatar_url) {
+      localStorage.setItem('openjam_avatar_url', this.me.avatar_url);
+    } else {
+      localStorage.removeItem('openjam_avatar_url');
+    }
+
     $('#nav-avatar').innerHTML = this.avatarHTML(this.me.display_name, this.me.avatar_url);
     $('#nav-name').textContent = this.me.display_name;
     $('#navbar-right').style.display = 'flex';
