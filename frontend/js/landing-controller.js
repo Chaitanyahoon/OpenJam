@@ -124,11 +124,76 @@
   };
 
   // 2. Auth Actions
+  let shufflerAudioCtx = null;
+  function playShufflerBlip(pitch) {
+    try {
+      if (!shufflerAudioCtx) {
+        shufflerAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (shufflerAudioCtx.state === 'suspended') {
+        shufflerAudioCtx.resume();
+      }
+      const now = shufflerAudioCtx.currentTime;
+      const osc = shufflerAudioCtx.createOscillator();
+      const gain = shufflerAudioCtx.createGain();
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(pitch, now);
+      osc.frequency.exponentialRampToValueAtTime(pitch * 1.4, now + 0.06);
+      
+      gain.gain.setValueAtTime(0.06, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+      
+      osc.connect(gain);
+      gain.connect(shufflerAudioCtx.destination);
+      
+      osc.start(now);
+      osc.stop(now + 0.08);
+    } catch (e) {
+      console.warn("Audio context failed to initialize/play shuffler blip:", e);
+    }
+  }
+
+  let isShuffling = false;
   $('#btn-join-random')?.addEventListener('click', () => {
-    const randomName = generateRandomName();
-    $('#join-name').value = randomName;
-    $('#btn-join').click();
+    if (isShuffling) return;
+    isShuffling = true;
+    const btn = $('#btn-join-random');
+    const input = $('#join-name');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '🎲 ...';
+    }
+    
+    let iterations = 0;
+    const maxIterations = 8;
+    const intervalTime = 100; // 100ms * 8 = 800ms total
+    
+    const interval = setInterval(() => {
+      const tempName = generateRandomName();
+      if (input) input.value = tempName;
+      
+      // Play retro Web Audio beep with increasing pitch
+      const pitch = 250 + (iterations * 60);
+      playShufflerBlip(pitch);
+      
+      iterations++;
+      if (iterations >= maxIterations) {
+        clearInterval(interval);
+        const finalName = generateRandomName();
+        if (input) input.value = finalName;
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = '🎲 Roll';
+        }
+        isShuffling = false;
+        
+        // Play final confirmation blip
+        playShufflerBlip(780);
+      }
+    }, intervalTime);
   });
+
 
   $('#btn-instant-jam')?.addEventListener('click', async () => {
     if (!me) {
@@ -509,6 +574,38 @@
   Motion.entrance('.features-subtitle', 'fade-up', 0.2);
   Motion.entrance('.feature-card', 'pop', 0.08);
 
+  // Scroll reveal Intersection Observer for active rooms section
+  if ('IntersectionObserver' in window) {
+    const scrollRevealObserver = new IntersectionObserver((entries, observer) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const target = entry.target;
+          gsap.fromTo(target, 
+            { opacity: 0, y: 30 },
+            { opacity: 1, y: 0, duration: 0.8, ease: "power3.out", clearProps: "all" }
+          );
+          observer.unobserve(target);
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+
+    ['.rooms-section-header', '.search-wrap', '#genre-filters'].forEach(sel => {
+      const el = $(sel);
+      if (el) {
+        gsap.set(el, { opacity: 0, y: 30 });
+        scrollRevealObserver.observe(el);
+      }
+    });
+  }
+
+
+  // Initialize Interactive Tonearm Web Audio Jam
+  try {
+    initInteractiveTonearm();
+  } catch (err) {
+    console.error('[openjam] Error initializing interactive tonearm:', err);
+  }
+
   // Refresh rooms periodically — only when tab is visible
   let _roomPollId = setInterval(loadRooms, 15000);
   document.addEventListener('visibilitychange', () => {
@@ -519,6 +616,376 @@
       _roomPollId = setInterval(loadRooms, 15000);
     }
   });
+
+    // Interactive Vinyl Tonearm Drag & Play with Web Audio
+  function initInteractiveTonearm() {
+    const arm = document.querySelector('.hero-tonearm');
+    const card = document.querySelector('.hero-player-card');
+    const disc = document.querySelector('.hero-vinyl-disc');
+    const indicator = document.querySelector('.live-indicator');
+    const tip = document.querySelector('.arm-tip');
+    const eqBars = document.querySelectorAll('.hero-eq-waves .eq-bar');
+    if (!arm || !card || !disc) return;
+
+    let isPlaying = false;
+    let isDragging = false;
+    let currentAngle = 22; // starting angle in degrees
+    let audioCtx = null;
+    let analyser = null;
+    let visualizerId = null;
+    let noiseNode = null;
+    let chordsInterval = null;
+
+    // A. 3D Hover Tilt removed
+
+
+    // B. Platter Loop spin driven by GSAP loop
+    // Infinite loop tween
+    const spinTween = gsap.to(disc, {
+      rotation: 360,
+      duration: 8,
+      repeat: -1,
+      ease: "none",
+      paused: true
+    });
+    // Set timeScale to 0 initially
+    spinTween.timeScale(0);
+    spinTween.play();
+
+    // Origin point of the tonearm rotation
+    function getArmOrigin() {
+      const rect = arm.getBoundingClientRect();
+      return {
+        x: window.scrollX + rect.left + 15,
+        y: window.scrollY + rect.top + 15
+      };
+    }
+
+    // Set angle of arm
+    function setArmAngle(deg) {
+      currentAngle = Math.max(15, Math.min(45, deg));
+      gsap.set(arm, { rotation: currentAngle });
+    }
+
+    // Toggle arm state
+    function togglePlay(play) {
+      isPlaying = play;
+      if (isPlaying) {
+        arm.classList.add('playing');
+        
+        // Elastic swing transition onto record using GSAP
+        gsap.to(arm, {
+          rotation: 38,
+          duration: 0.8,
+          ease: "elastic.out(1.1, 0.5)",
+          overwrite: "auto",
+          onComplete: () => { currentAngle = 38; }
+        });
+
+        // Platter Spin-Up acceleration transition
+        gsap.to(spinTween, { timeScale: 1, duration: 1.8, ease: "power1.in" });
+
+        if (tip) {
+          tip.textContent = "Click arm to stop jam";
+          tip.style.borderColor = "rgba(16, 185, 129, 0.4)";
+          tip.style.color = "var(--green)";
+        }
+        if (indicator) {
+          indicator.innerHTML = '<span class="live-dot" style="background:var(--green);box-shadow:0 0 8px var(--green)"></span>SOLO JAMMING';
+          indicator.style.color = "var(--green)";
+          indicator.style.background = "rgba(16, 185, 129, 0.08)";
+          indicator.style.borderColor = "rgba(16, 185, 129, 0.2)";
+        }
+        startAudio();
+      } else {
+        arm.classList.remove('playing');
+        
+        // Elastic swing off record back to rest using GSAP
+        gsap.to(arm, {
+          rotation: 22,
+          duration: 0.6,
+          ease: "back.out(1.6)",
+          overwrite: "auto",
+          onComplete: () => { currentAngle = 22; }
+        });
+
+        // Platter Spin-Down deceleration transition (inertia)
+        gsap.to(spinTween, { timeScale: 0, duration: 3.2, ease: "power2.out" });
+
+        if (tip) {
+          tip.textContent = "Drag needle to play preview";
+          tip.style.borderColor = "rgba(212, 175, 55, 0.2)";
+          tip.style.color = "var(--text-3)";
+        }
+        if (indicator) {
+          indicator.innerHTML = '<span class="live-dot"></span>LIVE SYNC';
+          indicator.style.color = "";
+          indicator.style.background = "";
+          indicator.style.borderColor = "";
+        }
+        stopAudio();
+      }
+    }
+
+    // Web Audio System
+    function startAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+
+      // Master Gain
+      const masterGain = audioCtx.createGain();
+      masterGain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+      masterGain.connect(audioCtx.destination);
+
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 32;
+      masterGain.connect(analyser);
+
+      // Create White Noise buffer for dust crackles
+      const bufferSize = audioCtx.sampleRate * 2;
+      const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      const output = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        output[i] = Math.random() * 2 - 1;
+      }
+
+      const whiteNoise = audioCtx.createBufferSource();
+      whiteNoise.buffer = noiseBuffer;
+      whiteNoise.loop = true;
+
+      // Bandpass Filter crackles
+      const noiseFilter = audioCtx.createBiquadFilter();
+      noiseFilter.type = 'bandpass';
+      noiseFilter.frequency.setValueAtTime(1000, audioCtx.currentTime);
+      noiseFilter.Q.setValueAtTime(1.2, audioCtx.currentTime);
+
+      const noiseGain = audioCtx.createGain();
+      noiseGain.gain.setValueAtTime(0.015, audioCtx.currentTime);
+
+      whiteNoise.connect(noiseFilter);
+      noiseFilter.connect(noiseGain);
+      noiseGain.connect(masterGain);
+      whiteNoise.start(0);
+      noiseNode = { source: whiteNoise, gain: noiseGain };
+
+      // Chords looping
+      const chords = [
+        [220.00, 261.63, 329.63, 392.00], // Am7
+        [146.83, 349.23, 440.00, 523.25], // Dm7
+        [98.00, 246.94, 293.66, 369.99],  // Gmaj7
+        [130.81, 329.63, 392.00, 493.88]  // Cmaj7
+      ];
+
+      let chordIdx = 0;
+
+      function playChord(frequencies) {
+        if (!audioCtx || audioCtx.state === 'suspended') return;
+        const now = audioCtx.currentTime;
+        frequencies.forEach(freq => {
+          const osc = audioCtx.createOscillator();
+          const oscGain = audioCtx.createGain();
+          
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq + (Math.random() - 0.5) * 1.5, now);
+
+          oscGain.gain.setValueAtTime(0, now);
+          oscGain.gain.linearRampToValueAtTime(0.12, now + 0.6);
+          oscGain.gain.exponentialRampToValueAtTime(0.06, now + 2.5);
+          oscGain.gain.exponentialRampToValueAtTime(0.001, now + 3.8);
+
+          osc.connect(oscGain);
+          oscGain.connect(masterGain);
+
+          osc.start(now);
+          osc.stop(now + 4);
+        });
+
+        // Soft kick
+        playKick(now);
+        playKick(now + 2.0);
+
+        // Soft hat
+        playHat(now + 1.0);
+        playHat(now + 3.0);
+      }
+
+      function playKick(time) {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(masterGain);
+
+        osc.frequency.setValueAtTime(110, time);
+        osc.frequency.exponentialRampToValueAtTime(0.01, time + 0.2);
+
+        gain.gain.setValueAtTime(0.15, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
+
+        osc.start(time);
+        osc.stop(time + 0.25);
+      }
+
+      function playHat(time) {
+        if (!audioCtx) return;
+        const src = audioCtx.createBufferSource();
+        src.buffer = noiseBuffer;
+
+        const flt = audioCtx.createBiquadFilter();
+        flt.type = 'highpass';
+        flt.frequency.setValueAtTime(7000, time);
+
+        const gn = audioCtx.createGain();
+        gn.gain.setValueAtTime(0.012, time);
+        gn.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
+
+        src.connect(flt);
+        flt.connect(gn);
+        gn.connect(masterGain);
+
+        src.start(time);
+        src.stop(time + 0.12);
+      }
+
+      playChord(chords[chordIdx]);
+      chordIdx = (chordIdx + 1) % chords.length;
+
+      chordsInterval = setInterval(() => {
+        if (audioCtx && audioCtx.state !== 'suspended') {
+          playChord(chords[chordIdx]);
+          chordIdx = (chordIdx + 1) % chords.length;
+        }
+      }, 4000);
+
+      startVisualizer();
+    }
+
+    function stopAudio() {
+      if (chordsInterval) {
+        clearInterval(chordsInterval);
+        chordsInterval = null;
+      }
+      if (noiseNode) {
+        try { noiseNode.source.stop(); } catch(e){}
+        noiseNode = null;
+      }
+      if (visualizerId) {
+        cancelAnimationFrame(visualizerId);
+        visualizerId = null;
+      }
+      if (audioCtx) {
+        audioCtx.suspend();
+      }
+      eqBars.forEach((bar) => {
+        bar.style.transform = '';
+      });
+    }
+
+    // VU Peak decay exponential filter
+    function startVisualizer() {
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const smoothedValues = new Array(eqBars.length).fill(0.15);
+
+      function draw() {
+        if (!isPlaying || !analyser) return;
+        visualizerId = requestAnimationFrame(draw);
+        analyser.getByteFrequencyData(dataArray);
+
+        eqBars.forEach((bar, idx) => {
+          const val = dataArray[idx % dataArray.length] / 255;
+          const targetScale = Math.max(0.15, Math.min(1.0, val * 2.2));
+          
+          // Fast rise, slow decay analog filtering
+          if (targetScale > smoothedValues[idx]) {
+            smoothedValues[idx] = targetScale;
+          } else {
+            smoothedValues[idx] += (targetScale - smoothedValues[idx]) * 0.16;
+          }
+          
+          bar.style.transform = `scaleY(${smoothedValues[idx]})`;
+        });
+      }
+      draw();
+    }
+
+    // Drag-drop implementation
+    let startX = 0, startY = 0, startAngle = 22;
+
+    function onMouseDown(e) {
+      e.preventDefault();
+      isDragging = true;
+      arm.classList.add('dragging');
+      
+      const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+      const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+      
+      const origin = getArmOrigin();
+      startX = clientX - origin.x;
+      startY = clientY - origin.y;
+      startAngle = Math.atan2(startY, startX) * (180 / Math.PI);
+      
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('touchmove', onMouseMove, { passive: false });
+      document.addEventListener('mouseup', onMouseUp);
+      document.addEventListener('touchend', onMouseUp);
+    }
+
+    function onMouseMove(e) {
+      if (!isDragging) return;
+      if (e.cancelable) e.preventDefault();
+      
+      const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+      const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+      
+      const origin = getArmOrigin();
+      const curX = clientX - origin.x;
+      const curY = clientY - origin.y;
+      const curAngle = Math.atan2(curY, curX) * (180 / Math.PI);
+      
+      const angleDiff = curAngle - startAngle;
+      let targetAngle = currentAngle + angleDiff;
+      
+      targetAngle = Math.max(15, Math.min(45, targetAngle));
+      setArmAngle(targetAngle);
+      
+      if (targetAngle > 29 && !isPlaying) {
+        togglePlay(true);
+      } else if (targetAngle <= 29 && isPlaying) {
+        togglePlay(false);
+      }
+      
+      startAngle = curAngle;
+    }
+
+    function onMouseUp(e) {
+      if (!isDragging) return;
+      isDragging = false;
+      arm.classList.remove('dragging');
+      
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('touchmove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.removeEventListener('touchend', onMouseUp);
+
+      if (currentAngle > 29) {
+        togglePlay(true);
+      } else {
+        togglePlay(false);
+      }
+    }
+
+    arm.addEventListener('click', (e) => {
+      if (isDragging) return;
+      togglePlay(!isPlaying);
+    });
+
+    arm.addEventListener('mousedown', onMouseDown);
+    arm.addEventListener('touchstart', onMouseDown, { passive: false });
+  }
 
   // Register PWA Service Worker
   if ('serviceWorker' in navigator) {

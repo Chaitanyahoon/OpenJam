@@ -81,7 +81,16 @@ class SocketClient {
 
   joinRoom(roomId, password) {
     this.roomId = roomId;
-    if (password) this.password = password;
+    if (password) {
+      this.password = password;
+      try {
+        sessionStorage.setItem(`room_password_${roomId}`, password);
+      } catch (e) {}
+    } else {
+      try {
+        this.password = sessionStorage.getItem(`room_password_${roomId}`) || null;
+      } catch (e) {}
+    }
     if (this._ready()) {
       const avatarUrl = localStorage.getItem('openjam_avatar_url');
       const payload = { room_id: roomId, avatar_url: avatarUrl };
@@ -175,6 +184,11 @@ class SocketClient {
 
   _getCookie(name) {
     const m = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-    return m ? m[2] : null;
+    if (!m) return null;
+    let val = m[2];
+    if (val.startsWith('"') && val.endsWith('"')) {
+      val = val.substring(1, val.length - 1);
+    }
+    return val;
   }
 }

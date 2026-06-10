@@ -47,6 +47,9 @@ def register_connection_handlers(sio: socketio.AsyncServer):
                     token = part[len("session_token="):]
                     break
 
+        if token and token.startswith('"') and token.endswith('"'):
+            token = token[1:-1]
+
         # Try to decode signed session (anonymous user)
         display_name = None
         user_id = None

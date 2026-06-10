@@ -889,6 +889,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             errMsg.textContent = 'Invalid password. Please try again.';
             errMsg.style.display = 'block';
             input.value = '';
+            try {
+              sessionStorage.removeItem(`room_password_${app.roomId}`);
+            } catch (e) {}
+            if (app.sc) app.sc.password = null;
           } else {
             errMsg.style.display = 'none';
           }
@@ -1184,6 +1188,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   $('#btn-password-cancel')?.addEventListener('click', () => {
+    try {
+      sessionStorage.removeItem(`room_password_${app.roomId}`);
+    } catch (e) {}
     location.href = '/';
   });
 

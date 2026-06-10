@@ -1,4 +1,4 @@
-const CACHE_NAME = 'openjam-static-v5';
+const CACHE_NAME = 'openjam-static-v7';
 const ASSETS_TO_CACHE = [
   '/',
   '/static/css/style.css',
