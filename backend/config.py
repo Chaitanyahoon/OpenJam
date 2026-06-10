@@ -50,6 +50,11 @@ class Settings:
     # Token revocation set (in production, use Redis)
     REVOKED_TOKENS: set = set()
 
+    # Discord OAuth2
+    DISCORD_CLIENT_ID: str = os.getenv("DISCORD_CLIENT_ID", "")
+    DISCORD_CLIENT_SECRET: str = os.getenv("DISCORD_CLIENT_SECRET", "")
+    DISCORD_REDIRECT_URI: str = os.getenv("DISCORD_REDIRECT_URI", "http://localhost:8000/auth/discord/callback")
+
     # Note: YouTube API Key is no longer required.
     # Track resolution now uses ytmusicapi (quota-free) and iTunes API.
 

@@ -15,6 +15,8 @@ class User(Base):
     is_premium = Column(Boolean, default=False, nullable=False)
     is_admin = Column(Boolean, default=False, nullable=False)
     stripe_customer_id = Column(String, nullable=True)
+    discord_id = Column(String, unique=True, nullable=True, index=True)
+    discord_username = Column(String, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     def to_dict(self):
@@ -24,5 +26,8 @@ class User(Base):
             "avatar_url": self.avatar_url,
             "is_premium": self.is_premium,
             "is_admin": self.is_admin,
+            "discord_id": self.discord_id,
+            "discord_username": self.discord_username,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+

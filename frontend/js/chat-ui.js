@@ -44,7 +44,7 @@
     el.dataset.dedup = dedupKey;
 
     el.innerHTML = `
-      ${app.avatarHTML(msg.user_name)}
+      ${app.avatarHTML(msg.user_name, msg.user_avatar)}
       <div class="chat-msg-body">
         <div class="chat-msg-bubble">
           <div class="chat-msg-header">
@@ -274,7 +274,7 @@
             const el = document.createElement('div');
             el.className = 'chat-system-msg reaction-alert';
             el.innerHTML = `
-              <div class="reaction-avatar-small">${app.avatarHTML(d.display_name)}</div>
+              <div class="reaction-avatar-small">${app.avatarHTML(d.display_name, d.avatar_url)}</div>
               <div class="reaction-alert-content">
                 <span class="reaction-user-name">${esc(d.display_name)}</span> reacted with <span class="reaction-emoji">${esc(d.emoji)}</span>
               </div>

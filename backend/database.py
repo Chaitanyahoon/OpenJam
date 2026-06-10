@@ -130,3 +130,33 @@ def init_db():
             print("Successfully added is_private column to rooms table.")
         except Exception as e:
             print(f"Failed to auto-migrate rooms.is_private: {e}")
+
+    # Auto-migration: Discord OAuth2 columns in 'users' table
+    discord_id_exists = True
+    discord_username_exists = True
+    
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("SELECT discord_id FROM users LIMIT 1"))
+        except Exception:
+            discord_id_exists = False
+        try:
+            conn.execute(text("SELECT discord_username FROM users LIMIT 1"))
+        except Exception:
+            discord_username_exists = False
+
+    if not discord_id_exists:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN discord_id VARCHAR NULL UNIQUE"))
+            print("Successfully added discord_id column to users table.")
+        except Exception as e:
+            print(f"Failed to auto-migrate users.discord_id: {e}")
+
+    if not discord_username_exists:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN discord_username VARCHAR NULL"))
+            print("Successfully added discord_username column to users table.")
+        except Exception as e:
+            print(f"Failed to auto-migrate users.discord_username: {e}")

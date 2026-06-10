@@ -41,7 +41,7 @@
       const isRoomHost = app.roomData && l.user_id === app.roomData.room?.host_user_id;
       return `
       <div class="member-item">
-        ${app.avatarHTML(l.display_name || 'Jammer')}
+        ${app.avatarHTML(l.display_name || 'Jammer', l.avatar_url)}
         <span class="member-name">${esc(l.display_name)}${isSelf ? ' <span class="member-you">(you)</span>' : ''}</span>
         ${isRoomHost ? `<span class="badge badge-host">Host</span>` : ''}
       </div>`;

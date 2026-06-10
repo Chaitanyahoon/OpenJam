@@ -50,6 +50,7 @@ def register_connection_handlers(sio: socketio.AsyncServer):
         # Try to decode signed session (anonymous user)
         display_name = None
         user_id = None
+        avatar_url = None
         if token:
             from itsdangerous import URLSafeSerializer
             from backend.config import settings
@@ -57,6 +58,7 @@ def register_connection_handlers(sio: socketio.AsyncServer):
                 data = URLSafeSerializer(settings.SECRET_KEY).loads(token)
                 user_id = data.get("user_id")
                 display_name = data.get("display_name")
+                avatar_url = data.get("avatar_url")
             except Exception:
                 pass
 
@@ -74,7 +76,7 @@ def register_connection_handlers(sio: socketio.AsyncServer):
         await sio.save_session(sid, {
             "user_id": user_id,
             "display_name": display_name,
-            "avatar_url": None,
+            "avatar_url": avatar_url,
             "is_guest": True,
         })
         logger.info(f"Connected {sid} as '{display_name}'")

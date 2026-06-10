@@ -27,8 +27,20 @@ class YouTubePlayer {
     this._maxStreamFails = 1;  // Switch to IFrame after 1 fail (don't waste user's time)
     this.volume = 80; // Default volume (persists across tracks)
 
+    // ── Mobile background playback support ──
+    this._isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    this._wakeLock = null;
+    this._keepAliveCtx = null;
+    this._keepAliveOsc = null;
+
+    // On mobile, NEVER fall back to YouTube IFrame — it always dies in background
+    if (this._isMobile) {
+      this._maxStreamFails = 999;
+    }
+
     this._initAudio();
     this._initMediaSession();
+    this._initBackgroundPlayback();
 
     const unlockHandler = () => {
       this.unlockAudioContext();
@@ -185,6 +197,8 @@ class YouTubePlayer {
       this._hideOverlay();
       if (this._loadTimeout) { clearTimeout(this._loadTimeout); this._loadTimeout = null; }
       this.startProgressTimer();
+      this._requestWakeLock();
+      this._startSilentKeepAlive();
       const pos = this._useIFrame
         ? Math.round((this.ytPlayer.getCurrentTime() || 0) * 1000)
         : Math.round((this.player.currentTime || 0) * 1000);
@@ -192,6 +206,8 @@ class YouTubePlayer {
     } else if (state === 'pause') {
       this.isPlaying = false;
       this.stopProgressTimer();
+      this._releaseWakeLock();
+      this._stopSilentKeepAlive();
       const pos = this._useIFrame
         ? Math.round(this.ytPlayer.getCurrentTime() * 1000)
         : Math.round(this.player.currentTime * 1000);
@@ -199,6 +215,8 @@ class YouTubePlayer {
     } else if (state === 'ended') {
       this.isPlaying = false;
       this.stopProgressTimer();
+      this._releaseWakeLock();
+      this._stopSilentKeepAlive();
       this._emitControlEvent('ended');
     }
     this.updateDisplay();
@@ -529,6 +547,8 @@ class YouTubePlayer {
     this.positionMs = 0;
     this._pendingLoad = null;
     this._pendingPlayAfterUnlock = null;
+    this._releaseWakeLock();
+    this._stopSilentKeepAlive();
     try {
       this.player.pause();
       this.player.src = '';
@@ -550,6 +570,85 @@ class YouTubePlayer {
     if (this._useIFrame && this.ytPlayer) {
       try { this.ytPlayer.destroy(); } catch(e) {}
       this.ytPlayer = null;
+    }
+  }
+
+  /* ─── Background Playback (WakeLock + Silent Keepalive) ── */
+
+  _initBackgroundPlayback() {
+    // Re-acquire WakeLock when returning to foreground
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && this.isPlaying) {
+        this._requestWakeLock();
+      }
+    });
+  }
+
+  async _requestWakeLock() {
+    if (!('wakeLock' in navigator)) return;
+    try {
+      // Release existing lock before requesting new one
+      if (this._wakeLock) {
+        try { await this._wakeLock.release(); } catch (e) {}
+      }
+      this._wakeLock = await navigator.wakeLock.request('screen');
+      this._wakeLock.addEventListener('release', () => {
+        // Re-acquire if still playing and page becomes visible again
+        if (this.isPlaying && !document.hidden) {
+          this._requestWakeLock();
+        }
+      });
+      console.log('[MediaBG] WakeLock acquired');
+    } catch (e) {
+      console.warn('[MediaBG] WakeLock request failed:', e);
+    }
+  }
+
+  async _releaseWakeLock() {
+    if (this._wakeLock) {
+      try {
+        await this._wakeLock.release();
+        this._wakeLock = null;
+        console.log('[MediaBG] WakeLock released');
+      } catch (e) {}
+    }
+  }
+
+  /**
+   * Start a near-inaudible oscillator to keep iOS Safari's audio context
+   * alive when the page is in the background. Without this, iOS suspends
+   * all audio after ~30 seconds.
+   */
+  _startSilentKeepAlive() {
+    if (this._keepAliveOsc) return; // Already running
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      if (!this._keepAliveCtx || this._keepAliveCtx.state === 'closed') {
+        this._keepAliveCtx = new AudioCtx();
+      }
+      if (this._keepAliveCtx.state === 'suspended') {
+        this._keepAliveCtx.resume();
+      }
+      const osc = this._keepAliveCtx.createOscillator();
+      const gain = this._keepAliveCtx.createGain();
+      gain.gain.value = 0.0001; // Completely inaudible
+      osc.frequency.value = 1; // 1 Hz — below human hearing
+      osc.connect(gain);
+      gain.connect(this._keepAliveCtx.destination);
+      osc.start();
+      this._keepAliveOsc = osc;
+      console.log('[MediaBG] Silent keepalive started');
+    } catch (e) {
+      console.warn('[MediaBG] Silent keepalive failed:', e);
+    }
+  }
+
+  _stopSilentKeepAlive() {
+    if (this._keepAliveOsc) {
+      try { this._keepAliveOsc.stop(); } catch (e) {}
+      this._keepAliveOsc = null;
+      console.log('[MediaBG] Silent keepalive stopped');
     }
   }
 

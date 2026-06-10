@@ -16,3 +16,4 @@ pytest-cache-files-*/
 .mypy_cache/
 *.egg-info/
 AGENTS.md
+scratch/

@@ -47,9 +47,20 @@
 
     if(me){
       $('#join-modal').classList.remove('active');
-      $('#nav-avatar').textContent = initials(me.display_name);
+
+      // Show Discord avatar or initials
+      const navAvatar = $('#nav-avatar');
+      if (me.avatar_url) {
+        navAvatar.innerHTML = `<img src="${me.avatar_url}" alt="${esc(me.display_name)}">`;
+        navAvatar.style.border = '2px solid #5865F2';
+        localStorage.setItem('openjam_avatar_url', me.avatar_url);
+      } else {
+        navAvatar.textContent = initials(me.display_name);
+      }
+
       $('#nav-name').textContent = me.display_name;
       $('#navbar-user').style.display = 'flex';
+      localStorage.setItem('openjam_display_name', me.display_name);
       $$('.btn-open-join-trigger').forEach(el => el.style.display = 'none');
       $$('.btn-create-room-trigger').forEach(el => el.style.display = 'inline-flex');
     } else {
@@ -57,6 +68,23 @@
       $('#navbar-user').style.display = 'none';
       $$('.btn-open-join-trigger').forEach(el => el.style.display = 'inline-flex');
       $$('.btn-create-room-trigger').forEach(el => el.style.display = 'none');
+    }
+
+    // Handle Discord OAuth errors from redirect
+    const urlParams = new URLSearchParams(window.location.search);
+    const discordError = urlParams.get('error');
+    if (discordError) {
+      const errorMessages = {
+        'discord_no_code': 'Discord login was cancelled.',
+        'discord_not_configured': 'Discord login is not configured on this server.',
+        'discord_token_failed': 'Failed to authenticate with Discord. Please try again.',
+        'discord_no_token': 'Discord did not provide an access token.',
+        'discord_user_failed': 'Failed to fetch Discord profile.',
+        'discord_error': 'Discord login failed. Please try again.',
+      };
+      toast(errorMessages[discordError] || 'Login failed.', 'error');
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname);
     }
   }
 

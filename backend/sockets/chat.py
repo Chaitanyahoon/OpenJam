@@ -161,6 +161,7 @@ def register_chat_handlers(sio: socketio.AsyncServer):
         await sio.emit("reaction", {
             "user_id": user_id,
             "display_name": display_name,
+            "avatar_url": session.get("avatar_url"),
             "emoji": emoji
         }, room=room_id)
 

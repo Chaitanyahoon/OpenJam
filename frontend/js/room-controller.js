@@ -186,8 +186,14 @@ window.roomApp = {
     return `hsl(${hue}, 60%, 55%)`;
   },
 
-  avatarHTML(name) {
+  avatarHTML(name, avatarUrl) {
     const c = this.nameColor(name);
+    if (avatarUrl) {
+      return `<div class="av-initials" style="background:${c};overflow:hidden;position:relative;">` +
+             `<span style="position:absolute;z-index:1;">${initials(name)}</span>` +
+             `<img src="${esc(avatarUrl)}" alt="${esc(name)}" style="width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;z-index:2;" onerror="this.style.display='none';" />` +
+             `</div>`;
+    }
     return `<div class="av-initials" style="background:${c}">${initials(name)}</div>`;
   },
 
@@ -203,7 +209,7 @@ window.roomApp = {
     }
     if (!this.me) { location.href = '/'; return; }
 
-    $('#nav-avatar').innerHTML = this.avatarHTML(this.me.display_name);
+    $('#nav-avatar').innerHTML = this.avatarHTML(this.me.display_name, this.me.avatar_url);
     $('#nav-name').textContent = this.me.display_name;
     $('#navbar-right').style.display = 'flex';
   },
@@ -1583,6 +1589,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Apply default local storage volumes
   app.applyVol(app.vol);
+
+  // Re-sync playback position when returning from background (mobile)
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && app.sc && app.sc._ready && app.sc._ready()) {
+      // Small delay to let the page fully wake up
+      setTimeout(() => {
+        app.sc.requestSync();
+        // Also resume AudioContext if suspended (iOS requirement)
+        if (app.sharedAudioCtx && app.sharedAudioCtx.state === 'suspended') {
+          app.sharedAudioCtx.resume();
+        }
+      }, 300);
+    }
+  });
 
   // Clean-up on close
   window.addEventListener('beforeunload', () => {
