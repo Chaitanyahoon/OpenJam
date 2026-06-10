@@ -2525,22 +2525,320 @@ input[type=range]::-moz-range-track {
 
 /* ══ LANDING PAGE & ROOM CARD ENHANCEMENTS ═══════════════ */
 
+/* Drifting Ambient Background Glows */
+.landing-bg-glows {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  background: #020204;
+  pointer-events: none;
+}
+.landing-bg-glows .glow-1 {
+  position: absolute;
+  top: -10%;
+  right: -10%;
+  width: 60vw;
+  height: 60vw;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 170, 0, 0.08) 0%, rgba(255, 170, 0, 0.02) 50%, transparent 100%);
+  filter: blur(80px);
+  animation: glowFloat1 16s ease-in-out infinite alternate;
+}
+.landing-bg-glows .glow-2 {
+  position: absolute;
+  bottom: -10%;
+  left: -10%;
+  width: 50vw;
+  height: 50vw;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(88, 101, 242, 0.07) 0%, rgba(88, 101, 242, 0.01) 60%, transparent 100%);
+  filter: blur(80px);
+  animation: glowFloat2 20s ease-in-out infinite alternate;
+}
+
+@keyframes glowFloat1 {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(-8%, 8%) scale(1.15); }
+}
+@keyframes glowFloat2 {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(10%, -5%) scale(1.2); }
+}
+
+/* Category Badge */
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--amber);
+  background: rgba(255, 170, 0, 0.12);
+  border: 1px solid rgba(255, 170, 0, 0.22);
+  letter-spacing: 1px;
+  margin-bottom: 20px;
+  text-transform: uppercase;
+  box-shadow: 0 0 20px rgba(255, 170, 0, 0.1);
+}
+
 /* Dramatic Hero Title Gradient Animation */
 .hero-title {
-  font-size: clamp(3.5rem, 8vw, 6.5rem);
+  font-size: clamp(3rem, 7vw, 5.5rem);
   font-family: 'Righteous', cursive;
-  margin-bottom: 12px;
-  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 30%, #ef4444 70%, #d97706 100%);
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 35%, #ef4444 65%, #ff8800 100%);
   background-size: 200% auto;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: heroGradientShift 6s ease infinite;
+  animation: heroGradientShift 5s ease infinite;
+  text-shadow: 0 20px 80px rgba(245,158,11,0.1);
 }
 
 @keyframes heroGradientShift {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
+}
+
+/* Two-Column Grid Setup */
+.hero-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+  gap: var(--s10);
+  text-align: center;
+}
+
+.hero-content-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.hero-showcase-right {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+@media (min-width: 1024px) {
+  .hero-container {
+    grid-template-columns: 1.2fr 0.8fr;
+    text-align: left;
+  }
+  .hero-content-left {
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+  .hero-sub {
+    margin: 0 0 36px 0;
+  }
+  .hero-actions {
+    justify-content: flex-start;
+  }
+}
+
+/* Glassmorphic Vinyl Showcase Card */
+.hero-player-card {
+  position: relative;
+  width: 320px;
+  background: rgba(18, 17, 26, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 28px;
+  padding: 24px;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255,255,255,0.05);
+  backdrop-filter: blur(20px);
+  transition: all 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+  overflow: hidden;
+}
+.hero-player-card:hover {
+  transform: translateY(-8px) scale(1.03);
+  border-color: rgba(255, 170, 0, 0.2);
+  box-shadow: 0 40px 100px rgba(0,0,0,0.8), 0 0 30px rgba(255, 170, 0, 0.1);
+}
+
+.hero-player-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+.live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--green);
+  background: var(--green-muted);
+  border: 1px solid rgba(0, 230, 118, 0.2);
+  padding: 3px 10px;
+  border-radius: 99px;
+  letter-spacing: 0.5px;
+}
+.live-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: pulseDot 2s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
+}
+.host-badge {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+/* Vinyl container */
+.hero-vinyl-container {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  margin: 0 auto 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* CSS Vinyl Disc */
+.hero-vinyl-disc {
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: #09090b;
+  position: relative;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.7), inset 0 0 0 2px rgba(255,255,255,0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: spinVinyl 12s linear infinite;
+  animation-play-state: paused;
+  transition: transform 0.8s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+.hero-player-card:hover .hero-vinyl-disc {
+  animation-play-state: running;
+}
+
+@keyframes spinVinyl {
+  to { transform: rotate(360deg); }
+}
+
+.hero-vinyl-grooves {
+  position: absolute;
+  inset: 10px;
+  border-radius: 50%;
+  border: 1px dashed rgba(255,255,255,0.05);
+  box-shadow: 
+    inset 0 0 0 10px rgba(255,255,255,0.02),
+    inset 0 0 0 25px rgba(255,255,255,0.01),
+    inset 0 0 0 40px rgba(255,255,255,0.02),
+    inset 0 0 0 55px rgba(255,255,255,0.01);
+  pointer-events: none;
+}
+
+.hero-vinyl-label {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--amber) 0%, #f59e0b 50%, #ef4444 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid #09090b;
+}
+
+.hero-vinyl-center {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--bg-base);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* Tonearm Animation */
+.hero-tonearm {
+  position: absolute;
+  top: -15px;
+  right: 15px;
+  width: 30px;
+  height: 130px;
+  transform-origin: 15px 15px;
+  transform: rotate(-32deg);
+  transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+  pointer-events: none;
+  z-index: 10;
+}
+.hero-player-card:hover .hero-tonearm {
+  transform: rotate(5deg);
+}
+
+/* Player Meta & Equalizer */
+.hero-player-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(0,0,0,0.25);
+  border: 1px solid rgba(255,255,255,0.04);
+  padding: 14px 18px;
+  border-radius: 18px;
+  gap: 12px;
+}
+.hero-track-details {
+  min-width: 0;
+  flex: 1;
+}
+.hero-track-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hero-track-artist {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hero-eq-waves {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 20px;
+  width: 32px;
+  flex-shrink: 0;
+}
+.hero-eq-waves .eq-bar {
+  width: 3px;
+  height: 100%;
+  background: var(--amber);
+  border-radius: 2px;
+  transform-origin: bottom;
+  transform: scaleY(0.3);
+  animation: barWaves 1.2s ease-in-out infinite alternate;
+  animation-play-state: paused;
+}
+.hero-player-card:hover .hero-eq-waves .eq-bar {
+  animation-play-state: running;
+}
+.hero-eq-waves .eq-1 { animation-delay: 0.1s; height: 70%; }
+.hero-eq-waves .eq-2 { animation-delay: 0.4s; height: 100%; }
+.hero-eq-waves .eq-3 { animation-delay: 0.2s; height: 50%; }
+.hero-eq-waves .eq-4 { animation-delay: 0.6s; height: 85%; }
+.hero-eq-waves .eq-5 { animation-delay: 0.3s; height: 60%; }
+
+@keyframes barWaves {
+  0% { transform: scaleY(0.2); }
+  100% { transform: scaleY(1); }
 }
 
 /* Premium Room Card Hover Glow & Transitions */
@@ -2574,6 +2872,7 @@ input[type=range]::-moz-range-track {
   mask-composite: exclude;
   pointer-events: none;
   transition: opacity 0.45s ease;
+  z-index: 0;
 }
 
 .room-card:hover {

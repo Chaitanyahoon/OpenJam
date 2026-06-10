@@ -491,9 +491,11 @@
   await loadRooms();
 
   // Trigger entrance animations
-  Motion.entrance('.hero-title', 'fade-up');
-  Motion.entrance('.hero-sub', 'fade-up', 0.2);
-  Motion.entrance('.search-wrap', 'fade-up', 0.3);
+  Motion.entrance('.hero-badge', 'fade-up', 0.05);
+  Motion.entrance('.hero-title', 'fade-up', 0.1);
+  Motion.entrance('.hero-sub', 'fade-up', 0.15);
+  Motion.entrance('.hero-actions', 'fade-up', 0.2);
+  Motion.entrance('.hero-player-card', 'pop', 0.35);
 
   // Refresh rooms periodically — only when tab is visible
   let _roomPollId = setInterval(loadRooms, 15000);
