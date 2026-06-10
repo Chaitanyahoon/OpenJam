@@ -303,7 +303,10 @@
              <div class="room-card-track">
                <img class="room-card-art" src="${t.album_art_url||''}" onerror="this.src=''">
                <div style="min-width:0;flex:1;z-index:2;">
-                 <div class="room-card-track-name">${esc(t.track_name)}</div>
+                 <div class="room-card-track-name" style="display:inline-flex;align-items:center;width:100%;">
+                   <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">${esc(t.track_name)}</span>
+                   <div class="card-now-playing-equalizer"><span></span><span></span><span></span><span></span></div>
+                 </div>
                  <div class="room-card-track-artist">${esc(t.artist)}</div>
                </div>
              </div>
@@ -312,6 +315,9 @@
 
       return `
       <div class="room-card" onclick="joinRoomAction('${esc(r.id)}')">
+        <div class="room-card-join-overlay">
+          <div class="room-card-join-btn">Join Jam ➔</div>
+        </div>
         <div class="room-card-top">
           <div style="min-width:0">
             <div class="room-card-name">${r.is_private ? '<span style="color:var(--amber);margin-right:6px;" title="Private room">🔒</span>' : ''}${esc(r.name)}</div>
@@ -496,6 +502,12 @@
   Motion.entrance('.hero-sub', 'fade-up', 0.15);
   Motion.entrance('.hero-actions', 'fade-up', 0.2);
   Motion.entrance('.hero-player-card', 'pop', 0.35);
+
+  // Trigger features entrance
+  Motion.entrance('.features-badge', 'fade-up', 0.1);
+  Motion.entrance('.features-title', 'fade-up', 0.15);
+  Motion.entrance('.features-subtitle', 'fade-up', 0.2);
+  Motion.entrance('.feature-card', 'pop', 0.08);
 
   // Refresh rooms periodically — only when tab is visible
   let _roomPollId = setInterval(loadRooms, 15000);

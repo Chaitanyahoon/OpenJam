@@ -2979,6 +2979,207 @@ input[type=range]::-moz-range-track {
   z-index: 10000;
 }
 
+/* ══ PHASE 2 HOMEPAGE LAYOUTS & EQUALIZERS ═══════════════ */
+
+/* Features Showcase Section */
+.features-section {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 80px 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.features-header {
+  text-align: center;
+  margin-bottom: 56px;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.features-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--blue);
+  background: rgba(41, 182, 246, 0.1);
+  border: 1px solid rgba(41, 182, 246, 0.2);
+  letter-spacing: 1.5px;
+  margin-bottom: 16px;
+  text-transform: uppercase;
+}
+
+.features-title {
+  font-size: clamp(26px, 4vw, 38px);
+  font-weight: 700;
+  font-family: var(--font-display);
+  line-height: 1.2;
+  margin-bottom: 16px;
+  color: var(--text-1);
+}
+
+.features-title span {
+  color: var(--amber);
+  text-shadow: 0 0 30px rgba(255, 170, 0, 0.15);
+}
+
+.features-subtitle {
+  font-size: 15px;
+  color: var(--text-2);
+  line-height: 1.6;
+}
+
+/* Feature Grid & Cards */
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 24px;
+}
+
+.feature-card {
+  position: relative;
+  background: rgba(15, 15, 22, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 24px;
+  padding: 32px 28px;
+  transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+  backdrop-filter: blur(12px);
+  overflow: hidden;
+}
+
+.feature-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 24px;
+  padding: 1px;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.01));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.feature-card:hover {
+  transform: translateY(-6px);
+  border-color: rgba(255, 170, 0, 0.15);
+  background: rgba(20, 20, 30, 0.5);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+.feature-icon {
+  font-size: 32px;
+  margin-bottom: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.4s ease;
+}
+
+.feature-card:hover .feature-icon {
+  background: var(--amber-muted);
+  border-color: rgba(255, 170, 0, 0.25);
+  transform: scale(1.1) rotate(5deg);
+  box-shadow: 0 0 20px rgba(255, 170, 0, 0.1);
+}
+
+.feature-name {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--text-1);
+}
+
+.feature-desc {
+  font-size: 13px;
+  color: var(--text-3);
+  line-height: 1.6;
+}
+
+.feature-card:hover .feature-desc {
+  color: var(--text-2);
+}
+
+/* Room Card Enter on Hover Overlay */
+.room-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.room-card-join-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 5, 8, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  z-index: 5;
+  backdrop-filter: blur(4px);
+}
+
+.room-card:hover .room-card-join-overlay {
+  opacity: 1;
+}
+
+.room-card-join-btn {
+  background: var(--amber);
+  color: var(--bg-base);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 10px 24px;
+  border-radius: 99px;
+  letter-spacing: 0.5px;
+  box-shadow: 0 8px 24px rgba(255, 170, 0, 0.4);
+  transform: translateY(12px);
+  transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.room-card:hover .room-card-join-btn {
+  transform: translateY(0);
+}
+
+/* Tiny Card Equalizer Visualizer */
+.card-now-playing-equalizer {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+  width: 14px;
+  margin-left: 8px;
+}
+
+.card-now-playing-equalizer span {
+  width: 2px;
+  height: 100%;
+  background: var(--amber);
+  border-radius: 1px;
+  transform-origin: bottom;
+  animation: cardEqWaves 0.8s ease-in-out infinite alternate;
+}
+
+.card-now-playing-equalizer span:nth-child(1) { animation-delay: 0.1s; }
+.card-now-playing-equalizer span:nth-child(2) { animation-delay: 0.3s; }
+.card-now-playing-equalizer span:nth-child(3) { animation-delay: 0.2s; }
+.card-now-playing-equalizer span:nth-child(4) { animation-delay: 0.4s; }
+
+@keyframes cardEqWaves {
+  0% { transform: scaleY(0.2); }
+  100% { transform: scaleY(1.0); }
+}
+
 
 
 
