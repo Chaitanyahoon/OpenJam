@@ -303,13 +303,42 @@ async def serve_room(room_id: str, request: Request):
     html_content = html_content.replace("{{OG_DESCRIPTION}}", description)
     
     base_url = str(request.base_url).rstrip("/")
-    if image.startswith("/"):
-        abs_image = f"{base_url}{image}"
+    if room:
+        import urllib.parse
+        inviter_param = request.query_params.get("inviter") or host_name
+        encoded_inviter = urllib.parse.quote(inviter_param)
+        abs_image = f"{base_url}/api/og/room/{room_id}.png?inviter={encoded_inviter}"
     else:
-        abs_image = image
+        abs_image = f"{base_url}/static/img/cover-banner.png"
 
     html_content = html_content.replace("{{OG_IMAGE}}", abs_image)
     return HTMLResponse(content=html_content)
+
+
+from backend.services.og_generator import generate_og_image
+from fastapi.responses import Response
+
+@app.get("/api/og/room/{room_id}.png")
+async def get_og_image(room_id: str, inviter: str = "Someone", db: Session = Depends(get_db)):
+    room = db.query(Room).filter(Room.id == room_id).first()
+    room_name = room.name if room else "OpenJam Room"
+    
+    # Try to resolve user avatar via host if not passed? 
+    # Actually if inviter is host, we use host avatar, but the link is usually shared by whoever.
+    # To keep it simple, we don't have inviter's avatar unless passed, 
+    # but we can fallback to host's avatar or None.
+    avatar_url = None
+    if room and room.host and inviter == room.host.display_name:
+        avatar_url = room.host.avatar_url
+    
+    image_bytes = await generate_og_image(
+        inviter_name=inviter, 
+        room_name=room_name, 
+        avatar_url=avatar_url
+    )
+    return Response(content=image_bytes, media_type="image/png", headers={
+        "Cache-Control": "public, max-age=3600"
+    })
 
 
 @app.get("/privacy")

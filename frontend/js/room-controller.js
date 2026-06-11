@@ -1254,10 +1254,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     toast('✅ Invite link copied to clipboard!');
     app.haptic('success');
     if (typeof gtag !== 'undefined') gtag('event', 'room_shared');
-
-    const shareUrl = location.href;
-    const roomName = app.roomData?.room?.name || 'OpenJam Room';
     const myName = app.me?.display_name || 'Someone';
+    
+    const urlObj = new URL(location.href);
+    urlObj.searchParams.set('inviter', myName);
+    const shareUrl = urlObj.toString();
+    
+    const roomName = app.roomData?.room?.name || 'OpenJam Room';
     const text = `${myName} is inviting you to join their real-time collaborative listening room "${roomName}" on OpenJam!`;
     
     // Set input value
