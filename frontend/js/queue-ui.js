@@ -4,17 +4,48 @@
    ========================================================================== */
 
 (function() {
+  let _lastQueueData = [];
+  let _currentSort = 'votes';
+
+  $('#queue-sort')?.addEventListener('change', (e) => {
+    _currentSort = e.target.value;
+    if (window.roomApp && window.roomApp._queueData) {
+      window.renderQueue(window.roomApp._queueData);
+    }
+  });
+
   // Global hook to render the queue
-  window.renderQueue = function(q) {
+  window.renderQueue = function(qArray) {
+    if (!qArray || !Array.isArray(qArray)) return;
     const app = window.roomApp;
     if (!app) return;
-    app._queueData = q || [];
+    app._queueData = qArray;
+    
     const list = $('#queue-list');
-    if (!list) return;
-    const allItems = (q||[]).filter(i => i.status !== 'played');
-    $('#q-count').textContent = `${allItems.length} track${allItems.length !== 1 ? 's' : ''}`;
+    const qCount = $('#q-count');
+    if (!list || !qCount) return;
 
-    if (!allItems.length) {
+    let q = [...qArray].filter(i => i.status !== 'played');
+    
+    // Sort logic
+    if (_currentSort === 'oldest') {
+      q.sort((a, b) => {
+        if (a.status === 'playing') return -1;
+        if (b.status === 'playing') return 1;
+        return a.position - b.position;
+      });
+    } else {
+      q.sort((a, b) => {
+        if (a.status === 'playing') return -1;
+        if (b.status === 'playing') return 1;
+        return (b.votes || 0) - (a.votes || 0);
+      });
+    }
+
+    _lastQueueData = q;
+    qCount.textContent = `${q.length} track${q.length !== 1 ? 's' : ''}`;
+
+    if (!q.length) {
       list.innerHTML = `
         <div class="room-help-banner" id="room-help-banner">
           <div class="help-title">Need a quick start?</div>
@@ -74,7 +105,10 @@
 
   window.doVote = id => {
     const app = window.roomApp;
-    if (app && app.sc) app.sc.emit('vote_track', { room_id: app.roomId, queue_item_id: id });
+    if (app && app.sc) {
+      app.sc.emit('vote_track', { room_id: app.roomId, queue_item_id: id });
+      if (typeof gtag !== 'undefined') gtag('event', 'track_voted', { room_id: app.roomId });
+    }
   };
   
   window.doRemove = id => {

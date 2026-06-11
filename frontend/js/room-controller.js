@@ -950,20 +950,48 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('#btn-toggle-lyrics')?.click();
   });
 
-  // Sound chimes toggle
-  const btnSound = $('#btn-sound-toggle');
-  if (btnSound) {
-    const soundsEnabled = localStorage.getItem('openjam_sounds') !== 'false';
-    btnSound.innerHTML = soundsEnabled ? '🔊' : '🔇';
-    
-    btnSound.addEventListener('click', () => {
-      const current = localStorage.getItem('openjam_sounds') !== 'false';
-      const newVal = !current;
+  // Settings Modal logic
+  const btnSettings = $('#btn-settings');
+  const settingsModal = $('#settings-modal');
+  if (btnSettings && settingsModal) {
+    btnSettings.addEventListener('click', () => {
+      settingsModal.style.display = 'flex';
+      settingsModal.classList.add('open');
+      // Initialize toggles
+      $('#setting-sound').checked = localStorage.getItem('openjam_sounds') !== 'false';
+      $('#setting-visuals').checked = localStorage.getItem('openjam_visuals') !== 'false';
+      $('#setting-haptics').checked = localStorage.getItem('openjam_haptics') !== 'false';
+    });
+
+    $('#setting-sound').addEventListener('change', (e) => {
+      const newVal = e.target.checked;
       localStorage.setItem('openjam_sounds', String(newVal));
-      btnSound.innerHTML = newVal ? '🔊' : '🔇';
-      toast(`Notification sounds ${newVal ? 'enabled' : 'disabled'}`, 'info');
       if (newVal) app.playChime();
     });
+
+    $('#setting-visuals').addEventListener('change', (e) => {
+      const newVal = e.target.checked;
+      localStorage.setItem('openjam_visuals', String(newVal));
+      // Immediately apply visual changes
+      if (!newVal) {
+        $('.dynamic-bg-wrapper')?.classList.add('disabled-visuals');
+        $('#room-ambient')?.classList.add('disabled-visuals');
+      } else {
+        $('.dynamic-bg-wrapper')?.classList.remove('disabled-visuals');
+        $('#room-ambient')?.classList.remove('disabled-visuals');
+      }
+    });
+
+    $('#setting-haptics').addEventListener('change', (e) => {
+      const newVal = e.target.checked;
+      localStorage.setItem('openjam_haptics', String(newVal));
+    });
+
+    // Initial visual effects load
+    if (localStorage.getItem('openjam_visuals') === 'false') {
+      $('.dynamic-bg-wrapper')?.classList.add('disabled-visuals');
+      $('#room-ambient')?.classList.add('disabled-visuals');
+    }
   }
 
   // Volume bindings
@@ -1197,6 +1225,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Invite triggers
   $('#btn-invite')?.addEventListener('click', () => {
+    navigator.clipboard.writeText(window.location.href);
+    toast('✅ Invite link copied to clipboard!');
+    app.haptic('success');
+    if (typeof gtag !== 'undefined') gtag('event', 'room_shared');
+
     const shareUrl = location.href;
     const roomName = app.roomData?.room?.name || 'OpenJam Room';
     const text = `Join my real-time collaborative listening room "${roomName}" on OpenJam!`;
@@ -1285,6 +1318,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   app.haptic = (style = 'light') => {
     try {
       if (!navigator.vibrate) return;
+      if (localStorage.getItem('openjam_haptics') === 'false') return;
       const patterns = { light: 10, medium: 25, heavy: 50, double: [15, 50, 15], success: [10, 30, 10, 30, 20] };
       navigator.vibrate(patterns[style] || 10);
     } catch(e) {}

@@ -168,6 +168,9 @@ class SocketClient {
   emit(event, data) {
     if (!this._ready()) return;
     this.socket.emit(event, data);
+    if (typeof gtag !== 'undefined') {
+      if (event === 'add_to_queue') gtag('event', 'track_queued');
+    }
   }
 
   disconnect() {

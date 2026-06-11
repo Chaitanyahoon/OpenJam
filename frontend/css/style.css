@@ -101,6 +101,7 @@ body.room-page {
   will-change: transform, opacity, filter;
 }
 .dynamic-bg.active { opacity: 0.45; transform: scale(1); }
+.dynamic-bg-wrapper.disabled-visuals { display: none !important; }
 
 #ambient-canvas {
   position: absolute;
@@ -117,6 +118,7 @@ body.room-page {
 #ambient-canvas.active {
   opacity: 0.55;
 }
+.room-ambient.disabled-visuals { display: none !important; }
 
 button { font-family: inherit; cursor: pointer; border: none; background: none; }
 input  { font-family: inherit; }
@@ -235,6 +237,52 @@ h1,h2,h3,h4 { font-family: var(--font-display); line-height: 1.2; }
 .hero-title, .hero-sub, .search-wrap, .room-card, .chat-message, .queue-item, .modal-box {
   will-change: transform, opacity;
 }
+
+/* ---- Toggle Switch ---- */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+.switch input { 
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: var(--bg-elevated);
+  transition: .4s;
+  border: 1px solid var(--border);
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 2px;
+  bottom: 2px;
+  background-color: var(--text-2);
+  transition: .4s;
+}
+input:checked + .slider {
+  background-color: var(--amber);
+  border-color: var(--amber);
+}
+input:checked + .slider:before {
+  background-color: #000;
+  transform: translateX(20px);
+}
+.slider.round {
+  border-radius: 24px;
+}
+.slider.round:before {
+  border-radius: 50%;
+}
+
 
 /* Fix for mobile tab transition: set relative positioning and overflow */
 @media (max-width: 640px) {
@@ -797,6 +845,18 @@ input[type=range]::-moz-range-track {
 }
 .chat-msg-text {
   font-size: 13px; line-height: 1.4; color: var(--text-1);
+}
+.mention-badge {
+  background: var(--amber-glow);
+  color: var(--amber);
+  padding: 0 4px;
+  border-radius: 4px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.chat-message.mentioned .chat-msg-bubble {
+  border-color: var(--amber);
+  box-shadow: 0 0 16px var(--amber-glow);
 }
 .chat-message.self .chat-msg-text { color: var(--bg-base); }
 @keyframes chat-slide-in {

@@ -39,8 +39,25 @@
     const empty = $('#chat-empty');
     if (empty) empty.style.display = 'none';
     const isSelf = app.me && msg.user_id === app.me.id;
+    
+    // @ Mentions logic
+    const myName = app.me ? app.me.display_name : null;
+    let msgHtml = esc(msg.content);
+    let isMentioned = false;
+    
+    // Check if mentioned (not self)
+    if (!isSelf && myName && new RegExp(`@${myName}\\b`, 'i').test(msg.content)) {
+      isMentioned = true;
+      app.haptic('heavy');
+      if (localStorage.getItem('openjam_sounds') !== 'false') app.playChime();
+      msgHtml = msgHtml.replace(new RegExp(`(@${myName}\\b)`, 'gi'), `<span class="mention-badge">$1</span>`);
+    }
+
+    // Auto-link URLs
+    msgHtml = msgHtml.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener" style="color:#60a5fa;text-decoration:underline">$1</a>');
+
     const el = document.createElement('div');
-    el.className = `chat-message${isSelf?' self':''}`;
+    el.className = `chat-message${isSelf?' self':''}${isMentioned?' mentioned':''}`;
     el.dataset.dedup = dedupKey;
 
     el.innerHTML = `
@@ -50,7 +67,7 @@
           <div class="chat-msg-header">
             <span class="chat-msg-name">${esc(msg.user_name)}</span>
           </div>
-          <div class="chat-msg-text">${esc(msg.content).replace(/(https?:\/\/[^\s&lt;]+)/g, '<a href="$1" target="_blank" rel="noopener" style="color:#60a5fa;text-decoration:underline">$1</a>')}</div>
+          <div class="chat-msg-text">${msgHtml}</div>
         </div>
       </div>`;
     
@@ -63,11 +80,29 @@
     const input = $('#chat-input');
     const v = input.value.trim();
     if (v) {
+      // Local chat commands
+      if (v.toLowerCase() === '/clear') {
+        const msgs = $('#chat-msgs');
+        if (msgs) {
+          msgs.innerHTML = '';
+          const empty = $('#chat-empty');
+          if (empty) empty.style.display = 'flex';
+        }
+        input.value = '';
+        input.style.height = 'auto';
+        updateSendButton();
+        return;
+      }
+
       _chatQueue.push({ text: v });
       _processChatQueue();
       input.value = '';
       input.style.height = 'auto';
       updateSendButton();
+      
+      if (typeof gtag !== 'undefined') {
+        gtag('event', 'message_sent', { room_id: window.roomApp?.roomId });
+      }
     }
   }
 
@@ -144,6 +179,9 @@
           triggerEmojiBurst(btn, emoji);
         }
         if (app.sc) app.sc.emit('send_reaction', { room_id: app.roomId, emoji: emoji });
+        if (typeof gtag !== 'undefined') {
+          gtag('event', 'reaction_sent', { emoji: emoji });
+        }
       });
     });
 
