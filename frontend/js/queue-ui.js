@@ -192,19 +192,19 @@
     list.innerHTML = history.map((item) => {
       const dur  = item.duration_ms > 0 ? fmt(item.duration_ms) : '';
       const art  = item.album_art_url || '';
-      return \`
-      <div class="queue-item" data-id="\${esc(item.id)}">
-        <img class="queue-item-art" src="\${esc(art)}" alt="" onerror="this.src=''">
+      return `
+      <div class="queue-item" data-id="${esc(item.id)}">
+        <img class="queue-item-art" src="${esc(art)}" alt="" onerror="this.src=''">
         <div class="queue-item-info">
-          <div class="queue-item-name">\${esc(item.track_name || 'Unknown')}</div>
-          <div class="queue-item-artist">\${esc(item.artist || '')}</div>
+          <div class="queue-item-name">${esc(item.track_name || 'Unknown')}</div>
+          <div class="queue-item-artist">${esc(item.artist || '')}</div>
           <div class="queue-item-meta">
-            \${dur ? \`<span class="queue-item-dur">\${dur}</span>\` : ''}
-            <span class="queue-item-by">Played \${window.ago(item.created_at)}</span>
+            ${dur ? `<span class="queue-item-dur">${dur}</span>` : ''}
+            <span class="queue-item-by">Played ${window.ago(item.created_at)}</span>
           </div>
         </div>
-        <button type="button" class="btn btn-secondary" onclick="requeueTrack('\${esc(item.track_uri)}', '\${esc(item.track_name).replace(/'/g, "\\\\'")}', '\${esc(item.artist).replace(/'/g, "\\\\'")}', '\${esc(art)}', \${item.duration_ms})" style="padding:6px 12px; font-size:11px;">Requeue</button>
-      </div>\`;
+        <button type="button" class="btn btn-secondary" onclick="requeueTrack('${esc(item.track_uri)}', '${esc(item.track_name).replace(/'/g, "\\'")}', '${esc(item.artist).replace(/'/g, "\\'")}', '${esc(art)}', ${item.duration_ms})" style="padding:6px 12px; font-size:11px;">Requeue</button>
+      </div>`;
     }).join('');
   };
 
@@ -219,7 +219,7 @@
       album_art_url: art,
       duration_ms: parseInt(dur) || 0
     });
-    toast(\`➕ Queued: \${name}\`, 'success');
+    toast(`➕ Queued: ${name}`, 'success');
   };
 
 
