@@ -63,6 +63,11 @@ app = FastAPI(title="Open Jam", version="1.0.0")
 app.state.limiter = limiter
 app.state.sio = sio
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+@app.exception_handler(404)
+async def custom_404_handler(request: Request, exc):
+    return FileResponse("frontend/404.html", status_code=404)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
@@ -241,6 +246,15 @@ async def serve_home():
 @app.get("/admin")
 async def serve_admin():
     return FileResponse("frontend/admin.html")
+
+@app.get("/offline")
+async def serve_offline():
+    return FileResponse("frontend/offline.html")
+
+@app.get("/404")
+async def serve_404():
+    return FileResponse("frontend/404.html")
+
 
 
 @app.get("/room/{room_id}", response_class=HTMLResponse)

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offline — Open Jam</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Righteous&display=swap" rel="stylesheet">
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      background: #050508;
+      color: #fff;
+      font-family: 'Poppins', sans-serif;
+      text-align: center;
+      padding: 20px;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+    .container {
+      max-width: 480px;
+      padding: 40px 30px;
+      background: rgba(18, 17, 24, 0.75);
+      border: 1px solid rgba(255, 170, 0, 0.15);
+      border-radius: 32px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+      backdrop-filter: blur(20px);
+      position: relative;
+      z-index: 2;
+    }
+    .icon {
+      font-size: 64px;
+      margin-bottom: 20px;
+      display: inline-block;
+      animation: pulse 2s infinite ease-in-out;
+    }
+    h2 {
+      font-family: 'Righteous', cursive;
+      font-size: 24px;
+      margin: 0 0 10px;
+      background: linear-gradient(135deg, #ffaa00, #ff5500);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    p {
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 30px;
+    }
+    .btn-retry {
+      display: inline-block;
+      background: linear-gradient(135deg, #ffaa00, #ff7700);
+      color: #050508;
+      font-weight: 700;
+      font-size: 14px;
+      text-decoration: none;
+      padding: 12px 30px;
+      border-radius: 50px;
+      box-shadow: 0 4px 15px rgba(255, 170, 0, 0.3);
+      transition: all 0.3s ease;
+      cursor: pointer;
+      border: none;
+      outline: none;
+    }
+    .btn-retry:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(255, 170, 0, 0.5);
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 0.8; }
+      50% { transform: scale(1.1); opacity: 1; filter: drop-shadow(0 0 8px rgba(255, 170, 0, 0.4)); }
+    }
+  </style>
+</head>
+<body>
+  <!-- Ambient landing glows -->
+  <div class="landing-bg-glows" aria-hidden="true" style="position: absolute; inset: 0; pointer-events: none; z-index: 1;">
+    <div style="position: absolute; top: 20%; left: 20%; width: 300px; height: 300px; background: rgba(255, 170, 0, 0.05); filter: blur(100px); border-radius: 50%;"></div>
+    <div style="position: absolute; bottom: 20%; right: 20%; width: 300px; height: 300px; background: rgba(255, 85, 0, 0.05); filter: blur(100px); border-radius: 50%;"></div>
+  </div>
+
+  <div class="container">
+    <div class="icon">📡</div>
+    <h2>Connection Dropped</h2>
+    <p>It seems you're currently offline. Please check your internet connection and try reconnecting.</p>
+    <button onclick="window.location.reload();" class="btn-retry">Retry Connection</button>
+  </div>
+</body>
+</html>

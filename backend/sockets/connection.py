@@ -172,6 +172,7 @@ def register_connection_handlers(sio: socketio.AsyncServer):
 
         # Check private room password
         def _check_room_password(room_id, user_id, password_input):
+            import bcrypt
             import hashlib
             db = SessionLocal()
             try:
@@ -185,12 +186,23 @@ def register_connection_handlers(sio: socketio.AsyncServer):
                         return None
                     if not password_input:
                         return "password_required"
-                    hashed_input = hashlib.sha256(password_input.encode("utf-8")).hexdigest()
-                    if hashed_input != room.password_hash:
+                    
+                    pw_hash = room.password_hash
+                    if pw_hash and (pw_hash.startswith("$2b$") or pw_hash.startswith("$2a$")):
+                        try:
+                            matched = bcrypt.checkpw(password_input.encode("utf-8"), pw_hash.encode("utf-8"))
+                        except Exception:
+                            matched = False
+                    else:
+                        hashed_input = hashlib.sha256(password_input.encode("utf-8")).hexdigest()
+                        matched = (hashed_input == pw_hash)
+
+                    if not matched:
                         return "invalid_password"
                 return None
             finally:
                 db.close()
+
 
         password_input = data.get("password")
         password_err = await asyncio.to_thread(_check_room_password, room_id, user_id, password_input)

@@ -775,6 +775,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (d) {
           toast(`▶ ${d.track_name}`, 'success');
           if (document.hidden) app.playChime();
+          app.haptic && app.haptic('double');
         }
       });
 
@@ -1196,16 +1197,81 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Invite triggers
   $('#btn-invite')?.addEventListener('click', () => {
-    const shareData = { title: `${app.roomData?.room?.name || 'OpenJam Room'}`, text: `Join my real-time collaborative listening room on OpenJam!`, url: location.href };
-    if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
-      navigator.share(shareData).catch(err => { if (err.name !== 'AbortError') app.copyToClipboard(); });
-    } else { app.copyToClipboard(); }
+    const shareUrl = location.href;
+    const roomName = app.roomData?.room?.name || 'OpenJam Room';
+    const text = `Join my real-time collaborative listening room "${roomName}" on OpenJam!`;
+    
+    // Set input value
+    const input = $('#invite-link-input');
+    if (input) input.value = shareUrl;
+
+    // Set QR code source using a public free API
+    const qrImg = $('#invite-qr');
+    if (qrImg) {
+      qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(shareUrl)}`;
+    }
+
+    // Configure native share button if supported
+    const nativeBtn = $('#btn-native-share');
+    if (nativeBtn) {
+      const shareData = { title: roomName, text: text, url: shareUrl };
+      if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+        nativeBtn.style.display = 'block';
+        nativeBtn.onclick = () => {
+          navigator.share(shareData).catch(err => {
+            if (err.name !== 'AbortError') toast('Failed to share', 'error');
+          });
+        };
+      } else {
+        nativeBtn.style.display = 'none';
+      }
+    }
+
+    // Configure social buttons
+    const twitterBtn = $('#btn-share-twitter');
+    if (twitterBtn) {
+      twitterBtn.onclick = () => {
+        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`, '_blank');
+      };
+    }
+
+    const whatsappBtn = $('#btn-share-whatsapp');
+    if (whatsappBtn) {
+      whatsappBtn.onclick = () => {
+        window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text + ' ' + shareUrl)}`, '_blank');
+      };
+    }
+
+    const telegramBtn = $('#btn-share-telegram');
+    if (telegramBtn) {
+      telegramBtn.onclick = () => {
+        window.open(`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(text)}`, '_blank');
+      };
+    }
+
+    // Open modal
+    const modal = $('#invite-modal');
+    if (modal) {
+      modal.style.display = 'flex';
+      setTimeout(() => modal.classList.add('open'), 10);
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          modal.classList.remove('open');
+          setTimeout(() => modal.style.display = 'none', 300);
+        }
+      });
+    }
+  });
+
+  $('#btn-copy-invite-link')?.addEventListener('click', () => {
+    app.copyToClipboard();
   });
 
   app.copyToClipboard = () => {
-    navigator.clipboard.writeText(location.href).then(() => { toast('Room link copied! 🔗', 'success'); }).catch(() => {
+    const shareUrl = location.href;
+    navigator.clipboard.writeText(shareUrl).then(() => { toast('Room link copied! 🔗', 'success'); }).catch(() => {
       const el = document.createElement('textarea');
-      el.value = location.href;
+      el.value = shareUrl;
       document.body.appendChild(el);
       el.select();
       document.execCommand('copy');
@@ -1214,9 +1280,64 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   };
 
-  // Keyboard Shortcuts
+
+  // ── Haptic Feedback Helper ──
+  app.haptic = (style = 'light') => {
+    try {
+      if (!navigator.vibrate) return;
+      const patterns = { light: 10, medium: 25, heavy: 50, double: [15, 50, 15], success: [10, 30, 10, 30, 20] };
+      navigator.vibrate(patterns[style] || 10);
+    } catch(e) {}
+  };
+
+  // ── Keyboard Shortcuts Help Modal ──
+  app.showShortcutsHelp = () => {
+    let modal = document.getElementById('shortcuts-modal');
+    if (modal) { modal.style.display = 'flex'; setTimeout(() => modal.classList.add('open'), 10); return; }
+    modal = document.createElement('div');
+    modal.id = 'shortcuts-modal';
+    modal.className = 'modal-bg';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);z-index:1200;display:flex;align-items:center;justify-content:center;';
+    modal.innerHTML = `
+      <div class="modal-box" style="max-width:440px;width:90%;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <div class="modal-title" style="font-size:18px;font-weight:700;">⌨️ Keyboard Shortcuts</div>
+          <button class="btn btn-ghost" onclick="document.getElementById('shortcuts-modal').classList.remove('open');setTimeout(()=>document.getElementById('shortcuts-modal').style.display='none',300)" style="font-size:16px;padding:4px 8px;">✕</button>
+        </div>
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:13px;">
+          <kbd class="kbd-key">Space</kbd><span style="color:var(--text-2)">Play / Pause (host)</span>
+          <kbd class="kbd-key">N</kbd><span style="color:var(--text-2)">Next Track / Vote Skip</span>
+          <kbd class="kbd-key">L</kbd><span style="color:var(--text-2)">Toggle Loop (host)</span>
+          <kbd class="kbd-key">M</kbd><span style="color:var(--text-2)">Mute / Unmute</span>
+          <kbd class="kbd-key">↑ / ↓</kbd><span style="color:var(--text-2)">Volume ±5%</span>
+          <kbd class="kbd-key">← / →</kbd><span style="color:var(--text-2)">Seek ±10s (host)</span>
+          <kbd class="kbd-key">Shift+→</kbd><span style="color:var(--text-2)">Skip Track (host)</span>
+          <kbd class="kbd-key">/</kbd><span style="color:var(--text-2)">Focus Search</span>
+          <kbd class="kbd-key">F</kbd><span style="color:var(--text-2)">Toggle Fullscreen</span>
+          <kbd class="kbd-key">?</kbd><span style="color:var(--text-2)">Show This Help</span>
+          <kbd class="kbd-key">Esc</kbd><span style="color:var(--text-2)">Close Modals</span>
+        </div>
+        <div style="margin-top:16px;text-align:center;color:var(--text-3);font-size:11px;">Press <kbd class="kbd-key" style="font-size:10px;">?</kbd> anytime to see these shortcuts</div>
+      </div>`;
+    document.body.appendChild(modal);
+    setTimeout(() => modal.classList.add('open'), 10);
+    modal.addEventListener('click', (e) => { if (e.target === modal) { modal.classList.remove('open'); setTimeout(() => modal.style.display = 'none', 300); } });
+  };
+
+  // ── Keyboard Shortcuts ──
   document.addEventListener('keydown', (e) => {
+    // Allow Escape to close modals from anywhere
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.modal-bg.open, .modal-bg[style*="display: flex"]').forEach(m => {
+        m.classList.remove('open');
+        setTimeout(() => m.style.display = 'none', 300);
+      });
+      return;
+    }
+
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+    // Volume: ↑ / ↓
     if (e.code === 'ArrowUp' && !e.shiftKey && !e.ctrlKey) {
       e.preventDefault();
       app.muted = false;
@@ -1225,7 +1346,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       e.preventDefault();
       app.muted = false;
       app.applyVol(Math.max(0, app.vol - 5));
-    } else if (e.key.toLowerCase() === 'm') {
+    }
+    // Mute toggle: M
+    else if (e.key.toLowerCase() === 'm' && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
       if (app.muted || app.vol === 0) {
         app.muted = false;
@@ -1236,14 +1359,85 @@ document.addEventListener('DOMContentLoaded', async () => {
         app.applyVol(0);
       }
     }
+    // Focus search: /
+    else if (e.key === '/' && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      const search = $('#q-search');
+      if (search) { search.focus(); if (window.innerWidth <= 640) switchMobileTab('queue'); }
+    }
+    // Fullscreen toggle: F
+    else if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      } else {
+        document.documentElement.requestFullscreen().catch(() => {});
+      }
+    }
+    // Show shortcuts help: ?
+    else if (e.key === '?') {
+      e.preventDefault();
+      app.showShortcutsHelp();
+    }
+    // Next Track / Vote Skip: N
+    else if (e.key.toLowerCase() === 'n' && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      if (app.isHost) {
+        $('#btn-next')?.click();
+      } else {
+        $('#btn-vote-skip')?.click();
+      }
+      app.haptic('medium');
+    }
+    // Loop toggle: L (host only)
+    else if (e.key.toLowerCase() === 'l' && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      $('#btn-loop')?.click();
+    }
 
+    // Host-only shortcuts
     if (!app.isHost) return;
+    // Play/Pause: Space
     if (e.code === 'Space') {
       e.preventDefault();
       $('#btn-play')?.click();
-    } else if (e.code === 'ArrowRight' && e.shiftKey) {
+    }
+    // Skip: Shift+→
+    else if (e.code === 'ArrowRight' && e.shiftKey) {
       e.preventDefault();
       $('#btn-next')?.click();
+    }
+    // Seek ±10s: ← / → (without shift)
+    else if (e.code === 'ArrowRight' && !e.shiftKey && !e.ctrlKey) {
+      e.preventDefault();
+      const newPos = Math.min((app.yt.positionMs || 0) + 10000, app.yt.durationMs || 0);
+      if (app.yt._useIFrame && app.yt.ytPlayer) {
+        try { app.yt.ytPlayer.seekTo(newPos / 1000, true); } catch(e) {}
+      } else if (app.yt.player) {
+        app.yt.player.currentTime = newPos / 1000;
+      }
+      app.yt.positionMs = newPos;
+      app.sc.emit('playback_update', {
+        room_id: app.roomId, track_uri: app.yt.currentVideoId || '',
+        track_name: $('#np-title')?.textContent || '', artist: $('#np-artist')?.textContent || '',
+        album_art_url: $('#art-img')?.src || '', position_ms: newPos,
+        duration_ms: app.yt.durationMs || 0, is_playing: app.yt.isPlaying, loop: app._loopEnabled,
+      });
+    } else if (e.code === 'ArrowLeft' && !e.shiftKey && !e.ctrlKey) {
+      e.preventDefault();
+      const newPos = Math.max((app.yt.positionMs || 0) - 10000, 0);
+      if (app.yt._useIFrame && app.yt.ytPlayer) {
+        try { app.yt.ytPlayer.seekTo(newPos / 1000, true); } catch(e) {}
+      } else if (app.yt.player) {
+        app.yt.player.currentTime = newPos / 1000;
+      }
+      app.yt.positionMs = newPos;
+      app.sc.emit('playback_update', {
+        room_id: app.roomId, track_uri: app.yt.currentVideoId || '',
+        track_name: $('#np-title')?.textContent || '', artist: $('#np-artist')?.textContent || '',
+        album_art_url: $('#art-img')?.src || '', position_ms: newPos,
+        duration_ms: app.yt.durationMs || 0, is_playing: app.yt.isPlaying, loop: app._loopEnabled,
+      });
     }
   });
 
@@ -1581,29 +1775,90 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   })();
 
-  // Connection lost indicator banner
+  // Connection quality indicator & lost connection banner
   (function setupConnectionIndicator() {
     let _reconnBanner = null;
+    let _connQuality = 'good'; // good | medium | poor | offline
+    let _pingHistory = [];
+
     const showReconnBanner = () => {
+      _connQuality = 'offline';
+      updateConnIndicator();
       if (_reconnBanner) return;
       _reconnBanner = document.createElement('div');
       _reconnBanner.id = 'reconn-banner';
       _reconnBanner.style.cssText = 'position:fixed; top:0; left:0; right:0; z-index:9998; background:linear-gradient(90deg, #e11d48, #f59e0b); color:#fff; text-align:center; padding:6px 12px; font-size:12px; font-weight:600; letter-spacing:0.3px; animation: slideDown 0.3s ease;';
-      _reconnBanner.textContent = '⚡ Connection lost — reconnecting…';
+      _reconnBanner.innerHTML = '⚡ Connection lost — reconnecting… <span class="reconn-dots">...</span>';
       document.body.prepend(_reconnBanner);
+      app.haptic('heavy');
     };
     const hideReconnBanner = () => {
+      _connQuality = 'good';
+      _pingHistory = [];
+      updateConnIndicator();
       if (_reconnBanner) {
-        _reconnBanner.style.opacity = '0';
-        _reconnBanner.style.transition = 'opacity 0.3s';
-        setTimeout(() => { _reconnBanner?.remove(); _reconnBanner = null; }, 300);
+        _reconnBanner.textContent = '✓ Reconnected!';
+        _reconnBanner.style.background = 'linear-gradient(90deg, #10b981, #059669)';
+        setTimeout(() => {
+          if (_reconnBanner) {
+            _reconnBanner.style.opacity = '0';
+            _reconnBanner.style.transition = 'opacity 0.3s';
+            setTimeout(() => { _reconnBanner?.remove(); _reconnBanner = null; }, 300);
+          }
+        }, 2000);
       }
+      app.haptic('success');
     };
+
+    // Connection quality dot in room bar
+    const updateConnIndicator = () => {
+      let dot = document.getElementById('conn-quality-dot');
+      if (!dot) {
+        dot = document.createElement('div');
+        dot.id = 'conn-quality-dot';
+        dot.className = 'conn-quality-dot';
+        dot.title = 'Connection quality';
+        const barLeft = document.querySelector('.room-bar-left');
+        if (barLeft) barLeft.appendChild(dot);
+      }
+      const colors = { good: '#22c55e', medium: '#f59e0b', poor: '#ef4444', offline: '#6b7280' };
+      const labels = { good: 'Excellent connection', medium: 'Fair connection', poor: 'Poor connection', offline: 'Disconnected' };
+      dot.style.background = colors[_connQuality];
+      dot.style.boxShadow = `0 0 6px ${colors[_connQuality]}40`;
+      dot.title = labels[_connQuality];
+    };
+
+    // Measure ping latency via heartbeat
+    const measurePing = () => {
+      if (!app.sc || !app.sc.socket || !app.sc.socket.connected) return;
+      const start = Date.now();
+      app.sc.socket.emit('heartbeat');
+      // heartbeat_ack will provide latency measurement
+      const ackHandler = () => {
+        const latency = Date.now() - start;
+        _pingHistory.push(latency);
+        if (_pingHistory.length > 5) _pingHistory.shift();
+        const avg = _pingHistory.reduce((a, b) => a + b, 0) / _pingHistory.length;
+        if (avg < 150) _connQuality = 'good';
+        else if (avg < 400) _connQuality = 'medium';
+        else _connQuality = 'poor';
+        updateConnIndicator();
+        app.sc.socket.off('heartbeat_ack', ackHandler);
+      };
+      app.sc.socket.on('heartbeat_ack', ackHandler);
+      // Timeout: if no ack in 5s, mark as poor
+      setTimeout(() => { app.sc.socket.off('heartbeat_ack', ackHandler); }, 5000);
+    };
+
     const checkSocket = setInterval(() => {
       if (app.sc && app.sc.socket) {
         clearInterval(checkSocket);
         app.sc.socket.on('disconnect', showReconnBanner);
         app.sc.socket.on('connect', hideReconnBanner);
+        updateConnIndicator();
+        // Ping every 30s to track connection quality
+        setInterval(measurePing, 30000);
+        setTimeout(measurePing, 3000);
       }
     }, 500);
   })();
@@ -1631,6 +1886,89 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (app.yt) app.yt.destroy();
   });
 
+  // Custom PWA Install Banner
+  (function setupInstallBanner() {
+    let deferredPrompt = null;
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      if (sessionStorage.getItem('pwa_install_dismissed') === 'true') return;
+      showBanner();
+    });
+
+    function showBanner() {
+      if (document.getElementById('pwa-install-banner')) return;
+
+      const banner = document.createElement('div');
+      banner.id = 'pwa-install-banner';
+      banner.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%) translateY(100px);
+        background: linear-gradient(135deg, rgba(25, 23, 36, 0.95), rgba(18, 17, 24, 0.95));
+        border: 1px solid rgba(255, 170, 0, 0.2);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        border-radius: 16px;
+        padding: 16px;
+        width: calc(100% - 32px);
+        max-width: 420px;
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        backdrop-filter: blur(20px);
+        transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      `;
+
+      banner.innerHTML = `
+        <div style="display:flex; align-items:center; gap:12px;">
+          <img src="/static/img/logo.png" alt="OpenJam logo" style="width:40px; height:40px; border-radius:10px; box-shadow:0 4px 10px rgba(255,170,0,0.2);" />
+          <div>
+            <div style="font-weight:700; font-size:14px; color:var(--text-1); line-height:1.2;">Install OpenJam</div>
+            <div style="font-size:11px; color:var(--text-3); margin-top:2px;">Add to Home Screen for background play</div>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button id="pwa-install-btn" class="btn btn-primary" style="padding:6px 12px; font-size:12px; font-weight:600; border-radius:8px;">Install</button>
+          <button id="pwa-dismiss-btn" class="btn btn-ghost" style="padding:6px 8px; font-size:12px; border-radius:8px; color:var(--text-3);">✕</button>
+        </div>
+      `;
+
+      document.body.appendChild(banner);
+      
+      setTimeout(() => {
+        banner.style.transform = 'translateX(-50%) translateY(0)';
+      }, 100);
+
+      const installBtn = banner.querySelector('#pwa-install-btn');
+      if (installBtn) {
+        installBtn.addEventListener('click', () => {
+          if (!deferredPrompt) return;
+          deferredPrompt.prompt();
+          deferredPrompt.userChoice.then((choiceResult) => {
+            if (choiceResult.outcome === 'accepted') {
+              console.log('[openjam PWA] User accepted the install prompt');
+            }
+            deferredPrompt = null;
+            banner.remove();
+          });
+        });
+      }
+
+      const dismissBtn = banner.querySelector('#pwa-dismiss-btn');
+      if (dismissBtn) {
+        dismissBtn.addEventListener('click', () => {
+          banner.style.transform = 'translateX(-50%) translateY(150px)';
+          sessionStorage.setItem('pwa_install_dismissed', 'true');
+          setTimeout(() => banner.remove(), 400);
+        });
+      }
+    }
+  })();
+
   // PWA Service Worker
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js')
@@ -1638,3 +1976,4 @@ document.addEventListener('DOMContentLoaded', async () => {
       .catch(err => console.error('[openjam] Service Worker registration failed:', err));
   }
 });
+

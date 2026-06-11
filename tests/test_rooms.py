@@ -189,8 +189,9 @@ def test_create_private_room(client, auth_headers, test_user, db_session):
     db_room = db_session.query(Room).filter(Room.id == data["room"]["id"]).first()
     assert db_room is not None
     assert db_room.is_private is True
-    expected_hash = hashlib.sha256(b"secretpassword123").hexdigest()
-    assert db_room.password_hash == expected_hash
+    import bcrypt
+    assert bcrypt.checkpw(b"secretpassword123", db_room.password_hash.encode("utf-8"))
+
 
 
 def test_list_private_room(client, auth_headers, test_user, db_session):

@@ -24,7 +24,9 @@ async def list_rooms(
 ):
     query = db.query(Room).options(selectinload(Room.host)).filter(Room.is_active == True)
     if search:
-        query = query.filter(Room.name.ilike(f"%{search.strip().lower()}%"))
+        escaped_search = search.strip().lower().replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+        query = query.filter(Room.name.ilike(f"%{escaped_search}%", escape='\\'))
+
 
     rooms = query.order_by(Room.created_at.desc()).all()
 
@@ -102,12 +104,13 @@ async def create_room(request: Request, create_room_req: CreateRoomRequest, db: 
         db.commit()
         db.refresh(user)
 
-    import hashlib
+    import bcrypt
     password_hash = None
     is_private = False
     if create_room_req.password:
-        password_hash = hashlib.sha256(create_room_req.password.encode("utf-8")).hexdigest()
+        password_hash = bcrypt.hashpw(create_room_req.password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
         is_private = True
+
 
     room = Room(
         name=create_room_req.name,

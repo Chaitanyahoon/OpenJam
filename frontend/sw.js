@@ -1,6 +1,7 @@
-const CACHE_NAME = 'openjam-static-v8';
+const CACHE_NAME = 'openjam-static-v9';
 const ASSETS_TO_CACHE = [
   '/',
+  '/offline',
   '/static/css/style.css',
   '/static/js/socket-client.js',
   '/static/js/lyrics.js',
@@ -86,6 +87,12 @@ self.addEventListener('fetch', (event) => {
           });
         }
         return networkResponse;
+      }).catch((err) => {
+        // Offline fallback for navigation requests
+        if (event.request.mode === 'navigate') {
+          return caches.match('/offline');
+        }
+        throw err;
       });
     })
   );

@@ -4301,3 +4301,58 @@ body:not(.room-page) {
 .hero-player-card:hover .card-shine {
   opacity: 1;
 }
+
+/* ---- Keyboard Shortcuts & Connection Quality ---- */
+.kbd-key {
+  background-color: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+  padding: 3px 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-1);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
+  display: inline-block;
+  line-height: 1;
+}
+
+.conn-quality-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-left: 8px;
+  display: inline-block;
+  vertical-align: middle;
+  transition: background var(--t-normal), box-shadow var(--t-normal);
+}
+
+/* ---- Shimmer Skeleton Loading States ---- */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: transparent !important;
+  border-color: transparent !important;
+  border-radius: 4px;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.04) 20%,
+    rgba(255, 255, 255, 0.08) 60%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: shimmer 1.6s infinite;
+}
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+
+
