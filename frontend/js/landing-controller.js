@@ -362,47 +362,41 @@
     
     grid.innerHTML = list.map(r => {
       const t = r.current_track;
-      const trackHtml = t 
-        ? `<div class="room-card-track-wrap">
-             <div class="room-card-track-bg" style="background-image: url('${t.album_art_url||''}')"></div>
-             <div class="room-card-track">
-               <img class="room-card-art" src="${t.album_art_url||''}" onerror="this.src=''">
-               <div class="room-card-track-info-inner">
-                 <div class="room-card-track-name">
-                   <span class="room-card-track-title-text">${esc(t.track_name)}</span>
-                   <div class="card-now-playing-equalizer"><span></span><span></span><span></span><span></span></div>
-                 </div>
-                 <div class="room-card-track-artist">${esc(t.artist)}</div>
-               </div>
-             </div>
-           </div>`
-        : `<div class="room-card-idle">No track playing</div>`;
+      const coverUrl = t?.album_art_url || '/static/img/cover-banner.png';
+      const trackName = t ? esc(t.track_name) : 'No track playing';
+      const artistName = t ? esc(t.artist) : 'Idle Room';
 
       return `
       <div class="room-card" onclick="joinRoomAction('${esc(r.id)}')">
-        <div class="room-card-join-overlay">
-          <div class="room-card-join-btn">Join Jam ➔</div>
-        </div>
-        <div class="room-card-top">
-          <div class="room-card-top-left">
-            <div class="room-card-name">${r.is_private ? '<span class="room-card-private-icon" title="Private room">🔒</span>' : ''}${esc(r.name)}</div>
-            <div class="room-card-host">
-              ${r.host_avatar_url 
-                ? `<img class="room-host-avatar" src="${esc(r.host_avatar_url)}" alt="${esc(r.host_name)}" />` 
-                : `<div class="room-host-avatar-fallback" style="background:${nameColor(r.host_name || 'Unknown')}">${initials(r.host_name || 'Unknown')}</div>`}
-              <span>Hosted by <strong>${esc(r.host_name||'Unknown')}</strong></span>
+        <div class="room-card-cover" style="background-image: url('${coverUrl}')">
+          <div class="room-card-join-overlay">
+            <div class="room-card-join-btn">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
             </div>
           </div>
-          <div class="room-listeners${r.listener_count > 0 ? ' pulse-listeners' : ''}">
-            <div class="room-listeners-dot"></div>
-            <span>${r.listener_count ?? 0}</span>
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+          <div class="room-card-cover-top">
+            ${r.is_private ? '<span class="room-card-private-badge">🔒 Private</span>' : '<span></span>'}
+            <div class="room-listeners${r.listener_count > 0 ? ' pulse-listeners' : ''}">
+              <div class="room-listeners-dot"></div>
+              <span>${r.listener_count ?? 0}</span>
+            </div>
+          </div>
+          ${t ? `<div class="room-card-eq"><div class="card-now-playing-equalizer"><span></span><span></span><span></span><span></span></div></div>` : ''}
+        </div>
+        
+        <div class="room-card-info">
+          <div class="room-card-tags">
+            ${(r.genre_tags||[]).map(tag=>`<span class="tag">${esc(tag)}</span>`).join('')}
+          </div>
+          <h3 class="room-card-title">${esc(r.name)}</h3>
+          <div class="room-card-track-title">${trackName} <span class="room-card-artist-name">• ${artistName}</span></div>
+          <div class="room-card-host-wrap">
+            ${r.host_avatar_url 
+              ? `<img class="room-host-avatar" src="${esc(r.host_avatar_url)}" alt="${esc(r.host_name)}" />` 
+              : `<div class="room-host-avatar-fallback" style="background:${nameColor(r.host_name || 'Unknown')}">${initials(r.host_name || 'Unknown')}</div>`}
+            <span class="room-card-host-name">by ${esc(r.host_name||'Unknown')}</span>
           </div>
         </div>
-        <div class="room-card-tags">
-          ${(r.genre_tags||[]).map(tag=>`<span class="tag">${esc(tag)}</span>`).join('')}
-        </div>
-        ${trackHtml}
       </div>`;
     }).join('');
 
