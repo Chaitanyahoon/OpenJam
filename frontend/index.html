@@ -71,33 +71,38 @@
   </nav>
 
   <!-- ══ CINEMATIC HERO SECTION ══════════════════════════════════ -->
-  <section class="hero" style="text-align: center; max-width: 800px; margin: 0 auto; padding-top: 100px; padding-bottom: 60px;">
-    <div class="hero-container" style="justify-content: center;">
+  <div class="landing-bg-glows">
+    <div class="glow-1"></div>
+    <div class="glow-2"></div>
+  </div>
+
+  <section class="hero" style="text-align: center; max-width: 800px; margin: 0 auto; padding-top: 120px; padding-bottom: 80px; position: relative; z-index: 10;">
+    <div class="hero-container" style="justify-content: center; position: relative;">
       <div class="hero-content-left" style="align-items: center; max-width: 100%;">
-        <div class="hero-badge">🎵 OPEN JAM V2</div>
-        <h1 class="hero-title" style="font-size: clamp(48px, 8vw, 84px);">Listen Together.<br><span style="color: var(--amber)">In Sync.</span></h1>
-        <p class="hero-sub" id="hero-description" style="text-align: center; max-width: 600px; margin: 0 auto 40px auto; font-size: 18px;">Social Listening, but make it classy. Create a listening room, queue tracks from YouTube, and discover music with friends in real-time.</p>
+        <div class="hero-badge" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 6px 16px; border-radius: 99px; letter-spacing: 2px; font-weight: 800; font-size: 11px; margin-bottom: 24px;">🎵 OPEN JAM V2</div>
+        <h1 class="hero-title" style="font-size: clamp(52px, 9vw, 96px); line-height: 1; letter-spacing: -2px; text-shadow: 0 10px 40px rgba(0,0,0,0.5);">Listen Together.<br><span style="color: var(--amber); text-shadow: 0 0 40px rgba(255,170,0,0.3);">In Sync.</span></h1>
+        <p class="hero-sub" id="hero-description" style="text-align: center; max-width: 600px; margin: 24px auto 48px auto; font-size: 19px; color: var(--text-2); line-height: 1.6;">Social Listening, but make it classy. Create a listening room, queue tracks from YouTube, and discover music with friends in real-time.</p>
         
-        <div class="hero-actions" style="justify-content: center;">
-          <button class="btn btn-primary" id="btn-instant-jam">
+        <div class="hero-actions" style="justify-content: center; gap: 16px;">
+          <button class="btn btn-primary" id="btn-instant-jam" style="padding: 16px 32px; font-size: 16px; border-radius: 99px;">
             ⚡ Instant Jam
           </button>
           
           <!-- Discord OAuth CTA (Shown only when not logged in with Discord) -->
-          <button type="button" class="btn btn-discord btn-discord-cta" id="btn-hero-discord" onclick="window.location.href='/auth/discord'">
-            <svg width="20" height="15" viewBox="0 0 71 55" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="margin-right:2px;">
+          <button type="button" class="btn btn-discord btn-discord-cta" id="btn-hero-discord" onclick="window.location.href='/auth/discord'" style="padding: 16px 32px; font-size: 16px; border-radius: 99px;">
+            <svg width="20" height="15" viewBox="0 0 71 55" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="margin-right:8px;">
               <path d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 40.8 40.8 0 00-1.8 3.7 54 54 0 00-16.2 0A37.3 37.3 0 0025.4.3a.2.2 0 00-.2-.1 58.4 58.4 0 00-14.7 4.6.2.2 0 00-.1 0C1.5 18.7-.9 32 .3 45.1v.1a58.9 58.9 0 0018 9.1.2.2 0 00.3-.1 42.2 42.2 0 003.6-5.9.2.2 0 00-.1-.3 38.8 38.8 0 01-5.5-2.7.2.2 0 01 0-.4l1.1-.9a.2.2 0 01.2 0 42 42 0 0035.8 0 .2.2 0 01.2 0l1.1.9a.2.2 0 010 .4 36.4 36.4 0 01-5.5 2.7.2.2 0 00-.1.3 47.3 47.3 0 003.6 5.9.2.2 0 00.3.1 58.7 58.7 0 0018-9.1v-.1c1.4-15-2.3-28-9.8-39.6a.2.2 0 00-.1-.1zM23.7 37c-3.4 0-6.2-3.1-6.2-7s2.7-7 6.2-7 6.3 3.2 6.2 7-2.8 7-6.2 7zm23 0c-3.4 0-6.2-3.1-6.2-7s2.7-7 6.2-7 6.3 3.2 6.2 7-2.8 7-6.2 7z"/>
             </svg>
             Sign in with Discord
           </button>
  
           <!-- Authenticated User CTA (toggled by controller via display properties) -->
-          <button class="btn btn-secondary btn-create-room-trigger" style="display:none;">
+          <button class="btn btn-secondary btn-create-room-trigger" style="display:none; padding: 16px 32px; font-size: 16px; border-radius: 99px;">
             ➕ Create a Jam
           </button>
           
           <!-- Unauthenticated Guest CTA (toggled by controller) -->
-          <button class="btn btn-secondary btn-open-join-trigger">
+          <button class="btn btn-secondary btn-open-join-trigger" style="padding: 16px 32px; font-size: 16px; border-radius: 99px;">
             👋 Join as Guest
           </button>
         </div>

@@ -368,33 +368,30 @@
 
       return `
       <div class="room-card" onclick="joinRoomAction('${esc(r.id)}')">
-        <div class="room-card-cover" style="background-image: url('${coverUrl}')">
-          <div class="room-card-join-overlay">
-            <div class="room-card-join-btn">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-            </div>
-          </div>
-          <div class="room-card-cover-top">
-            ${r.is_private ? '<span class="room-card-private-badge">🔒 Private</span>' : '<span></span>'}
+        <div class="room-card-bg-layer" style="background-image: url('${coverUrl}')"></div>
+        <div class="room-card-content">
+          <div class="room-card-app-top">
+            <span class="room-card-app-badge">${r.is_private ? '🔒 PRIVATE' : 'LIVE'}</span>
             <div class="room-listeners${r.listener_count > 0 ? ' pulse-listeners' : ''}">
               <div class="room-listeners-dot"></div>
               <span>${r.listener_count ?? 0}</span>
             </div>
           </div>
-          ${t ? `<div class="room-card-eq"><div class="card-now-playing-equalizer"><span></span><span></span><span></span><span></span></div></div>` : ''}
-        </div>
-        
-        <div class="room-card-info">
-          <div class="room-card-tags">
-            ${(r.genre_tags||[]).map(tag=>`<span class="tag">${esc(tag)}</span>`).join('')}
+          
+          <div class="room-card-app-main">
+            <h3 class="room-card-app-title">${esc(r.name)}</h3>
+            <p class="room-card-app-subtitle">Hosted by ${esc(r.host_name||'Unknown')}</p>
           </div>
-          <h3 class="room-card-title">${esc(r.name)}</h3>
-          <div class="room-card-track-title">${trackName} <span class="room-card-artist-name">• ${artistName}</span></div>
-          <div class="room-card-host-wrap">
-            ${r.host_avatar_url 
-              ? `<img class="room-host-avatar" src="${esc(r.host_avatar_url)}" alt="${esc(r.host_name)}" />` 
-              : `<div class="room-host-avatar-fallback" style="background:${nameColor(r.host_name || 'Unknown')}">${initials(r.host_name || 'Unknown')}</div>`}
-            <span class="room-card-host-name">by ${esc(r.host_name||'Unknown')}</span>
+          
+          <div class="room-card-app-bottom">
+            <img class="room-card-app-art" src="${coverUrl}" onerror="this.src='/static/img/cover-banner.png'" alt="Art">
+            <div class="room-card-app-track">
+              <div class="room-card-app-trackname">${trackName}</div>
+              <div class="room-card-app-artist">${artistName}</div>
+            </div>
+            <div class="room-card-app-join">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            </div>
           </div>
         </div>
       </div>`;
