@@ -317,6 +317,7 @@ async def serve_room(room_id: str, request: Request):
 
 from backend.services.og_generator import generate_og_image
 from fastapi.responses import Response
+from sqlalchemy.orm import Session
 
 @app.get("/api/og/room/{room_id}.png")
 async def get_og_image(room_id: str, inviter: str = "Someone", db: Session = Depends(get_db)):
