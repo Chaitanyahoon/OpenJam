@@ -111,6 +111,18 @@ async def get_queue(room_id: str, request: Request, db: Session = Depends(get_db
     queue = queue_manager.get_queue(db, room_id, user_id)
     return {"queue": queue}
 
+@router.get("/rooms/{room_id}/history")
+async def get_history(room_id: str, request: Request, db: Session = Depends(get_db)):
+    """Fetch recently played tracks for the room."""
+    room = db.query(Room).filter(Room.id == room_id).first()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    user_id = get_current_user_id(request)
+    if not check_room_access(room, user_id):
+        raise HTTPException(status_code=403, detail="Room access denied. Password verification required.")
+    history = queue_manager.get_history(db, room_id)
+    return {"history": history}
+
 
 
 @router.get("/search/resolve")

@@ -121,5 +121,13 @@ class QueueManager:
         db.commit()
         return None
 
+    def get_history(self, db: Session, room_id: str, limit: int = 20) -> list:
+        items = db.query(QueueItem).filter(
+            QueueItem.room_id == room_id,
+            QueueItem.status == "played",
+        ).order_by(
+            QueueItem.created_at.desc()
+        ).limit(limit).all()
+        return [item.to_dict() for item in items]
 
 queue_manager = QueueManager()

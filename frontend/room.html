@@ -222,7 +222,10 @@
   <div class="panel-center" id="panel-center">
     <div class="queue-header">
       <div class="queue-header-top">
-        <div class="queue-title">Queue</div>
+        <div class="queue-tabs" style="display:flex; gap:16px;">
+          <button class="queue-tab active" id="tab-queue" onclick="switchQueueTab('queue')" style="background:none;border:none;color:var(--text-1);font-weight:600;font-size:16px;cursor:pointer;padding-bottom:4px;border-bottom:2px solid var(--amber);transition:all 0.2s;">Queue</button>
+          <button class="queue-tab" id="tab-history" onclick="switchQueueTab('history')" style="background:none;border:none;color:var(--text-3);font-weight:500;font-size:16px;cursor:pointer;padding-bottom:4px;border-bottom:2px solid transparent;transition:all 0.2s;">History</button>
+        </div>
         <span class="queue-count" id="q-count" title="Tracks in queue">0 tracks</span>
       </div>
       <div class="queue-search-wrap" id="q-search-wrap">
@@ -262,6 +265,11 @@
         </button>
       </div>
     </div>
+    
+    <div class="queue-list" id="history-list" aria-label="Music history" style="display:none;">
+      <!-- History tracks will be rendered here -->
+    </div>
+
     <!-- Full-Width Lyrics View Theater Mode Overlay -->
     <div class="lyrics-view" id="lyrics-view">
       <button class="close-lyrics" id="btn-close-lyrics" aria-label="Close lyrics" title="Close lyrics">✕</button>

@@ -98,6 +98,97 @@
     }
   };
 
+  window.switchQueueTab = async function(tab) {
+    const btnQueue = $('#tab-queue');
+    const btnHistory = $('#tab-history');
+    const listQueue = $('#queue-list');
+    const listHistory = $('#history-list');
+    const searchWrap = $('#q-search-wrap');
+
+    if (tab === 'queue') {
+      btnQueue.style.color = 'var(--text-1)';
+      btnQueue.style.borderBottomColor = 'var(--amber)';
+      btnHistory.style.color = 'var(--text-3)';
+      btnHistory.style.borderBottomColor = 'transparent';
+      
+      listQueue.style.display = 'block';
+      listHistory.style.display = 'none';
+      searchWrap.style.display = 'flex';
+      
+      const app = window.roomApp;
+      if (app && app._queueData) window.renderQueue(app._queueData);
+    } else {
+      btnHistory.style.color = 'var(--text-1)';
+      btnHistory.style.borderBottomColor = 'var(--amber)';
+      btnQueue.style.color = 'var(--text-3)';
+      btnQueue.style.borderBottomColor = 'transparent';
+      
+      listQueue.style.display = 'none';
+      listHistory.style.display = 'block';
+      searchWrap.style.display = 'none';
+
+      const app = window.roomApp;
+      if (!app) return;
+      listHistory.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text-3);">Loading history...</div>`;
+      try {
+        const r = await fetch(`/rooms/${app.roomId}/history`, { credentials: 'include' });
+        if (!r.ok) throw new Error('Failed to load history');
+        const d = await r.json();
+        window.renderHistory(d.history || []);
+      } catch (err) {
+        listHistory.innerHTML = `<div style="padding:20px;text-align:center;color:#ef4444;">Could not load history</div>`;
+      }
+    }
+  };
+
+  window.renderHistory = function(history) {
+    const list = $('#history-list');
+    if (!list) return;
+    
+    if (!history.length) {
+      list.innerHTML = `
+        <div class="empty">
+          <svg class="empty-icon-svg" viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/><path d="M12.5 7H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+          <div class="empty-title">No history yet</div>
+          <div class="empty-sub">Tracks played will appear here</div>
+        </div>`;
+      return;
+    }
+    
+    list.innerHTML = history.map((item) => {
+      const dur  = item.duration_ms > 0 ? fmt(item.duration_ms) : '';
+      const art  = item.album_art_url || '';
+      return \`
+      <div class="queue-item" data-id="\${esc(item.id)}">
+        <img class="queue-item-art" src="\${esc(art)}" alt="" onerror="this.src=''">
+        <div class="queue-item-info">
+          <div class="queue-item-name">\${esc(item.track_name || 'Unknown')}</div>
+          <div class="queue-item-artist">\${esc(item.artist || '')}</div>
+          <div class="queue-item-meta">
+            \${dur ? \`<span class="queue-item-dur">\${dur}</span>\` : ''}
+            <span class="queue-item-by">Played \${window.ago(item.created_at)}</span>
+          </div>
+        </div>
+        <button type="button" class="btn btn-secondary" onclick="requeueTrack('\${esc(item.track_uri)}', '\${esc(item.track_name).replace(/'/g, "\\\\'")}', '\${esc(item.artist).replace(/'/g, "\\\\'")}', '\${esc(art)}', \${item.duration_ms})" style="padding:6px 12px; font-size:11px;">Requeue</button>
+      </div>\`;
+    }).join('');
+  };
+
+  window.requeueTrack = function(uri, name, artist, art, dur) {
+    const app = window.roomApp;
+    if (!app || !app.sc) return;
+    app.sc.emit('add_to_queue', {
+      room_id: app.roomId,
+      track_uri: uri,
+      track_name: name,
+      artist: artist,
+      album_art_url: art,
+      duration_ms: parseInt(dur) || 0
+    });
+    toast(\`➕ Queued: \${name}\`, 'success');
+  };
+
+
   // Helper search API fetching routines
   async function searchTracks(q) {
     const r = await fetch(`/search/tracks?q=${encodeURIComponent(q)}`, { credentials: 'include' });
