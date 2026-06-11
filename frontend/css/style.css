@@ -1326,6 +1326,7 @@ body:not(.room-page) .navbar {
 .hero-title span {
   background: linear-gradient(135deg, var(--gold), var(--amber));
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   text-shadow: 0 0 40px rgba(255, 159, 28, 0.2);
 }
@@ -3395,6 +3396,7 @@ body:not(.room-page) .navbar {
   background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 35%, #ef4444 65%, #ff8800 100%);
   background-size: 200% auto;
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   animation: heroGradientShift 5s ease infinite;
   text-shadow: 0 20px 80px rgba(255, 159, 28,0.1);
@@ -3750,6 +3752,7 @@ body:not(.room-page) .navbar {
   padding: 1px;
   background: linear-gradient(to bottom, rgba(255, 159, 28, 0.15), rgba(255, 255, 255, 0.02));
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   pointer-events: none;
@@ -3941,6 +3944,7 @@ body:not(.room-page) .navbar {
   padding: 1px;
   background: linear-gradient(to bottom, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.01));
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   pointer-events: none;
