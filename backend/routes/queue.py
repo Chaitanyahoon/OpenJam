@@ -280,16 +280,18 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
     async def _try_ytdlp() -> str | None:
         return await asyncio.to_thread(_extract_ytdlp_sync, video_id, low)
 
-    async def _try_cobalt() -> str | None:
-        try:
-            from backend.services.cobalt import get_cobalt_stream_url
-            return await get_cobalt_stream_url(video_id)
-        except Exception as e:
-            logger.warning(f"Cobalt failed for {video_id}: {e}")
-            return None
+    # 1. Prioritize Cobalt (Fastest and most reliable)
+    try:
+        from backend.services.cobalt import get_cobalt_stream_url
+        url = await get_cobalt_stream_url(video_id)
+        if url:
+            return url
+    except Exception as e:
+        logger.warning(f"Cobalt failed for {video_id}: {e}")
 
-    # Race all methods in parallel — first success wins
-    tasks = [_try_invidious(), _try_ytdlp(), _try_cobalt()]
+    # 2. If Cobalt fails, race Invidious and yt-dlp
+    logger.info(f"Cobalt failed for {video_id}, falling back to Invidious/yt-dlp race")
+    tasks = [_try_invidious(), _try_ytdlp()]
     url = None
     for coro in asyncio.as_completed(tasks):
         result = await coro

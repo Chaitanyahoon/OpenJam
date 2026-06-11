@@ -3795,13 +3795,13 @@ body:not(.room-page) .navbar {
 .room-card {
   position: relative;
   background: rgba(15, 15, 20, 0.75);
-  border: 1px solid rgba(212, 175, 55, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 24px;
   padding: 20px;
   cursor: pointer;
   overflow: hidden;
   transition: all 0.45s cubic-bezier(0.25, 0.8, 0.25, 1.1) !important;
-  backdrop-filter: blur(16px);
+  backdrop-filter: blur(24px);
 }
 
 .room-card::before {
@@ -3810,7 +3810,7 @@ body:not(.room-page) .navbar {
   inset: 0;
   border-radius: 24px;
   padding: 1px;
-  background: linear-gradient(to bottom, rgba(255, 159, 28, 0.15), rgba(255, 255, 255, 0.02));
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.01));
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
@@ -3822,12 +3822,12 @@ body:not(.room-page) .navbar {
 
 .room-card:hover {
   transform: translateY(-8px) scale(1.02) !important;
-  border-color: rgba(255, 159, 28, 0.3) !important;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7), 0 0 25px rgba(255, 159, 28, 0.15) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), 0 0 20px rgba(255, 255, 255, 0.05) !important;
 }
 
 .room-card:hover::before {
-  background: linear-gradient(to bottom, rgba(255, 159, 28, 0.45), rgba(239, 68, 68, 0.15));
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.02));
 }
 
 /* Pulse Animation for Active Listeners Count */
@@ -4081,16 +4081,22 @@ body:not(.room-page) .navbar {
 }
 
 .room-card-join-btn {
-  background: var(--amber);
-  color: var(--bg-base);
-  font-size: 12px;
-  font-weight: 700;
+  background: var(--bg-elevated);
+  color: var(--text-1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 13px;
+  font-weight: 600;
   padding: 10px 24px;
   border-radius: 99px;
-  letter-spacing: 0.5px;
-  box-shadow: 0 8px 24px rgba(255, 170, 0, 0.4);
+  letter-spacing: 0.3px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   transform: translateY(12px);
-  transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition: all 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.room-card-join-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .room-card:hover .room-card-join-btn {

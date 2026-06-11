@@ -52,14 +52,6 @@
   height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   <!-- End Google Tag Manager (noscript) -->
 
-  <!-- Global Jam Statistics Ticker -->
-  <div class="stats-ticker" id="stats-ticker" aria-label="Live Jam Statistics">
-    <div class="stats-ticker-track" id="stats-ticker-track">
-      <div class="stats-ticker-group" id="stats-ticker-a"></div>
-      <div class="stats-ticker-group" id="stats-ticker-b" aria-hidden="true"></div>
-      <div class="stats-ticker-group" id="stats-ticker-c" aria-hidden="true"></div>
-    </div>
-  </div>
 
   <!-- ══ NAVBAR ══════════════════════════════════════════════ -->
   <nav class="navbar" id="navbar">
@@ -79,14 +71,14 @@
   </nav>
 
   <!-- ══ CINEMATIC HERO SECTION ══════════════════════════════════ -->
-  <section class="hero">
-    <div class="hero-container">
-      <div class="hero-content-left">
+  <section class="hero" style="text-align: center; max-width: 800px; margin: 0 auto; padding-top: 100px; padding-bottom: 60px;">
+    <div class="hero-container" style="justify-content: center;">
+      <div class="hero-content-left" style="align-items: center; max-width: 100%;">
         <div class="hero-badge">🎵 OPEN JAM V2</div>
-        <h1 class="hero-title">Open<span>Jam</span></h1>
-        <p class="hero-sub" id="hero-description">Social Listening, but make it classy. Create a listening room, queue tracks from YouTube, and listen together in perfect sync.</p>
+        <h1 class="hero-title" style="font-size: clamp(48px, 8vw, 84px);">Listen Together.<br><span style="color: var(--amber)">In Sync.</span></h1>
+        <p class="hero-sub" id="hero-description" style="text-align: center; max-width: 600px; margin: 0 auto 40px auto; font-size: 18px;">Social Listening, but make it classy. Create a listening room, queue tracks from YouTube, and discover music with friends in real-time.</p>
         
-        <div class="hero-actions">
+        <div class="hero-actions" style="justify-content: center;">
           <button class="btn btn-primary" id="btn-instant-jam">
             ⚡ Instant Jam
           </button>
@@ -108,53 +100,6 @@
           <button class="btn btn-secondary btn-open-join-trigger">
             👋 Join as Guest
           </button>
-        </div>
-      </div>
-
-      <div class="hero-showcase-right">
-        <div class="hero-player-card">
-          <div class="card-screw top-left"></div>
-          <div class="card-screw top-right"></div>
-          <div class="card-screw bottom-left"></div>
-          <div class="card-screw bottom-right"></div>
-          <div class="hero-player-top">
-            <span class="live-indicator"><span class="live-dot"></span>LIVE SYNC</span>
-            <span class="host-badge">OpenJam Vinyl</span>
-          </div>
-          <div class="arm-tip">Drag needle to play preview</div>
-          
-          <div class="hero-vinyl-container">
-            <div class="hero-vinyl-disc">
-              <div class="hero-vinyl-grooves"></div>
-              <div class="hero-vinyl-label">
-                <div class="hero-vinyl-center"></div>
-              </div>
-            </div>
-            <div class="hero-tonearm">
-              <svg width="30" height="130" viewBox="0 0 30 130" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="15" cy="15" r="12" fill="var(--amber)" stroke="rgba(255,255,255,0.2)" stroke-width="2"/>
-                <circle cx="15" cy="15" r="5" fill="#050508"/>
-                <rect x="13" y="27" width="4" height="85" fill="#cbd5e1"/>
-                <rect x="9" y="112" width="12" height="15" rx="2" fill="#475569"/>
-                <path d="M12 127L18 127L15 120Z" fill="#94a3b8"/>
-              </svg>
-            </div>
-          </div>
-          
-          <div class="hero-player-info">
-            <div class="hero-track-details">
-              <div class="hero-track-title">Lofi Chill beats #42</div>
-              <div class="hero-track-artist">Analog Vibe Collective</div>
-            </div>
-            
-            <div class="hero-eq-waves">
-              <span class="eq-bar eq-1"></span>
-              <span class="eq-bar eq-2"></span>
-              <span class="eq-bar eq-3"></span>
-              <span class="eq-bar eq-4"></span>
-              <span class="eq-bar eq-5"></span>
-            </div>
-          </div>
         </div>
       </div>
     </div>

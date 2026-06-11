@@ -296,35 +296,12 @@
   });
 
   // 3. Load Rooms
-  function updateStatsTicker(roomList) {
-    const groups = ['stats-ticker-a', 'stats-ticker-b', 'stats-ticker-c'];
-    const roomCount = roomList.length;
-    const listeners = roomList.reduce((sum, r) => sum + (r.listener_count || 0), 0);
-    const liveRooms = roomList.filter(r => r.current_track?.track_uri).length;
-    const tags = new Set();
-    roomList.forEach(r => (r.genre_tags || []).forEach(t => tags.add(t)));
-
-    const items = [
-      `<span><span class="ticker-dot"></span> <span class="ticker-stat"><strong>${roomCount}</strong> active room${roomCount !== 1 ? 's' : ''}</span></span>`,
-      `<span><span class="ticker-dot"></span> <span class="ticker-stat"><strong>${listeners}</strong> listener${listeners !== 1 ? 's' : ''} online</span></span>`,
-      `<span><span class="ticker-dot"></span> <span class="ticker-stat"><strong>${liveRooms}</strong> now playing</span></span>`,
-      `<span><span class="ticker-dot"></span> <span class="ticker-stat"><strong>${tags.size}</strong> genre${tags.size !== 1 ? 's' : ''} live</span></span>`,
-      `<span><span class="ticker-dot"></span> Synced listening · OpenJam</span>`,
-    ].join('');
-
-    groups.forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.innerHTML = items;
-    });
-  }
-
   async function loadRooms(){
     try {
       const r = await fetch('/rooms', { credentials:'include' });
       if(!r.ok) return;
       const data = await r.json();
       rooms = data.rooms || [];
-      updateStatsTicker(rooms);
       renderGenreFilters(rooms);
       let filtered = rooms;
       const q = $('#search-input').value.toLowerCase();
