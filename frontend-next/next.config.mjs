@@ -7,6 +7,10 @@ const nextConfig = {
         destination: 'http://localhost:8000/static/:path*',
       },
       {
+        source: '/sw.js',
+        destination: 'http://localhost:8000/sw.js',
+      },
+      {
         source: '/room/:path*',
         destination: 'http://localhost:8000/room/:path*',
       },

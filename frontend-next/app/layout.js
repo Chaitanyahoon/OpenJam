@@ -4,7 +4,15 @@ import { SocketProvider } from "@/contexts/SocketContext";
 export const metadata = {
   title: "Open Jam — Listen Together",
   description: "Create and join public listening rooms. Discover music with friends in real-time.",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover",
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+  themeColor: "#08080a",
 };
 
 export default function RootLayout({ children }) {
