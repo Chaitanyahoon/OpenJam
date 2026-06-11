@@ -368,30 +368,48 @@
 
       return `
       <div class="room-card" onclick="joinRoomAction('${esc(r.id)}')">
-        <div class="room-card-bg-layer" style="background-image: url('${coverUrl}')"></div>
-        <div class="room-card-content">
-          <div class="room-card-app-top">
-            <span class="room-card-app-badge">${r.is_private ? '🔒 PRIVATE' : 'LIVE'}</span>
-            <div class="room-listeners${r.listener_count > 0 ? ' pulse-listeners' : ''}">
-              <div class="room-listeners-dot"></div>
+        <div class="room-card-cover-wrap">
+          <img class="room-card-cover-img" src="${coverUrl}" onerror="this.src='/static/img/cover-banner.png'" alt="Album Art">
+          <div class="room-card-cover-overlay">
+            <div class="room-card-badge ${r.is_private ? 'private' : 'live'}">
+              ${r.is_private ? '🔒 Private' : '● Live'}
+            </div>
+            <div class="room-card-listeners">
+              <div class="listeners-dot"></div>
               <span>${r.listener_count ?? 0}</span>
             </div>
-          </div>
-          
-          <div class="room-card-app-main">
-            <h3 class="room-card-app-title">${esc(r.name)}</h3>
-            <p class="room-card-app-subtitle">Hosted by ${esc(r.host_name||'Unknown')}</p>
-          </div>
-          
-          <div class="room-card-app-bottom">
-            <img class="room-card-app-art" src="${coverUrl}" onerror="this.src='/static/img/cover-banner.png'" alt="Art">
-            <div class="room-card-app-track">
-              <div class="room-card-app-trackname">${trackName}</div>
-              <div class="room-card-app-artist">${artistName}</div>
-            </div>
-            <div class="room-card-app-join">
+            ${t ? `
+            <div class="room-card-eq-pill">
+              <div class="card-now-playing-equalizer">
+                <span></span><span></span><span></span><span></span>
+              </div>
+            </div>` : ''}
+            <div class="room-card-play-btn">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
             </div>
+          </div>
+        </div>
+        
+        <div class="room-card-details">
+          <div class="room-card-tags">
+            ${(r.genre_tags||[]).slice(0, 3).map(tag=>`<span class="tag-chip">${esc(tag)}</span>`).join('')}
+          </div>
+          <h3 class="room-card-title">${esc(r.name)}</h3>
+          <div class="room-card-host">
+            ${r.host_avatar_url 
+              ? `<img class="room-card-host-avatar" src="${esc(r.host_avatar_url)}" alt="${esc(r.host_name)}" />` 
+              : `<div class="room-card-host-avatar-fallback" style="background:${nameColor(r.host_name || 'Unknown')}">${initials(r.host_name || 'Unknown')}</div>`}
+            <span>Hosted by <strong>${esc(r.host_name||'Unknown')}</strong></span>
+          </div>
+        </div>
+        
+        <div class="room-card-now-playing-banner">
+          <div class="banner-music-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+          </div>
+          <div class="banner-track-info">
+            <span class="banner-track-name">${trackName}</span>
+            <span class="banner-artist-name">${artistName}</span>
           </div>
         </div>
       </div>`;
