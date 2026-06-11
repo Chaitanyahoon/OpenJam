@@ -1,4 +1,4 @@
-const CACHE_NAME = 'openjam-static-v9';
+const CACHE_NAME = 'openjam-static-v10';
 const ASSETS_TO_CACHE = [
   '/',
   '/offline',
@@ -10,6 +10,7 @@ const ASSETS_TO_CACHE = [
   '/static/js/gsap.min.js',
   '/static/js/motion.js',
   '/static/js/utils.js',
+  '/static/js/landing-controller.js',
   '/static/js/room-controller.js',
   '/static/js/queue-ui.js',
   '/static/js/chat-ui.js',

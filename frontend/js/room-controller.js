@@ -260,13 +260,29 @@ window.roomApp = {
   applyHostUI() {
     if (this.isHost) {
       $('#btn-close').style.display = 'inline-flex';
+      const menuClose = $('#menu-close-room');
+      if (menuClose) menuClose.style.display = 'flex';
       $('#controls-row').style.display = 'flex';
       $('#controls-locked').style.display = 'none';
     } else {
       $('#btn-close').style.display = 'none';
+      const menuClose = $('#menu-close-room');
+      if (menuClose) menuClose.style.display = 'none';
       $('#controls-row').style.display = 'none';
       $('#controls-locked').style.display = 'block';
     }
+  },
+
+  syncMiniPlayerFromState(track, playing, progressPct) {
+    if (typeof syncMiniPlayer !== 'function') return;
+    const hasTrack = !!(track && track.track_uri);
+    syncMiniPlayer({
+      title: hasTrack ? (track.track_name || 'Unknown Track') : 'Nothing playing',
+      artist: hasTrack ? (track.artist || '') : 'Add a track to the queue',
+      artUrl: hasTrack && track.album_art_url ? track.album_art_url : '/static/img/logo.png',
+      playing: !!playing,
+      progressPct: typeof progressPct === 'number' ? progressPct : undefined,
+    });
   },
 
   updateAmbientArt(track, artImg, ambient, dynBg) {
@@ -302,6 +318,9 @@ window.roomApp = {
     }
     this.setPlayIcon(playing);
     this.updateProgress(track.position_ms || 0, track.duration_ms || 0);
+    const dur = track.duration_ms || 0;
+    const pos = track.position_ms || 0;
+    this.syncMiniPlayerFromState(track, playing, dur ? (pos / dur) * 100 : 0);
   },
 
   updateNP(track) {
@@ -329,6 +348,7 @@ window.roomApp = {
       this.yt.stopProgressTimer();
       $('#progress').style.width = '0%';
       $('#time-cur').textContent = '0:00'; $('#time-dur').textContent = '0:00';
+      this.syncMiniPlayerFromState(null, false, 0);
       return;
     }
 
@@ -380,6 +400,7 @@ window.roomApp = {
     let pos = track.position_ms || 0;
     const dur = track.duration_ms || 0;
     this.updateProgress(pos, dur);
+    this.syncMiniPlayerFromState(track, playing, dur ? (pos / dur) * 100 : 0);
   },
 
   updateProgress(pos, dur, force = false) {
@@ -395,6 +416,7 @@ window.roomApp = {
     if (typeof this.lyricsManager !== 'undefined' && this.lyricsManager) this.lyricsManager.sync(pos);
     window._lastPos = pos;
     window._lastDur = dur;
+    if (dur) syncMiniPlayer?.({ progressPct: (pos / dur) * 100 });
   },
 
   showUpNext(track) {
@@ -433,6 +455,7 @@ window.roomApp = {
       if (playing) el.classList.add('playing');
       else el.classList.remove('playing');
     });
+    syncMiniPlayer?.({ playing: !!playing });
   },
 
   applyVol(v) {
@@ -546,6 +569,8 @@ window.switchMobileTab = function(tab, skipAnimation = false) {
     mTab?.classList.add('active');
     $('#members-panel')?.classList.remove('collapsed');
   }
+
+  updateMiniPlayerVisibility?.(tab);
 };
 
 window._mobMarkUnread = function() {
@@ -1232,7 +1257,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const shareUrl = location.href;
     const roomName = app.roomData?.room?.name || 'OpenJam Room';
-    const text = `Join my real-time collaborative listening room "${roomName}" on OpenJam!`;
+    const myName = app.me?.display_name || 'Someone';
+    const text = `${myName} is inviting you to join their real-time collaborative listening room "${roomName}" on OpenJam!`;
     
     // Set input value
     const input = $('#invite-link-input');
@@ -1299,6 +1325,53 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('#btn-copy-invite-link')?.addEventListener('click', () => {
     app.copyToClipboard();
   });
+
+  // Room bar overflow menu (mobile)
+  (function setupRoomBarMenu() {
+    const menuBtn = $('#btn-room-menu');
+    const dropdown = $('#room-bar-dropdown');
+    if (!menuBtn || !dropdown) return;
+
+    const closeMenu = () => {
+      dropdown.hidden = true;
+      menuBtn.setAttribute('aria-expanded', 'false');
+    };
+
+    menuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = dropdown.hidden;
+      dropdown.hidden = !open;
+      menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+
+    dropdown.querySelectorAll('[data-action]').forEach(item => {
+      item.addEventListener('click', () => {
+        const action = item.dataset.action;
+        closeMenu();
+        if (action === 'settings') $('#btn-settings')?.click();
+        else if (action === 'invite') $('#btn-invite')?.click();
+        else if (action === 'close') $('#btn-close')?.click();
+      });
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!dropdown.hidden && !dropdown.contains(e.target) && e.target !== menuBtn) closeMenu();
+    });
+  })();
+
+  // Mobile mini-player controls
+  $('#mini-player-tap')?.addEventListener('click', () => switchMobileTab('nowplaying'));
+  $('#mini-play-btn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (app.isHost) $('#btn-play')?.click();
+    else switchMobileTab('nowplaying');
+  });
+
+  window.addEventListener('resize', () => {
+    const active = ['nowplaying', 'queue', 'chat', 'members'].find(t => $(`#mob-tab-${t}`)?.classList.contains('active')) || 'queue';
+    updateMiniPlayerVisibility?.(active);
+  });
+  updateMiniPlayerVisibility?.('queue');
 
   app.copyToClipboard = () => {
     const shareUrl = location.href;
@@ -1920,90 +1993,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (app.yt) app.yt.destroy();
   });
 
-  // Custom PWA Install Banner
-  (function setupInstallBanner() {
-    let deferredPrompt = null;
+  setupPwaInstallBanner();
 
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
-      if (sessionStorage.getItem('pwa_install_dismissed') === 'true') return;
-      showBanner();
-    });
-
-    function showBanner() {
-      if (document.getElementById('pwa-install-banner')) return;
-
-      const banner = document.createElement('div');
-      banner.id = 'pwa-install-banner';
-      banner.style.cssText = `
-        position: fixed;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%) translateY(100px);
-        background: linear-gradient(135deg, rgba(25, 23, 36, 0.95), rgba(18, 17, 24, 0.95));
-        border: 1px solid rgba(255, 170, 0, 0.2);
-        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-        border-radius: 16px;
-        padding: 16px;
-        width: calc(100% - 32px);
-        max-width: 420px;
-        z-index: 9999;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        backdrop-filter: blur(20px);
-        transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-      `;
-
-      banner.innerHTML = `
-        <div style="display:flex; align-items:center; gap:12px;">
-          <img src="/static/img/logo.png" alt="OpenJam logo" style="width:40px; height:40px; border-radius:10px; box-shadow:0 4px 10px rgba(255,170,0,0.2);" />
-          <div>
-            <div style="font-weight:700; font-size:14px; color:var(--text-1); line-height:1.2;">Install OpenJam</div>
-            <div style="font-size:11px; color:var(--text-3); margin-top:2px;">Add to Home Screen for background play</div>
-          </div>
-        </div>
-        <div style="display:flex; gap:8px;">
-          <button id="pwa-install-btn" class="btn btn-primary" style="padding:6px 12px; font-size:12px; font-weight:600; border-radius:8px;">Install</button>
-          <button id="pwa-dismiss-btn" class="btn btn-ghost" style="padding:6px 8px; font-size:12px; border-radius:8px; color:var(--text-3);">✕</button>
-        </div>
-      `;
-
-      document.body.appendChild(banner);
-      
-      setTimeout(() => {
-        banner.style.transform = 'translateX(-50%) translateY(0)';
-      }, 100);
-
-      const installBtn = banner.querySelector('#pwa-install-btn');
-      if (installBtn) {
-        installBtn.addEventListener('click', () => {
-          if (!deferredPrompt) return;
-          deferredPrompt.prompt();
-          deferredPrompt.userChoice.then((choiceResult) => {
-            if (choiceResult.outcome === 'accepted') {
-              console.log('[openjam PWA] User accepted the install prompt');
-            }
-            deferredPrompt = null;
-            banner.remove();
-          });
-        });
-      }
-
-      const dismissBtn = banner.querySelector('#pwa-dismiss-btn');
-      if (dismissBtn) {
-        dismissBtn.addEventListener('click', () => {
-          banner.style.transform = 'translateX(-50%) translateY(150px)';
-          sessionStorage.setItem('pwa_install_dismissed', 'true');
-          setTimeout(() => banner.remove(), 400);
-        });
-      }
-    }
-  })();
-
-  // PWA Service Worker
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js')
       .then(reg => console.log('[openjam] Service Worker registered:', reg.scope))

@@ -296,12 +296,35 @@
   });
 
   // 3. Load Rooms
+  function updateStatsTicker(roomList) {
+    const groups = ['stats-ticker-a', 'stats-ticker-b', 'stats-ticker-c'];
+    const roomCount = roomList.length;
+    const listeners = roomList.reduce((sum, r) => sum + (r.listener_count || 0), 0);
+    const liveRooms = roomList.filter(r => r.current_track?.track_uri).length;
+    const tags = new Set();
+    roomList.forEach(r => (r.genre_tags || []).forEach(t => tags.add(t)));
+
+    const items = [
+      `<span><span class="ticker-dot"></span> <span class="ticker-stat"><strong>${roomCount}</strong> active room${roomCount !== 1 ? 's' : ''}</span></span>`,
+      `<span><span class="ticker-dot"></span> <span class="ticker-stat"><strong>${listeners}</strong> listener${listeners !== 1 ? 's' : ''} online</span></span>`,
+      `<span><span class="ticker-dot"></span> <span class="ticker-stat"><strong>${liveRooms}</strong> now playing</span></span>`,
+      `<span><span class="ticker-dot"></span> <span class="ticker-stat"><strong>${tags.size}</strong> genre${tags.size !== 1 ? 's' : ''} live</span></span>`,
+      `<span><span class="ticker-dot"></span> Synced listening · OpenJam</span>`,
+    ].join('');
+
+    groups.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = items;
+    });
+  }
+
   async function loadRooms(){
     try {
       const r = await fetch('/rooms', { credentials:'include' });
       if(!r.ok) return;
       const data = await r.json();
       rooms = data.rooms || [];
+      updateStatsTicker(rooms);
       renderGenreFilters(rooms);
       let filtered = rooms;
       const q = $('#search-input').value.toLowerCase();
@@ -987,90 +1010,9 @@
     arm.addEventListener('touchstart', onMouseDown, { passive: false });
   }
 
-  // Custom PWA Install Banner
-  (function setupInstallBanner() {
-    let deferredPrompt = null;
+  // PWA install + service worker
+  setupPwaInstallBanner();
 
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
-      if (sessionStorage.getItem('pwa_install_dismissed') === 'true') return;
-      showBanner();
-    });
-
-    function showBanner() {
-      if (document.getElementById('pwa-install-banner')) return;
-
-      const banner = document.createElement('div');
-      banner.id = 'pwa-install-banner';
-      banner.style.cssText = `
-        position: fixed;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%) translateY(100px);
-        background: linear-gradient(135deg, rgba(25, 23, 36, 0.95), rgba(18, 17, 24, 0.95));
-        border: 1px solid rgba(255, 170, 0, 0.2);
-        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-        border-radius: 16px;
-        padding: 16px;
-        width: calc(100% - 32px);
-        max-width: 420px;
-        z-index: 9999;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        backdrop-filter: blur(20px);
-        transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-      `;
-
-      banner.innerHTML = `
-        <div style="display:flex; align-items:center; gap:12px;">
-          <img src="/static/img/logo.png" alt="OpenJam logo" style="width:40px; height:40px; border-radius:10px; box-shadow:0 4px 10px rgba(255,170,0,0.2);" />
-          <div>
-            <div style="font-weight:700; font-size:14px; color:var(--text-1); line-height:1.2;">Install OpenJam</div>
-            <div style="font-size:11px; color:var(--text-3); margin-top:2px;">Add to Home Screen for background play</div>
-          </div>
-        </div>
-        <div style="display:flex; gap:8px;">
-          <button id="pwa-install-btn" class="btn btn-primary" style="padding:6px 12px; font-size:12px; font-weight:600; border-radius:8px;">Install</button>
-          <button id="pwa-dismiss-btn" class="btn btn-ghost" style="padding:6px 8px; font-size:12px; border-radius:8px; color:var(--text-3);">✕</button>
-        </div>
-      `;
-
-      document.body.appendChild(banner);
-      
-      setTimeout(() => {
-        banner.style.transform = 'translateX(-50%) translateY(0)';
-      }, 100);
-
-      const installBtn = banner.querySelector('#pwa-install-btn');
-      if (installBtn) {
-        installBtn.addEventListener('click', () => {
-          if (!deferredPrompt) return;
-          deferredPrompt.prompt();
-          deferredPrompt.userChoice.then((choiceResult) => {
-            if (choiceResult.outcome === 'accepted') {
-              console.log('[openjam PWA] User accepted the install prompt');
-            }
-            deferredPrompt = null;
-            banner.remove();
-          });
-        });
-      }
-
-      const dismissBtn = banner.querySelector('#pwa-dismiss-btn');
-      if (dismissBtn) {
-        dismissBtn.addEventListener('click', () => {
-          banner.style.transform = 'translateX(-50%) translateY(150px)';
-          sessionStorage.setItem('pwa_install_dismissed', 'true');
-          setTimeout(() => banner.remove(), 400);
-        });
-      }
-    }
-  })();
-
-  // Register PWA Service Worker
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js')
       .then(reg => console.log('[openjam] Service Worker registered:', reg.scope))
