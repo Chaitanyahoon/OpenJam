@@ -30,14 +30,15 @@ export default function RootLayout({ children }) {
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <script dangerouslySetInnerHTML={{ __html: `
           if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(function(regs) {
-              for (var i = 0; i < regs.length; i++) {
-                regs[i].unregister().then(function(ok) {
-                  if (ok) {
-                    console.log('[serviceWorker] unregistered legacy SW via root layout script');
-                  }
-                });
-              }
+            window.addEventListener('load', function() {
+              navigator.serviceWorker.register('/sw.js').then(
+                function(registration) {
+                  console.log('[Service Worker] registered successfully with scope:', registration.scope);
+                },
+                function(err) {
+                  console.error('[Service Worker] registration failed:', err);
+                }
+              );
             });
           }
         ` }} />

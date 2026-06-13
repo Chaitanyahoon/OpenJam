@@ -12,10 +12,6 @@ const nextConfig = {
         source: '/static/:path*',
         destination: `${BACKEND_URL}/static/:path*`,
       },
-      {
-        source: '/sw.js',
-        destination: `${BACKEND_URL}/sw.js`,
-      },
 
       {
         source: '/rooms/:path*',
