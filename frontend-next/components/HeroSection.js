@@ -51,6 +51,7 @@ export default function HeroSection({
   onInstantJam,
   onDiscordLogin,
   onJoinGuest,
+  onCreateRoom,
   rooms = [],
   onPlayPreview,
   domeTracks = [],
@@ -535,6 +536,32 @@ export default function HeroSection({
                   </span>
                 </motion.button>
               </>
+            )}
+
+            {me && (
+              <motion.button
+                type="button"
+                className="btn btn-secondary btn-elegant-glow btn-bubble btn-guest-bubble"
+                onClick={onCreateRoom}
+                style={{ 
+                  padding: '14px 28px', 
+                  fontSize: '15px', 
+                  borderRadius: '99px',
+                }}
+                whileHover={reduceMotion ? undefined : { 
+                  scale: 1.05, 
+                  boxShadow: '0 12px 32px rgba(255, 255, 255, 0.15)' 
+                }}
+                whileTap={reduceMotion ? undefined : { scale: 0.98 }}
+              >
+                <div className="bubble-bg b1" />
+                <div className="bubble-bg b2" />
+                <div className="bubble-bg b3" />
+                <div className="bubble-bg b4" />
+                <span className="btn-bubble-content">
+                  ➕ Create Jam
+                </span>
+              </motion.button>
             )}
           </motion.div>
         </motion.div>

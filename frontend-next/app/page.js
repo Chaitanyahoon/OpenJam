@@ -702,6 +702,7 @@ export default function HomePage() {
         onInstantJam={handleInstantJam}
         onDiscordLogin={() => { window.location.href = '/auth/discord'; }}
         onJoinGuest={() => setShowJoinModal(true)}
+        onCreateRoom={() => setShowCreateModal(true)}
         rooms={rooms}
         onPlayPreview={handlePlayPreview}
         domeTracks={computedDomeTracks}
