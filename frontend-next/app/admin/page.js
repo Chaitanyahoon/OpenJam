@@ -30,7 +30,7 @@ export default function AdminPage() {
     return () => clearInterval(interval);
   }, [isAuthenticated]);
 
-  const checkAuth = async () => {
+  async function checkAuth() {
     try {
       const res = await fetch('/admin/rooms');
       if (res.status === 200) {
@@ -79,7 +79,7 @@ export default function AdminPage() {
     }
   };
 
-  const fetchRooms = async (silent = false) => {
+  async function fetchRooms(silent = false) {
     if (!silent) setRefreshing(true);
     try {
       const res = await fetch('/admin/rooms');

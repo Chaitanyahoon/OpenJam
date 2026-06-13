@@ -26,18 +26,6 @@ export default function RoomClient({ roomId }) {
   const nowPlayingRef = useRef(null);
   const playbackStateRef = useRef({ positionMs: 0, durationMs: 0, isPlaying: false });
   const streamErrorMsgRef = useRef(null);
-
-  useEffect(() => {
-    nowPlayingRef.current = nowPlaying;
-  }, [nowPlaying]);
-
-  useEffect(() => {
-    playbackStateRef.current = playbackState;
-  }, [playbackState]);
-
-  useEffect(() => {
-    streamErrorMsgRef.current = streamErrorMsg;
-  }, [streamErrorMsg]);
   const [chatMsgs, setChatMsgs] = useState([]);
   const [typingUsers, setTypingUsers] = useState({});
   const [isTyping, setIsTyping] = useState(false);
@@ -89,6 +77,18 @@ export default function RoomClient({ roomId }) {
   const lastReactionId = useRef(0);
   const isOverSuggestions = useRef(false);
   const isDraggingSuggestion = useRef(false);
+
+  useEffect(() => {
+    nowPlayingRef.current = nowPlaying;
+  }, [nowPlaying]);
+
+  useEffect(() => {
+    playbackStateRef.current = playbackState;
+  }, [playbackState]);
+
+  useEffect(() => {
+    streamErrorMsgRef.current = streamErrorMsg;
+  }, [streamErrorMsg]);
 
   const isHost = me && room && room.host_user_id === me.id;
 
@@ -678,7 +678,7 @@ export default function RoomClient({ roomId }) {
   }, [searchQuery]);
 
   // 6. Lyrics Syncing and Scroller
-  const fetchLyrics = async (artist, track) => {
+  async function fetchLyrics(artist, track) {
     if (!artist || !track) {
       setLyricsText([]);
       return;

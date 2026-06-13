@@ -28,37 +28,16 @@ export default function VinylPlayer() {
   const isDraggingRef = useRef(false);
   const dragStartAngleRef = useRef(0);
 
-  useEffect(() => {
-    // A. Platter Loop spin driven by GSAP loop
-    if (discRef.current) {
-      const spin = gsap.to(discRef.current, {
-        rotation: 360,
-        duration: 8,
-        repeat: -1,
-        ease: 'none',
-        paused: true,
-      });
-      spin.timeScale(0);
-      spin.play();
-      spinTweenRef.current = spin;
-    }
 
-    return () => {
-      stopAudio();
-      if (spinTweenRef.current) {
-        spinTweenRef.current.kill();
-      }
-    };
-  }, []);
 
   // Set angle of arm
-  const setArmAngle = (deg) => {
+  function setArmAngle(deg) {
     const clampedDeg = Math.max(15, Math.min(45, deg));
     setCurrentAngle(clampedDeg);
     gsap.set(armRef.current, { rotation: clampedDeg });
   };
 
-  const getArmOrigin = () => {
+  function getArmOrigin() {
     if (!armRef.current) return { x: 0, y: 0 };
     const rect = armRef.current.getBoundingClientRect();
     return {
@@ -68,7 +47,7 @@ export default function VinylPlayer() {
   };
 
   // Toggle arm state
-  const togglePlay = (play) => {
+  function togglePlay(play) {
     setIsPlaying(play);
     if (play) {
       // Elastic swing transition onto record using GSAP
@@ -128,7 +107,7 @@ export default function VinylPlayer() {
   };
 
   // Web Audio System
-  const startAudio = () => {
+  function startAudio() {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return;
 
@@ -267,7 +246,7 @@ export default function VinylPlayer() {
     startVisualizer();
   };
 
-  const stopAudio = () => {
+  function stopAudio() {
     if (chordsIntervalRef.current) {
       clearInterval(chordsIntervalRef.current);
       chordsIntervalRef.current = null;
@@ -295,9 +274,32 @@ export default function VinylPlayer() {
     barRefs.current.forEach((bar) => {
       if (bar) bar.style.transform = '';
     });
-  };
+  }
 
-  const startVisualizer = () => {
+  useEffect(() => {
+    // A. Platter Loop spin driven by GSAP loop
+    if (discRef.current) {
+      const spin = gsap.to(discRef.current, {
+        rotation: 360,
+        duration: 8,
+        repeat: -1,
+        ease: 'none',
+        paused: true,
+      });
+      spin.timeScale(0);
+      spin.play();
+      spinTweenRef.current = spin;
+    }
+
+    return () => {
+      stopAudio();
+      if (spinTweenRef.current) {
+        spinTweenRef.current.kill();
+      }
+    };
+  }, []);
+
+  function startVisualizer() {
     if (!analyserRef.current) return;
     const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
     const smoothedValues = new Array(5).fill(0.15);
@@ -325,7 +327,7 @@ export default function VinylPlayer() {
   };
 
   // Mouse / Touch Event Drag Handlers
-  const handleDragStart = (e) => {
+  function handleDragStart(e) {
     e.preventDefault();
     isDraggingRef.current = true;
     if (armRef.current) armRef.current.classList.add('dragging');
@@ -344,7 +346,7 @@ export default function VinylPlayer() {
     document.addEventListener('touchend', handleDragEnd);
   };
 
-  const handleDragMove = (e) => {
+  function handleDragMove(e) {
     if (!isDraggingRef.current) return;
     if (e.cancelable) e.preventDefault();
 
@@ -360,7 +362,7 @@ export default function VinylPlayer() {
     setArmAngle(startAngleAdjusted(angleDiff));
   };
 
-  const startAngleAdjusted = (diff) => {
+  function startAngleAdjusted(diff) {
     let target = currentAngle + diff;
     if (isPlaying) {
       // If currently playing and dragging, base angle defaults to 38 deg on platter
@@ -371,7 +373,7 @@ export default function VinylPlayer() {
     return target;
   };
 
-  const handleDragEnd = () => {
+  function handleDragEnd() {
     if (!isDraggingRef.current) return;
     isDraggingRef.current = false;
     if (armRef.current) armRef.current.classList.remove('dragging');
@@ -389,7 +391,7 @@ export default function VinylPlayer() {
     }
   };
 
-  const handleArmClick = () => {
+  function handleArmClick() {
     // Toggle play state on arm click
     if (isPlaying) {
       togglePlay(false);

@@ -229,34 +229,34 @@ export const MusicPlayer = ({
     };
   }, [isPlaying, track.duration, propCurrentTime]);
 
-  const formatTime = (seconds) => {
+  function formatTime(seconds) {
     if (isNaN(seconds) || seconds === null) return "0:00";
     const min = Math.floor(seconds / 60);
     const sec = Math.floor(seconds % 60);
     return `${min}:${sec < 10 ? "0" + sec : sec}`;
-  };
+  }
 
-  const togglePlay = () => {
+  function togglePlay() {
     setIsPlaying(!isPlaying);
-  };
+  }
 
-  const handleProgressClick = (e) => {
+  function handleProgressClick(e) {
     if (!progressRef.current || (!isHost && propCurrentTime !== undefined)) return;
     const { left, width } = progressRef.current.getBoundingClientRect();
     const clickPosition = e.clientX - left;
     const percentage = Math.max(0, Math.min(1, clickPosition / width));
     const newTime = Math.floor(track.duration * percentage);
     setCurrentTime(newTime);
-  };
+  }
 
-  const handleProgressHover = (e) => {
+  function handleProgressHover(e) {
     if (!progressRef.current) return;
     const { left, width } = progressRef.current.getBoundingClientRect();
     const hoverPosition = e.clientX - left;
     const percentage = Math.max(0, Math.min(1, hoverPosition / width));
     const hoverTimeValue = Math.floor(track.duration * percentage);
     setHoverTime(hoverTimeValue);
-  };
+  }
 
   if (!mounted) return null;
 
