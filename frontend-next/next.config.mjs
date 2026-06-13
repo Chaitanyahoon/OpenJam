@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000').replace(/\/$/, '');
+
 const nextConfig = {
   cacheComponents: true,
   experimental: {
@@ -8,48 +10,48 @@ const nextConfig = {
     return [
       {
         source: '/static/:path*',
-        destination: 'http://localhost:8000/static/:path*',
+        destination: `${BACKEND_URL}/static/:path*`,
       },
       {
         source: '/sw.js',
-        destination: 'http://localhost:8000/sw.js',
+        destination: `${BACKEND_URL}/sw.js`,
       },
 
       {
         source: '/rooms/:path*',
-        destination: 'http://localhost:8000/rooms/:path*',
+        destination: `${BACKEND_URL}/rooms/:path*`,
       },
       {
         source: '/auth/:path*',
-        destination: 'http://localhost:8000/auth/:path*',
+        destination: `${BACKEND_URL}/auth/:path*`,
       },
       {
         source: '/queue/:path*',
-        destination: 'http://localhost:8000/queue/:path*',
+        destination: `${BACKEND_URL}/queue/:path*`,
       },
       {
         source: '/admin/:path*',
-        destination: 'http://localhost:8000/admin/:path*',
+        destination: `${BACKEND_URL}/admin/:path*`,
       },
       {
         source: '/ping',
-        destination: 'http://localhost:8000/ping',
+        destination: `${BACKEND_URL}/ping`,
       },
       {
         source: '/health',
-        destination: 'http://localhost:8000/health',
+        destination: `${BACKEND_URL}/health`,
       },
       {
         source: '/socket.io/:path*',
-        destination: 'http://localhost:8000/socket.io/:path*',
+        destination: `${BACKEND_URL}/socket.io/:path*`,
       },
       {
         source: '/search/:path*',
-        destination: 'http://localhost:8000/search/:path*',
+        destination: `${BACKEND_URL}/search/:path*`,
       },
       {
         source: '/stream/:path*',
-        destination: 'http://localhost:8000/stream/:path*',
+        destination: `${BACKEND_URL}/stream/:path*`,
       },
     ];
   },
