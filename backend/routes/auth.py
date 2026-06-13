@@ -150,10 +150,10 @@ async def discord_login(request: Request):
 async def discord_callback(request: Request, code: str = ""):
     """Handle Discord OAuth2 callback — exchange code for token, fetch user, create session."""
     if not code:
-        return RedirectResponse("/?error=discord_no_code")
+        return RedirectResponse(f"{settings.FRONTEND_URL}/?error=discord_no_code")
 
     if not settings.DISCORD_CLIENT_ID or not settings.DISCORD_CLIENT_SECRET:
-        return RedirectResponse("/?error=discord_not_configured")
+        return RedirectResponse(f"{settings.FRONTEND_URL}/?error=discord_not_configured")
 
     try:
         # 1. Exchange authorization code for access token
@@ -168,12 +168,12 @@ async def discord_callback(request: Request, code: str = ""):
 
             if token_resp.status_code != 200:
                 logger.error(f"Discord token exchange failed: {token_resp.status_code} {token_resp.text}")
-                return RedirectResponse("/?error=discord_token_failed")
+                return RedirectResponse(f"{settings.FRONTEND_URL}/?error=discord_token_failed")
 
             token_data = token_resp.json()
             access_token = token_data.get("access_token")
             if not access_token:
-                return RedirectResponse("/?error=discord_no_token")
+                return RedirectResponse(f"{settings.FRONTEND_URL}/?error=discord_no_token")
 
             # 2. Fetch Discord user profile
             user_resp = await client.get(f"{DISCORD_API_BASE}/users/@me", headers={
@@ -182,7 +182,7 @@ async def discord_callback(request: Request, code: str = ""):
 
             if user_resp.status_code != 200:
                 logger.error(f"Discord user fetch failed: {user_resp.status_code}")
-                return RedirectResponse("/?error=discord_user_failed")
+                return RedirectResponse(f"{settings.FRONTEND_URL}/?error=discord_user_failed")
 
             discord_user = user_resp.json()
 
@@ -235,7 +235,7 @@ async def discord_callback(request: Request, code: str = ""):
             avatar_url=avatar_url,
         )
 
-        response = RedirectResponse("/")
+        response = RedirectResponse(f"{settings.FRONTEND_URL}/")
         is_prod = settings.ENVIRONMENT == "production"
         response.set_cookie(
             key="session_token",
@@ -250,5 +250,5 @@ async def discord_callback(request: Request, code: str = ""):
 
     except Exception as e:
         logger.error(f"Discord OAuth2 error: {e}")
-        return RedirectResponse("/?error=discord_error")
+        return RedirectResponse(f"{settings.FRONTEND_URL}/?error=discord_error")
 
