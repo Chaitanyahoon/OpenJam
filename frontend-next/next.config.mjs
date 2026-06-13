@@ -6,12 +6,6 @@ const nextConfig = {
   experimental: {
     instantNavigationDevToolsToggle: true,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   async rewrites() {
     return [
       {
