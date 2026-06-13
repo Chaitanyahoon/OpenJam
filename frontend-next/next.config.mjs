@@ -14,6 +14,10 @@ const nextConfig = {
       },
 
       {
+        source: '/rooms',
+        destination: `${BACKEND_URL}/rooms`,
+      },
+      {
         source: '/rooms/:path*',
         destination: `${BACKEND_URL}/rooms/:path*`,
       },
