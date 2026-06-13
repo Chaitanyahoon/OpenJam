@@ -16,7 +16,20 @@ export const SocketProvider = ({ children }) => {
     const token = getCookie('session_token');
     const guestName = localStorage.getItem('openjam_display_name') || '';
 
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+    const getBackendUrl = () => {
+      if (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_BACKEND_URL) {
+        const url = process.env.NEXT_PUBLIC_BACKEND_URL;
+        if (url !== 'undefined' && url !== 'null' && url.trim() !== '') {
+          return url.replace(/\/$/, '');
+        }
+      }
+      if (typeof window !== 'undefined') {
+        const hostname = window.location.hostname;
+        return `http://${hostname}:8000`;
+      }
+      return 'http://localhost:8000';
+    };
+    const backendUrl = getBackendUrl();
     const socketInstance = io(backendUrl, {
       path: '/socket.io',
       auth: { token: token || '', guest_name: guestName },

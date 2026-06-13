@@ -23,7 +23,9 @@ class SocketClient {
     const token = this._getCookie('session_token');
     const guestName = localStorage.getItem('openjam_display_name') || '';
 
-    this.socket = io({
+    const connectionUri = window.location.port === '3000' ? 'http://localhost:8000' : '';
+
+    this.socket = io(connectionUri, {
       path: '/socket.io',
       auth: { token: token || '', guest_name: guestName },
       transports: ['websocket', 'polling'],

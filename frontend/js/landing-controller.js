@@ -362,14 +362,23 @@
     
     grid.innerHTML = list.map(r => {
       const t = r.current_track;
-      const coverUrl = t?.album_art_url || '/static/img/cover-banner.png';
-      const trackName = t ? esc(t.track_name) : 'No track playing';
-      const artistName = t ? esc(t.artist) : 'Idle Room';
+      const isPlaying = !!(t && t.track_name);
+      const coverUrl = isPlaying ? (t.album_art_url || '/static/img/cover-banner.png') : '';
+      const trackName = isPlaying ? esc(t.track_name) : 'No track playing';
+      const artistName = isPlaying ? esc(t.artist) : 'Idle Room';
 
       return `
       <div class="room-card" onclick="joinRoomAction('${esc(r.id)}')">
         <div class="room-card-cover-wrap">
-          <img class="room-card-cover-img" src="${coverUrl}" onerror="this.src='/static/img/cover-banner.png'" alt="Album Art">
+          ${isPlaying ? `
+            <img class="room-card-cover-img" src="${coverUrl}" onerror="this.src='/static/img/cover-banner.png'" alt="Album Art">
+          ` : `
+            <div style="width: 100%; height: 100%; background: linear-gradient(135deg, #181824 0%, #0c0c10 100%); display: flex; align-items: center; justify-content: center; border-bottom: 1px solid rgba(255,255,255,0.03);">
+              <svg width="44" height="44" viewBox="0 0 24 24" fill="rgba(255, 176, 58, 0.15)" style="filter: drop-shadow(0 0 10px rgba(255, 176, 58, 0.08))">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14.5c-2.49 0-4.5-2.01-4.5-4.5S9.51 7.5 12 7.5s4.5 2.01 4.5 4.5-2.01 4.5-4.5 4.5zm0-5.5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1z" />
+              </svg>
+            </div>
+          `}
           <div class="room-card-cover-overlay">
             <div class="room-card-badge ${r.is_private ? 'private' : 'live'}">
               ${r.is_private ? '🔒 Private' : '● Live'}
@@ -378,7 +387,7 @@
               <div class="listeners-dot"></div>
               <span>${r.listener_count ?? 0}</span>
             </div>
-            ${t ? `
+            ${isPlaying ? `
             <div class="room-card-eq-pill">
               <div class="card-now-playing-equalizer">
                 <span></span><span></span><span></span><span></span>

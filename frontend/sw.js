@@ -1,100 +1,15 @@
-const CACHE_NAME = 'openjam-static-v10';
-const ASSETS_TO_CACHE = [
-  '/',
-  '/offline',
-  '/static/css/style.css',
-  '/static/js/socket-client.js',
-  '/static/js/lyrics.js',
-  '/static/js/youtube-player.js',
-  '/static/js/socket.io.min.js',
-  '/static/js/gsap.min.js',
-  '/static/js/motion.js',
-  '/static/js/utils.js',
-  '/static/js/landing-controller.js',
-  '/static/js/room-controller.js',
-  '/static/js/queue-ui.js',
-  '/static/js/chat-ui.js',
-  '/static/js/member-ui.js',
-  '/static/manifest.json',
-  '/static/img/logo.png',
-  '/static/img/icon-192.png',
-  '/static/img/icon-512.png',
-  '/static/img/cover-banner.png'
-];
-
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('[openjam SW] Pre-caching static assets');
-      return cache.addAll(ASSETS_TO_CACHE);
-    }).then(() => self.skipWaiting())
-  );
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cache) => {
-          if (cache !== CACHE_NAME) {
-            console.log('[openjam SW] Clearing old cache:', cache);
-            return caches.delete(cache);
-          }
-        })
-      );
-    }).then(() => self.clients.claim())
-  );
-});
-
-self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
-
-  // Skip cross-origin requests entirely (GTM, fonts, analytics, YouTube, etc.)
-  if (url.origin !== self.location.origin) return;
-
-  // Only cache GET requests, avoid caching socket.io polling or API routes or /stream/
-  if (event.request.method !== 'GET' || 
-      url.pathname.startsWith('/socket.io') || 
-      url.pathname.startsWith('/auth') || 
-      url.pathname.startsWith('/rooms') || 
-      url.pathname.startsWith('/stream') ||
-      url.pathname.startsWith('/queue') ||
-      url.pathname.startsWith('/search') ||
-      url.pathname.startsWith('/admin')) {
-    return;
-  }
-
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Fetch in background to update cache (Stale-While-Revalidate)
-        fetch(event.request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, networkResponse);
-            });
-          }
-        }).catch(() => { /* Ignore background fetch failures */ });
-        return cachedResponse;
-      }
-      
-      return fetch(event.request).then((networkResponse) => {
-        // Cache newly requested static resources on the fly
-        if (networkResponse && networkResponse.status === 200 && 
-            (url.pathname.endsWith('.js') || url.pathname.endsWith('.css') || url.pathname.endsWith('.png') || url.pathname.endsWith('.svg') || url.pathname.includes('/fonts/'))) {
-          const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
+  self.registration.unregister()
+    .then(() => self.clients.matchAll())
+    .then((clients) => {
+      clients.forEach(client => {
+        if (client.url) {
+          client.navigate(client.url);
         }
-        return networkResponse;
-      }).catch((err) => {
-        // Offline fallback for navigation requests
-        if (event.request.mode === 'navigate') {
-          return caches.match('/offline');
-        }
-        throw err;
       });
-    })
-  );
+    });
 });

@@ -38,6 +38,9 @@ def _db_add_and_get_queue(room_id: str, track_data: dict, user_id: str, display_
                 track_data["uri"] = resolved_id
                 uri = resolved_id
 
+        if not track_data.get("uri") or not track_data.get("name"):
+            raise ValueError("Track URI and Name are required")
+
         # 2. Song Deduplication (check if track is pending or playing)
         if uri:
             duplicate = db.query(QueueItem).filter(

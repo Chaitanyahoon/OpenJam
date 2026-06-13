@@ -4,9 +4,12 @@ import asyncio
 import logging
 import re
 import time
+import os
+import shutil
+from pathlib import Path
 
 from fastapi import APIRouter, Request, Depends, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 import httpx
 import yt_dlp
 from sqlalchemy.orm import Session
@@ -23,6 +26,117 @@ from backend.routes.rooms import check_room_access
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["queue"])
+
+CACHE_DIR = Path(__file__).parent.parent / "cache"
+os.makedirs(CACHE_DIR, exist_ok=True)
+
+# Lock map to serialize duplicate background downloads of the same video ID
+_downloading_locks = {}
+_downloading_locks_lock = asyncio.Lock()
+
+async def get_download_lock(video_id: str):
+    async with _downloading_locks_lock:
+        if video_id not in _downloading_locks:
+            _downloading_locks[video_id] = asyncio.Lock()
+        return _downloading_locks[video_id]
+
+async def cleanup_old_cache(max_cache_size_mb: int = 500):
+    """Cleanup oldest cache files if total cache size exceeds max_cache_size_mb."""
+    try:
+        files = []
+        for file in CACHE_DIR.glob("*"):
+            if file.is_file() and not file.name.endswith(".tmp"):
+                files.append((file, file.stat().st_mtime, file.stat().st_size))
+        
+        total_size = sum(f[2] for f in files)
+        max_bytes = max_cache_size_mb * 1024 * 1024
+        
+        if total_size > max_bytes:
+            # Sort files by modification time (oldest first)
+            files.sort(key=lambda x: x[1])
+            bytes_to_delete = total_size - max_bytes
+            deleted_bytes = 0
+            
+            for file, _, size in files:
+                if deleted_bytes >= bytes_to_delete:
+                    break
+                try:
+                    os.remove(file)
+                    deleted_bytes += size
+                    logger.info(f"Deleted old cache file {file.name} to free disk space")
+                except Exception as e:
+                    logger.warning(f"Failed to delete cache file {file.name}: {e}")
+    except Exception as e:
+        logger.warning(f"Error cleaning up cache: {e}")
+
+async def download_and_cache_track(video_id: str) -> str | None:
+    """Download track audio stream in background and cache it locally."""
+    # Check if any cached version already exists
+    for ext in ["webm", "m4a", "cache"]:
+        file_path = CACHE_DIR / f"{video_id}.{ext}"
+        if file_path.exists() and file_path.stat().st_size > 500000:
+            return str(file_path)
+
+    lock = await get_download_lock(video_id)
+    async with lock:
+        # Check again in case another task completed while waiting
+        for ext in ["webm", "m4a", "cache"]:
+            file_path = CACHE_DIR / f"{video_id}.{ext}"
+            if file_path.exists() and file_path.stat().st_size > 500000:
+                return str(file_path)
+
+        url = await _resolve_audio_url(video_id)
+        if not url:
+            logger.warning(f"Could not resolve stream URL to cache video {video_id}")
+            return None
+
+        # Determine extension based on resolved URL
+        ext = "webm"
+        if "mime=audio/mp4" in url or "ext=m4a" in url or ".m4a" in url:
+            ext = "m4a"
+        elif "mime=audio/webm" in url or "ext=webm" in url or ".webm" in url:
+            ext = "webm"
+
+        temp_path = CACHE_DIR / f"{video_id}.{ext}.tmp"
+        final_path = CACHE_DIR / f"{video_id}.{ext}"
+
+        logger.info(f"Downloading track {video_id} to cache: {final_path}")
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+
+        try:
+            client = _get_stream_client()
+            req = client.build_request("GET", url, headers=headers)
+            r = await client.send(req, stream=True)
+            try:
+                if r.status_code not in (200, 206):
+                    logger.warning(f"Failed to download from YouTube for caching: {r.status_code}")
+                    return None
+
+                with open(temp_path, "wb") as f:
+                    async for chunk in r.aiter_bytes(chunk_size=262144):
+                        f.write(chunk)
+            finally:
+                await r.aclose()
+
+            if temp_path.exists() and temp_path.stat().st_size > 100000:
+                shutil.move(temp_path, final_path)
+                logger.info(f"Successfully cached track {video_id} to {final_path} (size: {final_path.stat().st_size} bytes)")
+                asyncio.create_task(cleanup_old_cache())
+                return str(final_path)
+            else:
+                logger.warning(f"Downloaded cache file for {video_id} was too small or empty")
+                if temp_path.exists():
+                    os.remove(temp_path)
+        except Exception as e:
+            logger.warning(f"Error downloading {video_id} to cache: {e}")
+            if temp_path.exists():
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
+        return None
 
 
 @router.post("/rooms/{room_id}/queue")
@@ -56,6 +170,9 @@ async def add_to_queue(
         resolved_id = await asyncio.to_thread(lastfm_service.resolve_youtube, uri)
         if resolved_id:
             track_data["uri"] = resolved_id
+
+    if not track_data.get("uri") or not track_data.get("name"):
+        raise HTTPException(status_code=400, detail="Track URI and Name are required")
 
     item = queue_manager.add_track(db, room_id, track_data, user_id, user_name)
 
@@ -219,16 +336,9 @@ def _extract_ytdlp_sync(video_id: str, low: bool = False) -> str | None:
         "socket_timeout": 12,
         "source_address": "0.0.0.0",
         "nocheckcertificate": True,
-        # Use web player client — less restricted than default
-        "extractor_args": {"youtube": {"player_client": ["web"]}},
+        # Use multiple clients to bypass individual player blocks
+        "extractor_args": {"youtube": {"player_client": ["android", "ios", "mweb", "web"]}},
     }
-
-    # Browser impersonation (requires curl-cffi)
-    try:
-        from yt_dlp.networking.impersonate import ImpersonateTarget
-        ydl_opts["impersonate"] = ImpersonateTarget.from_str("chrome")
-    except (ImportError, Exception) as e:
-        logger.debug(f"yt-dlp impersonation not available: {e}")
 
     # Cookie support for bypassing bot detection
     cookie_file = _get_cookie_path()
@@ -270,6 +380,14 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
             return url
         del _url_cache[cache_key]
 
+    async def _try_cobalt() -> str | None:
+        try:
+            from backend.services.cobalt import get_cobalt_stream_url
+            return await get_cobalt_stream_url(video_id)
+        except Exception as e:
+            logger.warning(f"Cobalt failed for {video_id}: {e}")
+            return None
+
     async def _try_invidious() -> str | None:
         try:
             return await get_invidious_stream_url(video_id)
@@ -278,26 +396,53 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
             return None
 
     async def _try_ytdlp() -> str | None:
-        return await asyncio.to_thread(_extract_ytdlp_sync, video_id, low)
+        try:
+            return await asyncio.to_thread(_extract_ytdlp_sync, video_id, low)
+        except Exception as e:
+            logger.warning(f"yt-dlp failed for {video_id}: {e}")
+            return None
 
-    # 1. Prioritize Cobalt (Fastest and most reliable)
-    try:
-        from backend.services.cobalt import get_cobalt_stream_url
-        url = await get_cobalt_stream_url(video_id)
-        if url:
-            return url
-    except Exception as e:
-        logger.warning(f"Cobalt failed for {video_id}: {e}")
-
-    # 2. If Cobalt fails, race Invidious and yt-dlp
-    logger.info(f"Cobalt failed for {video_id}, falling back to Invidious/yt-dlp race")
-    tasks = [_try_invidious(), _try_ytdlp()]
+    logger.info(f"Initiating concurrent stream extraction race (Cobalt, Invidious, yt-dlp) for {video_id}")
+    
+    tasks = [
+        asyncio.create_task(_try_cobalt()),
+        asyncio.create_task(_try_invidious()),
+        asyncio.create_task(_try_ytdlp())
+    ]
+    
     url = None
-    for coro in asyncio.as_completed(tasks):
-        result = await coro
-        if result:
-            url = result
-            break
+    try:
+        # Wait for the first task to complete
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        
+        for task in done:
+            try:
+                res = task.result()
+                if res:
+                    url = res
+                    break
+            except Exception:
+                pass
+
+        # If the fastest task failed to get a URL, wait for remaining ones
+        if not url and pending:
+            while pending:
+                done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+                for task in done:
+                    try:
+                        res = task.result()
+                        if res:
+                            url = res
+                            break
+                    except Exception:
+                        pass
+                if url:
+                    break
+    finally:
+        # Cancel any remaining tasks to free up network/CPU resources
+        for task in tasks:
+            if not task.done():
+                task.cancel()
 
     if url:
         _prune_url_cache()
@@ -306,22 +451,23 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
 
 
 async def pre_resolve_url(video_id: str):
-    """Resolve a stream URL in the background so it's cached when needed."""
-    if video_id in _url_cache:
-        _, expiry = _url_cache[video_id]
-        if time.time() < expiry:
-            return  # Already cached and valid
-    if video_id in _resolving:
-        return  # Already in flight
-    _resolving.add(video_id)
+    """Resolve a stream URL and pre-download the file to the local cache."""
+    if video_id not in _url_cache:
+        if video_id in _resolving:
+            return
+        _resolving.add(video_id)
+        try:
+            await _resolve_audio_url(video_id)
+        except Exception as e:
+            logger.warning(f"Pre-resolve URL failed for {video_id}: {e}")
+        finally:
+            _resolving.discard(video_id)
+            
+    # Trigger background download to local cache
     try:
-        url = await _resolve_audio_url(video_id)
-        if url:
-            logger.info(f"Pre-resolved stream URL for {video_id}")
+        asyncio.create_task(download_and_cache_track(video_id))
     except Exception as e:
-        logger.warning(f"Pre-resolve failed for {video_id}: {e}")
-    finally:
-        _resolving.discard(video_id)
+        logger.warning(f"Failed to trigger background pre-download for {video_id}: {e}")
 
 
 @router.get("/stream/{video_id}")
@@ -329,6 +475,26 @@ async def stream_audio(video_id: str, request: Request, low: bool = False, nocac
     if not _is_valid_video_id(video_id):
         raise HTTPException(status_code=400, detail="Invalid video ID")
 
+    # Check if high-quality or low-quality is already cached locally
+    for vid_id in [video_id, f"{video_id}_low"]:
+        for ext in ["webm", "m4a", "cache"]:
+            file_path = CACHE_DIR / f"{vid_id}.{ext}"
+            if file_path.exists() and file_path.stat().st_size > 500000:
+                logger.info(f"Serving cached file for track {video_id}: {file_path}")
+                media_type = "audio/webm" if ext == "webm" else ("audio/mp4" if ext == "m4a" else "application/octet-stream")
+                return FileResponse(
+                    str(file_path),
+                    media_type=media_type,
+                    headers={"Accept-Ranges": "bytes"}
+                )
+
+    # If not cached, trigger a background download so it's ready for future requests/seeks
+    try:
+        asyncio.create_task(download_and_cache_track(video_id))
+    except Exception as e:
+        logger.warning(f"Failed to trigger caching on stream demand for {video_id}: {e}")
+
+    # Fallback: Live streaming from YouTube
     cache_key = f"{video_id}_low" if low else video_id
     if nocache and cache_key in _url_cache:
         try:
@@ -354,7 +520,7 @@ async def stream_audio(video_id: str, request: Request, low: bool = False, nocac
 
         client = _get_stream_client()
         try:
-            logger.info(f"Streaming from url: {url} (attempt {attempt}/{max_attempts})")
+            logger.info(f"Streaming live from url: {url} (attempt {attempt}/{max_attempts})")
             req = client.build_request("GET", url, headers=headers)
             r = await client.send(req, stream=True)
 
@@ -378,7 +544,7 @@ async def stream_audio(video_id: str, request: Request, low: bool = False, nocac
 
             async def generate():
                 try:
-                    async for chunk in r.aiter_bytes(chunk_size=65536):
+                    async for chunk in r.aiter_bytes(chunk_size=131072):
                         yield chunk
                 finally:
                     await r.aclose()

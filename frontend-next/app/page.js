@@ -1,12 +1,24 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import dynamic from 'next/dynamic';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import Link from 'next/link';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useSocket } from '@/contexts/SocketContext';
-import StatsTicker from '@/components/StatsTicker';
+import HeroSection from '@/components/HeroSection';
+import RoomCard from '@/components/RoomCard';
+import YouTubePlayer from '@/utils/YouTubePlayer';
+import dynamic from 'next/dynamic';
+import PillNav from '@/components/PillNav';
+import VolumeIcon from '@/components/VolumeIcon';
+import { FALLBACK_DISCOVERY_TRACKS } from '@/constants/tracks';
 
-// Import VinylPlayer dynamically to avoid server-side AudioContext and window errors
-const VinylPlayer = dynamic(() => import('@/components/VinylPlayer'), { ssr: false });
+
+const JoinModal = dynamic(() => import('@/components/modals/JoinModal'), { ssr: false });
+const CreateRoomModal = dynamic(() => import('@/components/modals/CreateRoomModal'), { ssr: false });
+const LeaveModal = dynamic(() => import('@/components/modals/LeaveModal'), { ssr: false });
+const MusicPill = dynamic(() => import('@/components/MusicPill'), { ssr: false });
+
+
 
 export default function HomePage() {
   const { isConnected } = useSocket();
@@ -14,8 +26,69 @@ export default function HomePage() {
   // Authentication & User States
   const [me, setMe] = useState(null);
   const [rooms, setRooms] = useState([]);
+
+  // Preview Player States
+  const [activePreview, setActivePreview] = useState(null);
+  const [isPlayingPreview, setIsPlayingPreview] = useState(false);
+  const [previewVolume, setPreviewVolume] = useState(60);
+  const [previewMuted, setPreviewMuted] = useState(false);
+  const [previewPositionMs, setPreviewPositionMs] = useState(0);
+  const [previewDurationMs, setPreviewDurationMs] = useState(0);
+  const previewPlayerRef = useRef(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeGenreFilter, setActiveGenreFilter] = useState(null);
+
+  // Compute tracks for DomeGallery dynamically
+  const computedDomeTracks = useMemo(() => {
+    // 1. Extract tracks currently playing in active rooms
+    const activeRoomTracks = rooms
+      .filter((r) => r.current_track?.album_art_url)
+      .map((r) => ({
+        src: r.current_track.album_art_url,
+        alt: `${r.current_track.track_name} playing in ${r.name}`,
+        trackName: r.current_track.track_name,
+        artist: r.current_track.artist,
+        trackUri: r.current_track.track_uri,
+        genre: r.genre_tags?.[0] || 'live',
+        roomId: r.id,
+        roomName: r.name
+      }));
+
+    // 2. Filter active tracks by activeGenreFilter if set
+    let filteredActive = activeRoomTracks;
+    if (activeGenreFilter) {
+      filteredActive = activeRoomTracks.filter((t) => 
+        t.genre.toLowerCase() === activeGenreFilter.toLowerCase()
+      );
+    }
+
+    // 3. Filter fallback tracks by activeGenreFilter if set
+    let filteredFallback = FALLBACK_DISCOVERY_TRACKS;
+    if (activeGenreFilter) {
+      filteredFallback = FALLBACK_DISCOVERY_TRACKS.filter((t) => 
+        t.genre.toLowerCase() === activeGenreFilter.toLowerCase()
+      );
+    }
+
+    // If no fallback tracks match the filter, use all fallback tracks
+    if (filteredFallback.length === 0) {
+      filteredFallback = FALLBACK_DISCOVERY_TRACKS;
+    }
+
+    // 4. Combine them (active room tracks take precedence)
+    const combined = [...filteredActive, ...filteredFallback];
+
+    // De-duplicate by trackUri
+    const unique = [];
+    const seen = new Set();
+    for (const track of combined) {
+      if (!seen.has(track.trackUri)) {
+        seen.add(track.trackUri);
+        unique.push(track);
+      }
+    }
+    return unique;
+  }, [rooms, activeGenreFilter]);
 
   // Modals Toggles
   const [showJoinModal, setShowJoinModal] = useState(false);
@@ -31,20 +104,75 @@ export default function HomePage() {
   const [createPrivate, setCreatePrivate] = useState(false);
   const [createPassword, setCreatePassword] = useState('');
   const [selectedTags, setSelectedTags] = useState(new Set());
-  
+
   // Shuffler & Submission states
   const [isShuffling, setIsShuffling] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toastMsg, setToastMsg] = useState(null);
 
+  const [currentYear, setCurrentYear] = useState(2026);
+  useEffect(() => {
+    setCurrentYear(new Date().getFullYear());
+  }, []);
+
+  // Sync preview player volume
+  useEffect(() => {
+    if (previewPlayerRef.current) {
+      previewPlayerRef.current.setVolume(previewMuted ? 0 : previewVolume);
+    }
+  }, [previewVolume, previewMuted]);
+
+  // Clean up preview player on unmount
+  useEffect(() => {
+    return () => {
+      if (previewPlayerRef.current) {
+        previewPlayerRef.current.destroy();
+        previewPlayerRef.current = null;
+      }
+    };
+  }, []);
+
   const shufflerAudioCtxRef = useRef(null);
 
-  const availableTags = [
-    'indie', 'rock', 'pop', 'hip-hop', 'electronic', 'r&b',
-    'jazz', 'classical', 'lofi', 'metal', 'latin', 'chill'
-  ];
+  // Ambient theme color (static amber)
+  const amberColor = '#ffb03a';
 
-  // Show dynamic toast helper
+  // Cursor glow follower
+  const cursorGlowRef = useRef(null);
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (cursorGlowRef.current) {
+        cursorGlowRef.current.style.left = `${e.clientX}px`;
+        cursorGlowRef.current.style.top = `${e.clientY}px`;
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('mousemove', handleMouseMove);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('mousemove', handleMouseMove);
+      }
+    };
+  }, []);
+
+  // Filter & Search
+  const filteredRooms = rooms.filter((r) => {
+    const matchQuery =
+      r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (r.genre_tags || []).some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()));
+    const matchGenre = !activeGenreFilter || (r.genre_tags || []).includes(activeGenreFilter);
+    return matchQuery && matchGenre;
+  });
+
+  const dynamicFilterGenres = Array.from(
+    new Set(rooms.reduce((acc, curr) => acc.concat(curr.genre_tags || []), []))
+  ).sort();
+  const publicRooms = rooms.filter((room) => !room.is_private).length;
+  const privateRooms = rooms.length - publicRooms;
+  const totalListeners = rooms.reduce((sum, room) => sum + (room.listener_count || 0), 0);
+
+  // Helpers
   const triggerToast = (msg, type = 'info') => {
     setToastMsg({ text: msg, type });
     setTimeout(() => setToastMsg(null), 3500);
@@ -55,20 +183,11 @@ export default function HomePage() {
     for (let i = 0; i < (n || '').length; i++) {
       h = n.charCodeAt(i) + ((h << 5) - h);
     }
-    const hue = Math.abs(h) % 360;
-    return `hsl(${hue}, 60%, 55%)`;
+    return `hsl(${Math.abs(h) % 360}, 60%, 55%)`;
   };
 
-  const getInitials = (n) => {
-    return (n || '?')
-      .split(' ')
-      .map((w) => w[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
-  };
+  const getInitials = (n) => (n || '?').split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2);
 
-  // Random Name Generator List
   const generateRandomName = () => {
     const prefixes = ['Vinyl', 'Acid', 'Neon', 'Strobe', 'Signal', 'Fader', 'Beat', 'Groove', 'Tempo', 'Decibel', 'Echo', 'Sonic', 'Analog', 'Synth'];
     const suffixes = ['Jammer', 'Listener', 'Drifter', 'Pulse', 'Wave', 'Mixer', 'Seeker', 'Beats', 'Vibe', 'Rhythm', 'Waveform'];
@@ -78,7 +197,78 @@ export default function HomePage() {
     return `${p}${s}${num}`;
   };
 
-  // 1. Initial Authentication Checks
+  // Dynamic Navigation Items for PillNav
+  const navItems = useMemo(() => {
+    const list = [
+      { label: 'Home', href: '/' },
+      { label: 'Rooms', href: '#active-rooms' }
+    ];
+
+    if (!me) {
+      list.push({
+        label: 'Join Jam',
+        href: '#join',
+        onClick: (e) => {
+          e.preventDefault();
+          setShowJoinModal(true);
+        }
+      });
+    } else {
+      // User Profile Pill (shows avatar and name)
+      const userLabel = (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+          {me.avatar_url ? (
+            <img 
+              src={me.avatar_url} 
+              alt={me.display_name} 
+              style={{ width: '18px', height: '18px', borderRadius: '50%', border: '1px solid var(--amber)' }} 
+            />
+          ) : (
+            <span style={{ 
+              width: '18px', 
+              height: '18px', 
+              borderRadius: '50%', 
+              backgroundColor: 'var(--amber)', 
+              color: 'var(--bg-base)', 
+              fontSize: '9px', 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              fontWeight: 800
+            }}>
+              {getInitials(me.display_name)}
+            </span>
+          )}
+          <span>{me.display_name}</span>
+        </span>
+      );
+
+      list.push({
+        label: userLabel,
+        href: '#leave',
+        ariaLabel: `Leave session for ${me.display_name}`,
+        onClick: (e) => {
+          e.preventDefault();
+          setShowLeaveModal(true);
+        }
+      });
+
+      list.push({
+        label: 'Create Jam',
+        href: '#create',
+        onClick: (e) => {
+          e.preventDefault();
+          setShowCreateModal(true);
+        }
+      });
+    }
+
+    return list;
+  }, [me]);
+
+
+
+  // Auth
   const checkAuth = async () => {
     try {
       const r = await fetch('/auth/me', { credentials: 'include' });
@@ -90,8 +280,6 @@ export default function HomePage() {
     } catch (e) {
       console.error('Error fetching auth:', e);
     }
-
-    // Fallback: Check if guest name is stored locally
     const stored = typeof window !== 'undefined' ? localStorage.getItem('openjam_display_name') : null;
     if (stored) {
       try {
@@ -113,7 +301,6 @@ export default function HomePage() {
     return null;
   };
 
-  // 2. Fetch Active Rooms List
   const loadRooms = async () => {
     try {
       const r = await fetch('/rooms', { credentials: 'include' });
@@ -130,88 +317,106 @@ export default function HomePage() {
     checkAuth();
     loadRooms();
 
-    // Start 15s rooms list polling loop
     let intervalId = setInterval(loadRooms, 15000);
 
     const handleVisibilityChange = () => {
-      if (document.hidden) {
-        clearInterval(intervalId);
-      } else {
-        loadRooms();
-        intervalId = setInterval(loadRooms, 15000);
+      if (typeof document !== 'undefined') {
+        if (document.hidden) {
+          clearInterval(intervalId);
+        } else {
+          loadRooms();
+          intervalId = setInterval(loadRooms, 15000);
+        }
       }
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
 
     return () => {
       clearInterval(intervalId);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
       if (shufflerAudioCtxRef.current) {
         shufflerAudioCtxRef.current.close();
       }
     };
   }, []);
 
-  // Retro Web Audio sound effect for name shuffler
+  // Discord error parsing on mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const urlParams = new URLSearchParams(window.location.search);
+    const discordError = urlParams.get('error');
+    if (discordError) {
+      const errorMessages = {
+        'discord_no_code': 'Discord login was cancelled.',
+        'discord_not_configured': 'Discord login is not configured on this server.',
+        'discord_token_failed': 'Failed to authenticate with Discord. Please try again.',
+        'discord_no_token': 'Discord did not provide an access token.',
+        'discord_user_failed': 'Failed to fetch Discord profile.',
+        'discord_error': 'Discord login failed. Please try again.',
+      };
+      triggerToast(errorMessages[discordError] || 'Login failed.', 'error');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+
+    // Unregister any legacy service workers to prevent loading/caching conflicts
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (const registration of registrations) {
+          registration.unregister()
+            .then((success) => {
+              if (success) console.log('[serviceWorker] unregistered legacy SW');
+            });
+        }
+      });
+    }
+  }, []);
+
+  // Audio blip for name shuffler
   const playShufflerBlip = (pitch) => {
     try {
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       if (!AudioContextClass) return;
-
       if (!shufflerAudioCtxRef.current) {
         shufflerAudioCtxRef.current = new AudioContextClass();
       }
       const ctx = shufflerAudioCtxRef.current;
-      if (ctx.state === 'suspended') {
-        ctx.resume();
-      }
-
+      if (ctx.state === 'suspended') ctx.resume();
       const now = ctx.currentTime;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-
       osc.type = 'sine';
       osc.frequency.setValueAtTime(pitch, now);
       osc.frequency.exponentialRampToValueAtTime(pitch * 1.4, now + 0.06);
-
       gain.gain.setValueAtTime(0.06, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
-
       osc.connect(gain);
       gain.connect(ctx.destination);
-
       osc.start(now);
       osc.stop(now + 0.08);
-    } catch (e) {
-      console.warn('Audio Context blip failed:', e);
-    }
+    } catch (e) {}
   };
 
   const handleRollGuestName = () => {
     if (isShuffling) return;
     setIsShuffling(true);
-
     let iterations = 0;
     const maxIterations = 8;
-    const intervalTime = 100;
-
     const interval = setInterval(() => {
-      const tempName = generateRandomName();
-      setGuestName(tempName);
-
-      const pitch = 250 + iterations * 60;
-      playShufflerBlip(pitch);
-
+      setGuestName(generateRandomName());
+      playShufflerBlip(250 + iterations * 60);
       iterations++;
       if (iterations >= maxIterations) {
         clearInterval(interval);
-        const finalName = generateRandomName();
-        setGuestName(finalName);
+        setGuestName(generateRandomName());
         setIsShuffling(false);
         playShufflerBlip(780);
       }
-    }, intervalTime);
+    }, 100);
   };
 
   // Action handlers
@@ -219,7 +424,6 @@ export default function HomePage() {
     e?.preventDefault();
     const name = guestName.trim();
     if (!name) return triggerToast('Name is required', 'error');
-
     setIsSubmitting(true);
     try {
       const r = await fetch('/auth/join', {
@@ -234,7 +438,6 @@ export default function HomePage() {
         localStorage.setItem('openjam_display_name', data.user.display_name);
         setShowJoinModal(false);
         triggerToast(`Welcome, ${data.user.display_name}!`, 'success');
-
         if (openCreateAfterJoin) {
           setShowCreateModal(true);
           setOpenCreateAfterJoin(false);
@@ -256,7 +459,6 @@ export default function HomePage() {
     if (createPrivate && !createPassword.trim()) {
       return triggerToast('Password is required for private room', 'error');
     }
-
     setIsSubmitting(true);
     try {
       const r = await fetch('/rooms', {
@@ -271,7 +473,6 @@ export default function HomePage() {
         }),
         credentials: 'include'
       });
-
       if (r.ok) {
         const data = await r.json();
         window.location.href = `/room/${data.room.id}`;
@@ -295,164 +496,243 @@ export default function HomePage() {
     window.location.reload();
   };
 
+  const handleInstantJam = async () => {
+    let currentUser = me;
+    if (!currentUser) {
+      const randomName = generateRandomName();
+      triggerToast(`⚡ Instant Jam: Entering as ${randomName}...`, 'info');
+      try {
+        const r = await fetch('/auth/join', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ display_name: randomName }),
+          credentials: 'include'
+        });
+        if (r.ok) {
+          const data = await r.json();
+          currentUser = data.user;
+          setMe(data.user);
+          localStorage.setItem('openjam_display_name', randomName);
+        } else {
+          triggerToast('Failed to join guest session', 'error');
+          return;
+        }
+      } catch (err) {
+        triggerToast('Failed to join guest session', 'error');
+        return;
+      }
+    }
+    if (rooms.length > 0) {
+      const sorted = [...rooms].sort((a, b) => (b.listener_count || 0) - (a.listener_count || 0));
+      const targetRoom = sorted.find(r => !r.is_private) || sorted[0];
+      triggerToast(`⚡ Joining: ${targetRoom.name}`, 'success');
+      setTimeout(() => { window.location.href = `/room/${targetRoom.id}`; }, 800);
+    } else {
+      triggerToast(`⚡ Creating a new Quick Jam room...`, 'info');
+      const roomNames = ['Neon Lounge', 'Retro Beatcave', 'Analog Space', 'Echo Chamber', 'Decibel Oasis', 'Strobe Sanctuary'];
+      const rName = roomNames[Math.floor(Math.random() * roomNames.length)] + ' #' + Math.floor(Math.random() * 90 + 10);
+      try {
+        const r = await fetch('/rooms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: rName,
+            description: '⚡ 1-Click Instant Jam. Welcome, come queue music and chill!',
+            genre_tags: ['chill', 'lofi'],
+            queue_mode: 'open',
+            password: null
+          }),
+          credentials: 'include'
+        });
+        if (r.ok) {
+          const data = await r.json();
+          setTimeout(() => { window.location.href = `/room/${data.room.id}`; }, 800);
+        } else {
+          triggerToast('Failed to create quick room', 'error');
+        }
+      } catch (err) {
+        triggerToast('Failed to create quick room', 'error');
+      }
+    }
+  };
+
   const toggleTag = (tag) => {
     const updated = new Set(selectedTags);
     if (updated.has(tag)) {
       updated.delete(tag);
     } else {
-      if (updated.size >= 3) {
-        return triggerToast('Max 3 tags allowed', 'error');
-      }
+      if (updated.size >= 3) return triggerToast('Max 3 tags allowed', 'error');
       updated.add(tag);
     }
     setSelectedTags(updated);
   };
 
-  // Filter & Search computation
-  const filteredRooms = rooms.filter((r) => {
-    const matchQuery =
-      r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (r.genre_tags || []).some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()));
+  const handlePlayPreview = (track) => {
+    if (activePreview && activePreview.trackUri === track.trackUri) {
+      handleTogglePreviewPlay();
+      return;
+    }
+    setActivePreview(track);
+    setIsPlayingPreview(true);
+    setPreviewPositionMs(0);
+    setPreviewDurationMs(0);
+    if (!previewPlayerRef.current) {
+      previewPlayerRef.current = new YouTubePlayer({
+        onProgressUpdate: (pos, dur, playing) => {
+          setPreviewPositionMs(pos);
+          setPreviewDurationMs(dur);
+          setIsPlayingPreview(playing);
+        },
+        toast: (msg, type) => triggerToast(msg, type),
+      });
+    }
+    previewPlayerRef.current.setTrack({
+      track_uri: track.trackUri,
+      track_name: track.trackName,
+      artist: track.artist,
+      album_art_url: track.src,
+      is_playing: true,
+      position_ms: 0,
+      duration_ms: 240000
+    });
+    previewPlayerRef.current.setVolume(previewMuted ? 0 : previewVolume);
+  };
 
-    const matchGenre = !activeGenreFilter || (r.genre_tags || []).includes(activeGenreFilter);
+  const handleTogglePreviewPlay = () => {
+    if (!previewPlayerRef.current) return;
+    const nextState = !isPlayingPreview;
+    setIsPlayingPreview(nextState);
+    previewPlayerRef.current.setPlayState(nextState);
+  };
 
-    return matchQuery && matchGenre;
-  });
+  const handlePrevPreviewJump = () => {
+    if (previewPlayerRef.current) {
+      const nextTime = Math.max(0, previewPositionMs - 5000);
+      previewPlayerRef.current.syncPosition(nextTime, isPlayingPreview);
+      setPreviewPositionMs(nextTime);
+    }
+  };
 
-  // Extract dynamically unique tags for filtering chips
-  const dynamicFilterGenres = Array.from(
-    new Set(rooms.reduce((acc, curr) => acc.concat(curr.genre_tags || []), []))
-  ).sort();
+  const handleNextPreviewJump = () => {
+    if (previewPlayerRef.current) {
+      const nextTime = Math.min(previewDurationMs, previewPositionMs + 5000);
+      previewPlayerRef.current.syncPosition(nextTime, isPlayingPreview);
+      setPreviewPositionMs(nextTime);
+    }
+  };
+
+  const handleSeekPreview = (e) => {
+    if (!previewDurationMs || !previewPlayerRef.current) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const width = rect.width;
+    const percentage = Math.max(0, Math.min(1, clickX / width));
+    const newPositionMs = Math.floor(percentage * previewDurationMs);
+    previewPlayerRef.current.syncPosition(newPositionMs, isPlayingPreview);
+    setPreviewPositionMs(newPositionMs);
+  };
+
+  const handleClosePreview = () => {
+    if (previewPlayerRef.current) {
+      previewPlayerRef.current.stop();
+    }
+    setActivePreview(null);
+    setIsPlayingPreview(false);
+    setPreviewPositionMs(0);
+    setPreviewDurationMs(0);
+  };
+
+  const handleCreateRoomWithPreviewTrack = () => {
+    if (!me) {
+      setOpenCreateAfterJoin(true);
+      setShowJoinModal(true);
+      triggerToast('Please sign in or enter a guest name first', 'info');
+    } else {
+      setCreateName(`${activePreview.trackName} Jam`);
+      setShowCreateModal(true);
+    }
+  };
 
   return (
-    <>
-      {/* Dynamic Toast System */}
-      {toastMsg && (
-        <div className="toast-stack">
-          <div className={`toast ${toastMsg.type}`}>{toastMsg.text}</div>
-        </div>
-      )}
+    <div className="landing-wrapper">
 
-      {/* Global Jam Statistics Ticker */}
-      <StatsTicker rooms={rooms} />
+      {/* Cursor follower ambient glow */}
+      <div 
+        ref={cursorGlowRef}
+        className="cursor-glow" 
+        style={{
+          left: '-1000px',
+          top: '-1000px',
+          background: `radial-gradient(circle, ${amberColor}1c 0%, rgba(0,0,0,0) 65%)`
+        }}
+        aria-hidden="true"
+      />
 
-      {/* Ambient background mesh */}
+      {/* Toast */}
+      <AnimatePresence>
+        {toastMsg && (
+          <motion.div
+            className="toast-stack"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+          >
+            <div className={`toast ${toastMsg.type}`}>{toastMsg.text}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Ambient background */}
       <div className="landing-bg-glows" aria-hidden="true">
-        <div className="glow-1"></div>
-        <div className="glow-2"></div>
+        <div className="glow-1" style={{ background: `radial-gradient(circle, ${amberColor}1e 0%, rgba(0,0,0,0) 65%)` }} />
+        <div className="glow-2" style={{ background: `radial-gradient(circle, ${amberColor}16 0%, rgba(0,0,0,0) 65%)` }} />
       </div>
 
       {/* NAVBAR */}
-      <nav className="navbar" id="navbar">
-        <a href="/" className="navbar-brand">
-          <img className="navbar-icon" src="/static/img/logo.png" alt="OpenJam Logo" width="24" height="24" />
-          <div className="navbar-logo">
-            Open<span>Jam</span>
-          </div>
-        </a>
-        <div className="navbar-right">
-          {!me ? (
-            <button className="btn btn-ghost" onClick={() => setShowJoinModal(true)}>
-              Join Jam
-            </button>
-          ) : (
-            <div className="navbar-user">
-              {me.avatar_url ? (
-                <div className="avatar avatar-sm" style={{ border: '2px solid #5865F2' }}>
-                  <img src={me.avatar_url} alt={me.display_name} />
-                </div>
-              ) : (
-                <div className="avatar avatar-sm">{getInitials(me.display_name)}</div>
-              )}
-              <span>{me.display_name}</span>
-              <button className="btn btn-ghost" onClick={() => setShowLeaveModal(true)} title="Leave session">
-                ✕
-              </button>
-            </div>
-          )}
-          {me && (
-            <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
-              Create Jam
-            </button>
-          )}
-        </div>
-      </nav>
+      <PillNav
+        logo="/static/img/logo.png"
+        logoAlt="OpenJam Logo"
+        items={navItems}
+      />
 
-      {/* SPLIT HERO SECTION */}
-      <section className="hero">
-        <div className="hero-container">
-          <div className="hero-content-left">
-            <div className="hero-badge">
-              🎵 OPEN JAM V2
-            </div>
-            <h1 className="hero-title">
-              Listen Together.
-              <br />
-              <span>In Sync.</span>
-            </h1>
+      {/* HERO */}
+      <HeroSection
+        me={me}
+        onInstantJam={handleInstantJam}
+        onDiscordLogin={() => { window.location.href = '/auth/discord'; }}
+        onJoinGuest={() => setShowJoinModal(true)}
+        rooms={rooms}
+        onPlayPreview={handlePlayPreview}
+        domeTracks={computedDomeTracks}
+        activePreview={activePreview}
+        isPlayingPreview={isPlayingPreview}
+      />
 
-            <p className="hero-sub" id="hero-description">
-              {me ? (
-                me.avatar_url ? (
-                  <>Welcome back! Logged in as <strong style={{ color: '#a5b4fc' }}>@{me.display_name}</strong> via Discord. Create a room below or join an active jam!</>
-                ) : (
-                  <>Welcome back! Logged in as <strong style={{ color: 'var(--amber)' }}>{me.display_name}</strong>. Create a room below or join an active jam!</>
-                )
-              ) : (
-                "Social Listening, but make it classy. Create a listening room, queue tracks from YouTube, and discover music with friends in real-time."
-              )}
-            </p>
-
-            <div className="hero-actions">
-              <button
-                className="btn btn-primary"
-                onClick={() => {
-                  if (me) {
-                    setShowCreateModal(true);
-                  } else {
-                    setOpenCreateAfterJoin(true);
-                    setShowJoinModal(true);
-                  }
-                }}
-                id="btn-instant-jam"
-              >
-                ⚡ Instant Jam
-              </button>
-
-              {!me && (
-                <>
-                  <button
-                    className="btn btn-discord btn-discord-cta"
-                    onClick={() => { window.location.href = '/auth/discord'; }}
-                  >
-                    <svg width="20" height="15" viewBox="0 0 71 55" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 40.8 40.8 0 00-1.8 3.7 54 54 0 00-16.2 0A37.3 37.3 0 0025.4.3a.2.2 0 00-.2-.1 58.4 58.4 0 00-14.7 4.6.2.2 0 00-.1 0C1.5 18.7-.9 32 .3 45.1v.1a58.9 58.9 0 0018 9.1.2.2 0 00.3-.1 42.2 42.2 0 003.6-5.9.2.2 0 00-.1-.3 38.8 38.8 0 01-5.5-2.7.2.2 0 01 0-.4l1.1-.9a.2.2 0 01.2 0 42 42 0 0035.8 0 .2.2 0 01.2 0l1.1.9a.2.2 0 010 .4 36.4 36.4 0 01-5.5 2.7.2.2 0 00-.1.3 47.3 47.3 0 003.6 5.9.2.2 0 00.3.1 58.7 58.7 0 0018-9.1v-.1c1.4-15-2.3-28-9.8-39.6a.2.2 0 00-.1-.1zM23.7 37c-3.4 0-6.2-3.1-6.2-7s2.7-7 6.2-7 6.3 3.2 6.2 7-2.8 7-6.2 7zm23 0c-3.4 0-6.2-3.1-6.2-7s2.7-7 6.2-7 6.3 3.2 6.2 7-2.8 7-6.2 7z" />
-                    </svg>
-                    Sign in with Discord
-                  </button>
-                  <button
-                    className="btn btn-secondary btn-open-join-trigger"
-                    onClick={() => setShowJoinModal(true)}
-                  >
-                    👋 Join as Guest
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Interactive Vinyl Showcase on Right */}
-          <VinylPlayer />
-        </div>
-      </section>
-
-      {/* ACTIVE ROOMS SECTION */}
-      <section className="rooms-section">
+      <motion.section
+        id="active-rooms"
+        className="rooms-section"
+        initial={{ opacity: 0, y: 40 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.3 }}
+      >
         <div className="rooms-section-header">
-          <h2 className="rooms-section-title">
-            <span className="section-live-dot" aria-hidden="true"></span> Active Listening Rooms
-          </h2>
-          <span className="rooms-count">{rooms.length} room{rooms.length !== 1 ? 's' : ''}</span>
+          <div className="rooms-section-heading-group">
+            <h2 className="rooms-section-title">
+              <span className="section-live-dot" aria-hidden="true" /> Active Listening Rooms
+            </h2>
+            <p className="rooms-section-subtitle">
+              Filter by genre, scan who is hosting, and jump straight into a live queue.
+            </p>
+          </div>
+          <div className="rooms-header-meta">
+            <span className="rooms-count">
+              {rooms.length} room{rooms.length !== 1 ? 's' : ''}
+            </span>
+            <span className={`connection-chip ${isConnected ? 'online' : 'offline'}`}>
+              {isConnected ? 'Live updates on' : 'Offline fallback'}
+            </span>
+          </div>
         </div>
 
         {/* Search */}
@@ -472,294 +752,196 @@ export default function HomePage() {
               autoComplete="off"
             />
           </div>
+          <div className="rooms-toolbar-meta">
+            <span className="results-copy">
+              Showing {filteredRooms.length} result{filteredRooms.length !== 1 ? 's' : ''}
+              {activeGenreFilter ? ` in ${activeGenreFilter}` : ''}
+              {searchQuery ? ` for "${searchQuery}"` : ''}
+            </span>
+            {(searchQuery || activeGenreFilter) && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-toolbar-clear"
+                onClick={() => {
+                  setSearchQuery('');
+                  setActiveGenreFilter(null);
+                }}
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Filter chips */}
+        {/* Genre filter chips */}
         {dynamicFilterGenres.length > 0 && (
           <div className="genre-filters">
-            <button
+            <motion.button
               className={`genre-chip ${!activeGenreFilter ? 'active' : ''}`}
               onClick={() => setActiveGenreFilter(null)}
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
             >
               All
-            </button>
+            </motion.button>
             {dynamicFilterGenres.map((genre) => (
-              <button
+              <motion.button
                 key={genre}
                 className={`genre-chip ${activeGenreFilter === genre ? 'active' : ''}`}
                 onClick={() => setActiveGenreFilter(genre)}
+                whileHover={{ scale: 1.08 }}
+                whileTap={{ scale: 0.92 }}
+                layout
+                style={{ display: 'inline-flex', alignItems: 'center' }}
               >
+                {activeGenreFilter === genre && (
+                  <span style={{
+                    width: '6px',
+                    height: '6px',
+                    background: 'var(--amber)',
+                    borderRadius: '50%',
+                    marginRight: '6px',
+                    display: 'inline-block',
+                    boxShadow: '0 0 8px var(--amber)'
+                  }} />
+                )}
                 {genre}
-              </button>
+              </motion.button>
             ))}
           </div>
         )}
 
-        {/* Room grid */}
-        {filteredRooms.length > 0 ? (
-          <div className="rooms-grid">
-            {filteredRooms.map((r) => {
-              const t = r.current_track;
-              const coverUrl = t?.album_art_url || '/static/img/cover-banner.png';
-              const trackName = t ? t.track_name : 'No track playing';
-              const artistName = t ? t.artist : 'Idle Room';
-
-              return (
-                <div key={r.id} className="room-card" onClick={() => { window.location.href = `/room/${r.id}`; }}>
-                  <div className="room-card-cover-wrap">
-                    <img
-                      className="room-card-cover-img"
-                      src={coverUrl}
-                      onError={(e) => { e.target.src = '/static/img/cover-banner.png'; }}
-                      alt="Cover"
-                    />
-                    <div className="room-card-cover-overlay">
-                      <div className={`room-card-badge ${r.is_private ? 'private' : 'live'}`}>
-                        {r.is_private ? '🔒 Private' : '● Live'}
-                      </div>
-                      <div className="room-card-listeners">
-                        <div className="listeners-dot"></div>
-                        <span>{r.listener_count ?? 0}</span>
-                      </div>
-                      {t && (
-                        <div className="room-card-eq-pill">
-                          <div className="card-now-playing-equalizer">
-                            <span></span><span></span><span></span><span></span>
-                          </div>
-                        </div>
-                      )}
-                      <div className="room-card-play-btn">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M8 5v14l11-7z" />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="room-card-details">
-                    <div className="room-card-tags">
-                      {(r.genre_tags || []).slice(0, 3).map((tag) => (
-                        <span key={tag} className="tag-chip">{tag}</span>
-                      ))}
-                    </div>
-                    <h3 className="room-card-title">{r.name}</h3>
-                    <div className="room-card-host">
-                      {r.host_avatar_url ? (
-                        <img className="room-card-host-avatar" src={r.host_avatar_url} alt={r.host_name} />
-                      ) : (
-                        <div className="room-card-host-avatar-fallback" style={{ background: nameColor(r.host_name || 'Unknown') }}>
-                          {getInitials(r.host_name || 'Unknown')}
-                        </div>
-                      )}
-                      <span>Hosted by <strong>{r.host_name || 'Unknown'}</strong></span>
-                    </div>
-                  </div>
-
-                  <div className="room-card-now-playing-banner">
-                    <div className="banner-music-icon">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
-                      </svg>
-                    </div>
-                    <div className="banner-track-info">
-                      <span className="banner-track-name">{trackName}</span>
-                      <span className="banner-artist-name">{artistName}</span>
-                    </div>
-                  </div>
+        {/* Room cards grid */}
+        <AnimatePresence mode="popLayout">
+          {filteredRooms.length > 0 ? (
+            <motion.div className="rooms-grid" layout>
+              {filteredRooms.map((r, i) => (
+                <RoomCard
+                  key={r.id}
+                  room={r}
+                  nameColor={nameColor}
+                  getInitials={getInitials}
+                  href={`/room/${r.id}`}
+                />
+              ))}
+            </motion.div>
+          ) : (
+            <motion.div
+              className="empty"
+              style={{ display: 'flex' }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+            >
+              <div className="empty-illustration">
+                <div className="empty-vinyl">
+                  <div className="vinyl-disc" />
+                  <div className="vinyl-label" />
                 </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="empty" id="empty-state" style={{ display: 'flex' }}>
-            <div className="empty-illustration">
-              <div className="empty-vinyl">
-                <div className="vinyl-disc"></div>
-                <div className="vinyl-label"></div>
               </div>
-            </div>
-            <div className="empty-title">No active rooms right now</div>
-            <div className="empty-sub">Be the first to start a listening session and invite your friends!</div>
-            <button className="btn btn-primary" onClick={() => {
-              if (me) setShowCreateModal(true);
-              else {
-                setOpenCreateAfterJoin(true);
-                setShowJoinModal(true);
-              }
-            }}>
-              Create First Room
-            </button>
-          </div>
-        )}
-      </section>
+              <div className="empty-title">No active rooms right now</div>
+              <div className="empty-sub">
+                Be the first to start a listening session and invite your friends!
+              </div>
+              <motion.button
+                className="btn btn-primary"
+                onClick={() => {
+                  if (me) setShowCreateModal(true);
+                  else {
+                    setOpenCreateAfterJoin(true);
+                    setShowJoinModal(true);
+                  }
+                }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                Create First Room
+              </motion.button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.section>
+
+
 
       {/* FOOTER */}
-      <footer className="footer" style={{ textAlign: 'center', padding: '40px 24px', fontSize: '12px', color: 'var(--text-3)' }}>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginBottom: '8px' }}>
-          <a href="/privacy" className="footer-link">Privacy Policy</a>
-          <span className="footer-sep">&middot;</span>
-          <a href="/terms" className="footer-link">Terms of Service</a>
+      <footer className="footer footer-landing">
+        <div className="footer-links-row">
+          <Link href="/privacy" className="footer-link">Privacy Policy</Link>
+          <span className="footer-sep" aria-hidden="true">&middot;</span>
+          <Link href="/terms" className="footer-link">Terms of Service</Link>
         </div>
-        <p>&copy; {new Date().getFullYear()} OpenJam. All rights reserved.</p>
+        <p className="footer-copy">&copy; {currentYear} OpenJam. All rights reserved.</p>
       </footer>
 
-      {/* JOIN / AUTH MODAL */}
-      <div className={`modal-bg ${showJoinModal ? 'open' : ''}`}>
-        <div className="modal-box">
-          <div className="modal-header">
-            <h2 className="modal-title">👋 Join OpenJam</h2>
-            <button type="button" className="btn btn-ghost modal-close-btn" onClick={() => { setShowJoinModal(false); setOpenCreateAfterJoin(false); }}>✕</button>
-          </div>
-          
-          {/* Discord Authentication */}
-          <button
-            type="button"
-            className="btn btn-discord"
-            style={{ width: '100%', marginBottom: '18px' }}
-            onClick={() => { window.location.href = '/auth/discord'; }}
+      {/* Floating Preview Control Bar */}
+      <AnimatePresence>
+        {activePreview && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, x: '-50%' }}
+            exit={{ opacity: 0, y: 50, x: '-50%' }}
+            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+            style={{
+              position: 'fixed',
+              bottom: '24px',
+              left: '50%',
+              zIndex: 999,
+              width: 'calc(100% - 32px)',
+              maxWidth: '440px'
+            }}
           >
-            <svg width="20" height="15" viewBox="0 0 71 55" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '8px' }}>
-              <path d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 40.8 40.8 0 00-1.8 3.7 54 54 0 00-16.2 0A37.3 37.3 0 0025.4.3a.2.2 0 00-.2-.1 58.4 58.4 0 00-14.7 4.6.2.2 0 00-.1 0C1.5 18.7-.9 32 .3 45.1v.1a58.9 58.9 0 0018 9.1.2.2 0 00.3-.1 42.2 42.2 0 003.6-5.9.2.2 0 00-.1-.3 38.8 38.8 0 01-5.5-2.7.2.2 0 01 0-.4l1.1-.9a.2.2 0 01.2 0 42 42 0 0035.8 0 .2.2 0 01.2 0l1.1.9a.2.2 0 010 .4 36.4 36.4 0 01-5.5 2.7.2.2 0 00-.1.3 47.3 47.3 0 003.6 5.9.2.2 0 00.3.1 58.7 58.7 0 0018-9.1v-.1c1.4-15-2.3-28-9.8-39.6a.2.2 0 00-.1-.1zM23.7 37c-3.4 0-6.2-3.1-6.2-7s2.7-7 6.2-7 6.3 3.2 6.2 7-2.8 7-6.2 7zm23 0c-3.4 0-6.2-3.1-6.2-7s2.7-7 6.2-7 6.3 3.2 6.2 7-2.8 7-6.2 7z" />
-            </svg>
-            Sign in with Discord
-          </button>
+            <MusicPill
+              activePreview={activePreview}
+              isPlaying={isPlayingPreview}
+              positionMs={previewPositionMs}
+              durationMs={previewDurationMs}
+              onTogglePlay={handleTogglePreviewPlay}
+              onPrev={handlePrevPreviewJump}
+              onNext={handleNextPreviewJump}
+              onSeek={handleSeekPreview}
+              onClose={handleClosePreview}
+              onCreateRoom={handleCreateRoomWithPreviewTrack}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-          <div className="join-divider" style={{ marginBottom: '18px' }}>
-            <span>or continue as guest</span>
-          </div>
+      {/* MODALS */}
+      <JoinModal
+        show={showJoinModal}
+        onClose={() => { setShowJoinModal(false); setOpenCreateAfterJoin(false); }}
+        guestName={guestName}
+        onGuestNameChange={setGuestName}
+        onRoll={handleRollGuestName}
+        isShuffling={isShuffling}
+        onSubmit={handleJoinGuest}
+        isSubmitting={isSubmitting}
+        onDiscordLogin={() => { window.location.href = '/auth/discord'; }}
+      />
 
-          <p className="modal-text-muted" style={{ marginBottom: '14px' }}>Pick a nickname to represent you, or roll a random one.</p>
+      <CreateRoomModal
+        show={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        createName={createName} onCreateNameChange={setCreateName}
+        createDesc={createDesc} onCreateDescChange={setCreateDesc}
+        createMode={createMode} onCreateModeChange={setCreateMode}
+        createPrivate={createPrivate} onCreatePrivateChange={setCreatePrivate}
+        createPassword={createPassword} onCreatePasswordChange={setCreatePassword}
+        selectedTags={selectedTags} onToggleTag={toggleTag}
+        onSubmit={handleCreateRoom}
+        isSubmitting={isSubmitting}
+        triggerToast={triggerToast}
+        prefilledTrack={activePreview}
+      />
 
-          <form onSubmit={handleJoinGuest}>
-            <div className="modal-field name-shuffler-field" style={{ marginBottom: '20px' }}>
-              <input
-                type="text"
-                className="input-field"
-                value={guestName}
-                onChange={(e) => setGuestName(e.target.value)}
-                placeholder="e.g. DJSpin, BassHead"
-                maxLength="30"
-                autoComplete="off"
-                required
-              />
-              <button
-                type="button"
-                className="btn btn-secondary btn-shuffler"
-                onClick={handleRollGuestName}
-                disabled={isShuffling}
-                style={{ height: '45px', padding: '0 16px' }}
-              >
-                {isShuffling ? '🎲 ...' : '🎲 Roll'}
-              </button>
-            </div>
-            <div className="modal-actions-grid">
-              <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={isSubmitting}>
-                {isSubmitting ? 'Joining...' : 'Enter Jam'}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
+      <LeaveModal
+        show={showLeaveModal}
+        onClose={() => setShowLeaveModal(false)}
+        onConfirm={handleLogout}
+      />
 
-      {/* CREATE ROOM MODAL */}
-      <div className={`modal-bg ${showCreateModal ? 'open' : ''}`}>
-        <div className="modal-box">
-          <div className="modal-header">
-            <h2 className="modal-title">⚡ Start a New Jam</h2>
-            <button type="button" className="btn btn-ghost modal-close-btn" onClick={() => setShowCreateModal(false)}>✕</button>
-          </div>
-          <form onSubmit={handleCreateRoom}>
-            <div className="modal-field">
-              <label className="modal-label">Room Name *</label>
-              <input
-                type="text"
-                className="input-field"
-                value={createName}
-                onChange={(e) => setCreateName(e.target.value)}
-                placeholder="e.g. Late Night Lofi Lounge"
-                maxLength="60"
-                required
-              />
-            </div>
-            <div className="modal-field">
-              <label className="modal-label">Description</label>
-              <input
-                type="text"
-                className="input-field"
-                value={createDesc}
-                onChange={(e) => setCreateDesc(e.target.value)}
-                placeholder="What kind of vibe are we playing?"
-                maxLength="200"
-              />
-            </div>
-            <div className="modal-field">
-              <label className="modal-label">Queue Mode</label>
-              <select className="input-field" value={createMode} onChange={(e) => setCreateMode(e.target.value)}>
-                <option value="open">Open Party (Anyone can add tracks)</option>
-                <option value="curated">DJ Only (Only host can add tracks)</option>
-              </select>
-            </div>
-            <div className="modal-field modal-checkbox-row">
-              <input
-                type="checkbox"
-                id="create-private"
-                checked={createPrivate}
-                onChange={(e) => setCreatePrivate(e.target.checked)}
-              />
-              <label htmlFor="create-private" className="modal-label modal-label-checkbox">
-                Private Room (requires password)
-              </label>
-            </div>
-            {createPrivate && (
-              <div className="modal-field">
-                <label className="modal-label">Room Password</label>
-                <input
-                  type="password"
-                  className="input-field"
-                  value={createPassword}
-                  onChange={(e) => setCreatePassword(e.target.value)}
-                  placeholder="Enter password to join this room"
-                  maxLength="32"
-                  required
-                />
-              </div>
-            )}
-            <div className="modal-field">
-              <label className="modal-label">Genre Tags (Max 3)</label>
-              <div className="tag-grid">
-                {availableTags.map((tag) => (
-                  <div
-                    key={tag}
-                    className={`tag ${selectedTags.has(tag) ? 'active' : ''}`}
-                    onClick={() => toggleTag(tag)}
-                  >
-                    {tag}
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="modal-actions">
-              <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-                {isSubmitting ? 'Creating...' : 'Start Jamming'}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
 
-      {/* LEAVE SESSION MODAL */}
-      <div className={`modal-bg ${showLeaveModal ? 'open' : ''}`}>
-        <div className="modal-box text-center" style={{ textAlign: 'center' }}>
-          <div className="modal-title-small" style={{ fontSize: '20px', fontWeight: 700, marginBottom: '8px' }}>Leave Session?</div>
-          <p className="modal-text-desc" style={{ color: 'var(--text-2)', marginBottom: '24px', fontSize: '14px', lineHeight: 1.5 }}>
-            You will be seamlessly removed from any active rooms. Are you sure you want to log out?
-          </p>
-          <div className="modal-actions-centered" style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-            <button className="btn btn-secondary" onClick={() => setShowLeaveModal(false)}>Stay</button>
-            <button className="btn btn-primary" onClick={handleLogout}>Yes, Leave</button>
-          </div>
-        </div>
-      </div>
-    </>
+    </div>
   );
 }

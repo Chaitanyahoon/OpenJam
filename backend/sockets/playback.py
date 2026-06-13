@@ -133,10 +133,13 @@ async def _playback_sync_loop(room_id: str, sio: socketio.AsyncServer):
         elapsed_ms = int((now - last_tick).total_seconds() * 1000)
         last_tick = now
 
+        duration = playback.get("duration_ms", 0)
+        limit = (duration + 8000) if duration else 999_999_999
         new_pos = min(
             playback.get("position_ms", 0) + elapsed_ms,
-            playback.get("duration_ms", 0) or 999_999_999,
+            limit,
         )
+
 
         # Auto-advance when track ends (with an 8-second grace period to let the host client handle it first)
         duration = playback.get("duration_ms", 0)

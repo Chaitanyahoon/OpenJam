@@ -241,14 +241,21 @@ def register_connection_handlers(sio: socketio.AsyncServer):
             await sio.emit("join_error", {"message": error}, to=sid)
             return
 
-        # Check if this user is the room host and set host_sid
+        # Check if this user is the room host and set host_sid, and reactivate room if inactive
         def _check_host(room_id, user_id):
             db = SessionLocal()
             try:
                 from backend.models.room import Room
                 room = db.query(Room).filter(Room.id == room_id).first()
-                if room and room.host_user_id == user_id:
-                    room_manager.set_host(room_id, sid)
+                if room:
+                    if room.host_user_id == user_id:
+                        room_manager.set_host(room_id, sid)
+                    if not room.is_active:
+                        room.is_active = True
+                        db.commit()
+                        logger.info(f"Reactivated room {room_id} in database")
+            except Exception as e:
+                logger.error(f"Error checking host/reactivating room: {e}")
             finally:
                 db.close()
 

@@ -277,21 +277,7 @@ def report_stream_failure(stream_url: str):
 
 
 def _rewrite_googlevideo_url(url: str, instance: str) -> str:
-    if "googlevideo.com" in url:
-        from urllib.parse import urlparse, urlunparse
-        try:
-            parsed_url = urlparse(url)
-            parsed_instance = urlparse(instance)
-            return urlunparse((
-                parsed_instance.scheme,
-                parsed_instance.netloc,
-                parsed_url.path,
-                parsed_url.params,
-                parsed_url.query,
-                parsed_url.fragment
-            ))
-        except Exception:
-            pass
+    # Bypass host rewriting to stream directly from high-speed Googlevideo CDN domains
     return url
 
 

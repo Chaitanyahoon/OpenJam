@@ -17,3 +17,6 @@ pytest-cache-files-*/
 *.egg-info/
 AGENTS.md
 scratch/
+backend/cache/
+beautiful-lyrics-5.1.0/
+

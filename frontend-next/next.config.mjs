@@ -1,5 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  cacheComponents: true,
+  experimental: {
+    instantNavigationDevToolsToggle: true,
+  },
   async rewrites() {
     return [
       {
@@ -10,10 +14,7 @@ const nextConfig = {
         source: '/sw.js',
         destination: 'http://localhost:8000/sw.js',
       },
-      {
-        source: '/room/:path*',
-        destination: 'http://localhost:8000/room/:path*',
-      },
+
       {
         source: '/rooms/:path*',
         destination: 'http://localhost:8000/rooms/:path*',
@@ -41,6 +42,14 @@ const nextConfig = {
       {
         source: '/socket.io/:path*',
         destination: 'http://localhost:8000/socket.io/:path*',
+      },
+      {
+        source: '/search/:path*',
+        destination: 'http://localhost:8000/search/:path*',
+      },
+      {
+        source: '/stream/:path*',
+        destination: 'http://localhost:8000/stream/:path*',
       },
     ];
   },

@@ -1,0 +1,291 @@
+.pill-nav-container {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 32px);
+  max-width: 1200px;
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .pill-nav-container {
+    width: 100%;
+    left: 0;
+    transform: none;
+    top: 12px;
+  }
+}
+
+.pill-nav {
+  --nav-h: 48px;
+  --logo: 36px;
+  --pill-pad-x: 20px;
+  --pill-gap: 4px;
+  width: max-content;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .pill-nav {
+    width: 100%;
+    justify-content: space-between;
+    padding: 0 1.25rem;
+    background: transparent;
+  }
+}
+
+.pill-nav-items {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: var(--nav-h);
+  background: var(--base, #0a0a0f);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+  backdrop-filter: blur(24px) saturate(1.8);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.pill-nav-items:hover {
+  border-color: rgba(255, 159, 28, 0.25);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(255, 159, 28, 0.08);
+}
+
+.pill-logo {
+  width: var(--nav-h);
+  height: var(--nav-h);
+  border-radius: 50%;
+  background: var(--base, #0a0a0f);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  margin-right: 12px;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), border-color 0.3s ease;
+}
+
+.pill-logo:hover {
+  transform: scale(1.05);
+  border-color: var(--amber, #ff9f1c);
+}
+
+.pill-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.pill-list {
+  list-style: none;
+  display: flex;
+  align-items: stretch;
+  gap: var(--pill-gap);
+  margin: 0;
+  padding: 4px;
+  height: 100%;
+}
+
+.pill-list > li {
+  display: flex;
+  height: 100%;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 0 var(--pill-pad-x);
+  background: var(--pill-bg, rgba(255, 255, 255, 0.03));
+  color: var(--pill-text, #cbd5e1);
+  text-decoration: none;
+  border-radius: 9999px;
+  box-sizing: border-box;
+  font-family: var(--font-display, 'Outfit', sans-serif);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: color 0.2s ease;
+}
+
+.pill .hover-circle {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  border-radius: 50%;
+  background: var(--base, #0a0a0f);
+  z-index: 1;
+  display: block;
+  pointer-events: none;
+  will-change: transform;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.pill .label-stack {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.2;
+  z-index: 2;
+}
+
+.pill .pill-label {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.2;
+  will-change: transform;
+}
+
+.pill .pill-label-hover {
+  position: absolute;
+  left: 0;
+  color: var(--hover-text, #ff9f1c);
+  text-shadow: 0 0 12px rgba(255, 159, 28, 0.3);
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  line-height: 1.2;
+  will-change: transform, opacity;
+}
+
+.pill.is-active::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  background: var(--amber, #ff9f1c);
+  box-shadow: 0 0 8px var(--amber);
+  border-radius: 50%;
+  z-index: 4;
+}
+
+.desktop-only {
+  display: block;
+}
+
+.mobile-only {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .desktop-only {
+    display: none;
+  }
+
+  .mobile-only {
+    display: flex;
+  }
+}
+
+.mobile-menu-button {
+  width: var(--nav-h);
+  height: var(--nav-h);
+  border-radius: 50%;
+  background: var(--base, #0a0a0f);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  padding: 0;
+  position: relative;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.mobile-menu-button:hover {
+  transform: scale(1.05);
+  border-color: var(--amber, #ff9f1c);
+}
+
+@media (max-width: 768px) {
+  .mobile-menu-button {
+    display: flex;
+  }
+}
+
+.hamburger-line {
+  width: 16px;
+  height: 2px;
+  background: var(--pill-text, #cbd5e1);
+  border-radius: 1px;
+  transition: all 0.3s ease;
+  transform-origin: center;
+}
+
+.mobile-menu-popover {
+  position: absolute;
+  top: 4.5rem;
+  left: 1rem;
+  right: 1rem;
+  background: rgba(10, 10, 15, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  z-index: 998;
+  opacity: 0;
+  transform-origin: top center;
+  visibility: hidden;
+}
+
+.mobile-menu-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mobile-menu-popover .mobile-menu-link {
+  display: block;
+  padding: 14px 20px;
+  color: var(--pill-text, #cbd5e1);
+  background-color: rgba(255, 255, 255, 0.02);
+  text-decoration: none;
+  font-family: var(--font-display, sans-serif);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border-radius: 16px;
+  transition: all 0.2s ease;
+  border: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+.mobile-menu-popover .mobile-menu-link:hover {
+  cursor: pointer;
+  background-color: var(--base, #0a0a0f);
+  color: var(--hover-text, #ff9f1c);
+  border-color: rgba(255, 159, 28, 0.15);
+}
