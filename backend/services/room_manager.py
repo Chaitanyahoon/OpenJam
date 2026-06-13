@@ -33,6 +33,7 @@ class RoomManager:
                     "duration_ms": 0,
                     "is_playing": False,
                     "loop": False,
+                    "is_buffering": False,
                     "updated_at": None,
                     "skip_voters": set(),
                 },
@@ -51,15 +52,21 @@ class RoomManager:
         if not is_in_room and len(room["users"]) >= limit:
             return f"Room is full ({limit} listeners max). Try again later.", False
 
-        # Remove old sid mapping for this user if they were already in the room
+        # Clean up old sid mapping from store if user is rejoining from a new socket connection
+        if is_in_room:
+            old_sid = room["users"][user_id].get("sid")
+            if old_sid and old_sid != sid:
+                self.store.del_sid(old_sid)
+        
+        # Remove old sid mapping for this user if they were already in the room on a different connection
         if not is_in_room:
             old_info = self.store.get_sid(sid)
             if old_info and old_info["room_id"] != room_id:
-                self._leave_room_internal(old_info)
+                self._leave_room_internal(old_info, sid)
         else:
             old_info = self.store.get_sid(sid)
             if old_info and old_info["room_id"] != room_id:
-                self._leave_room_internal(old_info)
+                self._leave_room_internal(old_info, sid)
 
         # Refresh room object in case _leave_room_internal changed it
         room = self.store.get_room(room_id) or room
@@ -76,16 +83,18 @@ class RoomManager:
         self.store.set_sid(sid, {"user_id": user_id, "room_id": room_id})
         return None, was_new
 
-    def _leave_room_internal(self, info: dict):
+    def _leave_room_internal(self, info: dict, sid: str):
         """Internal cleanup without broadcasting."""
         room_id = info["room_id"]
         user_id = info["user_id"]
         room = self.store.get_room(room_id)
         if room:
-            room["users"].pop(user_id, None)
-            if not room["users"] and "empty_since" not in room:
-                room["empty_since"] = time.time()
-            self.store.set_room(room_id, room)
+            user_info = room["users"].get(user_id)
+            if user_info and user_info.get("sid") == sid:
+                room["users"].pop(user_id, None)
+                if not room["users"] and "empty_since" not in room:
+                    room["empty_since"] = time.time()
+                self.store.set_room(room_id, room)
 
     def leave_room(self, sid: str) -> dict | None:
         info = self.store.get_sid(sid)
@@ -102,10 +111,12 @@ class RoomManager:
         
         room = self.store.get_room(room_id)
         if room:
-            room["users"].pop(user_id, None)
-            if not room["users"] and "empty_since" not in room:
-                room["empty_since"] = time.time()
-            self.store.set_room(room_id, room)
+            user_info = room["users"].get(user_id)
+            if user_info and user_info.get("sid") == sid:
+                room["users"].pop(user_id, None)
+                if not room["users"] and "empty_since" not in room:
+                    room["empty_since"] = time.time()
+                self.store.set_room(room_id, room)
         return info
 
     def get_user_by_sid(self, sid: str) -> dict | None:
@@ -152,7 +163,7 @@ class RoomManager:
         return {rid: len(data["users"]) for rid, data in rooms.items()}
 
     def update_playback(self, room_id: str, track_uri: str, track_name: str, artist: str,
-                        album_art_url: str, position_ms: int, duration_ms: int, is_playing: bool, loop: bool = False):
+                        album_art_url: str, position_ms: int, duration_ms: int, is_playing: bool, loop: bool = False, is_buffering: bool = False):
         room = self.store.get_room(room_id)
         if room:
             # Carry over old skip voters if the track uri hasn't changed (just a pause/play/seek update)
@@ -170,6 +181,7 @@ class RoomManager:
                 "duration_ms": duration_ms,
                 "is_playing": is_playing,
                 "loop": loop,
+                "is_buffering": is_buffering,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
                 "skip_voters": skip_voters,
             }

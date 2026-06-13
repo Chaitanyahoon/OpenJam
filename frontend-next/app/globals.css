@@ -10048,3 +10048,22 @@ body:not(.room-page) .navbar:hover {
 .toggle-switch input:focus + .toggle-switch-slider {
   box-shadow: 0 0 0 2px rgba(255, 159, 28, 0.3);
 }
+
+/* Custom Select Dropdown Styling for Modals */
+.modal-box select.input-field {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  background-image: url("data:image/svg+xml;utf8,<svg fill='%23ffffff' height='24' viewBox='0 0 24 24' width='24' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/><path d='M0 0h24v24H0z' fill='none'/></svg>") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 14px center !important;
+  background-size: 20px !important;
+  padding-right: 40px !important;
+  cursor: pointer !important;
+}
+
+.modal-box select.input-field option {
+  background-color: #1a1a24 !important;
+  color: #ffffff !important;
+  padding: 12px !important;
+}

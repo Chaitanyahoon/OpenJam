@@ -10,6 +10,15 @@ _pending_close: dict = {}
 async def _close_room_after_delay(room_id: str, delay: int, sio, db_factory):
     """Wait `delay` seconds then mark room inactive and notify clients."""
     await asyncio.sleep(delay)
+    
+    # Safety Check: Cancel auto-close if there are active listeners now
+    from backend.services.room_manager import room_manager
+    if room_manager.get_listener_count(room_id) > 0:
+        import logging
+        logging.getLogger(__name__).info(f"Aborting auto-close for room {room_id} because it has active listeners.")
+        _pending_close.pop(room_id, None)
+        return
+
     # If task wasn't cancelled we close the room
     db = db_factory()
     try:

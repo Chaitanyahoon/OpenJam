@@ -51,7 +51,7 @@ async def join(request: Request):
     response.set_cookie(
         key="session_token",
         value=token,
-        httponly=True,
+        httponly=False,
         samesite="lax",
         secure=is_prod,
         max_age=86400 * 7,
@@ -92,7 +92,7 @@ async def admin_login(request: Request):
     response.set_cookie(
         key="session_token",
         value=token,
-        httponly=True,
+        httponly=False,
         samesite="lax",
         secure=is_prod,
         max_age=86400 * 7,
@@ -269,7 +269,7 @@ async def discord_callback(request: Request, code: str = ""):
         response.set_cookie(
             key="session_token",
             value=session_token,
-            httponly=True,
+            httponly=False,
             samesite="lax",
             secure=is_prod,
             max_age=86400 * 30,  # 30 days for Discord login

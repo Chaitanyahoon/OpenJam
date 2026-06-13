@@ -24,8 +24,7 @@ export const SocketProvider = ({ children }) => {
         }
       }
       if (typeof window !== 'undefined') {
-        const hostname = window.location.hostname;
-        return `http://${hostname}:8000`;
+        return window.location.origin;
       }
       return 'http://localhost:8000';
     };

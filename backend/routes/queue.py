@@ -162,6 +162,8 @@ async def add_to_queue(
         user = User(id=user_id, display_name=user_name)
         db.add(user)
         db.commit()
+    else:
+        user_name = user.display_name
 
     track_data = track.model_dump() if hasattr(track, "model_dump") else track.dict()
     
@@ -170,6 +172,16 @@ async def add_to_queue(
         resolved_id = await asyncio.to_thread(lastfm_service.resolve_youtube, uri)
         if resolved_id:
             track_data["uri"] = resolved_id
+            uri = resolved_id
+
+    # Resolve actual YouTube title, artist, and thumbnail if generic or missing
+    if uri and len(uri) == 11:
+        if track_data.get("name") in ["YouTube Video", "", None, uri] or track_data.get("artist") in ["YouTube", "Search Query", "", None]:
+            metadata = await asyncio.to_thread(lastfm_service.resolve_youtube_metadata, uri)
+            if metadata:
+                track_data["name"] = metadata["title"]
+                track_data["artist"] = metadata["author"]
+                track_data["album_art_url"] = metadata["thumbnail"]
 
     if not track_data.get("uri") or not track_data.get("name"):
         raise HTTPException(status_code=400, detail="Track URI and Name are required")
@@ -412,32 +424,19 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
     
     url = None
     try:
-        # Wait for the first task to complete
-        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-        
-        for task in done:
-            try:
-                res = task.result()
-                if res:
-                    url = res
-                    break
-            except Exception:
-                pass
-
-        # If the fastest task failed to get a URL, wait for remaining ones
-        if not url and pending:
-            while pending:
-                done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
-                for task in done:
-                    try:
-                        res = task.result()
-                        if res:
-                            url = res
-                            break
-                    except Exception:
-                        pass
-                if url:
-                    break
+        async def _race():
+            nonlocal url
+            for future in asyncio.as_completed(tasks):
+                try:
+                    res = await future
+                    if res:
+                        url = res
+                        break
+                except Exception:
+                    pass
+        await asyncio.wait_for(_race(), timeout=3.5)
+    except asyncio.TimeoutError:
+        logger.warning(f"Stream extraction race timed out after 3.5s for {video_id}")
     finally:
         # Cancel any remaining tasks to free up network/CPU resources
         for task in tasks:
@@ -544,7 +543,7 @@ async def stream_audio(video_id: str, request: Request, low: bool = False, nocac
 
             async def generate():
                 try:
-                    async for chunk in r.aiter_bytes(chunk_size=131072):
+                    async for chunk in r.aiter_bytes(chunk_size=32768):
                         yield chunk
                 finally:
                     await r.aclose()

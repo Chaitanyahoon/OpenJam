@@ -133,6 +133,16 @@ async def _playback_sync_loop(room_id: str, sio: socketio.AsyncServer):
         elapsed_ms = int((now - last_tick).total_seconds() * 1000)
         last_tick = now
 
+        if playback.get("is_buffering"):
+            # Emit current state with is_buffering=True so listeners freeze progress
+            try:
+                host_sid = room_manager.get_host_sid(room_id)
+                await sio.emit("playback_sync", _make_json_safe(playback), room=room_id, skip_sid=host_sid)
+            except Exception as e:
+                from backend.logger import get_logger
+                get_logger(__name__).error(f"Failed to emit playback_sync (buffering) for room {room_id}: {e}")
+            continue
+
         duration = playback.get("duration_ms", 0)
         limit = (duration + 8000) if duration else 999_999_999
         new_pos = min(
@@ -247,6 +257,7 @@ def register_playback_handlers(sio: socketio.AsyncServer):
             duration_ms=data.get("duration_ms", 0),
             is_playing=data.get("is_playing", False),
             loop=data.get("loop", False),
+            is_buffering=data.get("is_buffering", False),
         )
         if data.get("is_playing"):
             ensure_sync_loop(room_id, sio)
@@ -301,3 +312,36 @@ def register_playback_handlers(sio: socketio.AsyncServer):
         async with lock:
             stop_sync_loop(room_id)
             await _do_advance(room_id, sio)
+
+    @sio.event
+    async def toggle_repeat(sid, data):
+        """Host-only: toggle repeat/loop mode for current room playback."""
+        session = await sio.get_session(sid)
+        if not session:
+            return
+        info = room_manager.get_user_by_sid(sid)
+        if not info:
+            return
+        room_id = info["room_id"]
+        if not room_manager.is_host(room_id, sid):
+            return
+
+        loop = data.get("loop", False)
+        
+        playback = room_manager.get_playback(room_id)
+        if playback:
+            room_manager.update_playback(
+                room_id=room_id,
+                track_uri=playback["track_uri"],
+                track_name=playback.get("track_name", ""),
+                artist=playback.get("artist", ""),
+                album_art_url=playback.get("album_art_url", ""),
+                position_ms=playback.get("position_ms", 0),
+                duration_ms=playback.get("duration_ms", 0),
+                is_playing=playback.get("is_playing", False),
+                loop=loop,
+                is_buffering=playback.get("is_buffering", False)
+            )
+            updated = room_manager.get_playback(room_id)
+            await sio.emit("playback_sync", _make_json_safe(updated), room=room_id)
+

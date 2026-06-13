@@ -217,6 +217,27 @@ class MusicSearchService:
         self._reco_cache_date = today
         return all_tracks[:limit]
 
+    def resolve_youtube_metadata(self, video_id: str) -> dict | None:
+        """Fetch video title, author, and thumbnail using YouTube's oembed API."""
+        if not video_id or len(video_id) != 11:
+            return None
+        try:
+            import urllib.request
+            import json
+            url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
+            req = urllib.request.Request(url, headers={"User-Agent": "OpenJam/1.0"})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read().decode())
+                return {
+                    "title": data.get("title", "YouTube Video"),
+                    "author": data.get("author_name", "YouTube"),
+                    "thumbnail": data.get("thumbnail_url", f"https://img.youtube.com/vi/{video_id}/0.jpg")
+                }
+        except Exception as e:
+            logger.error(f"Failed to fetch YouTube oembed metadata for {video_id}: {e}")
+            return None
+
 
 music_search_service = MusicSearchService()
 lastfm_service = music_search_service  # Keep import alias for backward compatibility
+

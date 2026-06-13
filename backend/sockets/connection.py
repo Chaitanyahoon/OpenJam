@@ -65,6 +65,26 @@ def register_connection_handlers(sio: socketio.AsyncServer):
             except Exception:
                 pass
 
+        # Check database if this user exists to get the latest display name and avatar
+        if user_id:
+            def _get_db_user_profile(uid):
+                db = SessionLocal()
+                try:
+                    from backend.models.user import User
+                    u = db.query(User).filter(User.id == uid).first()
+                    if u:
+                        return {"display_name": u.display_name, "avatar_url": u.avatar_url}
+                    return None
+                finally:
+                    db.close()
+            try:
+                db_user = await asyncio.to_thread(_get_db_user_profile, user_id)
+                if db_user:
+                    display_name = db_user["display_name"]
+                    avatar_url = db_user["avatar_url"] or avatar_url
+            except Exception:
+                pass
+
         # Fallback: use guest_name from auth payload or generate random
         if not user_id:
             import uuid
@@ -138,11 +158,11 @@ def register_connection_handlers(sio: socketio.AsyncServer):
                 logger.info(f"Host left room {room_id}. Promoted {new_name} ({new_sid}) to host.")
             else:
                 # No one left in the room, schedule close
-                schedule_room_close(room_id, sio, SessionLocal, delay=120)
+                schedule_room_close(room_id, sio, SessionLocal, delay=600)
         else:
             # Non-host departed. If room is now empty, schedule close
             if room_manager.get_listener_count(room_id) == 0:
-                schedule_room_close(room_id, sio, SessionLocal, delay=120)
+                schedule_room_close(room_id, sio, SessionLocal, delay=600)
 
     @sio.event
     async def disconnect(sid):
@@ -169,6 +189,30 @@ def register_connection_handlers(sio: socketio.AsyncServer):
         user_id = session.get("user_id")
         display_name = session.get("display_name", "Jammer")
         avatar_url = data.get("avatar_url") or session.get("avatar_url")
+
+        # Ensure we have the latest display name and avatar from database if the user is registered
+        if user_id:
+            def _get_db_user_profile(uid):
+                db = SessionLocal()
+                try:
+                    from backend.models.user import User
+                    u = db.query(User).filter(User.id == uid).first()
+                    if u:
+                        return {"display_name": u.display_name, "avatar_url": u.avatar_url}
+                    return None
+                finally:
+                    db.close()
+            try:
+                db_user = await asyncio.to_thread(_get_db_user_profile, user_id)
+                if db_user:
+                    display_name = db_user["display_name"]
+                    avatar_url = db_user["avatar_url"] or avatar_url
+                    # Sync back to socket session so it stays updated
+                    session["display_name"] = display_name
+                    session["avatar_url"] = avatar_url
+                    await sio.save_session(sid, session)
+            except Exception:
+                pass
 
         # Check private room password
         def _check_room_password(room_id, user_id, password_input):
@@ -266,15 +310,39 @@ def register_connection_handlers(sio: socketio.AsyncServer):
 
         # Offload blocking DB read to a thread pool — event loop stays free
         messages, queue = await asyncio.to_thread(_db_get_join_data, room_id)
-
         await sio.emit("chat_history", {"messages": messages}, to=sid)
         await sio.emit("queue_updated", {"queue": queue}, to=sid)
 
         playback = room_manager.get_playback(room_id)
-        if playback and playback.get("track_uri"):
-            await sio.emit("playback_sync", playback, to=sid)
 
-        await sio.emit("join_success", {"room_id": room_id}, to=sid)
+        # Build now_playing from queue
+        now_playing_item = None
+        for item in queue:
+            if item.get("status") == "playing":
+                now_playing_item = item
+                break
+
+        join_data = {
+            "room_id": room_id,
+            "queue": queue,
+            "listeners": room_manager.get_listeners(room_id),
+        }
+        if playback and playback.get("track_uri"):
+            join_data["now_playing"] = {
+                "track_uri": playback.get("track_uri"),
+                "track_name": playback.get("track_name"),
+                "artist": playback.get("artist"),
+                "album_art_url": playback.get("album_art_url"),
+                "duration_ms": playback.get("duration_ms", 0),
+            }
+            join_data["playback"] = {
+                "positionMs": playback.get("position_ms", 0),
+                "durationMs": playback.get("duration_ms", 0),
+                "isPlaying": playback.get("is_playing", False),
+                "is_buffering": playback.get("is_buffering", False),
+            }
+
+        await sio.emit("join_success", join_data, to=sid)
 
         if was_new:
             await sio.emit("user_joined", {

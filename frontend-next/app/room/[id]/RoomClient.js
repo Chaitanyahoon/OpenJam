@@ -5,7 +5,8 @@ import { useSocket } from '@/contexts/SocketContext';
 import YouTubePlayer from '@/utils/YouTubePlayer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MusicPlayer } from '@/components/ui/music-player';
-import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause } from 'lucide-react';
+import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart } from 'lucide-react';
+import PwaInstallPrompt from '@/components/PwaInstallPrompt';
 
 export default function RoomClient({ roomId }) {
   const { socket, isConnected } = useSocket();
@@ -18,6 +19,7 @@ export default function RoomClient({ roomId }) {
   const [listeners, setListeners] = useState([]);
   const [queue, setQueue] = useState([]);
   const [history, setHistory] = useState([]);
+  const [favourites, setFavourites] = useState([]);
   const [nowPlaying, setNowPlaying] = useState(null);
   const [playbackState, setPlaybackState] = useState({ positionMs: 0, durationMs: 0, isPlaying: false });
   const [chatMsgs, setChatMsgs] = useState([]);
@@ -162,6 +164,14 @@ export default function RoomClient({ roomId }) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     
+    // Load favourites
+    const storedFavs = localStorage.getItem('openjam_favourites');
+    if (storedFavs) {
+      try {
+        setFavourites(JSON.parse(storedFavs));
+      } catch (e) {}
+    }
+    
     // Load local settings
     const storedVol = localStorage.getItem('openjam_volume');
     if (storedVol !== null) setVolume(parseInt(storedVol));
@@ -193,6 +203,12 @@ export default function RoomClient({ roomId }) {
         if (rMe.ok) {
           const data = await rMe.json();
           setMe(data.user);
+          if (data.user) {
+            localStorage.setItem('openjam_display_name', data.user.display_name);
+            if (data.user.avatar_url) {
+              localStorage.setItem('openjam_avatar_url', data.user.avatar_url);
+            }
+          }
         }
 
         const rRoom = await fetch(`/rooms/${roomId}`);
@@ -242,6 +258,19 @@ export default function RoomClient({ roomId }) {
       if (data.playback) setPlaybackState(data.playback);
       if (data.now_playing) setNowPlaying(data.now_playing);
       setShowPassword(false);
+
+      if (data.now_playing && playerRef.current) {
+        const isBuffering = data.playback?.is_buffering || false;
+        playerRef.current.setTrack({
+          track_uri: data.now_playing.track_uri,
+          track_name: data.now_playing.track_name,
+          artist: data.now_playing.artist,
+          album_art_url: data.now_playing.album_art_url,
+          position_ms: data.playback?.positionMs || 0,
+          duration_ms: data.playback?.durationMs || 0,
+          is_playing: (data.playback?.isPlaying || false) && !isBuffering
+        });
+      }
 
       // Check if there is a pre-queued track from homepage discovery dome
       if (typeof window !== 'undefined') {
@@ -337,10 +366,12 @@ export default function RoomClient({ roomId }) {
     });
 
     socket.on('playback_sync', (data) => {
+      const isBuffering = data.is_buffering;
       setPlaybackState({
         positionMs: data.position_ms,
         durationMs: data.duration_ms,
-        isPlaying: data.is_playing
+        isPlaying: data.is_playing && !isBuffering,
+        loop: data.loop || false
       });
       setNowPlaying({
         track_uri: data.track_uri,
@@ -349,21 +380,43 @@ export default function RoomClient({ roomId }) {
         album_art_url: data.album_art_url
       });
       if (playerRef.current) {
-        playerRef.current.syncPosition(data.position_ms, data.is_playing);
+        if (data.track_uri && playerRef.current.currentVideoId !== data.track_uri) {
+          playerRef.current.setTrack({
+            track_uri: data.track_uri,
+            track_name: data.track_name,
+            artist: data.artist,
+            album_art_url: data.album_art_url,
+            position_ms: data.position_ms,
+            duration_ms: data.duration_ms,
+            is_playing: data.is_playing && !isBuffering
+          });
+        } else if (!data.track_uri) {
+          playerRef.current.stop();
+        } else {
+          playerRef.current.syncPosition(data.position_ms, data.is_playing && !isBuffering);
+        }
+      }
+      if (!isHost) {
+        if (isBuffering) {
+          setStreamErrorMsg("Buffering stream…");
+        } else {
+          setStreamErrorMsg(null);
+        }
       }
     });
 
     socket.on('track_changed', (data) => {
+      setStreamErrorMsg(null);
       if (data) {
         setNowPlaying(data);
-        setPlaybackState({ positionMs: 0, durationMs: data.duration_ms || 0, isPlaying: true });
+        setPlaybackState({ positionMs: 0, durationMs: data.duration_ms || 0, isPlaying: true, loop: data.loop || false });
         if (playerRef.current) {
           playerRef.current.setTrack(data);
         }
         fetchLyrics(data.artist, data.track_name);
       } else {
         setNowPlaying(null);
-        setPlaybackState({ positionMs: 0, durationMs: 0, isPlaying: false });
+        setPlaybackState({ positionMs: 0, durationMs: 0, isPlaying: false, loop: false });
         if (playerRef.current) {
           playerRef.current.stop();
         }
@@ -462,7 +515,8 @@ export default function RoomClient({ roomId }) {
             position_ms: extra.position_ms,
             duration_ms: playbackState.durationMs,
             is_playing: true,
-            loop: false
+            loop: false,
+            is_buffering: !!streamErrorMsg
           });
         }
       } else if (action === 'pause') {
@@ -476,12 +530,31 @@ export default function RoomClient({ roomId }) {
             position_ms: extra.position_ms,
             duration_ms: playbackState.durationMs,
             is_playing: false,
-            loop: false
+            loop: false,
+            is_buffering: false
           });
         }
       }
     });
-  }, [roomId, socket, isHost, nowPlaying, playbackState.durationMs]);
+  }, [roomId, socket, isHost, nowPlaying, playbackState.durationMs, streamErrorMsg]);
+
+  // 3.5. Buffering Synchronization
+  useEffect(() => {
+    if (isHost && socket && nowPlaying) {
+      socket.emit('playback_update', {
+        room_id: roomId,
+        track_uri: nowPlaying.track_uri,
+        track_name: nowPlaying.track_name,
+        artist: nowPlaying.artist,
+        album_art_url: nowPlaying.album_art_url,
+        position_ms: playbackState.positionMs,
+        duration_ms: playbackState.durationMs,
+        is_playing: playbackState.isPlaying,
+        loop: false,
+        is_buffering: !!streamErrorMsg
+      });
+    }
+  }, [streamErrorMsg, isHost, socket, roomId]);
 
   // 4. Volume Synchronization
   useEffect(() => {
@@ -720,9 +793,46 @@ export default function RoomClient({ roomId }) {
         position_ms: playbackState.positionMs,
         duration_ms: playbackState.durationMs,
         is_playing: playing,
-        loop: false
+        loop: playbackState.loop || false,
+        is_buffering: playing ? !!streamErrorMsg : false
       });
     }
+  };
+
+  const handleShuffleClick = () => {
+    if (!isHost || !socket) return;
+    socket.emit('shuffle_queue', { room_id: roomId });
+    triggerToast('Shuffling queue...', 'info');
+  };
+
+  const handleRepeatToggle = () => {
+    if (!isHost || !socket) return;
+    const nextLoop = !playbackState.loop;
+    socket.emit('toggle_repeat', { room_id: roomId, loop: nextLoop });
+  };
+
+  const handleLikeToggle = () => {
+    if (!nowPlaying) return;
+    const isLiked = favourites.some((f) => f.track_uri === nowPlaying.track_uri);
+    let nextFavs;
+    if (isLiked) {
+      nextFavs = favourites.filter((f) => f.track_uri !== nowPlaying.track_uri);
+      triggerToast('Removed from favourites', 'info');
+    } else {
+      nextFavs = [
+        ...favourites,
+        {
+          track_uri: nowPlaying.track_uri,
+          track_name: nowPlaying.track_name,
+          artist: nowPlaying.artist,
+          album_art_url: nowPlaying.album_art_url,
+          duration_ms: nowPlaying.duration_ms || playbackState.durationMs || 240000,
+        },
+      ];
+      triggerToast('Added to favourites', 'success');
+    }
+    setFavourites(nextFavs);
+    localStorage.setItem('openjam_favourites', JSON.stringify(nextFavs));
   };
 
   const handleSeek = (e) => {
@@ -747,7 +857,8 @@ export default function RoomClient({ roomId }) {
       position_ms: newPositionMs,
       duration_ms: playbackState.durationMs,
       is_playing: playbackState.isPlaying,
-      loop: false
+      loop: false,
+      is_buffering: playbackState.isPlaying ? !!streamErrorMsg : false
     });
   };
 
@@ -1236,6 +1347,12 @@ export default function RoomClient({ roomId }) {
             onRemoveTrack={handleRemoveQueueTrack}
             onBulkAddClick={() => setShowBulkAdd(true)}
             onPlayPause={handleTogglePlay}
+            isLiked={nowPlaying && favourites.some(f => f.track_uri === nowPlaying.track_uri)}
+            onLikeToggle={handleLikeToggle}
+            isShuffled={false}
+            onShuffleToggle={handleShuffleClick}
+            repeatMode={playbackState.loop ? 'one' : 'off'}
+            onRepeatModeChange={handleRepeatToggle}
             onSeek={(seconds) => {
               if (!isHost || !playbackState.durationMs || !socket || !playerRef.current) return;
               const newPositionMs = seconds * 1000;
@@ -1250,7 +1367,8 @@ export default function RoomClient({ roomId }) {
                 position_ms: newPositionMs,
                 duration_ms: playbackState.durationMs,
                 is_playing: playbackState.isPlaying,
-                loop: false
+                loop: false,
+                is_buffering: playbackState.isPlaying ? !!streamErrorMsg : false
               });
             }}
             onNext={isHost ? handleNextTrack : handleVoteSkip}
@@ -1345,7 +1463,7 @@ export default function RoomClient({ roomId }) {
                   {/* Search suggestions autocomplete */}
                   {(() => { if (searchResults.length > 0) console.log('[render] searchFocused:', searchFocused, 'searchResults:', searchResults.length); return null; })()}
                   <AnimatePresence>
-                    {searchFocused && searchResults.length > 0 && (
+                    {searchFocused && (searchResults.length > 0 || !searchQuery.trim()) && (
                       <motion.div 
                         className="search-results"
                         initial={{ opacity: 0, y: -8, scale: 0.98 }}
@@ -1359,42 +1477,81 @@ export default function RoomClient({ roomId }) {
                           overflow: 'hidden'
                         }}
                       >
-                        {searchResults.map((track, idx) => (
-                          <div 
-                            key={`${track.uri || track.track_uri || 'track'}-${idx}`} 
-                            className="search-result-item" 
-                            draggable={true}
-                            onDragStart={(e) => {
-                              isDraggingSuggestion.current = true;
-                              e.dataTransfer.setData("text/plain", JSON.stringify(track));
-                              e.dataTransfer.effectAllowed = "copy";
-                            }}
-                            onDragEnd={() => {
-                              isDraggingSuggestion.current = false;
-                              setTimeout(() => {
-                                if (!isOverSuggestions.current) {
-                                  setSearchFocused(false);
-                                }
-                              }, 100);
-                            }}
-                            onClick={() => {
-                              console.log('[click] search result clicked:', track.name || track.track_name);
-                              handleAddTrack(track);
-                            }}
-                            onTouchStart={(e) => {
-                              e.preventDefault();
-                              handleAddTrack(track);
-                            }}
-                            style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', cursor: 'grab' }}
-                          >
-                            <img draggable="false" src={track.album_art_url || '/placeholder.svg'} alt="" style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} />
-                            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
-                              <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.track_name || track.name}</span>
-                              <span style={{ fontSize: '11px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.artist}</span>
+                        {searchQuery.trim() ? (
+                          searchResults.map((track, idx) => (
+                            <div 
+                              key={`${track.uri || track.track_uri || 'track'}-${idx}`} 
+                              className="search-result-item" 
+                              draggable={true}
+                              onDragStart={(e) => {
+                                isDraggingSuggestion.current = true;
+                                e.dataTransfer.setData("text/plain", JSON.stringify(track));
+                                e.dataTransfer.effectAllowed = "copy";
+                              }}
+                              onDragEnd={() => {
+                                isDraggingSuggestion.current = false;
+                                setTimeout(() => {
+                                  if (!isOverSuggestions.current) {
+                                    setSearchFocused(false);
+                                  }
+                                }, 100);
+                              }}
+                              onClick={() => {
+                                console.log('[click] search result clicked:', track.name || track.track_name);
+                                handleAddTrack(track);
+                              }}
+                              onTouchStart={(e) => {
+                                e.preventDefault();
+                                handleAddTrack(track);
+                              }}
+                              style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', cursor: 'grab' }}
+                            >
+                              <img draggable="false" src={track.album_art_url || '/placeholder.svg'} alt="" style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} />
+                              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+                                <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.track_name || track.name}</span>
+                                <span style={{ fontSize: '11px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.artist}</span>
+                              </div>
+                              <Plus className="h-4 w-4" style={{ color: 'var(--amber)' }} />
                             </div>
-                            <Plus className="h-4 w-4" style={{ color: 'var(--amber)' }} />
-                          </div>
-                        ))}
+                          ))
+                        ) : (
+                          <>
+                            {favourites.length > 0 ? (
+                              <div style={{ padding: '8px 12px', fontSize: '11px', color: 'var(--amber)', fontWeight: 'bold', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <Heart className="h-3.5 w-3.5 fill-current" /> Favourite Tracks
+                              </div>
+                            ) : null}
+                            {favourites.map((track, idx) => (
+                              <div 
+                                key={`fav-${track.track_uri}-${idx}`} 
+                                className="search-result-item" 
+                                onClick={() => {
+                                  const payload = {
+                                    track_uri: track.track_uri,
+                                    track_name: track.track_name,
+                                    artist: track.artist,
+                                    album_art_url: track.album_art_url,
+                                    duration_ms: track.duration_ms
+                                  };
+                                  handleAddTrack(payload);
+                                }}
+                                style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', cursor: 'pointer' }}
+                              >
+                                <img draggable="false" src={track.album_art_url || '/placeholder.svg'} alt="" style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} />
+                                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+                                  <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.track_name}</span>
+                                  <span style={{ fontSize: '11px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.artist}</span>
+                                </div>
+                                <Plus className="h-4 w-4" style={{ color: 'var(--amber)' }} />
+                              </div>
+                            ))}
+                            {favourites.length === 0 && (
+                              <div style={{ padding: '24px 16px', textAlign: 'center', fontSize: '12.5px', color: 'var(--text-3)', lineHeight: 1.5 }}>
+                                Search for tracks and tap the <Heart className="h-3 w-3 inline-block fill-current text-amber" style={{ margin: '0 2px' }} /> icon in the player to save favourites here!
+                              </div>
+                            )}
+                          </>
+                        )}
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -2144,6 +2301,7 @@ export default function RoomClient({ roomId }) {
 
       {/* Dynamic YouTube Fallback Iframe Container */}
       <div id="yt-fallback-container" style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '1px', height: '1px', overflow: 'hidden' }}></div>
+      <PwaInstallPrompt />
     </div>
   );
 }

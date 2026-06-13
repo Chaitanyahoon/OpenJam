@@ -11,6 +11,7 @@ import dynamic from 'next/dynamic';
 import PillNav from '@/components/PillNav';
 import VolumeIcon from '@/components/VolumeIcon';
 import { FALLBACK_DISCOVERY_TRACKS } from '@/constants/tracks';
+import PwaInstallPrompt from '@/components/PwaInstallPrompt';
 
 
 const JoinModal = dynamic(() => import('@/components/modals/JoinModal'), { ssr: false });
@@ -275,6 +276,12 @@ export default function HomePage() {
       if (r.ok) {
         const data = await r.json();
         setMe(data.user);
+        if (data.user) {
+          localStorage.setItem('openjam_display_name', data.user.display_name);
+          if (data.user.avatar_url) {
+            localStorage.setItem('openjam_avatar_url', data.user.avatar_url);
+          }
+        }
         return data.user;
       }
     } catch (e) {
@@ -942,7 +949,7 @@ export default function HomePage() {
         onConfirm={handleLogout}
       />
 
-
+      <PwaInstallPrompt />
     </div>
   );
 }

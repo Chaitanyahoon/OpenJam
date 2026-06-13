@@ -28,6 +28,8 @@ def _db_add_and_get_queue(room_id: str, track_data: dict, user_id: str, display_
         if not user:
             db.add(User(id=user_id, display_name=display_name))
             db.flush()
+        else:
+            display_name = user.display_name
 
         # Resolve YouTube Video ID immediately if needed
         uri = track_data.get("uri")
@@ -37,6 +39,16 @@ def _db_add_and_get_queue(room_id: str, track_data: dict, user_id: str, display_
             if resolved_id:
                 track_data["uri"] = resolved_id
                 uri = resolved_id
+
+        # Resolve actual YouTube title, artist, and thumbnail if generic or missing
+        if uri and len(uri) == 11:
+            if track_data.get("name") in ["YouTube Video", "", None, uri] or track_data.get("artist") in ["YouTube", "Search Query", "", None]:
+                from backend.services.music_search import music_search_service as lastfm_service
+                metadata = lastfm_service.resolve_youtube_metadata(uri)
+                if metadata:
+                    track_data["name"] = metadata["title"]
+                    track_data["artist"] = metadata["author"]
+                    track_data["album_art_url"] = metadata["thumbnail"]
 
         if not track_data.get("uri") or not track_data.get("name"):
             raise ValueError("Track URI and Name are required")
@@ -302,3 +314,59 @@ def register_queue_handlers(sio: socketio.AsyncServer):
             return
 
         await sio.emit("queue_updated", {"queue": queue}, room=room_id)
+
+    @sio.event
+    async def shuffle_queue(sid, data):
+        """Host-only: shuffle all pending tracks in the queue."""
+        session = await sio.get_session(sid)
+        if not session:
+            return
+
+        info = room_manager.get_user_by_sid(sid)
+        if not info:
+            return
+        room_id = info["room_id"]
+
+        # Only host can shuffle tracks
+        if not room_manager.is_host(room_id, sid):
+            await sio.emit("queue_error", {"message": "Only the host can shuffle the queue"}, to=sid)
+            return
+
+        def _db_shuffle(room_id):
+            import random
+            from backend.models.queue_item import QueueItem
+            from backend.models.vote import Vote
+            db = SessionLocal()
+            try:
+                # Fetch all pending items in this room
+                pending_items = db.query(QueueItem).filter(
+                    QueueItem.room_id == room_id,
+                    QueueItem.status == "pending",
+                ).all()
+                
+                # Shuffle them in memory
+                random.shuffle(pending_items)
+                
+                # Update positions and clear votes in the shuffled order
+                for position, item in enumerate(pending_items):
+                    item.position = position
+                    item.votes = 0
+                    # Clear existing votes for this item to ensure shuffled order is respected
+                    db.query(Vote).filter(Vote.queue_item_id == item.id).delete()
+                
+                db.commit()
+                return queue_manager.get_queue(db, room_id, None)
+            except Exception as e:
+                db.rollback()
+                raise e
+            finally:
+                db.close()
+
+        try:
+            queue = await asyncio.to_thread(_db_shuffle, room_id)
+        except Exception as e:
+            logger.error(f"shuffle_queue error: {e}")
+            return
+
+        await sio.emit("queue_updated", {"queue": queue}, room=room_id)
+

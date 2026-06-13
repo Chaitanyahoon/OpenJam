@@ -34,6 +34,7 @@ class QueueItem(Base):
             "album_art_url": self.album_art_url,
             "duration_ms": self.duration_ms,
             "added_by_user_id": self.added_by_user_id,
+            "added_by_id": self.added_by_user_id,
             "added_by_name": self.added_by_name,
             "votes": self.votes,
             "position": self.position,

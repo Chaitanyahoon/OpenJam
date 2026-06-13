@@ -15,7 +15,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-_COBALT_URL: str | None = os.getenv("COBALT_API_URL")
+_COBALT_URL: str | None = os.getenv("COBALT_API_URL") or "https://api.cobalt.tools"
 
 
 async def get_cobalt_stream_url(video_id: str) -> Optional[str]:
@@ -23,7 +23,7 @@ async def get_cobalt_stream_url(video_id: str) -> Optional[str]:
     
     Returns a direct download/stream URL, or None if unavailable.
     """
-    cobalt_url = _COBALT_URL or os.getenv("COBALT_API_URL")
+    cobalt_url = _COBALT_URL or os.getenv("COBALT_API_URL") or "https://api.cobalt.tools"
     if not cobalt_url:
         return None
 

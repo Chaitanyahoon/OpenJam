@@ -7,8 +7,7 @@ const getBackendUrl = () => {
     }
   }
   if (typeof window !== 'undefined') {
-    const hostname = window.location.hostname;
-    return `http://${hostname}:8000`;
+    return window.location.origin;
   }
   return 'http://localhost:8000';
 };
@@ -37,7 +36,7 @@ export default class YouTubePlayer {
     this._useIFrame = false;
     this._useLowBitrate = false;
     this._streamFailCount = 0;
-    this._maxStreamFails = 1;
+    this._maxStreamFails = 2;
     this.volume = 80;
 
     this._isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -46,7 +45,7 @@ export default class YouTubePlayer {
     this._keepAliveOsc = null;
 
     if (this._isMobile) {
-      this._maxStreamFails = 999;
+      this._maxStreamFails = 4;
     }
 
     this._initAudio();
@@ -92,36 +91,14 @@ export default class YouTubePlayer {
       console.error(`Audio stream error from ${source}, fail count:`, this._streamFailCount);
       this._streamFailCount++;
 
-      if (this._streamFailCount === 1 && !this._useLowBitrate && this.currentVideoId) {
-        console.warn('Stream failed, trying low bitrate fallback...');
-        if (this.onStreamFailUpdate) this.onStreamFailUpdate("Trying alternative source…");
-        this._useLowBitrate = true;
-        this.player.src = `${BACKEND_URL}/stream/${this.currentVideoId}?low=true`;
-        this.setVolume(this.volume);
-        this.player.currentTime = Math.round(this.positionMs / 1000);
-        this.player.play().catch(() => {});
-      } else if (this._streamFailCount === 2 && this.currentVideoId) {
-        console.warn('Stream failed again, trying low bitrate with cache-buster...');
-        if (this.onStreamFailUpdate) this.onStreamFailUpdate("Refreshing stream metadata…");
-        this.player.src = `${BACKEND_URL}/stream/${this.currentVideoId}?low=true&nocache=true`;
-        this.setVolume(this.volume);
-        this.player.currentTime = Math.round(this.positionMs / 1000);
-        this.player.play().catch(() => {});
-      } else if (this._streamFailCount === 3 && this.currentVideoId) {
-        console.warn('Stream failed 3 times, trying fresh standard stream...');
-        if (this.onStreamFailUpdate) this.onStreamFailUpdate("Retrying standard source…");
-        this.player.src = `${BACKEND_URL}/stream/${this.currentVideoId}?nocache=true`;
-        this.setVolume(this.volume);
-        this.player.currentTime = Math.round(this.positionMs / 1000);
-        this.player.play().catch(() => {});
-      } else if (this._streamFailCount >= 4) {
+      if (this._streamFailCount >= this._maxStreamFails) {
         if (this._isMobile) {
-          console.error('Mobile stream failed completely after 4 attempts.');
+          console.error(`Mobile stream failed completely after ${this._streamFailCount} attempts.`);
           this.toast("Playback failed after multiple retries. Skipping...", "error");
           this._emitControlEvent('nexttrack');
         } else if (!this._useIFrame) {
           console.warn('Stream failed completely, switching to YouTube IFrame fallback');
-          if (this.onStreamFailUpdate) this.onStreamFailUpdate("Playing via YouTube video");
+          if (this.onStreamFailUpdate) this.onStreamFailUpdate(null);
           
           try {
             this.player.pause();
@@ -134,6 +111,30 @@ export default class YouTubePlayer {
           if (this.currentVideoId) {
             this._loadVideo(this.currentVideoId, Math.round(this.positionMs / 1000));
           }
+        }
+      } else {
+        if (this._streamFailCount === 1 && !this._useLowBitrate && this.currentVideoId) {
+          console.warn('Stream failed, trying low bitrate fallback...');
+          if (this.onStreamFailUpdate) this.onStreamFailUpdate("Trying alternative source…");
+          this._useLowBitrate = true;
+          this.player.src = `${BACKEND_URL}/stream/${this.currentVideoId}?low=true`;
+          this.setVolume(this.volume);
+          this.player.currentTime = Math.round(this.positionMs / 1000);
+          this.player.play().catch(() => {});
+        } else if (this._streamFailCount === 2 && this.currentVideoId) {
+          console.warn('Stream failed again, trying low bitrate with cache-buster...');
+          if (this.onStreamFailUpdate) this.onStreamFailUpdate("Refreshing stream metadata…");
+          this.player.src = `${BACKEND_URL}/stream/${this.currentVideoId}?low=true&nocache=true`;
+          this.setVolume(this.volume);
+          this.player.currentTime = Math.round(this.positionMs / 1000);
+          this.player.play().catch(() => {});
+        } else if (this._streamFailCount === 3 && this.currentVideoId) {
+          console.warn('Stream failed 3 times, trying fresh standard stream...');
+          if (this.onStreamFailUpdate) this.onStreamFailUpdate("Retrying standard source…");
+          this.player.src = `${BACKEND_URL}/stream/${this.currentVideoId}?nocache=true`;
+          this.setVolume(this.volume);
+          this.player.currentTime = Math.round(this.positionMs / 1000);
+          this.player.play().catch(() => {});
         }
       }
     };
@@ -156,10 +157,10 @@ export default class YouTubePlayer {
       this._showLoadIndicator();
       this._stallTimer = setTimeout(() => {
         if (this.player.readyState < 2 && !this.player.paused) {
-          console.warn('Stream stalled for 15s, triggering error');
+          console.warn('Stream stalled for 5s, triggering error');
           handleAudioError('stalled_timeout');
         }
-      }, 15000);
+      }, 5000);
     });
 
     this.player.addEventListener('waiting', () => {
@@ -171,7 +172,7 @@ export default class YouTubePlayer {
           console.warn('Stream waiting too long, triggering error');
           handleAudioError('waiting_timeout');
         }
-      }, 15000);
+      }, 5000);
     });
   }
 
@@ -249,6 +250,7 @@ export default class YouTubePlayer {
       this.isPlaying = true;
       this._userUnlocked = true;
       this._hideOverlay();
+      this._hideLoadIndicator();
       if (this._loadTimeout) { clearTimeout(this._loadTimeout); this._loadTimeout = null; }
       this.startProgressTimer();
       this._requestWakeLock();
@@ -302,8 +304,9 @@ export default class YouTubePlayer {
     this._hideOverlay();
 
     if (this._pendingPlayAfterUnlock) {
-      const { videoId, startSeconds } = this._pendingPlayAfterUnlock;
+      const { videoId } = this._pendingPlayAfterUnlock;
       this._pendingPlayAfterUnlock = null;
+      const startSeconds = Math.round(this.positionMs / 1000);
       this._loadVideo(videoId, startSeconds);
     } else if (this.currentVideoId && this.isPlaying) {
       if (this._useIFrame) this.ytPlayer.playVideo();
@@ -318,8 +321,9 @@ export default class YouTubePlayer {
     this._hideOverlay();
 
     if (this._pendingPlayAfterUnlock) {
-      const { videoId, startSeconds } = this._pendingPlayAfterUnlock;
+      const { videoId } = this._pendingPlayAfterUnlock;
       this._pendingPlayAfterUnlock = null;
+      const startSeconds = Math.round(this.positionMs / 1000);
       this._loadVideo(videoId, startSeconds);
     } else if (this.currentVideoId && this.isPlaying) {
       if (this._useIFrame) this.ytPlayer.playVideo();
@@ -419,10 +423,10 @@ export default class YouTubePlayer {
       if (this._loadTimeout) clearTimeout(this._loadTimeout);
       this._loadTimeout = setTimeout(() => {
         if (this.player.readyState === 0 && this.player.src.includes('/stream/')) {
-          console.warn('Stream load timeout after 10s');
+          console.warn('Stream load timeout after 6s');
           this.player.dispatchEvent(new Event('error'));
         }
-      }, 10000);
+      }, 6000);
 
       this.player.loop = false;
       this.player.src = `${BACKEND_URL}/stream/${videoId}`;

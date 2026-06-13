@@ -71,6 +71,12 @@ export const MusicPlayer = ({
   lyricsText = [],
   lyricsLoading = false,
   lyricsActiveIdx = -1,
+  isLiked: propIsLiked,
+  onLikeToggle,
+  isShuffled: propIsShuffled,
+  onShuffleToggle,
+  repeatMode: propRepeatMode,
+  onRepeatModeChange,
 }) => {
   const track = currentTrack || defaultTrack;
   
@@ -105,9 +111,26 @@ export const MusicPlayer = ({
     if (onMuteToggle) onMuteToggle();
   };
 
-  const [liked, setLiked] = useState(false);
-  const [isShuffled, setIsShuffled] = useState(false);
-  const [repeatMode, setRepeatMode] = useState("off");
+  const [localLiked, setLocalLiked] = useState(false);
+  const liked = propIsLiked !== undefined ? propIsLiked : localLiked;
+  const setLiked = (val) => {
+    setLocalLiked(val);
+    if (onLikeToggle) onLikeToggle(val);
+  };
+
+  const [localIsShuffled, setLocalIsShuffled] = useState(false);
+  const isShuffled = propIsShuffled !== undefined ? propIsShuffled : localIsShuffled;
+  const setIsShuffled = (val) => {
+    setLocalIsShuffled(val);
+    if (onShuffleToggle) onShuffleToggle(val);
+  };
+
+  const [localRepeatMode, setLocalRepeatMode] = useState("off");
+  const repeatMode = propRepeatMode !== undefined ? propRepeatMode : localRepeatMode;
+  const setRepeatMode = (val) => {
+    setLocalRepeatMode(val);
+    if (onRepeatModeChange) onRepeatModeChange(val);
+  };
   const [mounted, setMounted] = useState(false);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [showQueueDrawer, setShowQueueDrawer] = useState(false);
