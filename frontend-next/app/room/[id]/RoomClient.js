@@ -5,7 +5,7 @@ import { useSocket } from '@/contexts/SocketContext';
 import YouTubePlayer from '@/utils/YouTubePlayer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MusicPlayer } from '@/components/ui/music-player';
-import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart } from 'lucide-react';
+import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart, CheckCircle, AlertCircle, AlertTriangle, Info } from 'lucide-react';
 import PwaInstallPrompt from '@/components/PwaInstallPrompt';
 
 export default function RoomClient({ roomId }) {
@@ -41,7 +41,7 @@ export default function RoomClient({ roomId }) {
   const [chatMsgs, setChatMsgs] = useState([]);
   const [typingUsers, setTypingUsers] = useState({});
   const [isTyping, setIsTyping] = useState(false);
-  const [toastMsg, setToastMsg] = useState(null);
+  const [toasts, setToasts] = useState([]);
   const [activeTab, setActiveTab] = useState('playing'); // playing, queue, chat, members
   const [activeQueueTab, setActiveQueueTab] = useState('queue'); // queue, history
   const [playerSize, setPlayerSize] = useState(280);
@@ -94,8 +94,11 @@ export default function RoomClient({ roomId }) {
 
   // Notification helper
   const triggerToast = (text, type = 'info') => {
-    setToastMsg({ text, type });
-    setTimeout(() => setToastMsg(null), 3500);
+    const id = Date.now() + Math.random().toString(36).substr(2, 9);
+    setToasts((prev) => [...prev, { id, text, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
 
     if (settingsSound && typeof window !== 'undefined') {
       playAlertSound(type);
@@ -320,9 +323,16 @@ export default function RoomClient({ roomId }) {
         });
       }
 
-      // Check if there is a pre-queued track from homepage discovery dome
+      // Check if there is a pre-queued track from homepage discovery dome or created flag
       if (typeof window !== 'undefined') {
         const urlParams = new URLSearchParams(window.location.search);
+        const isCreated = urlParams.get('created') === 'true';
+        if (isCreated) {
+          triggerToast('Jam room created successfully!', 'success');
+        } else {
+          triggerToast('Connected to room!', 'success');
+        }
+
         const preQueue = urlParams.get('preQueue');
         if (preQueue) {
           const trackName = urlParams.get('title');
@@ -337,7 +347,9 @@ export default function RoomClient({ roomId }) {
             album_art_url: albumArtUrl || '/static/img/cover-banner.png',
             duration_ms: 240000
           });
+        }
 
+        if (isCreated || preQueue) {
           // Clean URL parameters
           const cleanUrl = window.location.pathname;
           window.history.replaceState({}, document.title, cleanUrl);
@@ -1200,16 +1212,51 @@ export default function RoomClient({ roomId }) {
   };
 
 
+  if (!room) {
+    return (
+      <div className="room-loading-screen" style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        background: 'var(--bg-base)',
+        color: 'var(--text-1)',
+        fontFamily: 'var(--font-display)',
+        gap: '16px'
+      }}>
+        <div className="search-loading-spinner" style={{ width: '40px', height: '40px', borderWidth: '3px' }} />
+        <p style={{ fontSize: '16px', fontWeight: 500, letterSpacing: '0.05em' }}>Connecting to Jam Room...</p>
+      </div>
+    );
+  }
+
   const currentSidebarTab = (activeTab === 'playing' || activeTab === 'queue') ? 'queue' : activeTab;
 
   return (
     <div className="room-page-layout">
       {/* Toast stack */}
-      {toastMsg && (
-        <div className="toast-stack" id="toasts" aria-live="assertive" aria-label="Notifications">
-          <div className={`toast ${toastMsg.type}`}>{toastMsg.text}</div>
-        </div>
-      )}
+      <div className="toast-stack" id="toasts" aria-live="assertive" aria-label="Notifications">
+        <AnimatePresence>
+          {toasts.map((toast) => (
+            <motion.div
+              key={toast.id}
+              className={`toast ${toast.type}`}
+              initial={{ opacity: 0, y: -20, scale: 0.9, filter: 'blur(4px)' }}
+              animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, y: 20, scale: 0.9, filter: 'blur(4px)', transition: { duration: 0.2 } }}
+              layout
+              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            >
+              {toast.type === 'success' && <CheckCircle size={18} className="toast-icon" />}
+              {toast.type === 'error' && <AlertCircle size={18} className="toast-icon" />}
+              {toast.type === 'warning' && <AlertTriangle size={18} className="toast-icon" />}
+              {toast.type === 'info' && <Info size={18} className="toast-icon" />}
+              <span>{toast.text}</span>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
 
       {/* Dynamic Audio-Visual Backdrop */}
       <div className="dynamic-bg-wrapper">

@@ -12,6 +12,7 @@ import PillNav from '@/components/PillNav';
 import VolumeIcon from '@/components/VolumeIcon';
 import { FALLBACK_DISCOVERY_TRACKS } from '@/constants/tracks';
 import PwaInstallPrompt from '@/components/PwaInstallPrompt';
+import { CheckCircle, AlertCircle, AlertTriangle, Info } from 'lucide-react';
 
 
 const JoinModal = dynamic(() => import('@/components/modals/JoinModal'), { ssr: false });
@@ -109,7 +110,7 @@ export default function HomePage() {
   // Shuffler & Submission states
   const [isShuffling, setIsShuffling] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [toastMsg, setToastMsg] = useState(null);
+  const [toasts, setToasts] = useState([]);
 
   const [currentYear, setCurrentYear] = useState(2026);
   useEffect(() => {
@@ -175,8 +176,11 @@ export default function HomePage() {
 
   // Helpers
   const triggerToast = (msg, type = 'info') => {
-    setToastMsg({ text: msg, type });
-    setTimeout(() => setToastMsg(null), 3500);
+    const id = Date.now() + Math.random().toString(36).substr(2, 9);
+    setToasts((prev) => [...prev, { id, text: msg, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
   };
 
   const nameColor = (n) => {
@@ -482,7 +486,7 @@ export default function HomePage() {
       });
       if (r.ok) {
         const data = await r.json();
-        window.location.href = `/room/${data.room.id}`;
+        window.location.href = `/room/${data.room.id}?created=true`;
       } else {
         const err = await r.json();
         throw new Error(err.detail || 'Failed to create room');
@@ -553,7 +557,7 @@ export default function HomePage() {
         });
         if (r.ok) {
           const data = await r.json();
-          setTimeout(() => { window.location.href = `/room/${data.room.id}`; }, 800);
+          setTimeout(() => { window.location.href = `/room/${data.room.id}?created=true`; }, 800);
         } else {
           triggerToast('Failed to create quick room', 'error');
         }
@@ -676,19 +680,27 @@ export default function HomePage() {
       />
 
       {/* Toast */}
-      <AnimatePresence>
-        {toastMsg && (
-          <motion.div
-            className="toast-stack"
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-          >
-            <div className={`toast ${toastMsg.type}`}>{toastMsg.text}</div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <div className="toast-stack">
+        <AnimatePresence>
+          {toasts.map((toast) => (
+            <motion.div
+              key={toast.id}
+              className={`toast ${toast.type}`}
+              initial={{ opacity: 0, y: -20, scale: 0.9, filter: 'blur(4px)' }}
+              animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, y: 20, scale: 0.9, filter: 'blur(4px)', transition: { duration: 0.2 } }}
+              layout
+              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            >
+              {toast.type === 'success' && <CheckCircle size={18} className="toast-icon" />}
+              {toast.type === 'error' && <AlertCircle size={18} className="toast-icon" />}
+              {toast.type === 'warning' && <AlertTriangle size={18} className="toast-icon" />}
+              {toast.type === 'info' && <Info size={18} className="toast-icon" />}
+              <span>{toast.text}</span>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
 
       {/* Ambient background */}
       <div className="landing-bg-glows" aria-hidden="true">

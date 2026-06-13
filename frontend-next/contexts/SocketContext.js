@@ -84,5 +84,9 @@ export const SocketProvider = ({ children }) => {
 };
 
 export const useSocket = () => {
-  return useContext(SocketContext);
+  const context = useContext(SocketContext);
+  if (!context) {
+    return { socket: null, isConnected: false, reconnect: () => {} };
+  }
+  return context;
 };
