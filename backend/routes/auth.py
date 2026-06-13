@@ -130,15 +130,39 @@ DISCORD_AUTH_URL = "https://discord.com/api/oauth2/authorize"
 DISCORD_TOKEN_URL = "https://discord.com/api/oauth2/token"
 
 
+def get_redirect_uri(request: Request) -> str:
+    # 1. If DISCORD_REDIRECT_URI environment variable is set to a non-localhost domain, use it
+    import os
+    env_uri = os.getenv("DISCORD_REDIRECT_URI")
+    if env_uri and "localhost" not in env_uri and "127.0.0.1" not in env_uri:
+        return env_uri
+
+    # 2. Otherwise, construct it dynamically using the incoming request headers to match environment
+    forwarded_host = request.headers.get("x-forwarded-host")
+    host = forwarded_host if forwarded_host else request.headers.get("host", "localhost:8000")
+    
+    is_local = "localhost" in host or "127.0.0.1" in host
+    scheme = "http" if is_local else "https"
+    
+    forwarded_proto = request.headers.get("x-forwarded-proto")
+    if forwarded_proto and not is_local:
+        scheme = forwarded_proto
+        
+    return f"{scheme}://{host}/auth/discord/callback"
+
+
 @router.get("/discord")
 async def discord_login(request: Request):
     """Redirect user to Discord OAuth2 authorization page."""
     if not settings.DISCORD_CLIENT_ID:
         return JSONResponse({"error": "Discord login not configured"}, status_code=501)
 
+    redirect_uri = get_redirect_uri(request)
+    logger.info(f"Using Discord OAuth redirect URI: {redirect_uri}")
+
     params = {
         "client_id": settings.DISCORD_CLIENT_ID,
-        "redirect_uri": settings.DISCORD_REDIRECT_URI,
+        "redirect_uri": redirect_uri,
         "response_type": "code",
         "scope": "identify",
         "prompt": "consent",
@@ -157,13 +181,14 @@ async def discord_callback(request: Request, code: str = ""):
 
     try:
         # 1. Exchange authorization code for access token
+        redirect_uri = get_redirect_uri(request)
         async with httpx.AsyncClient(timeout=10.0) as client:
             token_resp = await client.post(DISCORD_TOKEN_URL, data={
                 "client_id": settings.DISCORD_CLIENT_ID,
                 "client_secret": settings.DISCORD_CLIENT_SECRET,
                 "grant_type": "authorization_code",
                 "code": code,
-                "redirect_uri": settings.DISCORD_REDIRECT_URI,
+                "redirect_uri": redirect_uri,
             }, headers={"Content-Type": "application/x-www-form-urlencoded"})
 
             if token_resp.status_code != 200:
