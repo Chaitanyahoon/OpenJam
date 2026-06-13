@@ -3,7 +3,7 @@
 import React from 'react';
 import dynamic from 'next/dynamic';
 
-const RoomClientNoSSR = dynamic(() => import('@/app/room/[id]/RoomClient'), {
+const RoomClientNoSSR = dynamic(() => import('./RoomClient'), {
   ssr: false,
   loading: () => (
     <div style={{

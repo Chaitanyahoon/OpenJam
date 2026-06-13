@@ -1,5 +1,4 @@
-import React from 'react';
-import RoomPageClient from '@/components/RoomPageClient';
+import RoomPageClient from './RoomPageClient';
 
 export function generateMetadata() {
   return {
