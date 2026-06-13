@@ -40,7 +40,7 @@ async def get_download_lock(video_id: str):
             _downloading_locks[video_id] = asyncio.Lock()
         return _downloading_locks[video_id]
 
-async def cleanup_old_cache(max_cache_size_mb: int = 500):
+async def cleanup_old_cache(max_cache_size_mb: int = 100):
     """Cleanup oldest cache files if total cache size exceeds max_cache_size_mb."""
     try:
         files = []
