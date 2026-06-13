@@ -1,3 +1,4 @@
+import React, { Suspense } from 'react';
 import RoomPageClient from './RoomPageClient';
 
 export function generateMetadata() {
@@ -19,5 +20,21 @@ export function generateMetadata() {
 
 export default async function RoomPage({ params }) {
   const { id } = await params;
-  return <RoomPageClient roomId={id} />;
+  return (
+    <Suspense fallback={
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        background: '#08080a',
+        color: '#fff',
+        fontFamily: 'var(--font-ui), sans-serif'
+      }}>
+        Loading Jam Room...
+      </div>
+    }>
+      <RoomPageClient roomId={id} />
+    </Suspense>
+  );
 }
