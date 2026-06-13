@@ -2085,3 +2085,32 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
     font-size: 21px !important;
   }
 }
+
+/* Buffering and Spinner styles */
+.mp-play-btn-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2.5px solid rgba(255, 255, 255, 0.15);
+  border-top-color: var(--accent, var(--amber));
+  border-radius: 50%;
+  animation: mp-btn-spin 0.8s linear infinite;
+  margin: auto;
+}
+@keyframes mp-btn-spin {
+  to { transform: rotate(360deg); }
+}
+.mp-track-buffering-tag {
+  color: var(--accent, var(--amber));
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  animation: mp-pulse-text 1.5s ease-in-out infinite;
+  display: inline-block;
+  vertical-align: middle;
+}
+@keyframes mp-pulse-text {
+  0%, 100% { opacity: 0.65; }
+  50% { opacity: 1; }
+}

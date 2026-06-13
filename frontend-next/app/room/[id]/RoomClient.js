@@ -1269,25 +1269,9 @@ export default function RoomClient({ roomId }) {
             lyricsActiveIdx={lyricsActiveIdx}
             onLyricsToggle={() => setLyricsVisible(!lyricsVisible)}
             size={playerSize}
+            isBuffering={!!streamErrorMsg}
+            bufferingMsg={streamErrorMsg}
           />
-
-
-          {/* Stream buffering loader */}
-          <AnimatePresence>
-            {streamErrorMsg && (
-              <motion.div 
-                className="stream-loader"
-                initial={{ opacity: 0, scale: 0.95, y: 5 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 5 }}
-                transition={{ duration: 0.2, ease: "easeOut" }}
-                style={{ marginTop: '16px' }}
-              >
-                <div className="stream-loader-bar"></div>
-                <div className="stream-loader-text">{streamErrorMsg}</div>
-              </motion.div>
-            )}
-          </AnimatePresence>
 
           {/* Skip Vote count display */}
           {!isHost && skipVotes.required > 0 && (

@@ -46,6 +46,8 @@ export const MusicPlayer = ({
   showEqualizer = true,
   disableKeyboardShortcuts = false,
   size,
+  isBuffering = false,
+  bufferingMsg = "",
   
   // Search state & suggestions passed from parent
   searchQuery = "",
@@ -173,7 +175,7 @@ export const MusicPlayer = ({
   // Equalizer animation
   useEffect(() => {
     let interval;
-    if (isPlaying && showEqualizer) {
+    if (isPlaying && showEqualizer && !isBuffering) {
       interval = setInterval(() => {
         setEqualizerBars((bars) => bars.map(() => Math.random() * 85 + 15));
       }, 150);
@@ -183,7 +185,7 @@ export const MusicPlayer = ({
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isPlaying, showEqualizer]);
+  }, [isPlaying, showEqualizer, isBuffering]);
 
   // Local time progression (only if parent isn't actively updating currentTime)
   useEffect(() => {
@@ -291,6 +293,11 @@ export const MusicPlayer = ({
               </div>
               <p className="mp-track-artist">
                 {track.artist}
+                {isBuffering && (
+                  <span className="mp-track-buffering-tag">
+                    • {bufferingMsg || "Buffering..."}
+                  </span>
+                )}
               </p>
             </div>
             
@@ -351,15 +358,21 @@ export const MusicPlayer = ({
                 <SkipBack className="h-5 w-5" />
               </button>
 
-              <div className={`mp-play-btn-wrapper ${isPlaying ? 'playing' : ''}`}>
+              <div className={`mp-play-btn-wrapper ${isPlaying ? 'playing' : ''} ${isBuffering ? 'buffering' : ''}`}>
                 <button
                   type="button"
                   onClick={togglePlay}
-                  disabled={!isHost}
+                  disabled={!isHost || isBuffering}
                   className="mp-play-btn-large"
-                  title={isPlaying ? "Pause" : "Play"}
+                  title={isBuffering ? "Buffering" : isPlaying ? "Pause" : "Play"}
                 >
-                  {isPlaying ? <Pause className="h-5 w-5 fill-current" /> : <Play className="h-5 w-5 fill-current" />}
+                  {isBuffering ? (
+                    <div className="mp-play-btn-spinner" />
+                  ) : isPlaying ? (
+                    <Pause className="h-5 w-5 fill-current" />
+                  ) : (
+                    <Play className="h-5 w-5 fill-current" />
+                  )}
                 </button>
               </div>
 
