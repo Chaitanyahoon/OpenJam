@@ -1,9 +1,7 @@
-import React, { Suspense } from 'react';
-import RoomClient from './RoomClient';
+import React from 'react';
+import RoomPageClient from '@/components/RoomPageClient';
 
-export function generateMetadata({ params }) {
-  // Static metadata — dynamic OG data is handled via the backend's
-  // /rooms/:id endpoint for social-media crawlers that hit the backend directly.
+export function generateMetadata() {
   return {
     title: 'Jam Room — Open Jam',
     description: 'Join this listening room and discover music together in real-time.',
@@ -22,21 +20,5 @@ export function generateMetadata({ params }) {
 
 export default async function RoomPage({ params }) {
   const { id } = await params;
-  return (
-    <Suspense fallback={
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '100vh',
-        background: '#08080a',
-        color: '#fff',
-        fontFamily: 'var(--font-ui), sans-serif'
-      }}>
-        Loading Jam Room...
-      </div>
-    }>
-      <RoomClient roomId={id} />
-    </Suspense>
-  );
+  return <RoomPageClient roomId={id} />;
 }
