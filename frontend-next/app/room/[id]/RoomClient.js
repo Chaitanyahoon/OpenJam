@@ -276,16 +276,13 @@ export default function RoomClient({ roomId }) {
 
   // 2. WebSocket Listeners Setup
   useEffect(() => {
-    console.log('[useEffect#2] socket:', !!socket, 'isReady:', isReady);
     if (!socket || !isReady) {
-      console.log('[useEffect#2] SKIPPING — socket or isReady is falsy');
       return;
     }
 
     const joinRoom = () => {
       const password = sessionStorage.getItem(`room_password_${roomId}`) || roomPassword;
       const avatarUrl = localStorage.getItem('openjam_avatar_url');
-      console.log('[useEffect#2] Emitting join_room for', roomId);
       socket.emit('join_room', { room_id: roomId, password, avatar_url: avatarUrl });
     };
 
@@ -296,7 +293,6 @@ export default function RoomClient({ roomId }) {
     socket.on('connect', joinRoom);
 
     socket.on('join_success', (data) => {
-      console.log('[join_success] received:', data);
       if (data.room) setRoom(data.room);
       if (data.queue) setQueue(data.queue);
       if (data.listeners) setListeners(data.listeners);
@@ -660,11 +656,9 @@ export default function RoomClient({ roomId }) {
     }
     const delayDebounce = setTimeout(async () => {
       try {
-        console.log('[search] fetching for:', searchQuery);
         const res = await fetch(`/search/tracks?q=${encodeURIComponent(searchQuery)}`, { credentials: 'include' });
         if (res.ok) {
           const data = await res.json();
-          console.log('[search] got', (data.tracks || []).length, 'results');
           setSearchResults(data.tracks || []);
         } else {
           console.error('[search] fetch failed:', res.status);
@@ -689,7 +683,7 @@ export default function RoomClient({ roomId }) {
       const cleanTrack = track.replace(/\[.*?\]|\(.*?\)/g, '').trim();
       const cleanArtist = artist.replace(/\[.*?\]|\(.*?\)/g, '').trim();
       const url = `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTrack)}&artist_name=${encodeURIComponent(cleanArtist)}`;
-      const res = await fetch(url, { credentials: 'include' });
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         if (data.syncedLyrics) {
@@ -972,8 +966,6 @@ export default function RoomClient({ roomId }) {
   };
 
   const handleAddTrack = (track) => {
-    console.log('[handleAddTrack] called with:', track);
-    console.log('[handleAddTrack] socket:', socket ? 'connected' : 'null');
     if (!socket) {
       console.error('[handleAddTrack] No socket available!');
       triggerToast('Connection lost. Please refresh.', 'error');
@@ -987,7 +979,6 @@ export default function RoomClient({ roomId }) {
       album_art_url: track.album_art_url,
       duration_ms: track.duration_ms
     };
-    console.log('[handleAddTrack] emitting add_to_queue:', payload);
     socket.emit('add_to_queue', payload);
     setSearchQuery('');
     setSearchResults([]);
@@ -1425,7 +1416,7 @@ export default function RoomClient({ roomId }) {
                 const albumArtUrl = track.album_art_url || track.artwork || "";
                 const durationMs = track.duration_ms || (track.duration ? track.duration * 1000 : 240000);
 
-                console.log("[drop-to-play] Instantly playing track:", trackName, trackUri);
+                
                 
                 // Instantly update room playback
                 socket.emit('playback_update', {
@@ -1640,7 +1631,6 @@ export default function RoomClient({ roomId }) {
                   </div>
 
                   {/* Search suggestions autocomplete */}
-                  {(() => { if (searchResults.length > 0) console.log('[render] searchFocused:', searchFocused, 'searchResults:', searchResults.length); return null; })()}
                   <AnimatePresence>
                     {searchFocused && (searchResults.length > 0 || !searchQuery.trim()) && (
                       <motion.div 
@@ -1676,7 +1666,6 @@ export default function RoomClient({ roomId }) {
                                 }, 100);
                               }}
                               onClick={() => {
-                                console.log('[click] search result clicked:', track.name || track.track_name);
                                 handleAddTrack(track);
                               }}
                               onTouchStart={(e) => {
@@ -1765,7 +1754,6 @@ export default function RoomClient({ roomId }) {
                           return; // Ignore invalid formats silently
                         }
                         if (track && (track.uri || track.track_uri)) {
-                          console.log('[drop] search result track dropped into queue:', track);
                           handleAddTrack(track);
                         }
                       }

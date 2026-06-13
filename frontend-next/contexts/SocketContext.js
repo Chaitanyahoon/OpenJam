@@ -35,7 +35,10 @@ export const SocketProvider = ({ children }) => {
         }
       }
       if (typeof window !== 'undefined') {
-        return window.location.origin;
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          return 'http://localhost:8000';
+        }
+        return 'https://openjam.onrender.com';
       }
       return 'http://localhost:8000';
     };
@@ -52,7 +55,6 @@ export const SocketProvider = ({ children }) => {
 
     socketInstance.on('connect', () => {
       setIsConnected(true);
-      console.log('[openjam] Socket connected, id =', socketInstance.id);
     });
 
     socketInstance.on('disconnect', () => {
@@ -71,7 +73,6 @@ export const SocketProvider = ({ children }) => {
       const token = newToken || getCookie('session_token') || '';
       const guestName = newGuestName || localStorage.getItem('openjam_display_name') || '';
       socket.auth = { token, guest_name: guestName };
-      console.log('[openjam] Reconnecting socket with auth:', socket.auth);
       socket.disconnect().connect();
     }
   };

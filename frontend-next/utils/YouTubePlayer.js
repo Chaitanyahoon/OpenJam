@@ -7,7 +7,10 @@ const getBackendUrl = () => {
     }
   }
   if (typeof window !== 'undefined') {
-    return window.location.origin;
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return 'http://localhost:8000';
+    }
+    return 'https://openjam.onrender.com';
   }
   return 'http://localhost:8000';
 };
