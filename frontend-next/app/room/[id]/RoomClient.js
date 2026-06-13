@@ -9,7 +9,7 @@ import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, 
 import PwaInstallPrompt from '@/components/PwaInstallPrompt';
 
 export default function RoomClient({ roomId }) {
-  const { socket, isConnected } = useSocket();
+  const { socket, isConnected, reconnect } = useSocket();
   const playerRef = useRef(null);
   const typingTimeoutRef = useRef(null);
 
@@ -22,6 +22,22 @@ export default function RoomClient({ roomId }) {
   const [favourites, setFavourites] = useState([]);
   const [nowPlaying, setNowPlaying] = useState(null);
   const [playbackState, setPlaybackState] = useState({ positionMs: 0, durationMs: 0, isPlaying: false });
+
+  const nowPlayingRef = useRef(null);
+  const playbackStateRef = useRef({ positionMs: 0, durationMs: 0, isPlaying: false });
+  const streamErrorMsgRef = useRef(null);
+
+  useEffect(() => {
+    nowPlayingRef.current = nowPlaying;
+  }, [nowPlaying]);
+
+  useEffect(() => {
+    playbackStateRef.current = playbackState;
+  }, [playbackState]);
+
+  useEffect(() => {
+    streamErrorMsgRef.current = streamErrorMsg;
+  }, [streamErrorMsg]);
   const [chatMsgs, setChatMsgs] = useState([]);
   const [typingUsers, setTypingUsers] = useState({});
   const [isTyping, setIsTyping] = useState(false);
@@ -199,19 +215,37 @@ export default function RoomClient({ roomId }) {
 
     const fetchInitialData = async () => {
       try {
-        const rMe = await fetch('/auth/me');
+        const rMe = await fetch('/auth/me', { credentials: 'include' });
         if (rMe.ok) {
           const data = await rMe.json();
-          setMe(data.user);
           if (data.user) {
+            setMe(data.user);
             localStorage.setItem('openjam_display_name', data.user.display_name);
             if (data.user.avatar_url) {
               localStorage.setItem('openjam_avatar_url', data.user.avatar_url);
             }
+            if (reconnect) reconnect();
+          } else {
+            // No session exists — auto-create a guest session so invite links work
+            const storedName = localStorage.getItem('openjam_display_name') || '';
+            const rJoin = await fetch('/auth/join', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ display_name: storedName }),
+              credentials: 'include'
+            });
+            if (rJoin.ok) {
+              const joinData = await rJoin.json();
+              setMe(joinData.user);
+              if (joinData.user) {
+                localStorage.setItem('openjam_display_name', joinData.user.display_name);
+              }
+              if (reconnect) reconnect();
+            }
           }
         }
 
-        const rRoom = await fetch(`/rooms/${roomId}`);
+        const rRoom = await fetch(`/rooms/${roomId}`, { credentials: 'include' });
         if (rRoom.ok) {
           const data = await rRoom.json();
           setRoom(data.room);
@@ -245,18 +279,32 @@ export default function RoomClient({ roomId }) {
       return;
     }
 
-    const password = sessionStorage.getItem(`room_password_${roomId}`) || roomPassword;
-    const avatarUrl = localStorage.getItem('openjam_avatar_url');
-    console.log('[useEffect#2] Emitting join_room for', roomId);
-    socket.emit('join_room', { room_id: roomId, password, avatar_url: avatarUrl });
+    const joinRoom = () => {
+      const password = sessionStorage.getItem(`room_password_${roomId}`) || roomPassword;
+      const avatarUrl = localStorage.getItem('openjam_avatar_url');
+      console.log('[useEffect#2] Emitting join_room for', roomId);
+      socket.emit('join_room', { room_id: roomId, password, avatar_url: avatarUrl });
+    };
+
+    if (socket.connected) {
+      joinRoom();
+    }
+
+    socket.on('connect', joinRoom);
 
     socket.on('join_success', (data) => {
       console.log('[join_success] received:', data);
       if (data.room) setRoom(data.room);
       if (data.queue) setQueue(data.queue);
       if (data.listeners) setListeners(data.listeners);
-      if (data.playback) setPlaybackState(data.playback);
-      if (data.now_playing) setNowPlaying(data.now_playing);
+      if (data.playback) {
+        playbackStateRef.current = data.playback;
+        setPlaybackState(data.playback);
+      }
+      if (data.now_playing) {
+        nowPlayingRef.current = data.now_playing;
+        setNowPlaying(data.now_playing);
+      }
       setShowPassword(false);
 
       if (data.now_playing && playerRef.current) {
@@ -367,18 +415,25 @@ export default function RoomClient({ roomId }) {
 
     socket.on('playback_sync', (data) => {
       const isBuffering = data.is_buffering;
-      setPlaybackState({
+      const newPlayback = {
         positionMs: data.position_ms,
         durationMs: data.duration_ms,
         isPlaying: data.is_playing && !isBuffering,
         loop: data.loop || false
-      });
-      setNowPlaying({
+      };
+      const newNowPlaying = data.track_uri ? {
         track_uri: data.track_uri,
         track_name: data.track_name,
         artist: data.artist,
         album_art_url: data.album_art_url
-      });
+      } : null;
+
+      playbackStateRef.current = newPlayback;
+      nowPlayingRef.current = newNowPlaying;
+
+      setPlaybackState(newPlayback);
+      setNowPlaying(newNowPlaying);
+
       if (playerRef.current) {
         if (data.track_uri && playerRef.current.currentVideoId !== data.track_uri) {
           playerRef.current.setTrack({
@@ -398,16 +453,21 @@ export default function RoomClient({ roomId }) {
       }
       if (!isHost) {
         if (isBuffering) {
+          streamErrorMsgRef.current = "Buffering stream…";
           setStreamErrorMsg("Buffering stream…");
         } else {
+          streamErrorMsgRef.current = null;
           setStreamErrorMsg(null);
         }
       }
     });
 
     socket.on('track_changed', (data) => {
+      streamErrorMsgRef.current = null;
       setStreamErrorMsg(null);
       if (data) {
+        nowPlayingRef.current = data;
+        playbackStateRef.current = { positionMs: 0, durationMs: data.duration_ms || 0, isPlaying: true, loop: data.loop || false };
         setNowPlaying(data);
         setPlaybackState({ positionMs: 0, durationMs: data.duration_ms || 0, isPlaying: true, loop: data.loop || false });
         if (playerRef.current) {
@@ -415,6 +475,8 @@ export default function RoomClient({ roomId }) {
         }
         fetchLyrics(data.artist, data.track_name);
       } else {
+        nowPlayingRef.current = null;
+        playbackStateRef.current = { positionMs: 0, durationMs: 0, isPlaying: false, loop: false };
         setNowPlaying(null);
         setPlaybackState({ positionMs: 0, durationMs: 0, isPlaying: false, loop: false });
         if (playerRef.current) {
@@ -450,6 +512,7 @@ export default function RoomClient({ roomId }) {
     });
 
     return () => {
+      socket.off('connect', joinRoom);
       socket.off('join_success');
       socket.off('join_error');
       socket.off('chat_history');
@@ -477,6 +540,12 @@ export default function RoomClient({ roomId }) {
     const player = new YouTubePlayer({
       toast: (msg, type) => triggerToast(msg, type),
       onProgressUpdate: (pos, dur, playing) => {
+        playbackStateRef.current = {
+          ...playbackStateRef.current,
+          positionMs: pos,
+          durationMs: dur,
+          isPlaying: playing
+        };
         setPlaybackState((prev) => ({
           ...prev,
           positionMs: pos,
@@ -485,6 +554,7 @@ export default function RoomClient({ roomId }) {
         }));
       },
       onStreamFailUpdate: (msg) => {
+        streamErrorMsgRef.current = msg;
         setStreamErrorMsg(msg);
       }
     });
@@ -506,29 +576,33 @@ export default function RoomClient({ roomId }) {
         }
       } else if (action === 'play') {
         if (isHost && socket) {
+          const currentTrack = nowPlayingRef.current;
+          const currentPlayback = playbackStateRef.current;
           socket.emit('playback_update', {
             room_id: roomId,
-            track_uri: nowPlaying?.track_uri,
-            track_name: nowPlaying?.track_name,
-            artist: nowPlaying?.artist,
-            album_art_url: nowPlaying?.album_art_url,
+            track_uri: currentTrack?.track_uri,
+            track_name: currentTrack?.track_name,
+            artist: currentTrack?.artist,
+            album_art_url: currentTrack?.album_art_url,
             position_ms: extra.position_ms,
-            duration_ms: playbackState.durationMs,
+            duration_ms: currentPlayback.durationMs,
             is_playing: true,
             loop: false,
-            is_buffering: !!streamErrorMsg
+            is_buffering: !!streamErrorMsgRef.current
           });
         }
       } else if (action === 'pause') {
         if (isHost && socket) {
+          const currentTrack = nowPlayingRef.current;
+          const currentPlayback = playbackStateRef.current;
           socket.emit('playback_update', {
             room_id: roomId,
-            track_uri: nowPlaying?.track_uri,
-            track_name: nowPlaying?.track_name,
-            artist: nowPlaying?.artist,
-            album_art_url: nowPlaying?.album_art_url,
+            track_uri: currentTrack?.track_uri,
+            track_name: currentTrack?.track_name,
+            artist: currentTrack?.artist,
+            album_art_url: currentTrack?.album_art_url,
             position_ms: extra.position_ms,
-            duration_ms: playbackState.durationMs,
+            duration_ms: currentPlayback.durationMs,
             is_playing: false,
             loop: false,
             is_buffering: false
@@ -536,20 +610,22 @@ export default function RoomClient({ roomId }) {
         }
       }
     });
-  }, [roomId, socket, isHost, nowPlaying, playbackState.durationMs, streamErrorMsg]);
+  }, [roomId, socket, isHost]);
 
   // 3.5. Buffering Synchronization
   useEffect(() => {
-    if (isHost && socket && nowPlaying) {
+    if (isHost && socket && nowPlayingRef.current) {
+      const currentTrack = nowPlayingRef.current;
+      const currentPlayback = playbackStateRef.current;
       socket.emit('playback_update', {
         room_id: roomId,
-        track_uri: nowPlaying.track_uri,
-        track_name: nowPlaying.track_name,
-        artist: nowPlaying.artist,
-        album_art_url: nowPlaying.album_art_url,
-        position_ms: playbackState.positionMs,
-        duration_ms: playbackState.durationMs,
-        is_playing: playbackState.isPlaying,
+        track_uri: currentTrack.track_uri,
+        track_name: currentTrack.track_name,
+        artist: currentTrack.artist,
+        album_art_url: currentTrack.album_art_url,
+        position_ms: currentPlayback.positionMs,
+        duration_ms: currentPlayback.durationMs,
+        is_playing: currentPlayback.isPlaying,
         loop: false,
         is_buffering: !!streamErrorMsg
       });
@@ -573,7 +649,7 @@ export default function RoomClient({ roomId }) {
     const delayDebounce = setTimeout(async () => {
       try {
         console.log('[search] fetching for:', searchQuery);
-        const res = await fetch(`/search/tracks?q=${encodeURIComponent(searchQuery)}`);
+        const res = await fetch(`/search/tracks?q=${encodeURIComponent(searchQuery)}`, { credentials: 'include' });
         if (res.ok) {
           const data = await res.json();
           console.log('[search] got', (data.tracks || []).length, 'results');
@@ -601,7 +677,7 @@ export default function RoomClient({ roomId }) {
       const cleanTrack = track.replace(/\[.*?\]|\(.*?\)/g, '').trim();
       const cleanArtist = artist.replace(/\[.*?\]|\(.*?\)/g, '').trim();
       const url = `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTrack)}&artist_name=${encodeURIComponent(cleanArtist)}`;
-      const res = await fetch(url);
+      const res = await fetch(url, { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         if (data.syncedLyrics) {
@@ -948,39 +1024,76 @@ export default function RoomClient({ roomId }) {
     handleStopTyping();
   };
 
-  const handleImportBulk = () => {
+  const handleImportBulk = async () => {
     if (!bulkImportText.trim() || !socket) return;
     const lines = bulkImportText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     
-    lines.forEach((line) => {
-      let track_uri = '';
-      if (line.includes('youtube.com/') || line.includes('youtu.be/')) {
-        const reg = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
-        const m = line.match(reg);
-        if (m) track_uri = m[1];
-      }
+    triggerToast('Processing bulk import...', 'info');
+    
+    const promises = lines.map(async (line) => {
+      const lineClean = line.trim();
+      const isSpotifyPlaylist = lineClean.includes('spotify.com/playlist/');
+      const isYoutubePlaylist = lineClean.includes('youtube.com/playlist') || lineClean.includes('list=');
       
-      if (track_uri) {
-        socket.emit('add_to_queue', {
-          room_id: roomId,
-          track_uri: track_uri,
-          track_name: 'YouTube Video',
-          artist: 'YouTube',
-          album_art_url: '/static/img/logo.png',
-          duration_ms: 0
-        });
+      if (isSpotifyPlaylist || isYoutubePlaylist) {
+        try {
+          const res = await fetch(`/search/playlist?url=${encodeURIComponent(lineClean)}`, { credentials: 'include' });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.tracks && data.tracks.length > 0) {
+              data.tracks.forEach((track) => {
+                socket.emit('add_to_queue', {
+                  room_id: roomId,
+                  track_uri: track.uri,
+                  track_name: track.name,
+                  artist: track.artist,
+                  album_art_url: track.album_art_url || '/static/img/logo.png',
+                  duration_ms: track.duration_ms || 0
+                });
+              });
+              triggerToast(`Successfully added ${data.tracks.length} tracks from playlist!`, 'success');
+            } else {
+              triggerToast('No tracks found in playlist', 'warning');
+            }
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            triggerToast(errData.detail || 'Failed to import playlist', 'error');
+          }
+        } catch (err) {
+          console.error('Error importing playlist:', err);
+          triggerToast('Error importing playlist', 'error');
+        }
       } else {
-        // Search query style bulk import
-        socket.emit('add_to_queue', {
-          room_id: roomId,
-          track_uri: line, // Backend will auto-resolve search query if track_uri is not 11 chars
-          track_name: line,
-          artist: 'Search Query',
-          album_art_url: '/static/img/logo.png',
-          duration_ms: 0
-        });
+        let track_uri = '';
+        if (lineClean.includes('youtube.com/') || lineClean.includes('youtu.be/')) {
+          const reg = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+          const m = lineClean.match(reg);
+          if (m) track_uri = m[1];
+        }
+        
+        if (track_uri) {
+          socket.emit('add_to_queue', {
+            room_id: roomId,
+            track_uri: track_uri,
+            track_name: 'YouTube Video',
+            artist: 'YouTube',
+            album_art_url: '/static/img/logo.png',
+            duration_ms: 0
+          });
+        } else {
+          socket.emit('add_to_queue', {
+            room_id: roomId,
+            track_uri: lineClean,
+            track_name: lineClean,
+            artist: 'Search Query',
+            album_art_url: '/static/img/logo.png',
+            duration_ms: 0
+          });
+        }
       }
     });
+
+    await Promise.all(promises);
     setShowBulkAdd(false);
     setBulkImportText('');
   };
@@ -1040,7 +1153,7 @@ export default function RoomClient({ roomId }) {
 
   const handleCloseConfirm = () => {
     if (!socket || !isHost) return;
-    fetch(`/rooms/${roomId}`, { method: 'DELETE' })
+    fetch(`/rooms/${roomId}`, { method: 'DELETE', credentials: 'include' })
       .then((res) => {
         if (res.ok) {
           socket.emit('leave_room', { room_id: roomId });
@@ -1059,11 +1172,30 @@ export default function RoomClient({ roomId }) {
   };
 
   const handleCopyInvite = () => {
-    if (typeof window !== 'undefined') {
-      const inviteUrl = `${window.location.origin}/room/${roomId}`;
+    if (typeof window === 'undefined') return;
+    const inviteUrl = `${window.location.origin}/room/${roomId}`;
+    
+    const fallbackCopy = (text) => {
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0;';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        triggerToast('Invite link copied!', 'success');
+      } catch (e) {
+        triggerToast('Failed to copy link', 'error');
+      }
+    };
+
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
       navigator.clipboard.writeText(inviteUrl)
         .then(() => triggerToast('Invite link copied!', 'success'))
-        .catch(() => triggerToast('Failed to copy link', 'error'));
+        .catch(() => fallbackCopy(inviteUrl));
+    } else {
+      fallbackCopy(inviteUrl);
     }
   };
 

@@ -9,6 +9,17 @@ export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
 
+  const getCookie = (name) => {
+    if (typeof document === 'undefined') return null;
+    const m = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+    if (!m) return null;
+    let val = m[2];
+    if (val.startsWith('"') && val.endsWith('"')) {
+      val = val.substring(1, val.length - 1);
+    }
+    return val;
+  };
+
   useEffect(() => {
     // Only run on the client side
     if (typeof window === 'undefined') return;
@@ -55,19 +66,18 @@ export const SocketProvider = ({ children }) => {
     };
   }, []);
 
-  const getCookie = (name) => {
-    if (typeof document === 'undefined') return null;
-    const m = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-    if (!m) return null;
-    let val = m[2];
-    if (val.startsWith('"') && val.endsWith('"')) {
-      val = val.substring(1, val.length - 1);
+  const reconnect = (newToken, newGuestName) => {
+    if (socket) {
+      const token = newToken || getCookie('session_token') || '';
+      const guestName = newGuestName || localStorage.getItem('openjam_display_name') || '';
+      socket.auth = { token, guest_name: guestName };
+      console.log('[openjam] Reconnecting socket with auth:', socket.auth);
+      socket.disconnect().connect();
     }
-    return val;
   };
 
   return (
-    <SocketContext.Provider value={{ socket, isConnected }}>
+    <SocketContext.Provider value={{ socket, isConnected, reconnect }}>
       {children}
     </SocketContext.Provider>
   );

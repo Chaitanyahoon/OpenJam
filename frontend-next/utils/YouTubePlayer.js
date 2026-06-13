@@ -405,7 +405,18 @@ export default class YouTubePlayer {
       this._useLowBitrate = false;
       if (this._useIFrame) {
         this._useIFrame = false;
+        if (this.ytPlayer && typeof this.ytPlayer.stopVideo === 'function') {
+          try {
+            this.ytPlayer.stopVideo();
+          } catch (e) {
+            console.error('Error stopping YT player during transition:', e);
+          }
+        }
       }
+      try {
+        this.player.pause();
+        this.player.src = '';
+      } catch (e) {}
     }
 
     this.currentVideoId = videoId;

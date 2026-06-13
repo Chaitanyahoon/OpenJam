@@ -39,10 +39,12 @@ def _db_add_and_get_queue(room_id: str, track_data: dict, user_id: str, display_
             if resolved_id:
                 track_data["uri"] = resolved_id
                 uri = resolved_id
+            else:
+                raise ValueError(f"Could not resolve track: '{uri}'")
 
         # Resolve actual YouTube title, artist, and thumbnail if generic or missing
         if uri and len(uri) == 11:
-            if track_data.get("name") in ["YouTube Video", "", None, uri] or track_data.get("artist") in ["YouTube", "Search Query", "", None]:
+            if track_data.get("name") in ["YouTube Video", "", None, uri] or track_data.get("artist") in ["YouTube", "Search Query", "", None] or "spotify.com" in str(track_data.get("name")):
                 from backend.services.music_search import music_search_service as lastfm_service
                 metadata = lastfm_service.resolve_youtube_metadata(uri)
                 if metadata:

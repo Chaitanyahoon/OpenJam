@@ -83,13 +83,38 @@ class MusicSearchService:
         
         Strategy:
         1. Check memory cache (fast, 0ms)
-        2. Try ytmusicapi (best quality, music-specific)
-        3. Fallback: scrape YouTube search results HTML
+        2. If query is a Spotify track link, scrape metadata first
+        3. Try ytmusicapi (best quality, music-specific)
+        4. Fallback: scrape YouTube search results HTML
         """
         if not query or not query.strip():
             return None
 
         q = query.strip()
+
+        # Check if query is a Spotify track link
+        if "spotify.com/track/" in q:
+            match = re.search(r"/track/([a-zA-Z0-9]+)", q)
+            if match:
+                track_id = match.group(1)
+                try:
+                    embed_url = f"https://open.spotify.com/embed/track/{track_id}"
+                    req = urllib.request.Request(embed_url, headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                    })
+                    with urllib.request.urlopen(req, timeout=5) as resp:
+                        html = resp.read().decode("utf-8", errors="ignore")
+                    next_data_match = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', html)
+                    if next_data_match:
+                        next_data = json.loads(next_data_match.group(1))
+                        entity = next_data.get("props", {}).get("pageProps", {}).get("state", {}).get("data", {}).get("entity", {})
+                        if entity:
+                            title = entity.get("title")
+                            artist = entity.get("subtitle", "Unknown Artist")
+                            if title:
+                                q = f"{title} {artist} official audio"
+                except Exception as e:
+                    logger.warning(f"Failed to resolve Spotify track URL metadata: {e}")
 
         if q in self._resolve_cache:
             logger.debug(f"Resolved query from cache: '{q}' → {self._resolve_cache[q]}")
