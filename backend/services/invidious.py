@@ -14,6 +14,9 @@ import time
 from typing import Optional
 
 import httpx
+from backend.services.redis_store import RedisStore
+
+redis_store = RedisStore()
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +56,25 @@ PIPED_INSTANCES = list(DEFAULT_PIPED_INSTANCES)
 _instance_health: dict[str, dict] = {}
 _piped_health: dict[str, dict] = {}
 _stream_origin_instances: dict[str, str] = {}
+
+def load_health_from_redis():
+    global _instance_health, _piped_health
+    if redis_store.client:
+        try:
+            import json
+            inv_data = redis_store.client.get("openjam:invidious:health")
+            if inv_data:
+                _instance_health.update(json.loads(inv_data))
+                logger.info("Loaded Invidious instance health from Redis cache")
+            
+            piped_data = redis_store.client.get("openjam:piped:health")
+            if piped_data:
+                _piped_health.update(json.loads(piped_data))
+                logger.info("Loaded Piped instance health from Redis cache")
+        except Exception as e:
+            logger.warning(f"Failed to load instance health from Redis: {e}")
+
+load_health_from_redis()
 _last_health_check: float = 0.0
 HEALTH_CHECK_INTERVAL: float = 600.0  # 10 minutes (was 30min)
 
@@ -209,6 +231,15 @@ async def _health_check_instances_bg():
     healthy = sum(1 for r in results if r is True)
     logger.info(f"Health check background task complete: {healthy}/{len(INV_INSTANCES) + len(PIPED_INSTANCES)} instances healthy")
 
+    if redis_store.client:
+        try:
+            import json
+            redis_store.client.set("openjam:invidious:health", json.dumps(_instance_health), ex=86400)
+            redis_store.client.set("openjam:piped:health", json.dumps(_piped_health), ex=86400)
+            logger.info("Saved instance health to Redis cache")
+        except Exception as e:
+            logger.warning(f"Failed to save instance health to Redis: {e}")
+
 
 def trigger_health_check_if_needed():
     """Trigger the health check in the background if the interval has passed."""
@@ -272,6 +303,14 @@ def report_stream_failure(stream_url: str):
                 health["failures"] += 1
                 health["score"] = max(0, health["score"] - 30)
                 logger.info(f"Penalized Piped instance {origin} (score={health['score']}) due to stream proxy failure")
+
+            if redis_store.client:
+                try:
+                    import json
+                    redis_store.client.set("openjam:invidious:health", json.dumps(_instance_health), ex=86400)
+                    redis_store.client.set("openjam:piped:health", json.dumps(_piped_health), ex=86400)
+                except Exception:
+                    pass
     except Exception as e:
         logger.warning(f"Error reporting stream failure for {stream_url}: {e}")
 
@@ -344,8 +383,10 @@ async def get_stream_url(video_id: str) -> Optional[str]:
             health["score"] = max(0, health.get("score", 100) - 10)
         return None
 
-    instances = _get_sorted_instances()
-    piped_instances = _get_sorted_piped_instances()
+    # Limit the race to the top 3 healthiest Invidious and top 3 healthiest Piped instances
+    # to avoid creating excessive concurrent connections and slamming external APIs.
+    instances = _get_sorted_instances()[:3]
+    piped_instances = _get_sorted_piped_instances()[:3]
     all_tasks = [_try_instance(i) for i in instances] + [_try_piped(p) for p in piped_instances]
     for coro in asyncio.as_completed(all_tasks):
         result = await coro

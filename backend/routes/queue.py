@@ -449,9 +449,9 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
                         break
                 except Exception:
                     pass
-        await asyncio.wait_for(_race(), timeout=3.5)
+        await asyncio.wait_for(_race(), timeout=6.0)
     except asyncio.TimeoutError:
-        logger.warning(f"Stream extraction race timed out after 3.5s for {video_id}")
+        logger.warning(f"Stream extraction race timed out after 6.0s for {video_id}")
     finally:
         # Cancel any remaining tasks to free up network/CPU resources
         for task in tasks:

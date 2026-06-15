@@ -445,10 +445,10 @@ export default class YouTubePlayer {
       if (this._loadTimeout) clearTimeout(this._loadTimeout);
       this._loadTimeout = setTimeout(() => {
         if (this.player.readyState === 0 && this.player.src.includes('/stream/')) {
-          console.warn('Stream load timeout after 6s');
+          console.warn('Stream load timeout after 12s');
           this.player.dispatchEvent(new Event('error'));
         }
-      }, 6000);
+      }, 12000);
 
       this.player.loop = false;
       this.player.src = `${BACKEND_URL}/stream/${videoId}`;
