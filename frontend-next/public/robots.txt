@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /room/
+Disallow: /offline
+Disallow: /_next/
+
+Sitemap: https://openjam.onrender.com/sitemap.xml
