@@ -61,7 +61,7 @@ export default function RoomClient({ roomId }) {
     const initDiscordRpc = async () => {
       try {
         const res = await fetch('/auth/config');
-        let clientId = '1384074213192306718'; // Fallback default client ID
+        let clientId = '1514249657549586482'; // Fallback default client ID
         if (res.ok) {
           const data = await res.json();
           if (data.discord_client_id) {

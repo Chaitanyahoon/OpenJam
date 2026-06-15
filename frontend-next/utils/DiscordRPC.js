@@ -5,7 +5,7 @@
  */
 class DiscordRPC {
   constructor(clientId) {
-    this.clientId = clientId || '1384074213192306718'; // Fallback to default OpenJam Discord Application
+    this.clientId = clientId || '1514249657549586482'; // Fallback to default OpenJam Discord Application
     this.socket = null;
     this.connected = false;
     this.ready = false;
