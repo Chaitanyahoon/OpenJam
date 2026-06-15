@@ -182,23 +182,30 @@ export default class YouTubePlayer {
   _initIFramePlayer() {
     if (this.ytPlayer) return;
 
-    let container = document.getElementById('yt-fallback-container');
-    if (!container) {
-      container = document.createElement('div');
-      container.id = 'yt-fallback-container';
-      container.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;';
-      document.body.appendChild(container);
+    let wrapper = document.getElementById('yt-fallback-wrapper');
+    if (!wrapper) {
+      wrapper = document.createElement('div');
+      wrapper.id = 'yt-fallback-wrapper';
+      wrapper.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;';
+      
+      const placeholder = document.createElement('div');
+      placeholder.id = 'yt-fallback-placeholder';
+      wrapper.appendChild(placeholder);
+      
+      document.body.appendChild(wrapper);
     }
 
+    const targetElement = document.getElementById('yt-fallback-placeholder') || wrapper;
+
     if (window.YT && window.YT.Player) {
-      this._createYTPlayer(container);
+      this._createYTPlayer(targetElement);
       return;
     }
 
     const tag = document.createElement('script');
     tag.src = 'https://www.youtube.com/iframe_api';
     document.head.appendChild(tag);
-    window.onYouTubeIframeAPIReady = () => this._createYTPlayer(container);
+    window.onYouTubeIframeAPIReady = () => this._createYTPlayer(targetElement);
   }
 
   _createYTPlayer(container) {
@@ -656,6 +663,10 @@ export default class YouTubePlayer {
     if (this._useIFrame && this.ytPlayer) {
       try { this.ytPlayer.destroy(); } catch(e) {}
       this.ytPlayer = null;
+    }
+    const wrapper = document.getElementById('yt-fallback-wrapper');
+    if (wrapper) {
+      try { wrapper.remove(); } catch (e) {}
     }
   }
 
