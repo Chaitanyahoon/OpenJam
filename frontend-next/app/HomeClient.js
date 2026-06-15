@@ -275,7 +275,7 @@ export default function HomePage() {
   // Auth
   const checkAuth = async () => {
     try {
-      const r = await fetch('/auth/me', { credentials: 'include' });
+      const r = await fetch(`/auth/me?t=${Date.now()}`, { credentials: 'include', cache: 'no-store' });
       if (r.ok) {
         const data = await r.json();
         setMe(data.user);

@@ -329,7 +329,7 @@ export default function RoomClient({ roomId }) {
     const fetchInitialData = async () => {
       try {
         let userResolved = false;
-        const rMe = await fetch('/auth/me', { credentials: 'include' });
+        const rMe = await fetch(`/auth/me?t=${Date.now()}`, { credentials: 'include', cache: 'no-store' });
         if (rMe.ok) {
           const data = await rMe.json();
           if (data.user) {
