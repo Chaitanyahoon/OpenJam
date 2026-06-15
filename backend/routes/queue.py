@@ -24,6 +24,9 @@ from backend.services.music_search import music_search_service as lastfm_service
 from backend.services.invidious import get_stream_url as get_invidious_stream_url, report_stream_failure
 from backend.schemas import QueueTrackRequest
 from backend.routes.rooms import check_room_access
+from backend.services.redis_store import RedisStore
+
+redis_store = RedisStore()
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["queue"])
@@ -394,6 +397,16 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
             return url
         del _url_cache[cache_key]
 
+    if redis_store.client:
+        try:
+            cached_url = redis_store.client.get(f"openjam:url:{cache_key}")
+            if cached_url:
+                _url_cache[cache_key] = (cached_url, time.time() + _URL_CACHE_TTL)
+                logger.info(f"Resolved stream URL for {cache_key} from Redis cache")
+                return cached_url
+        except Exception as e:
+            logger.warning(f"Failed to retrieve stream URL from Redis for {cache_key}: {e}")
+
     async def _try_cobalt() -> str | None:
         try:
             from backend.services.cobalt import get_cobalt_stream_url
@@ -448,12 +461,28 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
     if url:
         _prune_url_cache()
         _url_cache[cache_key] = (url, time.time() + _URL_CACHE_TTL)
+        if redis_store.client:
+            try:
+                redis_store.client.set(f"openjam:url:{cache_key}", url, ex=_URL_CACHE_TTL)
+                logger.info(f"Successfully cached stream URL for {cache_key} in Redis")
+            except Exception as e:
+                logger.warning(f"Failed to cache stream URL in Redis for {cache_key}: {e}")
     return url
 
 
 async def pre_resolve_url(video_id: str):
     """Resolve a stream URL and pre-download the file to the local cache."""
-    if video_id not in _url_cache:
+    is_resolved = False
+    if video_id in _url_cache:
+        is_resolved = True
+    elif redis_store.client:
+        try:
+            if redis_store.client.exists(f"openjam:url:{video_id}"):
+                is_resolved = True
+        except Exception:
+            pass
+
+    if not is_resolved:
         if video_id in _resolving:
             return
         _resolving.add(video_id)
@@ -491,12 +520,19 @@ async def stream_audio(video_id: str, request: Request, low: bool = False, nocac
 
     # Fallback: Live streaming from YouTube
     cache_key = f"{video_id}_low" if low else video_id
-    if nocache and cache_key in _url_cache:
-        try:
-            del _url_cache[cache_key]
-            logger.info(f"Invalidated stream cache for {cache_key} due to nocache=true")
-        except KeyError:
-            pass
+    if nocache:
+        if cache_key in _url_cache:
+            try:
+                del _url_cache[cache_key]
+                logger.info(f"Invalidated stream local cache for {cache_key} due to nocache=true")
+            except KeyError:
+                pass
+        if redis_store.client:
+            try:
+                redis_store.client.delete(f"openjam:url:{cache_key}")
+                logger.info(f"Invalidated stream Redis cache for {cache_key} due to nocache=true")
+            except Exception as e:
+                logger.warning(f"Failed to delete stream URL from Redis for {cache_key}: {e}")
 
     max_attempts = 2
     last_error_detail = "Could not extract stream"
