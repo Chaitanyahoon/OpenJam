@@ -61,11 +61,10 @@ class DiscordRPC {
         try {
           const handshake = {
             op: 0,
-            args: {
+            d: {
               v: 1,
               client_id: this.clientId
-            },
-            nonce: Math.random().toString(36).substring(2, 15)
+            }
           };
           socket.send(JSON.stringify(handshake));
         } catch (err) {
