@@ -14,6 +14,20 @@ from backend.config import settings
 
 logger = logging.getLogger(__name__)
 
+auth_logs = []
+
+def log_auth_event(msg: str):
+    logger.info(msg)
+    auth_logs.append(msg)
+    if len(auth_logs) > 50:
+        auth_logs.pop(0)
+
+def log_auth_error(msg: str):
+    logger.error(msg)
+    auth_logs.append(f"ERROR: {msg}")
+    if len(auth_logs) > 50:
+        auth_logs.pop(0)
+
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 _HTML_TAG_RE = re.compile(r'<[^>]+>')
@@ -127,6 +141,13 @@ async def logout(request: Request):
     return response
 
 
+@router.get("/logs")
+async def get_auth_logs():
+    """Endpoint to fetch dynamic authentication diagnostics logs."""
+    return {"logs": auth_logs}
+
+
+
 # ════════════════════════════════════════════════════════════
 # Discord OAuth2 Login
 # ════════════════════════════════════════════════════════════
@@ -170,10 +191,11 @@ def get_redirect_uri(request: Request) -> str:
 async def discord_login(request: Request):
     """Redirect user to Discord OAuth2 authorization page."""
     if not settings.DISCORD_CLIENT_ID:
+        log_auth_error("discord_login: DISCORD_CLIENT_ID not configured")
         return JSONResponse({"error": "Discord login not configured"}, status_code=501)
 
     redirect_uri = get_redirect_uri(request)
-    logger.info(f"Using Discord OAuth redirect URI: {redirect_uri}")
+    log_auth_event(f"discord_login: redirect_uri={redirect_uri}")
 
     params = {
         "client_id": settings.DISCORD_CLIENT_ID,
@@ -185,18 +207,23 @@ async def discord_login(request: Request):
     return RedirectResponse(f"{DISCORD_AUTH_URL}?{urlencode(params)}")
 
 
+
 @router.get("/discord/callback")
 async def discord_callback(request: Request, code: str = ""):
     """Handle Discord OAuth2 callback — exchange code for token, fetch user, create session."""
+    log_auth_event(f"discord_callback: callback invoked with code length={len(code) if code else 0}")
     if not code:
+        log_auth_error("discord_callback: no code provided")
         return RedirectResponse(f"{settings.FRONTEND_URL}/?error=discord_no_code")
 
     if not settings.DISCORD_CLIENT_ID or not settings.DISCORD_CLIENT_SECRET:
+        log_auth_error("discord_callback: DISCORD_CLIENT_ID or DISCORD_CLIENT_SECRET not configured")
         return RedirectResponse(f"{settings.FRONTEND_URL}/?error=discord_not_configured")
 
     try:
         # 1. Exchange authorization code for access token
         redirect_uri = get_redirect_uri(request)
+        log_auth_event(f"discord_callback: using redirect_uri={redirect_uri}")
         async with httpx.AsyncClient(timeout=10.0) as client:
             token_resp = await client.post(DISCORD_TOKEN_URL, data={
                 "client_id": settings.DISCORD_CLIENT_ID,
@@ -207,12 +234,13 @@ async def discord_callback(request: Request, code: str = ""):
             }, headers={"Content-Type": "application/x-www-form-urlencoded"})
 
             if token_resp.status_code != 200:
-                logger.error(f"Discord token exchange failed: {token_resp.status_code} {token_resp.text}")
+                log_auth_error(f"Discord token exchange failed (status={token_resp.status_code}): {token_resp.text}")
                 return RedirectResponse(f"{settings.FRONTEND_URL}/?error=discord_token_failed")
 
             token_data = token_resp.json()
             access_token = token_data.get("access_token")
             if not access_token:
+                log_auth_error(f"discord_callback: token exchange response missing access_token. response={token_data}")
                 return RedirectResponse(f"{settings.FRONTEND_URL}/?error=discord_no_token")
 
             # 2. Fetch Discord user profile
@@ -221,7 +249,7 @@ async def discord_callback(request: Request, code: str = ""):
             })
 
             if user_resp.status_code != 200:
-                logger.error(f"Discord user fetch failed: {user_resp.status_code}")
+                log_auth_error(f"Discord user fetch failed (status={user_resp.status_code}): {user_resp.text}")
                 return RedirectResponse(f"{settings.FRONTEND_URL}/?error=discord_user_failed")
 
             discord_user = user_resp.json()
@@ -229,6 +257,8 @@ async def discord_callback(request: Request, code: str = ""):
         discord_id = discord_user["id"]
         discord_username = discord_user.get("global_name") or discord_user.get("username", "Jammer")
         discord_avatar_hash = discord_user.get("avatar")
+
+        log_auth_event(f"discord_callback: fetched user '{discord_username}' (id={discord_id})")
 
         # Build avatar URL
         if discord_avatar_hash:
@@ -253,6 +283,7 @@ async def discord_callback(request: Request, code: str = ""):
                 user.discord_username = discord_username
                 db.commit()
                 user_id = user.id
+                log_auth_event(f"discord_callback: updated existing user in DB (id={user_id})")
             else:
                 # Create new user
                 user_id = str(uuid.uuid4())
@@ -265,6 +296,7 @@ async def discord_callback(request: Request, code: str = ""):
                 )
                 db.add(user)
                 db.commit()
+                log_auth_event(f"discord_callback: created new user in DB (id={user_id})")
         finally:
             db.close()
 
@@ -285,10 +317,12 @@ async def discord_callback(request: Request, code: str = ""):
             secure=is_prod,
             max_age=86400 * 30,  # 30 days for Discord login
         )
-        logger.info(f"Discord login: '{discord_username}' (discord_id={discord_id}, user_id={user_id})")
+        log_auth_event(f"Discord login successful: '{discord_username}' (discord_id={discord_id}, user_id={user_id})")
         return response
 
     except Exception as e:
-        logger.error(f"Discord OAuth2 error: {e}")
+        log_auth_error(f"Discord OAuth2 exception: {str(e)}")
+        import traceback
+        log_auth_error(traceback.format_exc())
         return RedirectResponse(f"{settings.FRONTEND_URL}/?error=discord_error")
 
