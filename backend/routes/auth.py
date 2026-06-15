@@ -137,17 +137,17 @@ DISCORD_TOKEN_URL = "https://discord.com/api/oauth2/token"
 
 
 def get_redirect_uri(request: Request) -> str:
-    # 1. Check if we have proxy headers indicating the request came through a frontend (e.g. Vercel)
-    forwarded_host = request.headers.get("x-forwarded-host")
-    
-    # 2. If no proxy headers, look at the DISCORD_REDIRECT_URI environment variable
     import os
     env_uri = os.getenv("DISCORD_REDIRECT_URI")
     
+    # 1. If DISCORD_REDIRECT_URI is explicitly set in environment, respect it!
+    if env_uri:
+        return env_uri
+        
+    # 2. Fallback to dynamic host detection
+    forwarded_host = request.headers.get("x-forwarded-host")
     if forwarded_host:
         host = forwarded_host
-    elif env_uri and "localhost" not in env_uri and "127.0.0.1" not in env_uri:
-        return env_uri
     else:
         host = request.headers.get("host", "localhost:8000")
         
