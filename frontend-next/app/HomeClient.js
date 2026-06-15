@@ -324,6 +324,20 @@ export default function HomePage() {
   };
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('token');
+      if (token) {
+        const maxAge = 86400 * 30; // 30 days
+        const isSecure = window.location.protocol === 'https:';
+        document.cookie = `session_token=${token}; max-age=${maxAge}; path=/; samesite=lax${isSecure ? '; secure' : ''}`;
+        
+        // Clean the token query parameter from URL
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+      }
+    }
+
     checkAuth();
     loadRooms();
 

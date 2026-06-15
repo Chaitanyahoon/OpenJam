@@ -307,7 +307,7 @@ async def discord_callback(request: Request, code: str = ""):
             avatar_url=avatar_url,
         )
 
-        response = RedirectResponse(f"{settings.FRONTEND_URL}/")
+        response = RedirectResponse(f"{settings.FRONTEND_URL}/?token={session_token}")
         is_prod = settings.ENVIRONMENT == "production"
         response.set_cookie(
             key="session_token",
