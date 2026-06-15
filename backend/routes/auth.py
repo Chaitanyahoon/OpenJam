@@ -110,6 +110,12 @@ async def get_me(request: Request):
     return {"user": user_data}
 
 
+@router.get("/config")
+async def get_config():
+    """Expose public settings like Discord Client ID to the frontend."""
+    return {"discord_client_id": settings.DISCORD_CLIENT_ID}
+
+
 @router.post("/logout")
 async def logout(request: Request):
     token = request.cookies.get("session_token")
