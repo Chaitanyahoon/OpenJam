@@ -2210,7 +2210,7 @@ export default function RoomClient({ roomId }) {
 
 
       {/* ══ MOBILE MINI PLAYER ════════════════════════════════════ */}
-      <div className={`mobile-mini-player ${activeTab !== 'playing' && nowPlaying ? 'is-visible' : ''}`} id="mobile-mini-player" style={{ display: activeTab !== 'playing' && nowPlaying ? 'flex' : 'none' }}>
+      <div className={`mobile-mini-player ${activeTab !== 'playing' && nowPlaying ? 'is-visible' : ''}`} id="mobile-mini-player">
         <div className="mini-player-progress-track">
           <div className="mini-player-progress-fill" style={{ width: `${playbackState.durationMs > 0 ? (playbackState.positionMs / playbackState.durationMs) * 100 : 0}%` }}></div>
         </div>

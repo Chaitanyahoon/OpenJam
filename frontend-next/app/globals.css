@@ -5435,10 +5435,12 @@ body:not(.room-page) {
   opacity: 0;
   transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
 }
-.mobile-mini-player.is-visible {
-  display: flex;
-  transform: translateY(0);
-  opacity: 1;
+@media (max-width: 640px) {
+  .mobile-mini-player.is-visible {
+    display: flex;
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 .mini-player-progress-track {
   position: absolute;
