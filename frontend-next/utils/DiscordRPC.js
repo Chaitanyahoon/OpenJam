@@ -8,6 +8,7 @@ class DiscordRPC {
     this.clientId = clientId || '1384074213192306718'; // Fallback to default OpenJam Discord Application
     this.socket = null;
     this.connected = false;
+    this.ready = false;
     this.retryTimeout = null;
     this.currentActivity = null;
   }
@@ -25,12 +26,6 @@ class DiscordRPC {
       this.socket.onopen = () => {
         console.log('[Discord RPC] Connected to local Discord client');
         this.connected = true;
-        
-        // Handshake: Discord expects a client handshake or authorization
-        // For setting activity, we authorize by sending the client ID details
-        if (this.currentActivity) {
-          this.setActivity(this.currentActivity);
-        }
       };
 
       this.socket.onmessage = (event) => {
@@ -38,6 +33,10 @@ class DiscordRPC {
           const data = JSON.parse(event.data);
           if (data.evt === 'READY') {
             console.log('[Discord RPC] Ready to push activities');
+            this.ready = true;
+            if (this.currentActivity) {
+              this.setActivity(this.currentActivity);
+            }
           }
         } catch (err) {
           // Quietly ignore parsing anomalies
@@ -50,6 +49,7 @@ class DiscordRPC {
 
       this.socket.onclose = () => {
         this.connected = false;
+        this.ready = false;
         this.socket = null;
         
         // Retry connection in 12 seconds to handle Discord restarts
@@ -57,13 +57,14 @@ class DiscordRPC {
       };
     } catch (e) {
       this.connected = false;
+      this.ready = false;
       this.socket = null;
     }
   }
 
   setActivity(activity) {
     this.currentActivity = activity;
-    if (!this.connected || !this.socket || this.socket.readyState !== WebSocket.OPEN) {
+    if (!this.ready || !this.socket || this.socket.readyState !== WebSocket.OPEN) {
       return;
     }
 
@@ -94,7 +95,7 @@ class DiscordRPC {
 
   clearActivity() {
     this.currentActivity = null;
-    if (!this.connected || !this.socket || this.socket.readyState !== WebSocket.OPEN) {
+    if (!this.ready || !this.socket || this.socket.readyState !== WebSocket.OPEN) {
       return;
     }
 
