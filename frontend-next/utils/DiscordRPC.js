@@ -43,7 +43,7 @@ class DiscordRPC {
     }
 
     const port = 6463 + this.portIndex;
-    const url = `ws://127.0.0.1:${port}/?v=1&client_id=${this.clientId}`;
+    const url = `ws://127.0.0.1:${port}/rpc?v=1&client_id=${this.clientId}`;
 
     try {
       const socket = new WebSocket(url);
@@ -57,11 +57,15 @@ class DiscordRPC {
         console.log(`[Discord RPC] Connected to local Discord client on port ${port}`);
         this.connected = true;
         
-        // Handshake: Discord expects the version and client ID directly at the root of the JSON payload
+        // Handshake: Discord expects a client handshake frame (Opcode 0) to authorize the session
         try {
           const handshake = {
-            v: 1,
-            client_id: this.clientId
+            op: 0,
+            args: {
+              v: 1,
+              client_id: this.clientId
+            },
+            nonce: Math.random().toString(36).substring(2, 15)
           };
           socket.send(JSON.stringify(handshake));
         } catch (err) {
