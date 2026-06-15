@@ -15,39 +15,66 @@ class DiscordRPC {
 
   connect() {
     if (this.socket || this.connected) return;
+    this.portIndex = 0;
+    this.tryNextPort();
+  }
 
-    // Discord client listens for RPC WebSocket connections on ports 6463 - 6472
-    const port = 6463;
-    const url = `ws://127.0.0.1:${port}/rpc?v=1&client_id=${this.clientId}`;
+  tryNextPort() {
+    if (this.socket) {
+      try {
+        this.socket.close();
+      } catch (e) {
+        // Suppress
+      }
+      this.socket = null;
+    }
+
+    if (this.portIndex > 9) {
+      console.warn('[Discord RPC] Local Discord client not found on ports 6463-6472.');
+      this.connected = false;
+      this.ready = false;
+      
+      // Check again after 15 seconds
+      this.retryTimeout = setTimeout(() => {
+        this.portIndex = 0;
+        this.tryNextPort();
+      }, 15000);
+      return;
+    }
+
+    const port = 6463 + this.portIndex;
+    const url = `ws://127.0.0.1:${port}/?v=1&client_id=${this.clientId}`;
 
     try {
-      this.socket = new WebSocket(url);
+      const socket = new WebSocket(url);
+      this.socket = socket;
 
-      this.socket.onopen = () => {
-        console.log('[Discord RPC] Connected to local Discord client');
+      socket.onopen = () => {
+        if (this.socket !== socket) {
+          socket.close();
+          return;
+        }
+        console.log(`[Discord RPC] Connected to local Discord client on port ${port}`);
         this.connected = true;
         
-        // Handshake: Discord expects a client handshake frame (Opcode 0) to authorize the session
+        // Handshake: Discord expects the version and client ID directly at the root of the JSON payload
         try {
           const handshake = {
-            op: 0,
-            args: {
-              v: 1,
-              client_id: this.clientId
-            },
-            nonce: Math.random().toString(36).substring(2, 15)
+            v: 1,
+            client_id: this.clientId
           };
-          this.socket.send(JSON.stringify(handshake));
+          socket.send(JSON.stringify(handshake));
         } catch (err) {
           console.error('[Discord RPC] Handshake send failed:', err);
         }
       };
 
-      this.socket.onmessage = (event) => {
+      socket.onmessage = (event) => {
+        if (this.socket !== socket) return;
         try {
           const data = JSON.parse(event.data);
-          if (data.evt === 'READY') {
-            console.log('[Discord RPC] Ready to push activities');
+          if (data.evt === 'READY' || (data.cmd === 'DISPATCH' && data.evt === 'READY')) {
+            console.log('[Discord RPC] Handshake successful, ready to push presence status');
             this.ready = true;
             if (this.currentActivity) {
               this.setActivity(this.currentActivity);
@@ -58,22 +85,38 @@ class DiscordRPC {
         }
       };
 
-      this.socket.onerror = () => {
-        // Quietly fail (Discord desktop app might not be running)
+      socket.onerror = () => {
+        // Quietly fail as most ports in the scan range will be closed
       };
 
-      this.socket.onclose = () => {
+      socket.onclose = () => {
+        if (this.socket !== socket) return;
+
+        const wasConnected = this.connected;
         this.connected = false;
         this.ready = false;
         this.socket = null;
-        
-        // Retry connection in 12 seconds to handle Discord restarts
-        this.retryTimeout = setTimeout(() => this.connect(), 12000);
+
+        if (wasConnected) {
+          console.log('[Discord RPC] Lost connection to local Discord client. Retrying in 15s.');
+          this.retryTimeout = setTimeout(() => {
+            this.portIndex = 0;
+            this.tryNextPort();
+          }, 15000);
+        } else {
+          // Immediately try the next port in the range
+          this.portIndex++;
+          this.tryNextPort();
+        }
       };
     } catch (e) {
-      this.connected = false;
-      this.ready = false;
-      this.socket = null;
+      if (this.socket === socket) {
+        this.connected = false;
+        this.ready = false;
+        this.socket = null;
+        this.portIndex++;
+        this.tryNextPort();
+      }
     }
   }
 
@@ -131,11 +174,27 @@ class DiscordRPC {
   }
 
   destroy() {
-    if (this.retryTimeout) clearTimeout(this.retryTimeout);
+    if (this.retryTimeout) {
+      clearTimeout(this.retryTimeout);
+      this.retryTimeout = null;
+    }
     if (this.socket) {
+      const socket = this.socket;
+      this.socket = null;
       try {
-        this.clearActivity();
-        this.socket.close();
+        // Try clearing presence cleanly before closing
+        const payload = {
+          cmd: 'SET_ACTIVITY',
+          args: {
+            pid: 9999,
+            activity: null
+          },
+          nonce: Math.random().toString(36).substring(2, 15)
+        };
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify(payload));
+        }
+        socket.close();
       } catch (e) {
         // Suppress close faults
       }
