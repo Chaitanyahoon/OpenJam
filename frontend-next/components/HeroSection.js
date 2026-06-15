@@ -192,6 +192,7 @@ export default function HeroSection({
           {/* Interactive Peeking Vinyl Record */}
           {mounted && !reduceMotion && (
             <motion.div
+              className="hero-vinyl-behind-wrapper"
               animate={{
                 x: isHovered ? 260 : 70,
                 scale: isHovered ? 1.05 : 1,
@@ -308,7 +309,7 @@ export default function HeroSection({
               }}
             >
               <span>Listen Together.</span>
-              <span style={{ display: 'inline-block', color: 'var(--amber)', position: 'relative', height: '1.2em', verticalAlign: 'top', minWidth: '170px', textAlign: 'left' }}>
+              <span className="hero-slogan-dynamic">
                 {reduceMotion ? (
                   <span style={{ display: 'inline-block', position: 'absolute', left: 0, top: 0, whiteSpace: 'nowrap' }}>
                     {slogans[0]}

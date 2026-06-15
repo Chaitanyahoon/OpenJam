@@ -34,11 +34,11 @@ export default function PwaInstallPrompt() {
     const isIosDevice = /iPad|iPhone|iPod/.test(userAgent) && !window.MSStream;
     setIsIOS(isIosDevice);
 
+    let iosTimer = null;
     if (isIosDevice) {
       setInstallType('ios');
       // Show prompt after a short delay (e.g. 4 seconds)
-      const timer = setTimeout(() => setShowPrompt(true), 4000);
-      return () => clearTimeout(timer);
+      iosTimer = setTimeout(() => setShowPrompt(true), 4000);
     }
 
     // Listen for beforeinstallprompt for Android/Chrome/Edge
@@ -47,15 +47,24 @@ export default function PwaInstallPrompt() {
       e.preventDefault();
       // Stash the event so it can be triggered later.
       setDeferredPrompt(e);
+      window.deferredPrompt = e;
+      window.dispatchEvent(new CustomEvent('pwa-install-ready'));
       setInstallType('android');
       // Show prompt after a short delay
       setTimeout(() => setShowPrompt(true), 4000);
     };
 
+    const handleForceShowPrompt = () => {
+      setShowPrompt(true);
+    };
+
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('show-pwa-install-prompt', handleForceShowPrompt);
 
     return () => {
+      if (iosTimer) clearTimeout(iosTimer);
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('show-pwa-install-prompt', handleForceShowPrompt);
     };
   }, []);
 

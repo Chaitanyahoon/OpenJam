@@ -96,11 +96,7 @@ export default class YouTubePlayer {
       this._streamFailCount++;
 
       if (this._streamFailCount >= this._maxStreamFails) {
-        if (this._isMobile) {
-          console.error(`Mobile stream failed completely after ${this._streamFailCount} attempts.`);
-          this.toast("Playback failed after multiple retries. Skipping...", "error");
-          this._emitControlEvent('nexttrack');
-        } else if (!this._useIFrame) {
+        if (!this._useIFrame) {
           console.warn('Stream failed completely, switching to YouTube IFrame fallback');
           if (this.onStreamFailUpdate) this.onStreamFailUpdate(null);
           
@@ -115,6 +111,10 @@ export default class YouTubePlayer {
           if (this.currentVideoId) {
             this._loadVideo(this.currentVideoId, Math.round(this.positionMs / 1000));
           }
+        } else {
+          console.error(`Playback failed completely after ${this._streamFailCount} attempts.`);
+          this.toast("Playback failed after multiple retries. Skipping...", "error");
+          this._emitControlEvent('nexttrack');
         }
       } else {
         if (this._streamFailCount === 1 && !this._useLowBitrate && this.currentVideoId) {

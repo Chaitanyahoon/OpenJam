@@ -27,6 +27,7 @@ export default function HomePage() {
   // Authentication & User States
   const [me, setMe] = useState(null);
   const [rooms, setRooms] = useState([]);
+  const [showInstallBtn, setShowInstallBtn] = useState(false);
 
   // Preview Player States
   const [activePreview, setActivePreview] = useState(null);
@@ -114,6 +115,43 @@ export default function HomePage() {
   const [currentYear, setCurrentYear] = useState(2026);
   useEffect(() => {
     setCurrentYear(new Date().getFullYear());
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const checkStandalone = () => {
+      return window.matchMedia('(display-mode: standalone)').matches || 
+             (window.navigator.standalone === true);
+    };
+
+    if (checkStandalone()) return;
+
+    const userAgent = window.navigator.userAgent;
+    const isIos = /iPad|iPhone|iPod/.test(userAgent) && !window.MSStream;
+
+    if (isIos) {
+      setShowInstallBtn(true);
+    } else {
+      if (window.deferredPrompt) {
+        setShowInstallBtn(true);
+      }
+      const handleInstallReady = () => {
+        setShowInstallBtn(true);
+      };
+      window.addEventListener('pwa-install-ready', handleInstallReady);
+      const handleBeforeInstall = (e) => {
+        e.preventDefault();
+        window.deferredPrompt = e;
+        window.dispatchEvent(new CustomEvent('pwa-install-ready'));
+        setShowInstallBtn(true);
+      };
+      window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+      return () => {
+        window.removeEventListener('pwa-install-ready', handleInstallReady);
+        window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      };
+    }
   }, []);
 
   // Sync preview player volume
@@ -208,6 +246,17 @@ export default function HomePage() {
       { label: 'Rooms', href: '#active-rooms' }
     ];
 
+    if (showInstallBtn) {
+      list.push({
+        label: 'Install App',
+        href: '#install',
+        onClick: (e) => {
+          e.preventDefault();
+          window.dispatchEvent(new CustomEvent('show-pwa-install-prompt'));
+        }
+      });
+    }
+
     if (!me) {
       list.push({
         label: 'Join Jam',
@@ -268,7 +317,7 @@ export default function HomePage() {
     }
 
     return list;
-  }, [me]);
+  }, [me, showInstallBtn]);
 
 
 

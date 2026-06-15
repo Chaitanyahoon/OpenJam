@@ -6989,8 +6989,19 @@ body:not(.room-page) .navbar:hover {
   transform: translateY(8px);
 }
 
+.hero-slogan-dynamic {
+  display: inline-block;
+  color: var(--amber);
+  position: relative;
+  height: 1.2em;
+  vertical-align: top;
+  min-width: 170px;
+  text-align: left;
+}
+
 @media (max-width: 992px) {
-  .hero-vinyl-behind {
+  .hero-vinyl-behind,
+  .hero-vinyl-behind-wrapper {
     display: none !important;
   }
 }
@@ -10100,6 +10111,13 @@ body:not(.room-page) .navbar:hover {
   .hero-glass-card .hero-slogan {
     font-size: 18px !important;
     margin-bottom: 10px !important;
+  }
+
+  .hero-slogan-dynamic {
+    min-width: 0 !important;
+    text-align: center !important;
+    display: block !important;
+    margin-top: 4px;
   }
 
   .hero-glass-card .hero-sub {
