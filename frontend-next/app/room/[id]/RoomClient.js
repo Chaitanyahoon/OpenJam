@@ -344,15 +344,19 @@ export default function RoomClient({ roomId }) {
       setShowPassword(false);
 
       if (data.now_playing && playerRef.current) {
-        const isBuffering = data.playback?.is_buffering || false;
+        const isBuffering = data.playback?.is_buffering || data.playback?.isBuffering || false;
+        const position = data.playback?.positionMs ?? data.playback?.position_ms ?? 0;
+        const duration = data.playback?.durationMs ?? data.playback?.duration_ms ?? 0;
+        const playing = data.playback?.isPlaying ?? data.playback?.is_playing ?? false;
+
         playerRef.current.setTrack({
           track_uri: data.now_playing.track_uri,
           track_name: data.now_playing.track_name,
           artist: data.now_playing.artist,
           album_art_url: data.now_playing.album_art_url,
-          position_ms: data.playback?.positionMs || 0,
-          duration_ms: data.playback?.durationMs || 0,
-          is_playing: (data.playback?.isPlaying || false) && !isBuffering
+          position_ms: position,
+          duration_ms: duration,
+          is_playing: playing && !isBuffering
         });
       }
 
@@ -605,6 +609,26 @@ export default function RoomClient({ roomId }) {
     });
 
     playerRef.current = player;
+
+    // Trigger initial sync if socket join_success already populated nowPlaying data
+    if (nowPlayingRef.current) {
+      const currentTrack = nowPlayingRef.current;
+      const currentPlayback = playbackStateRef.current;
+      const isBuffering = currentPlayback?.isBuffering || currentPlayback?.is_buffering || false;
+      const position = currentPlayback?.positionMs ?? currentPlayback?.position_ms ?? 0;
+      const duration = currentPlayback?.durationMs ?? currentPlayback?.duration_ms ?? 0;
+      const playing = currentPlayback?.isPlaying ?? currentPlayback?.is_playing ?? false;
+      
+      player.setTrack({
+        track_uri: currentTrack.track_uri,
+        track_name: currentTrack.track_name,
+        artist: currentTrack.artist,
+        album_art_url: currentTrack.album_art_url,
+        position_ms: position,
+        duration_ms: duration,
+        is_playing: playing && !isBuffering
+      });
+    }
 
     return () => {
       player.destroy();
