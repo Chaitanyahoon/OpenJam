@@ -75,6 +75,7 @@ class DiscordRPC {
 
       socket.onmessage = (event) => {
         if (this.socket !== socket) return;
+        console.log('[Discord RPC] Message received:', event.data);
         try {
           const data = JSON.parse(event.data);
           if (data.evt === 'READY' || (data.cmd === 'DISPATCH' && data.evt === 'READY')) {
@@ -89,12 +90,15 @@ class DiscordRPC {
         }
       };
 
-      socket.onerror = () => {
-        // Quietly fail as most ports in the scan range will be closed
+      socket.onerror = (err) => {
+        if (this.socket !== socket) return;
+        console.warn('[Discord RPC] Error occurred on socket:', err);
       };
 
-      socket.onclose = () => {
+      socket.onclose = (event) => {
         if (this.socket !== socket) return;
+
+        console.log(`[Discord RPC] Connection closed. Code: ${event.code}, Reason: ${event.reason || 'none'}`);
 
         const wasConnected = this.connected;
         this.connected = false;
