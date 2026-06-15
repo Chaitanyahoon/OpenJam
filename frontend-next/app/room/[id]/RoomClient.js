@@ -377,7 +377,7 @@ export default function RoomClient({ roomId }) {
             track_uri: preQueue,
             track_name: trackName || 'Pre-queued Track',
             artist: artist || 'Unknown',
-            album_art_url: albumArtUrl || '/static/img/cover-banner.png',
+            album_art_url: albumArtUrl || '/static/img/cover-banner.webp',
             duration_ms: 240000
           });
         }

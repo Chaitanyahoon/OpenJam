@@ -578,7 +578,7 @@ export default function DomeGallery({
                     alt={it.alt} 
                     onError={(e) => {
                       e.target.onerror = null;
-                      e.target.src = '/static/img/cover-banner.png';
+                      e.target.src = '/static/img/cover-banner.webp';
                     }}
                   />
                   {(it.trackName || it.artist) && (

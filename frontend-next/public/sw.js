@@ -8,7 +8,7 @@ const PRECACHE_ASSETS = [
   '/static/img/logo.png',
   '/static/img/icon-192.png',
   '/static/img/icon-512.png',
-  '/static/img/cover-banner.png'
+  '/static/img/cover-banner.webp'
 ];
 
 // Install event: cache initial shell

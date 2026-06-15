@@ -8,10 +8,10 @@ import PixelTransition from './PixelTransition';
 const getDefaultBanner = (room) => {
   const hash = (room.id || room.name || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   const fallbacks = [
-    '/static/img/cover-banner.png',
-    '/static/img/cover-banner-1.png',
-    '/static/img/cover-banner-2.png',
-    '/static/img/cover-banner-3.png'
+    '/static/img/cover-banner.webp',
+    '/static/img/cover-banner-1.webp',
+    '/static/img/cover-banner-2.webp',
+    '/static/img/cover-banner-3.webp'
   ];
   return fallbacks[hash % fallbacks.length];
 };

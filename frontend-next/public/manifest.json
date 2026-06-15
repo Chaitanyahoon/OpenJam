@@ -35,9 +35,9 @@
   ],
   "screenshots": [
     {
-      "src": "/static/img/cover-banner.png",
+      "src": "/static/img/cover-banner.webp",
       "sizes": "1280x720",
-      "type": "image/png",
+      "type": "image/webp",
       "form_factor": "wide",
       "label": "OpenJam Listening Room on Desktop"
     },
