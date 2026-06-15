@@ -296,7 +296,7 @@ export const MusicPlayer = ({
             {/* Unified Track Info & Equalizer */}
             <div className="mp-meta-container">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', minWidth: 0 }}>
-                <h2 className="mp-track-title">
+                <h2 className="mp-track-title" data-presence="track-name">
                   {track.title}
                 </h2>
                 {showEqualizer && isPlaying && (
@@ -314,7 +314,7 @@ export const MusicPlayer = ({
                   </div>
                 )}
               </div>
-              <p className="mp-track-artist">
+              <p className="mp-track-artist" data-presence="artist">
                 {track.artist}
                 {isBuffering && (
                   <span className="mp-track-buffering-tag">

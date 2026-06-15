@@ -7,7 +7,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { MusicPlayer } from '@/components/ui/music-player';
 import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart, CheckCircle, AlertCircle, AlertTriangle, Info } from 'lucide-react';
 import PwaInstallPrompt from '@/components/PwaInstallPrompt';
-import DiscordRPC from '@/utils/DiscordRPC';
 
 export default function RoomClient({ roomId }) {
   const { socket, isConnected, reconnect } = useSocket();
@@ -48,89 +47,6 @@ export default function RoomClient({ roomId }) {
   const [searchResults, setSearchResults] = useState([]);
   const [searchFocused, setSearchFocused] = useState(false);
   const [bulkImportText, setBulkImportText] = useState('');
-
-  // Discord Rich Presence Refs & Synchronization Hooks
-  const discordRpcRef = useRef(null);
-  const lastUpdatedActivityRef = useRef({ trackUri: '', isPlaying: false, startTimestamp: 0 });
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    let rpcInstance = null;
-
-    const initDiscordRpc = async () => {
-      try {
-        const res = await fetch('/auth/config');
-        let clientId = '1514249657549586482'; // Fallback default client ID
-        if (res.ok) {
-          const data = await res.json();
-          if (data.discord_client_id) {
-            clientId = data.discord_client_id;
-          }
-        }
-        
-        rpcInstance = new DiscordRPC(clientId);
-        discordRpcRef.current = rpcInstance;
-        rpcInstance.connect();
-      } catch (err) {
-        console.error('[Discord RPC] Init failed:', err);
-      }
-    };
-
-    initDiscordRpc();
-
-    return () => {
-      if (rpcInstance) {
-        rpcInstance.destroy();
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!discordRpcRef.current) return;
-
-    if (!nowPlaying || !playbackState.isPlaying) {
-      if (lastUpdatedActivityRef.current.isPlaying) {
-        discordRpcRef.current.clearActivity();
-        lastUpdatedActivityRef.current = { trackUri: '', isPlaying: false, startTimestamp: 0 };
-      }
-      return;
-    }
-
-    const startTimestamp = Math.floor((Date.now() - playbackState.positionMs) / 1000);
-    const endTimestamp = playbackState.durationMs > 0 
-      ? Math.floor(startTimestamp + (playbackState.durationMs / 1000))
-      : undefined;
-
-    // Throttle checks to avoid spamming Discord local WebSocket port
-    const trackChanged = lastUpdatedActivityRef.current.trackUri !== nowPlaying.track_uri;
-    const playStatusChanged = lastUpdatedActivityRef.current.isPlaying !== playbackState.isPlaying;
-    const seeked = Math.abs(lastUpdatedActivityRef.current.startTimestamp - startTimestamp) > 3;
-
-    if (trackChanged || playStatusChanged || seeked) {
-      const activity = {
-        details: nowPlaying.track_name || 'Listening to music',
-        state: `by ${nowPlaying.artist || 'Unknown Artist'}`,
-        timestamps: {
-          start: startTimestamp,
-          ...(endTimestamp ? { end: endTimestamp } : {})
-        },
-        buttons: [
-          {
-            label: 'Join Jam Room',
-            url: `${window.location.origin}/room/${roomId}`
-          }
-        ]
-      };
-
-      discordRpcRef.current.setActivity(activity);
-      lastUpdatedActivityRef.current = {
-        trackUri: nowPlaying.track_uri,
-        isPlaying: playbackState.isPlaying,
-        startTimestamp
-      };
-    }
-  }, [nowPlaying, playbackState.isPlaying, playbackState.positionMs, playbackState.durationMs, roomId]);
 
   // Modals & Panels
   const [showSettings, setShowSettings] = useState(false);
@@ -1250,7 +1166,12 @@ export default function RoomClient({ roomId }) {
 
   const handleDragStart = (e, index) => {
     if (!isHost) return;
-    setDraggedIdx(index);
+    
+    // Defer state update so browser can establish the native drag operation before React re-renders the DOM
+    setTimeout(() => {
+      setDraggedIdx(index);
+    }, 0);
+    
     e.dataTransfer.effectAllowed = "move";
     
     // Serialize queue item track data for dropping onto the now playing player
