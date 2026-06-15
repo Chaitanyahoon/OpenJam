@@ -10037,12 +10037,12 @@ body:not(.room-page) .navbar:hover {
   .header-actions {
     gap: 6px !important;
   }
-  .header-separator,
-  .room-sub-meta,
-  .header-user-separator,
-  .navbar-username,
-  .room-bar-link,
-  .navbar-logo {
+  .unified-header .header-separator,
+  .unified-header .room-sub-meta,
+  .unified-header .header-user-separator,
+  .unified-header .navbar-username,
+  .unified-header .room-bar-link,
+  .unified-header .navbar-logo {
     display: none !important;
   }
   .room-bar-name {
