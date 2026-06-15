@@ -262,7 +262,7 @@ export const MusicPlayer = ({
 
   const containerStyle = lyricsVisible
     ? { maxWidth: '1080px', margin: '0 auto', width: '100%', height: '100%', transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }
-    : { maxWidth: '440px', margin: '48px auto 0', width: '100%', height: 'auto', alignSelf: 'center', transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)' };
+    : { maxWidth: '440px', margin: '12px auto 0', width: '100%', height: 'auto', alignSelf: 'center', transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)' };
 
 
   return (

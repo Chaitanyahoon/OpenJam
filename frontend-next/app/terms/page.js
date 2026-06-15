@@ -26,15 +26,7 @@ const itemVariants = {
 
 export default function TermsPage() {
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: '#08080a',
-      color: 'var(--text-2)',
-      fontFamily: 'var(--font-ui), sans-serif',
-      padding: '80px 24px 120px',
-      position: 'relative',
-      overflow: 'hidden'
-    }}>
+    <div className="policy-page-wrap">
       {/* Background ambient glows */}
       <div className="landing-bg-glows" aria-hidden="true" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1 }}>
         <div style={{ position: 'absolute', top: '10%', left: '15%', width: '500px', height: '500px', background: 'rgba(255, 159, 28, 0.03)', filter: 'blur(160px)', borderRadius: '50%' }}></div>
@@ -42,19 +34,7 @@ export default function TermsPage() {
       </div>
 
       <motion.div 
-        className="glass-card"
-        style={{
-          maxWidth: '760px',
-          margin: '0 auto',
-          padding: '48px 40px',
-          borderRadius: '32px',
-          border: '1px solid rgba(255, 255, 255, 0.05)',
-          background: 'rgba(18, 18, 24, 0.65)',
-          boxShadow: '0 24px 80px rgba(0,0,0,0.5)',
-          backdropFilter: 'blur(30px)',
-          position: 'relative',
-          zIndex: 2
-        }}
+        className="policy-card"
         variants={containerVariants}
         initial="hidden"
         animate="visible"

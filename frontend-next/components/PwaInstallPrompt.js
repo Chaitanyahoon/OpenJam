@@ -79,22 +79,25 @@ export default function PwaInstallPrompt() {
     localStorage.setItem('openjam_pwa_prompt_dismissed', Date.now().toString());
   };
 
-  if (!showPrompt || isStandalone) return null;
+  if (isStandalone) return null;
 
   return (
     <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0, y: 50, scale: 0.95 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 30, scale: 0.95 }}
-        transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-        style={{
-          position: 'fixed',
-          bottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: '90%',
-          maxWidth: '420px',
+      {showPrompt && (
+        <motion.div
+          className="pwa-install-prompt-container"
+          initial={{ opacity: 0, y: 50, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 30, scale: 0.95 }}
+          transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+          style={{
+            position: 'fixed',
+            bottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
+            left: '12px',
+            right: '12px',
+            marginLeft: 'auto',
+            marginRight: 'auto',
+            maxWidth: '420px',
           background: 'rgba(15, 15, 25, 0.75)',
           backdropFilter: 'blur(20px)',
           border: '1px solid rgba(255, 176, 58, 0.25)',
@@ -190,6 +193,7 @@ export default function PwaInstallPrompt() {
           </div>
         )}
       </motion.div>
+      )}
     </AnimatePresence>
   );
 }

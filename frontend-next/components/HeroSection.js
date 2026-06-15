@@ -231,30 +231,12 @@ export default function HeroSection({
               </div>
             </motion.div>
           )}
-
           <motion.div
             className="hero-glass-card hero-glass-card-glow"
             variants={containerVariants}
             initial="hidden"
             animate="visible"
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                textAlign: 'center',
-                background: 'linear-gradient(135deg, rgba(12, 12, 18, 0.75) 0%, rgba(6, 6, 9, 0.85) 100%)',
-                backdropFilter: 'blur(24px)',
-                WebkitBackdropFilter: 'blur(24px)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                boxShadow: '0 30px 100px rgba(0, 0, 0, 0.85), inset 0 1px 1px rgba(255, 255, 255, 0.08)',
-                padding: '48px 36px',
-                borderRadius: '32px',
-                maxWidth: '640px',
-                width: '100%',
-                pointerEvents: 'auto', // Re-enable pointer events for buttons, inputs, text select
-                transformStyle: 'preserve-3d', // Enable 3D layering for child components
-              }}
-            >
+          >
               {/* Glass Spotlight Sheen */}
               <div className="glass-spotlight" />
 

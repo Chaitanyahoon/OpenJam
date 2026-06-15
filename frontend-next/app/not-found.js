@@ -28,20 +28,7 @@ export default function NotFound() {
       </div>
 
       <motion.div 
-        className="glass-card" 
-        style={{
-          maxWidth: '480px',
-          padding: '48px 32px',
-          borderRadius: '32px',
-          border: '1px solid rgba(255, 159, 28, 0.15)',
-          boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
-          backdropFilter: 'blur(20px)',
-          position: 'relative',
-          zIndex: 2,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center'
-        }}
+        className="notfound-card" 
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8, ease: 'easeOut' }}

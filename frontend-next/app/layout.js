@@ -1,5 +1,6 @@
 import "./globals.css";
 import ClientSocketProvider from "@/contexts/ClientSocketProvider";
+import PwaInstallPrompt from "@/components/PwaInstallPrompt";
 
 export const metadata = {
   title: "Open Jam — Listen Together",
@@ -18,6 +19,8 @@ export const metadata = {
 export const viewport = {
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
   viewportFit: "cover",
   themeColor: "#08080a",
 };
@@ -46,6 +49,7 @@ export default function RootLayout({ children }) {
       <body>
         <ClientSocketProvider>
           {children}
+          <PwaInstallPrompt />
         </ClientSocketProvider>
       </body>
     </html>

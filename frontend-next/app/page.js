@@ -11,7 +11,6 @@ import dynamic from 'next/dynamic';
 import PillNav from '@/components/PillNav';
 import VolumeIcon from '@/components/VolumeIcon';
 import { FALLBACK_DISCOVERY_TRACKS } from '@/constants/tracks';
-import PwaInstallPrompt from '@/components/PwaInstallPrompt';
 import { CheckCircle, AlertCircle, AlertTriangle, Info } from 'lucide-react';
 
 
@@ -960,8 +959,6 @@ export default function HomePage() {
         onClose={() => setShowLeaveModal(false)}
         onConfirm={handleLogout}
       />
-
-      <PwaInstallPrompt />
     </div>
   );
 }

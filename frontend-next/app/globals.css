@@ -690,7 +690,7 @@ input[type=range]::-moz-range-track {
 /* ---- Search Results ---- */
 .search-results {
   position: absolute; top: calc(100% + 8px); left: 0; right: 0;
-  background: rgba(20, 20, 30, 0.85); border: 1px solid rgba(255,255,255,0.1);
+  background: #0e0e12; border: 1px solid rgba(255,255,255,0.1);
   backdrop-filter: blur(24px) saturate(1.5);
   border-radius: var(--r-xl); box-shadow: var(--shadow-lg), 0 0 0 1px rgba(255,255,255,0.05) inset;
   max-height: 380px; overflow-y: auto; z-index: 100; display: none;
@@ -6811,6 +6811,25 @@ body:not(.room-page) {
   display: inline-block;
 }
 
+.hero-glass-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  background: linear-gradient(135deg, rgba(12, 12, 18, 0.75) 0%, rgba(6, 6, 9, 0.85) 100%);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.85), inset 0 1px 1px rgba(255, 255, 255, 0.08);
+  padding: 48px 36px;
+  border-radius: 32px;
+  max-width: 640px;
+  width: 100%;
+  pointer-events: auto;
+  transform-style: preserve-3d;
+  box-sizing: border-box;
+}
+
 .hero-glass-card-glow {
   position: relative;
   transition: border-color 0.4s ease, box-shadow 0.4s ease;
@@ -7829,7 +7848,7 @@ body:not(.room-page) .navbar:hover {
   top: 100%;
   left: 16px;
   right: 16px;
-  background: rgba(12, 12, 18, 0.92);
+  background: #0e0e12 !important;
   backdrop-filter: blur(24px) saturate(1.6);
   -webkit-backdrop-filter: blur(24px) saturate(1.6);
   border: 1px solid rgba(255, 255, 255, 0.07);
@@ -9662,6 +9681,8 @@ body:not(.room-page) .navbar:hover {
 .chat-msg-text {
   font-size: 13.5px !important;
   line-height: 1.45 !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
 }
 
 .member-item {
@@ -10003,16 +10024,63 @@ body:not(.room-page) .navbar:hover {
 @media (max-width: 640px) {
   .unified-header {
     height: 60px !important;
+    padding: 0 10px !important;
+  }
+  .header-left,
+  .header-right {
+    gap: 8px !important;
+  }
+  .header-actions {
+    gap: 6px !important;
   }
   .header-separator,
   .room-sub-meta,
   .header-user-separator,
-  .navbar-username {
+  .navbar-username,
+  .room-bar-link,
+  .navbar-logo {
     display: none !important;
   }
   .room-bar-name {
-    font-size: 15px !important;
-    max-width: 180px !important;
+    font-size: 14px !important;
+    max-width: 110px !important;
+  }
+  .room-bar-btn-label,
+  .room-bar-close-label {
+    display: none !important;
+  }
+  .unified-header .room-bar-invite-btn,
+  .unified-header .room-bar-close-btn,
+  .unified-header .room-bar-icon-btn {
+    width: 34px !important;
+    height: 34px !important;
+    padding: 0 !important;
+  }
+  .unified-header .room-bar-invite-btn svg,
+  .unified-header .room-bar-close-btn svg,
+  .unified-header .room-bar-icon-btn svg {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+  .navbar-user {
+    padding: 3px !important;
+  }
+  .navbar-user .avatar {
+    width: 26px !important;
+    height: 26px !important;
+  }
+  
+  .hero-glass-card {
+    padding: 28px 18px !important;
+    border-radius: 20px !important;
+  }
+
+  .input-field {
+    font-size: 16px !important;
+  }
+
+  body.mini-player-active .room-content {
+    height: calc(100dvh - 180px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) !important;
   }
 }
 
@@ -10089,4 +10157,78 @@ body:not(.room-page) .navbar:hover {
   background-color: #1a1a24 !important;
   color: #ffffff !important;
   padding: 12px !important;
+}
+
+/* Policy and Utility Card Pages (Terms, Privacy, 404) */
+.policy-page-wrap {
+  min-height: 100vh;
+  background: #08080a;
+  color: var(--text-2);
+  font-family: var(--font-ui), sans-serif;
+  padding: 80px 24px 120px;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.policy-card {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 48px 40px;
+  border-radius: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(18, 18, 24, 0.65);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  position: relative;
+  z-index: 2;
+  box-sizing: border-box;
+}
+
+.notfound-card {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 48px 32px;
+  border-radius: 32px;
+  border: 1px solid rgba(255, 159, 28, 0.15);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+@media (max-width: 640px) {
+  .policy-page-wrap {
+    padding: 40px 12px 60px;
+  }
+  .policy-card {
+    padding: 24px 16px;
+    border-radius: 20px;
+  }
+  .notfound-card {
+    padding: 32px 20px;
+    border-radius: 20px;
+  }
+}
+
+/* PWA Install Prompt Mobile Spacing */
+.pwa-install-prompt-container {
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+@media (max-width: 640px) {
+  body.room-page .pwa-install-prompt-container {
+    bottom: calc(16px + 56px + env(safe-area-inset-bottom, 0px)) !important; /* Move above bottom tabs (56px) */
+    width: auto !important;
+  }
+
+  body.room-page.mini-player-active .pwa-install-prompt-container {
+    bottom: calc(16px + 56px + 64px + env(safe-area-inset-bottom, 0px)) !important; /* Move above bottom tabs (56px) + mini-player (64px) */
+  }
 }

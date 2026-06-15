@@ -56,6 +56,8 @@ export default function RoomClient({ roomId }) {
   const [showPassword, setShowPassword] = useState(false);
   const [roomPassword, setRoomPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [showNicknamePrompt, setShowNicknamePrompt] = useState(false);
+  const [nickname, setNickname] = useState('');
   const [membersExpanded, setMembersExpanded] = useState(false);
   const [lyricsVisible, setLyricsVisible] = useState(false);
   const [lyricsText, setLyricsText] = useState([]);
@@ -89,6 +91,30 @@ export default function RoomClient({ roomId }) {
   useEffect(() => {
     streamErrorMsgRef.current = streamErrorMsg;
   }, [streamErrorMsg]);
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.body.classList.add('room-page');
+      return () => {
+        document.body.classList.remove('room-page');
+      };
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      if (activeTab !== 'playing' && nowPlaying) {
+        document.body.classList.add('mini-player-active');
+      } else {
+        document.body.classList.remove('mini-player-active');
+      }
+    }
+    return () => {
+      if (typeof document !== 'undefined') {
+        document.body.classList.remove('mini-player-active');
+      }
+    };
+  }, [activeTab, nowPlaying]);
 
   const isHost = me && room && room.host_user_id === me.id;
 
@@ -218,6 +244,7 @@ export default function RoomClient({ roomId }) {
 
     const fetchInitialData = async () => {
       try {
+        let userResolved = false;
         const rMe = await fetch('/auth/me', { credentials: 'include' });
         if (rMe.ok) {
           const data = await rMe.json();
@@ -228,22 +255,29 @@ export default function RoomClient({ roomId }) {
               localStorage.setItem('openjam_avatar_url', data.user.avatar_url);
             }
             if (reconnect) reconnect();
+            userResolved = true;
           } else {
-            // No session exists — auto-create a guest session so invite links work
+            // No session exists — check if we have a stored display name
             const storedName = localStorage.getItem('openjam_display_name') || '';
-            const rJoin = await fetch('/auth/join', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ display_name: storedName }),
-              credentials: 'include'
-            });
-            if (rJoin.ok) {
-              const joinData = await rJoin.json();
-              setMe(joinData.user);
-              if (joinData.user) {
-                localStorage.setItem('openjam_display_name', joinData.user.display_name);
+            if (storedName) {
+              const rJoin = await fetch('/auth/join', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ display_name: storedName }),
+                credentials: 'include'
+              });
+              if (rJoin.ok) {
+                const joinData = await rJoin.json();
+                setMe(joinData.user);
+                if (joinData.user) {
+                  localStorage.setItem('openjam_display_name', joinData.user.display_name);
+                }
+                if (reconnect) reconnect();
+                userResolved = true;
               }
-              if (reconnect) reconnect();
+            } else {
+              // Defer join: show nickname prompt modal
+              setShowNicknamePrompt(true);
             }
           }
         }
@@ -257,7 +291,10 @@ export default function RoomClient({ roomId }) {
           
           if (data.password_required) {
             setShowPassword(true);
-          } else {
+          }
+          
+          // Connect socket if user is successfully authenticated/resolved
+          if (userResolved) {
             setIsReady(true);
           }
         } else {
@@ -1174,6 +1211,33 @@ export default function RoomClient({ roomId }) {
     socket.emit('join_room', { room_id: roomId, password: roomPassword, avatar_url: avatarUrl });
   };
 
+  const handleNicknameSubmit = async (e, customName = null) => {
+    if (e) e.preventDefault();
+    const nameToSubmit = customName !== null ? customName : nickname;
+    try {
+      const rJoin = await fetch('/auth/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ display_name: nameToSubmit.trim() }),
+        credentials: 'include'
+      });
+      if (rJoin.ok) {
+        const joinData = await rJoin.json();
+        setMe(joinData.user);
+        if (joinData.user) {
+          localStorage.setItem('openjam_display_name', joinData.user.display_name);
+        }
+        setShowNicknamePrompt(false);
+        if (reconnect) reconnect();
+        if (room) {
+          setIsReady(true);
+        }
+      }
+    } catch (err) {
+      console.error('Error setting nickname:', err);
+    }
+  };
+
   const handleCopyInvite = () => {
     if (typeof window === 'undefined') return;
     const inviteUrl = `${window.location.origin}/room/${roomId}`;
@@ -1347,13 +1411,16 @@ export default function RoomClient({ roomId }) {
             <button className="btn btn-secondary room-bar-icon-btn" onClick={() => setShowSettings(true)} title="Room Settings">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
             </button>
-            <button className="btn btn-secondary" onClick={() => setShowInvite(true)} title="Copy room invite link">
+            <button className="btn btn-secondary room-bar-invite-btn" onClick={() => setShowInvite(true)} title="Copy room invite link">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>
               <span className="room-bar-btn-label" style={{ marginLeft: '4px' }}>Invite</span>
             </button>
             <a href="/" className="btn btn-ghost room-bar-link" title="Back to all rooms">← All Rooms</a>
             {isHost && (
-              <button className="btn btn-danger" onClick={() => setShowClose(true)} title="Close this room">Close Room</button>
+              <button className="btn btn-danger room-bar-close-btn" onClick={() => setShowClose(true)} title="Close this room">
+                <X className="h-4 w-4" />
+                <span className="room-bar-close-label" style={{ marginLeft: '4px' }}>Close Room</span>
+              </button>
             )}
           </div>
 
@@ -1632,7 +1699,7 @@ export default function RoomClient({ roomId }) {
 
                   {/* Search suggestions autocomplete */}
                   <AnimatePresence>
-                    {searchFocused && (searchResults.length > 0 || !searchQuery.trim()) && (
+                    {searchFocused && (searchResults.length > 0 || (searchQuery.trim() === '' && favourites.length > 0)) && (
                       <motion.div 
                         className="search-results"
                         initial={{ opacity: 0, y: -8, scale: 0.98 }}
@@ -2033,7 +2100,7 @@ export default function RoomClient({ roomId }) {
 
 
       {/* ══ MOBILE MINI PLAYER ════════════════════════════════════ */}
-      <div className="mobile-mini-player" id="mobile-mini-player" style={{ display: activeTab !== 'playing' && nowPlaying ? 'flex' : 'none' }}>
+      <div className={`mobile-mini-player ${activeTab !== 'playing' && nowPlaying ? 'is-visible' : ''}`} id="mobile-mini-player" style={{ display: activeTab !== 'playing' && nowPlaying ? 'flex' : 'none' }}>
         <div className="mini-player-progress-track">
           <div className="mini-player-progress-fill" style={{ width: `${playbackState.durationMs > 0 ? (playbackState.positionMs / playbackState.durationMs) * 100 : 0}%` }}></div>
         </div>
@@ -2066,6 +2133,10 @@ export default function RoomClient({ roomId }) {
         <button className={`mob-tab ${activeTab === 'chat' ? 'active' : ''}`} onClick={() => setActiveTab('chat')}>
           <Send className="h-5 w-5" />
           <span className="mob-tab-label">Chat</span>
+        </button>
+        <button className={`mob-tab ${activeTab === 'members' ? 'active' : ''}`} onClick={() => setActiveTab('members')}>
+          <Users className="h-5 w-5" />
+          <span className="mob-tab-label">People</span>
         </button>
       </nav>
 
@@ -2119,6 +2190,70 @@ export default function RoomClient({ roomId }) {
                     whileHover={{ scale: 1.05, boxShadow: '0 8px 20px rgba(255, 176, 58, 0.3)' }}
                     whileTap={{ scale: 0.98 }}
                     style={{ padding: '10px 20px', borderRadius: '12px', fontSize: '13px' }}
+                  >
+                    <div className="bubble-bg b1" />
+                    <div className="bubble-bg b2" />
+                    <div className="bubble-bg b3" />
+                    <div className="bubble-bg b4" />
+                    <span className="btn-bubble-content">Join Room</span>
+                  </motion.button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ══ NICKNAME PROMPT MODAL ════════════════════════════ */}
+      <AnimatePresence>
+        {showNicknamePrompt && (
+          <div className="modal-bg open" style={{ display: 'flex', zIndex: 1200 }}>
+            <motion.div 
+              className="modal-box"
+              initial={{ scale: 0.85, y: 30, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.85, y: 30, opacity: 0 }}
+              style={{ maxWidth: '400px', width: '90%' }}
+            >
+              <div className="modal-title" style={{ fontSize: '20px', fontWeight: 700, marginBottom: '8px', textAlign: 'center' }}>
+                <span style={{ color: 'var(--amber)' }}>🎧</span> Choose a Nickname
+              </div>
+              <p style={{ color: 'var(--text-2)', marginBottom: '20px', fontSize: '13.5px', textAlign: 'center', lineHeight: '1.5' }}>
+                Welcome to the Jam Room! Let the group know who you are.
+              </p>
+              <form onSubmit={handleNicknameSubmit}>
+                <div style={{ marginBottom: '20px' }}>
+                  <label className="modal-label" style={{ display: 'block', marginBottom: '8px', fontSize: '11px', fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Your Name
+                  </label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    value={nickname}
+                    onChange={(e) => setNickname(e.target.value)}
+                    placeholder="e.g. DJ Awesome"
+                    maxLength={25}
+                    style={{ width: '100%', boxSizing: 'border-box' }}
+                    autoFocus
+                  />
+                </div>
+                <div className="modal-actions" style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
+                  <motion.button 
+                    type="button" 
+                    className="btn btn-secondary btn-bubble btn-guest-bubble" 
+                    onClick={() => handleNicknameSubmit(null, '')}
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.98 }}
+                    style={{ padding: '0 20px', borderRadius: '12px', height: '40px', fontSize: '13px', border: '1px solid rgba(255,255,255,0.08)' }}
+                  >
+                    <span className="btn-bubble-content">Skip & Join</span>
+                  </motion.button>
+                  <motion.button 
+                    type="submit" 
+                    className="btn btn-primary btn-bubble" 
+                    whileHover={{ scale: 1.03, boxShadow: '0 8px 20px rgba(255, 176, 58, 0.3)' }}
+                    whileTap={{ scale: 0.98 }}
+                    style={{ padding: '0 24px', borderRadius: '12px', height: '40px', fontSize: '13px', fontWeight: 700, background: 'linear-gradient(135deg, var(--theme-accent, #ff9f1c) 0%, #f26419 100%)', border: 'none', color: '#0c0c10' }}
                   >
                     <div className="bubble-bg b1" />
                     <div className="bubble-bg b2" />
