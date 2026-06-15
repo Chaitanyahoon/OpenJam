@@ -26,6 +26,21 @@ class DiscordRPC {
       this.socket.onopen = () => {
         console.log('[Discord RPC] Connected to local Discord client');
         this.connected = true;
+        
+        // Handshake: Discord expects a client handshake frame (Opcode 0) to authorize the session
+        try {
+          const handshake = {
+            op: 0,
+            args: {
+              v: 1,
+              client_id: this.clientId
+            },
+            nonce: Math.random().toString(36).substring(2, 15)
+          };
+          this.socket.send(JSON.stringify(handshake));
+        } catch (err) {
+          console.error('[Discord RPC] Handshake send failed:', err);
+        }
       };
 
       this.socket.onmessage = (event) => {

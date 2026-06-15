@@ -10072,9 +10072,47 @@ body:not(.room-page) .navbar:hover {
     height: 26px !important;
   }
   
+  .hero {
+    padding: 80px 16px 40px !important;
+    min-height: auto !important;
+  }
+
   .hero-glass-card {
-    padding: 28px 18px !important;
-    border-radius: 20px !important;
+    padding: 24px 16px !important;
+    border-radius: 24px !important;
+    max-width: 360px !important;
+    margin: 0 auto !important;
+  }
+
+  .hero-glass-card .hero-badge {
+    margin-bottom: 8px !important;
+    padding: 4px 12px !important;
+    font-size: 10px !important;
+  }
+
+  .hero-glass-card .hero-title-brand {
+    font-size: 42px !important;
+    margin-bottom: 6px !important;
+  }
+
+  .hero-glass-card .hero-slogan {
+    font-size: 18px !important;
+    margin-bottom: 10px !important;
+  }
+
+  .hero-glass-card .hero-sub {
+    font-size: 13px !important;
+    margin-bottom: 18px !important;
+    line-height: 1.4 !important;
+  }
+
+  .hero-glass-card .hero-actions {
+    gap: 8px !important;
+  }
+
+  .hero-glass-card .hero-actions .btn {
+    padding: 10px 20px !important;
+    font-size: 13px !important;
   }
 
   .input-field {
