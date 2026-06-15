@@ -144,7 +144,12 @@ def get_redirect_uri(request: Request) -> str:
     if env_uri:
         return env_uri
         
-    # 2. Fallback to dynamic host detection
+    # 2. Fallback to FRONTEND_URL if configured
+    from backend.config import settings
+    if settings.FRONTEND_URL:
+        return f"{settings.FRONTEND_URL.rstrip('/')}/auth/discord/callback"
+        
+    # 3. Fallback to dynamic host detection
     forwarded_host = request.headers.get("x-forwarded-host")
     if forwarded_host:
         host = forwarded_host
