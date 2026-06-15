@@ -793,27 +793,29 @@ export default function RoomClient({ roomId }) {
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
-    let width = (canvas.width = window.innerWidth);
-    let height = (canvas.height = window.innerHeight);
+    // Optimize performance: render canvas at 1/4th screen resolution and let CSS handle upscaling
+    let width = (canvas.width = Math.floor(window.innerWidth / 4));
+    let height = (canvas.height = Math.floor(window.innerHeight / 4));
 
     const handleResize = () => {
       if (!canvas) return;
-      width = canvas.width = window.innerWidth;
-      height = canvas.height = window.innerHeight;
+      width = canvas.width = Math.floor(window.innerWidth / 4);
+      height = canvas.height = Math.floor(window.innerHeight / 4);
     };
     window.addEventListener('resize', handleResize);
 
-    const particles = Array.from({ length: 30 }, () => ({
+    const particles = Array.from({ length: 22 }, () => ({
       x: Math.random() * width,
       y: Math.random() * height,
-      size: Math.random() * 5 + 1.5,
-      speed: Math.random() * 0.35 + 0.1,
+      size: Math.random() * 1.5 + 0.5,
+      speed: (Math.random() * 0.35 + 0.1) / 4,
       offset: Math.random() * Math.PI * 2
     }));
 
     let phase = 0;
-    let amplitude = playbackState.isPlaying ? 80 : 20;
-    let frequency = playbackState.isPlaying ? 0.008 : 0.003;
+    // Scale amplitude down by 4 and multiply frequency by 4 to preserve visual wave proportions
+    let amplitude = (playbackState.isPlaying ? 80 : 20) / 4;
+    let frequency = (playbackState.isPlaying ? 0.008 : 0.003) * 4;
 
     const render = () => {
       if (!ctx) return;
@@ -823,7 +825,7 @@ export default function RoomClient({ roomId }) {
       ctx.fillRect(0, 0, width, height);
 
       // Draw a slow-moving, large breathing central glow portal
-      const glowRadius = Math.max(width, height) * (playbackState.isPlaying ? 0.45 : 0.35) + Math.sin(phase * 2) * 20;
+      const glowRadius = Math.max(width, height) * (playbackState.isPlaying ? 0.45 : 0.35) + Math.sin(phase * 2) * 5;
       const centerGrad = ctx.createRadialGradient(
         width / 2, height / 2, 0,
         width / 2, height / 2, glowRadius
@@ -835,10 +837,9 @@ export default function RoomClient({ roomId }) {
       ctx.fillStyle = centerGrad;
       ctx.fillRect(0, 0, width, height);
 
-
       const speed = playbackState.isPlaying ? 0.008 : 0.0015;
-      const targetAmplitude = playbackState.isPlaying ? 90 : 25;
-      const targetFrequency = playbackState.isPlaying ? 0.006 : 0.0025;
+      const targetAmplitude = (playbackState.isPlaying ? 90 : 25) / 4;
+      const targetFrequency = (playbackState.isPlaying ? 0.006 : 0.0025) * 4;
 
       amplitude += (targetAmplitude - amplitude) * 0.05;
       frequency += (targetFrequency - frequency) * 0.05;
@@ -855,7 +856,8 @@ export default function RoomClient({ roomId }) {
         ctx.beginPath();
         ctx.fillStyle = wave.color;
         ctx.moveTo(0, height);
-        for (let x = 0; x <= width; x += 15) {
+        // Smaller step size since width is divided by 4
+        for (let x = 0; x <= width; x += 4) {
           const y = height * 0.85 + Math.sin(x * frequency * wave.freqMul + phase * wave.speedMul + wave.phaseOffset) * amplitude;
           ctx.lineTo(x, y);
         }
@@ -869,8 +871,8 @@ export default function RoomClient({ roomId }) {
         p.y -= p.speed * (playbackState.isPlaying ? 2.2 : 0.6);
         p.x += Math.sin(phase * 0.5 + p.offset) * 0.15;
 
-        if (p.y < -20) {
-          p.y = height + 20;
+        if (p.y < -10) {
+          p.y = height + 10;
           p.x = Math.random() * width;
         }
 
