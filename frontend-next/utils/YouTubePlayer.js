@@ -21,6 +21,7 @@ export default class YouTubePlayer {
     if (typeof window === 'undefined') return;
 
     this.player = new Audio();
+    this.player.preload = "auto";
     this.ytPlayer = null;
     this.currentVideoId = null;
     this.positionMs = 0;
@@ -160,10 +161,10 @@ export default class YouTubePlayer {
       this._showLoadIndicator();
       this._stallTimer = setTimeout(() => {
         if (this.player.readyState < 2 && !this.player.paused) {
-          console.warn('Stream stalled for 5s, triggering error');
+          console.warn('Stream stalled for 12s, triggering error');
           handleAudioError('stalled_timeout');
         }
-      }, 5000);
+      }, 12000);
     });
 
     this.player.addEventListener('waiting', () => {
@@ -175,7 +176,7 @@ export default class YouTubePlayer {
           console.warn('Stream waiting too long, triggering error');
           handleAudioError('waiting_timeout');
         }
-      }, 5000);
+      }, 12000);
     });
   }
 

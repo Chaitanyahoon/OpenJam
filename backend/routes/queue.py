@@ -6,6 +6,7 @@ import re
 import time
 import os
 import shutil
+import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Request, Depends, HTTPException
@@ -115,8 +116,9 @@ async def download_and_cache_track(video_id: str) -> str | None:
                     return None
 
                 with open(temp_path, "wb") as f:
-                    async for chunk in r.aiter_bytes(chunk_size=262144):
+                    async for chunk in r.aiter_bytes(chunk_size=65536):
                         f.write(chunk)
+                        await asyncio.sleep(0.2)
             finally:
                 await r.aclose()
 
@@ -487,12 +489,6 @@ async def stream_audio(video_id: str, request: Request, low: bool = False, nocac
                     headers={"Accept-Ranges": "bytes"}
                 )
 
-    # If not cached, trigger a background download so it's ready for future requests/seeks
-    try:
-        asyncio.create_task(download_and_cache_track(video_id))
-    except Exception as e:
-        logger.warning(f"Failed to trigger caching on stream demand for {video_id}: {e}")
-
     # Fallback: Live streaming from YouTube
     cache_key = f"{video_id}_low" if low else video_id
     if nocache and cache_key in _url_cache:
@@ -541,12 +537,79 @@ async def stream_audio(video_id: str, request: Request, low: bool = False, nocac
             if "Content-Length" in r.headers:
                 resp_headers["Content-Length"] = r.headers["Content-Length"]
 
+            # Determine if we should attempt on-the-fly caching
+            content_range = r.headers.get("Content-Range", "")
+            starts_at_zero = (r.status_code == 200) or (r.status_code == 206 and content_range.strip().startswith("bytes 0-"))
+            
+            temp_path = None
+            f_cache = None
+            
+            if starts_at_zero:
+                ext = "webm"
+                if "mime=audio/mp4" in url or "ext=m4a" in url or ".m4a" in url:
+                    ext = "m4a"
+                elif "mime=audio/webm" in url or "ext=webm" in url or ".webm" in url:
+                    ext = "webm"
+                
+                final_path = CACHE_DIR / f"{cache_key}.{ext}"
+                if not final_path.exists():
+                    temp_path = CACHE_DIR / f"{cache_key}.{ext}.{uuid.uuid4().hex}.tmp"
+                    try:
+                        f_cache = open(temp_path, "wb")
+                        logger.info(f"Started on-the-fly streaming cache for {video_id} to {temp_path}")
+                    except Exception as e:
+                        logger.warning(f"Could not open temp file for streaming cache: {e}")
+                        f_cache = None
+                        temp_path = None
+
+            completed = False
             async def generate():
+                nonlocal completed, f_cache, temp_path
+                bytes_written = 0
                 try:
                     async for chunk in r.aiter_bytes(chunk_size=32768):
                         yield chunk
+                        if f_cache:
+                            try:
+                                f_cache.write(chunk)
+                                bytes_written += len(chunk)
+                            except Exception as e:
+                                logger.warning(f"Error writing chunk to on-the-fly cache: {e}")
+                                try:
+                                    f_cache.close()
+                                except Exception:
+                                    pass
+                                f_cache = None
+                                if temp_path and temp_path.exists():
+                                    try: os.remove(temp_path)
+                                    except Exception: pass
+                    completed = True
                 finally:
                     await r.aclose()
+                    if f_cache:
+                        try:
+                            f_cache.close()
+                            if completed and temp_path and temp_path.exists() and bytes_written > 500000:
+                                ext = "webm"
+                                if "mime=audio/mp4" in url or "ext=m4a" in url or ".m4a" in url:
+                                    ext = "m4a"
+                                final_path = CACHE_DIR / f"{cache_key}.{ext}"
+                                if final_path.exists():
+                                    try: os.remove(temp_path)
+                                    except Exception: pass
+                                    logger.info(f"Track {video_id} was already cached by another request, discarded temp file.")
+                                else:
+                                    shutil.move(temp_path, final_path)
+                                    logger.info(f"Successfully finalized on-the-fly cache for {video_id}: {final_path} (size: {bytes_written} bytes)")
+                                    asyncio.create_task(cleanup_old_cache())
+                            else:
+                                if temp_path and temp_path.exists():
+                                    os.remove(temp_path)
+                        except Exception as e:
+                            logger.warning(f"Failed to finalize on-the-fly cache: {e}")
+                            if temp_path and temp_path.exists():
+                                try: os.remove(temp_path)
+                                except Exception: pass
 
             return StreamingResponse(
                 generate(),
