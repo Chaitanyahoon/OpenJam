@@ -139,6 +139,7 @@ class DiscordRPC {
         args: {
           pid: 9999, // Dummy process identifier
           activity: {
+            type: 2,
             details: activity.details.substring(0, 127),
             state: activity.state.substring(0, 127),
             timestamps: activity.timestamps,
@@ -146,7 +147,8 @@ class DiscordRPC {
               large_image: 'logo',
               large_text: 'OpenJam — Listen Together'
             },
-            buttons: activity.buttons || []
+            buttons: activity.buttons || [],
+            instance: true
           }
         },
         nonce: Math.random().toString(36).substring(2, 15)
