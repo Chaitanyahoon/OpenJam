@@ -1693,8 +1693,16 @@ export default function RoomClient({ roomId }) {
           </div>
 
           <div className="sidebar-tab-content">
-            {currentSidebarTab === 'queue' && (
-              <>
+            <AnimatePresence mode="wait">
+              {currentSidebarTab === 'queue' && (
+                <motion.div
+                  key="queue"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.15, ease: 'easeOut' }}
+                  style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}
+                >
                 {/* Search & suggestions */}
                 <div className="queue-search-wrap">
                   <div className="input-with-icon" style={{ display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}>
@@ -1976,11 +1984,19 @@ export default function RoomClient({ roomId }) {
                     )
                   )}
                 </div>
-              </>
+              </motion.div>
             )}
 
             {currentSidebarTab === 'chat' && (
-              <div className="chat-panel">
+              <motion.div
+                key="chat"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.15, ease: 'easeOut' }}
+                className="chat-panel"
+                style={{ height: '100%' }}
+              >
                 <div className="chat-header">
                   <div className="chat-header-content">
                     <span>Room Chat</span>
@@ -2092,11 +2108,19 @@ export default function RoomClient({ roomId }) {
                   </div>
                   <div className="chat-input-hint">Enter = send · Shift+Enter = new line</div>
                 </div>
-              </div>
+              </motion.div>
             )}
 
             {currentSidebarTab === 'members' && (
-              <div className="members-list" style={{ display: 'block' }}>
+              <motion.div
+                key="members"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.15, ease: 'easeOut' }}
+                className="members-list"
+                style={{ display: 'block', height: '100%' }}
+              >
                 {listeners.map((user, idx) => {
                   const uid = user.user_id || user.id || `user-${idx}`;
                   return (
@@ -2121,8 +2145,9 @@ export default function RoomClient({ roomId }) {
                     </div>
                   );
                 })}
-              </div>
+              </motion.div>
             )}
+            </AnimatePresence>
           </div>
         </div>
 

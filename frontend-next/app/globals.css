@@ -5418,7 +5418,7 @@ body:not(.room-page) {
 
 /* Mobile mini player */
 .mobile-mini-player {
-  display: none;
+  display: flex;
   position: fixed;
   left: 0;
   right: 0;
@@ -5433,13 +5433,16 @@ body:not(.room-page) {
   gap: 4px;
   transform: translateY(100%);
   opacity: 0;
-  transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
+  pointer-events: none;
+  visibility: hidden;
+  transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease, visibility 0.32s;
 }
 @media (max-width: 640px) {
   .mobile-mini-player.is-visible {
-    display: flex;
     transform: translateY(0);
     opacity: 1;
+    pointer-events: auto;
+    visibility: visible;
   }
 }
 .mini-player-progress-track {
@@ -8908,16 +8911,31 @@ body:not(.room-page) .navbar:hover {
     font-weight: 600;
     cursor: pointer;
     position: relative;
-    transition: color 0.2s ease;
+    transition: color 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .mob-tab svg {
     width: 20px;
     height: 20px;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.25s ease;
   }
 
   .mob-tab.active {
-    color: var(--text-1);
+    color: var(--amber) !important;
+  }
+
+  .mob-tab.active svg {
+    transform: scale(1.1) translateY(-2px);
+    color: var(--amber) !important;
+  }
+
+  .mob-tab-label {
+    transition: color 0.25s ease, transform 0.25s ease;
+  }
+
+  .mob-tab.active .mob-tab-label {
+    color: var(--amber) !important;
+    font-weight: 700;
   }
 
   .mob-tab.active::after {
@@ -8931,7 +8949,19 @@ body:not(.room-page) .navbar:hover {
     border-radius: 50%;
     background: var(--amber);
     box-shadow: 0 0 6px var(--amber);
+    animation: mobDotFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
+
+@keyframes mobDotFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+}
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -9554,6 +9584,7 @@ body:not(.room-page) .navbar:hover {
   }
   .room-now-playing.tab-active {
     display: flex !important;
+    animation: tabSlideIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
   }
   .room-sidebar {
     display: none !important;
@@ -9562,7 +9593,19 @@ body:not(.room-page) .navbar:hover {
   }
   .room-sidebar.tab-active {
     display: flex !important;
+    animation: tabSlideIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
   }
+
+@keyframes tabSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 }
 
 
