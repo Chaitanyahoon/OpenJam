@@ -59,7 +59,7 @@ export default function CreateRoomModal({
             <form onSubmit={onSubmit}>
               {prefilledTrack && (
                 <div className="mp-prefilled-track-highlight">
-                  <img src={prefilledTrack.src} alt="" className="mp-prefilled-art" />
+                  <img decoding="async" loading="lazy" src={prefilledTrack.src} alt="" className="mp-prefilled-art" />
                   <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
                     <span style={{ fontSize: '9px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--theme-accent)', letterSpacing: '1.2px', marginBottom: '2px' }}>Starting Track</span>
                     <span style={{ fontSize: '13px', fontWeight: '800', color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.01em' }}>{prefilledTrack.trackName}</span>

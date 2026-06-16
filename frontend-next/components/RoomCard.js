@@ -39,7 +39,7 @@ export default function RoomCard({ room, nameColor, getInitials, href }) {
             firstContent={
               <div style={{ width: "100%", height: "100%", position: "relative" }}>
                 {isPlaying ? (
-                  <img
+                  <img decoding="async" loading="lazy"
                     className="room-card-cover-img"
                     src={coverUrl}
                     onError={(e) => { e.currentTarget.src = getDefaultBanner(room); }}
@@ -128,7 +128,7 @@ export default function RoomCard({ room, nameColor, getInitials, href }) {
           <h3 className="room-card-title">{room.name}</h3>
           <div className="room-card-host">
             {room.host_avatar_url ? (
-              <img className="room-card-host-avatar" src={room.host_avatar_url} alt="" />
+              <img decoding="async" loading="lazy" className="room-card-host-avatar" src={room.host_avatar_url} alt="" />
             ) : (
               <div
                 className="room-card-host-avatar-fallback"

@@ -283,7 +283,7 @@ export const MusicPlayer = ({
             <div className="mp-artwork-container">
               <div className="mp-artwork-wrapper">
                 {track.artwork ? (
-                  <img draggable="false" src={track.artwork} alt="" className="mp-artwork-img" />
+                  <img decoding="async" loading="lazy" draggable="false" src={track.artwork} alt="" className="mp-artwork-img" />
                 ) : (
                   <div className="mp-artwork-fallback">
                     <Music className="h-12 w-12" />

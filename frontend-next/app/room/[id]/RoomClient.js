@@ -1459,7 +1459,7 @@ export default function RoomClient({ roomId }) {
       <div className="dynamic-bg-wrapper">
         <canvas id="ambient-canvas"></canvas>
         {nowPlaying?.album_art_url && (
-          <img id="dynamic-bg" className="dynamic-bg active" src={nowPlaying.album_art_url} alt="Dynamic Ambient Background" />
+          <img decoding="async" loading="lazy" id="dynamic-bg" className="dynamic-bg active" src={nowPlaying.album_art_url} alt="Dynamic Ambient Background" />
         )}
       </div>
 
@@ -1502,7 +1502,7 @@ export default function RoomClient({ roomId }) {
         <div className="header-left">
           {/* Logo */}
           <a href="/" className="navbar-brand">
-            <img className="navbar-icon" src="/static/img/logo.png" alt="OpenJam Logo" width="24" height="24" style={{ borderRadius: '6px' }} />
+            <img decoding="async" className="navbar-icon" src="/static/img/logo.png" alt="OpenJam Logo" width="24" height="24" style={{ borderRadius: '6px' }} />
             <div className="navbar-logo">Open<span>Jam</span></div>
           </a>
           
@@ -1522,7 +1522,7 @@ export default function RoomClient({ roomId }) {
             <div className="room-sub-meta">
               <div className="room-bar-host">
                 {room?.host_avatar_url ? (
-                  <img className="room-host-avatar" src={room.host_avatar_url} alt={room.host_name} style={{ objectFit: 'cover' }} />
+                  <img decoding="async" loading="lazy" className="room-host-avatar" src={room.host_avatar_url} alt={room.host_name} style={{ objectFit: 'cover' }} />
                 ) : (
                   <div className="room-host-avatar-fallback" style={{ background: nameColor(room?.host_name || 'Host') }}>
                     {initials(room?.host_name || 'Host')}
@@ -1572,7 +1572,7 @@ export default function RoomClient({ roomId }) {
           <div className="navbar-right" style={{ display: me ? 'flex' : 'none' }}>
             <div className="navbar-user" style={{ cursor: 'pointer' }} title="Click to change avatar">
               {me?.avatar_url ? (
-                <img className="avatar avatar-sm" src={me.avatar_url} alt="" style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} />
+                <img decoding="async" loading="lazy" className="avatar avatar-sm" src={me.avatar_url} alt="" style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} />
               ) : (
                 <div className="avatar avatar-sm" style={{ backgroundColor: nameColor(me?.display_name || '?'), width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold' }}>
                   {initials(me?.display_name || '?')}
@@ -1891,7 +1891,7 @@ export default function RoomClient({ roomId }) {
                               }}
                               style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', cursor: 'grab' }}
                             >
-                              <img draggable="false" src={track.album_art_url || '/placeholder.svg'} alt="" style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} />
+                              <img decoding="async" loading="lazy" draggable="false" src={track.album_art_url || '/placeholder.svg'} alt="" style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} />
                               <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
                                 <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.track_name || track.name}</span>
                                 <span style={{ fontSize: '11px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.artist}</span>
@@ -1922,7 +1922,7 @@ export default function RoomClient({ roomId }) {
                                 }}
                                 style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', cursor: 'pointer' }}
                               >
-                                <img draggable="false" src={track.album_art_url || '/placeholder.svg'} alt="" style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} />
+                                <img decoding="async" loading="lazy" draggable="false" src={track.album_art_url || '/placeholder.svg'} alt="" style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} />
                                 <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
                                   <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.track_name}</span>
                                   <span style={{ fontSize: '11px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.artist}</span>
@@ -2022,7 +2022,7 @@ export default function RoomClient({ roomId }) {
                             transition: 'all 0.2s ease'
                           }}
                         >
-                          <img draggable="false" className="q-track-art" src={item.album_art_url || '/placeholder.svg'} alt="" />
+                          <img decoding="async" loading="lazy" draggable="false" className="q-track-art" src={item.album_art_url || '/placeholder.svg'} alt="" />
                           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
                             <span className="q-track-title" style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.track_name}</span>
                             <span className="q-track-artist" style={{ fontSize: '11px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.artist}</span>
@@ -2096,7 +2096,7 @@ export default function RoomClient({ roomId }) {
                             e.dataTransfer.effectAllowed = "copy";
                           }}
                         >
-                          <img draggable="false" className="q-track-art" src={item.album_art_url || '/placeholder.svg'} alt="" />
+                          <img decoding="async" loading="lazy" draggable="false" className="q-track-art" src={item.album_art_url || '/placeholder.svg'} alt="" />
                           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
                             <span className="q-track-title" style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.track_name}</span>
                             <span className="q-track-artist" style={{ fontSize: '11px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.artist}</span>
@@ -2176,7 +2176,7 @@ export default function RoomClient({ roomId }) {
                           <div key={msg.id} className="chat-system-msg reaction-alert">
                             <div className="reaction-avatar-small">
                               {msg.user_avatar ? (
-                                <img className="avatar" src={msg.user_avatar} alt="" />
+                                <img decoding="async" loading="lazy" className="avatar" src={msg.user_avatar} alt="" />
                               ) : (
                                 <div className="avatar" style={{ backgroundColor: nameColor(msg.user_name) }}>
                                   {initials(msg.user_name)}
@@ -2192,7 +2192,7 @@ export default function RoomClient({ roomId }) {
                       return (
                         <div key={msg.id} className={`chat-message ${isSelf ? 'self' : ''}`}>
                           {msg.user_avatar ? (
-                            <img className="avatar" src={msg.user_avatar} alt="" style={{ objectFit: 'cover' }} />
+                            <img decoding="async" loading="lazy" className="avatar" src={msg.user_avatar} alt="" style={{ objectFit: 'cover' }} />
                           ) : (
                             <div 
                               className="avatar"
@@ -2286,7 +2286,7 @@ export default function RoomClient({ roomId }) {
                   return (
                     <div key={uid} className="member-item">
                       {user.avatar_url ? (
-                        <img className="avatar avatar-sm" src={user.avatar_url} alt="" style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }} />
+                        <img decoding="async" loading="lazy" className="avatar avatar-sm" src={user.avatar_url} alt="" style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }} />
                       ) : (
                         <div 
                           className="avatar avatar-sm"
@@ -2321,7 +2321,7 @@ export default function RoomClient({ roomId }) {
           <div className="mini-player-progress-fill" style={{ width: `${playbackState.durationMs > 0 ? (playbackState.positionMs / playbackState.durationMs) * 100 : 0}%` }}></div>
         </div>
         <button type="button" className="mini-player-main" onClick={() => setActiveTab('playing')}>
-          <img className="mini-art" src={nowPlaying?.album_art_url || '/static/img/logo.png'} alt="" width="44" height="44" style={{ borderRadius: '6px', objectFit: 'cover' }} />
+          <img decoding="async" className="mini-art" src={nowPlaying?.album_art_url || '/static/img/logo.png'} alt="" width="44" height="44" style={{ borderRadius: '6px', objectFit: 'cover' }} />
           <div className="mini-info">
             <div className="mini-title">{nowPlaying ? nowPlaying.track_name : 'Nothing playing'}</div>
             <div className="mini-artist">{nowPlaying ? nowPlaying.artist : 'Add a track to the queue'}</div>
@@ -2612,7 +2612,7 @@ export default function RoomClient({ roomId }) {
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}>
-                  <img 
+                  <img decoding="async" loading="lazy" 
                     src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/room/${roomId}` : '')}`}
                     alt="Room QR Code" 
                     style={{ width: '140px', height: '140px', display: 'block', borderRadius: '8px' }}

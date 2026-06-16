@@ -376,7 +376,7 @@ export default function MusicPill({
 
         {/* Album Artwork */}
         <div className="music-pill-art-wrap">
-          <img 
+          <img decoding="async" loading="lazy" 
             src={activePreview.src} 
             alt="Album Cover" 
             className="music-pill-art"

@@ -546,7 +546,7 @@ export default function OfflinePage() {
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, overflow: 'hidden' }}>
                         <div style={{ position: 'relative', width: '48px', height: '48px', flexShrink: 0 }}>
-                          <img
+                          <img decoding="async" loading="lazy"
                             src={track.album_art_url || '/static/img/default_art.png'}
                             alt={track.track_name}
                             style={{ width: '48px', height: '48px', borderRadius: '8px', objectFit: 'cover' }}
@@ -704,7 +704,7 @@ export default function OfflinePage() {
         }}>
           {/* Left: Metadata */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '180px', maxWidth: '300px', overflow: 'hidden' }}>
-            <img
+            <img decoding="async" loading="lazy"
               src={activeTrack.album_art_url || '/static/img/default_art.png'}
               alt={activeTrack.track_name}
               style={{ width: '48px', height: '48px', borderRadius: '8px', objectFit: 'cover' }}

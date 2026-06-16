@@ -229,7 +229,7 @@ const PillNav = ({
               logoRef.current = el;
             }}
           >
-            <img src={logo} alt={logoAlt} ref={logoImgRef} />
+            <img decoding="async" loading="lazy" src={logo} alt={logoAlt} ref={logoImgRef} />
           </Link>
         ) : (
           <a
@@ -241,7 +241,7 @@ const PillNav = ({
               logoRef.current = el;
             }}
           >
-            <img src={logo} alt={logoAlt} ref={logoImgRef} />
+            <img decoding="async" loading="lazy" src={logo} alt={logoAlt} ref={logoImgRef} />
           </a>
         )}
 

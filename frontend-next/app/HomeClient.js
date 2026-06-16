@@ -402,7 +402,7 @@ export default function HomePage() {
       const userLabel = (
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
           {me.avatar_url ? (
-            <img 
+            <img decoding="async" loading="lazy" 
               src={me.avatar_url} 
               alt={me.display_name} 
               style={{ width: '18px', height: '18px', borderRadius: '50%', border: '1px solid var(--amber)' }} 
@@ -1181,7 +1181,7 @@ export default function HomePage() {
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, overflow: 'hidden' }}>
                           <div style={{ position: 'relative', width: '48px', height: '48px', flexShrink: 0 }}>
-                            <img
+                            <img decoding="async" loading="lazy"
                               src={track.album_art_url || '/static/img/default_art.png'}
                               alt={track.track_name}
                               style={{ width: '48px', height: '48px', borderRadius: '8px', objectFit: 'cover' }}
