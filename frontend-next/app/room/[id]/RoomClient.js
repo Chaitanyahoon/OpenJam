@@ -161,7 +161,7 @@ export default function RoomClient({ roomId }) {
       } else {
         cleanBackendUrl = backendUrl !== 'undefined' && backendUrl !== 'null' && backendUrl.trim() !== ''
           ? backendUrl.replace(/\/$/, '')
-          : 'https://openjam.onrender.com';
+          : 'https://api.openjam.fun';
       }
 
       const response = await fetch(`${cleanBackendUrl}/stream/${trackId}`);

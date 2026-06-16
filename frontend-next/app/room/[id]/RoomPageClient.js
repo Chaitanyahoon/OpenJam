@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 
 const RoomClientNoSSR = dynamic(() => import('./RoomClient'), {
@@ -20,6 +21,7 @@ const RoomClientNoSSR = dynamic(() => import('./RoomClient'), {
   )
 });
 
-export default function RoomPageClient({ roomId }) {
-  return <RoomClientNoSSR roomId={roomId} />;
+export default function RoomPageClient() {
+  const params = useParams();
+  return <RoomClientNoSSR roomId={params.id} />;
 }

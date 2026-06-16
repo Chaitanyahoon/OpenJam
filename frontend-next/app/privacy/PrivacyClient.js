@@ -86,7 +86,7 @@ export default function PrivacyPage() {
 
         <motion.div style={{ display: 'flex', flexDirection: 'column', gap: '28px', lineHeight: 1.75 }} variants={itemVariants}>
           <section>
-            <p>Open Jam (&quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) operates the website at https://openjam.onrender.com. This Privacy Policy explains how we collect, use, and share information when you use our service.</p>
+            <p>Open Jam (&quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) operates the website at https://www.openjam.fun. This Privacy Policy explains how we collect, use, and share information when you use our service.</p>
           </section>
 
           <section>

@@ -38,7 +38,7 @@ export const SocketProvider = ({ children }) => {
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
           return 'http://localhost:8000';
         }
-        return 'https://openjam.onrender.com';
+        return 'https://api.openjam.fun';
       }
       return 'http://localhost:8000';
     };

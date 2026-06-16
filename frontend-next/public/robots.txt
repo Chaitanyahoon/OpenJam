@@ -5,4 +5,4 @@ Disallow: /room/
 Disallow: /offline
 Disallow: /_next/
 
-Sitemap: https://openjam.onrender.com/sitemap.xml
+Sitemap: https://www.openjam.fun/sitemap.xml

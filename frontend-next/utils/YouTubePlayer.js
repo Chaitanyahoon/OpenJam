@@ -18,7 +18,7 @@ const getBackendUrl = () => {
       return url.replace(/\/$/, '');
     }
   }
-  return 'https://openjam.onrender.com';
+  return 'https://api.openjam.fun';
 };
 const BACKEND_URL = getBackendUrl();
 
