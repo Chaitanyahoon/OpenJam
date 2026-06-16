@@ -1,4 +1,4 @@
-const CACHE_NAME = 'openjam-pwa-v1';
+const CACHE_NAME = 'openjam-pwa-v2';
 
 // Core assets to cache immediately on SW install
 const PRECACHE_ASSETS = [
@@ -64,6 +64,29 @@ self.addEventListener('fetch', (event) => {
   const shouldBypass = bypassPrefixes.some(prefix => url.pathname.startsWith(prefix));
 
   if (shouldBypass) {
+    return;
+  }
+
+  // Network-First for main pages and document navigation (ensures online updates render instantly)
+  const isNav = event.request.mode === 'navigate' || url.pathname === '/';
+  if (isNav) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.status === 200) {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return response;
+        })
+        .catch(() => {
+          return caches.match(event.request).then((cachedResponse) => {
+            return cachedResponse || caches.match('/offline');
+          });
+        })
+    );
     return;
   }
 
