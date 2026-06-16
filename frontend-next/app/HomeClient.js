@@ -573,18 +573,6 @@ export default function HomePage() {
       triggerToast(errorMessages[discordError] || 'Login failed.', 'error');
       window.history.replaceState({}, '', window.location.pathname);
     }
-
-    // Unregister any legacy service workers to prevent loading/caching conflicts
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then((registrations) => {
-        for (const registration of registrations) {
-          registration.unregister()
-            .then((success) => {
-              if (success) console.log('[serviceWorker] unregistered legacy SW');
-            });
-        }
-      });
-    }
   }, []);
 
   // Audio blip for name shuffler
