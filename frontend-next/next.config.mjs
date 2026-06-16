@@ -9,6 +9,10 @@ const nextConfig = {
   async rewrites() {
     return [
       {
+        source: '/sitemap_index.xml',
+        destination: '/sitemap.xml',
+      },
+      {
         source: '/static/:path*',
         destination: `${BACKEND_URL}/static/:path*`,
       },

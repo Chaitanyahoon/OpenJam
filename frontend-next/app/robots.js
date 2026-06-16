@@ -6,6 +6,6 @@ export default function robots() {
       allow: '/',
       disallow: ['/admin', '/room/', '/offline', '/_next/'],
     },
-    sitemap: `${baseUrl}/sitemap.xml`,
+    sitemap: `${baseUrl}/sitemap_index.xml`,
   };
 }
