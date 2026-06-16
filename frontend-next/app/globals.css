@@ -9767,11 +9767,11 @@ body:not(.room-page) .navbar:hover {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .unified-header {
-  height: 72px !important;
+  height: calc(72px + env(safe-area-inset-top, 0px)) !important;
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-  padding: 0 24px !important;
+  padding: env(safe-area-inset-top, 0px) 24px 0 !important;
   background: rgba(10, 10, 15, 0.6) !important;
   backdrop-filter: blur(30px) saturate(1.8) !important;
   -webkit-backdrop-filter: blur(30px) saturate(1.8) !important;
@@ -10081,8 +10081,8 @@ body:not(.room-page) .navbar:hover {
 
 @media (max-width: 640px) {
   .unified-header {
-    height: 60px !important;
-    padding: 0 10px !important;
+    height: calc(60px + env(safe-area-inset-top, 0px)) !important;
+    padding: env(safe-area-inset-top, 0px) 10px 0 !important;
   }
   .header-left,
   .header-right {
@@ -10161,6 +10161,14 @@ body:not(.room-page) .navbar:hover {
     text-align: center !important;
     display: block !important;
     margin-top: 4px;
+    position: relative !important;
+  }
+  .hero-slogan-dynamic > span {
+    display: block !important;
+    left: 0 !important;
+    right: 0 !important;
+    text-align: center !important;
+    width: 100% !important;
   }
 
   .hero-glass-card .hero-sub {

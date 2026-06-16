@@ -15,7 +15,7 @@
     width: calc(100% - 24px) !important;
     left: 50% !important;
     transform: translateX(-50%) !important;
-    top: 12px !important;
+    top: calc(12px + env(safe-area-inset-top, 0px)) !important;
   }
 }
 

@@ -145,14 +145,7 @@ export default function RoomClient({ roomId }) {
     triggerToast(`Downloading "${track.track_name || 'Track'}"…`, "info");
 
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || '';
-      const cleanBackendUrl = backendUrl !== 'undefined' && backendUrl !== 'null' && backendUrl.trim() !== ''
-        ? backendUrl.replace(/\/$/, '')
-        : (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-          ? 'http://localhost:8000'
-          : 'https://openjam.onrender.com');
-
-      const response = await fetch(`${cleanBackendUrl}/stream/${trackId}`);
+      const response = await fetch(`/stream/${trackId}`);
       if (!response.ok) {
         throw new Error(`Failed to fetch stream: ${response.status}`);
       }
