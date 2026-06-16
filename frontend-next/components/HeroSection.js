@@ -541,33 +541,6 @@ export default function HeroSection({
                   </span>
                 </motion.button>
               )}
-  
-              {showInstallBtn && (
-                <motion.button
-                  type="button"
-                  className="btn btn-secondary btn-elegant-glow btn-bubble"
-                  onClick={onInstallClick}
-                  style={{ 
-                    borderRadius: '99px',
-                    border: '1px solid rgba(255, 176, 58, 0.4)',
-                    boxShadow: '0 4px 15px rgba(255, 176, 58, 0.1)',
-                    flex: !me ? '1 1 100%' : undefined, // take full width if alone at the bottom for guest
-                  }}
-                  whileHover={reduceMotion ? undefined : { 
-                    scale: 1.05, 
-                    boxShadow: '0 12px 32px rgba(255, 176, 58, 0.25)' 
-                  }}
-                  whileTap={reduceMotion ? undefined : { scale: 0.98 }}
-                >
-                  <div className="bubble-bg b1" />
-                  <div className="bubble-bg b2" />
-                  <div className="bubble-bg b3" />
-                  <div className="bubble-bg b4" />
-                  <span className="btn-bubble-content" style={{ color: '#ffb03a' }}>
-                    📱 Install App
-                  </span>
-                </motion.button>
-              )}
             </div>
           </motion.div>
         </motion.div>
