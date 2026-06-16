@@ -10335,3 +10335,34 @@ body:not(.room-page) .navbar:hover {
     bottom: calc(16px + 56px + 64px + env(safe-area-inset-bottom, 0px)) !important; /* Move above bottom tabs (56px) + mini-player (64px) */
   }
 }
+
+/* Offline PWA Dashboard styles */
+.offline-library-grid {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 24px;
+  margin-top: 24px;
+}
+.playlist-item {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.playlist-item:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+  transform: translateX(4px);
+}
+.playlist-item.active:hover {
+  background: rgba(255, 159, 28, 0.15) !important;
+}
+.play-hover-btn {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+div:hover > .play-hover-btn,
+.play-hover-btn:hover {
+  opacity: 1 !important;
+}
+@media (max-width: 768px) {
+  .offline-library-grid {
+    grid-template-columns: 1fr;
+  }
+}

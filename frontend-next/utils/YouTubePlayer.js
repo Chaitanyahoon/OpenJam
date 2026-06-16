@@ -1,3 +1,5 @@
+import { offlineDb } from './offlineDb';
+
 const SILENT_WAV_B64 = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQAAAAA=";
 const getBackendUrl = () => {
   if (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_BACKEND_URL) {
@@ -439,6 +441,7 @@ export default class YouTubePlayer {
         this._pendingLoad = { videoId, startSeconds };
         if (!this.ytPlayer) this._initIFramePlayer();
       }
+      setTimeout(() => { this._suppressStateChange = false; }, 1000);
     } else {
       if (this.onStreamFailUpdate) this.onStreamFailUpdate("Connecting to audio stream…");
 
@@ -451,23 +454,57 @@ export default class YouTubePlayer {
       }, 12000);
 
       this.player.loop = false;
-      this.player.src = `${BACKEND_URL}/stream/${videoId}`;
-      this.setVolume(this.volume);
-      if (startSeconds > 0) {
-        this.player.addEventListener('loadedmetadata', () => {
-          this.player.currentTime = startSeconds;
-        }, { once: true });
-      }
-      this.player.play().catch(e => {
-        if (e.name === 'AbortError') return;
-        console.error('Autoplay prevented:', e);
-        if (!this._userUnlocked) {
-          this._pendingPlayAfterUnlock = { videoId, startSeconds };
-          this._showOverlay();
+      
+      offlineDb.getTrack(videoId).then((cachedTrack) => {
+        if (cachedTrack && cachedTrack.blob) {
+          console.log(`[Player] Playing downloaded track locally: ${videoId}`);
+          if (this.onStreamFailUpdate) this.onStreamFailUpdate(null);
+          if (this._loadTimeout) { clearTimeout(this._loadTimeout); this._loadTimeout = null; }
+          
+          const localUrl = URL.createObjectURL(cachedTrack.blob);
+          this.player.src = localUrl;
+          
+          cachedTrack.playCount = (cachedTrack.playCount || 0) + 1;
+          offlineDb.saveTrack(cachedTrack).catch(() => {});
+        } else {
+          this.player.src = `${BACKEND_URL}/stream/${videoId}`;
         }
+        
+        this.setVolume(this.volume);
+        if (startSeconds > 0) {
+          this.player.addEventListener('loadedmetadata', () => {
+            this.player.currentTime = startSeconds;
+          }, { once: true });
+        }
+        this.player.play().catch(e => {
+          if (e.name === 'AbortError') return;
+          console.error('Autoplay prevented:', e);
+          if (!this._userUnlocked) {
+            this._pendingPlayAfterUnlock = { videoId, startSeconds };
+            this._showOverlay();
+          }
+        });
+        setTimeout(() => { this._suppressStateChange = false; }, 1000);
+      }).catch((err) => {
+        console.error('[Player] Error checking offline cache:', err);
+        this.player.src = `${BACKEND_URL}/stream/${videoId}`;
+        this.setVolume(this.volume);
+        if (startSeconds > 0) {
+          this.player.addEventListener('loadedmetadata', () => {
+            this.player.currentTime = startSeconds;
+          }, { once: true });
+        }
+        this.player.play().catch(e => {
+          if (e.name === 'AbortError') return;
+          console.error('Autoplay prevented:', e);
+          if (!this._userUnlocked) {
+            this._pendingPlayAfterUnlock = { videoId, startSeconds };
+            this._showOverlay();
+          }
+        });
+        setTimeout(() => { this._suppressStateChange = false; }, 1000);
       });
     }
-    setTimeout(() => { this._suppressStateChange = false; }, 1000);
   }
 
   setTrack(trackData) {

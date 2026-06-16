@@ -11,7 +11,8 @@ import dynamic from 'next/dynamic';
 import PillNav from '@/components/PillNav';
 import VolumeIcon from '@/components/VolumeIcon';
 import { FALLBACK_DISCOVERY_TRACKS } from '@/constants/tracks';
-import { CheckCircle, AlertCircle, AlertTriangle, Info } from 'lucide-react';
+import { CheckCircle, AlertCircle, AlertTriangle, Info, Play, Pause, Trash2, Plus, Music, FolderHeart, ListMusic } from 'lucide-react';
+import { offlineDb } from '@/utils/offlineDb';
 
 
 const JoinModal = dynamic(() => import('@/components/modals/JoinModal'), { ssr: false });
@@ -28,6 +29,14 @@ export default function HomePage() {
   const [me, setMe] = useState(null);
   const [rooms, setRooms] = useState([]);
   const [showInstallBtn, setShowInstallBtn] = useState(false);
+
+  // Offline PWA States
+  const [isOffline, setIsOffline] = useState(false);
+  const [offlineTracks, setOfflineTracks] = useState([]);
+  const [offlinePlaylists, setOfflinePlaylists] = useState([]);
+  const [showCreatePlaylistModal, setShowCreatePlaylistModal] = useState(false);
+  const [newPlaylistName, setNewPlaylistName] = useState('');
+  const [activeOfflinePlaylistId, setActiveOfflinePlaylistId] = useState(null);
 
   // Preview Player States
   const [activePreview, setActivePreview] = useState(null);
@@ -116,6 +125,135 @@ export default function HomePage() {
   useEffect(() => {
     setCurrentYear(new Date().getFullYear());
   }, []);
+
+  const loadOfflineData = async () => {
+    try {
+      const tracks = await offlineDb.getAllTracks();
+      const playlists = await offlineDb.getAllPlaylists();
+      setOfflineTracks(tracks);
+      setOfflinePlaylists(playlists);
+    } catch (err) {
+      console.error('Failed to load offline data', err);
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const updateOnlineStatus = () => {
+      const offline = !navigator.onLine;
+      setIsOffline(offline);
+      if (offline) {
+        loadOfflineData();
+      }
+    };
+
+    updateOnlineStatus();
+
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+    
+    loadOfflineData();
+
+    return () => {
+      window.removeEventListener('online', updateOnlineStatus);
+      window.removeEventListener('offline', updateOnlineStatus);
+    };
+  }, []);
+
+  const handleCreatePlaylist = async () => {
+    if (!newPlaylistName.trim()) return;
+    const playlist = {
+      id: 'pl_' + Math.random().toString(36).substr(2, 9),
+      name: newPlaylistName.trim(),
+      trackIds: [],
+      createdAt: Date.now()
+    };
+    try {
+      await offlineDb.savePlaylist(playlist);
+      setNewPlaylistName('');
+      setShowCreatePlaylistModal(false);
+      triggerToast('Playlist created!', 'success');
+      const updated = await offlineDb.getAllPlaylists();
+      setOfflinePlaylists(updated);
+    } catch (err) {
+      triggerToast('Failed to create playlist', 'error');
+    }
+  };
+
+  const handleAddTrackToPlaylist = async (trackId, playlistId) => {
+    try {
+      const playlist = offlinePlaylists.find(p => p.id === playlistId);
+      if (!playlist) return;
+      if (playlist.trackIds.includes(trackId)) {
+        triggerToast('Track already in playlist', 'warning');
+        return;
+      }
+      playlist.trackIds.push(trackId);
+      await offlineDb.savePlaylist(playlist);
+      triggerToast(`Added to ${playlist.name}`, 'success');
+      const updated = await offlineDb.getAllPlaylists();
+      setOfflinePlaylists(updated);
+    } catch (err) {
+      triggerToast('Failed to add track to playlist', 'error');
+    }
+  };
+
+  const handleRemoveTrackFromPlaylist = async (trackId, playlistId) => {
+    try {
+      const playlist = offlinePlaylists.find(p => p.id === playlistId);
+      if (!playlist) return;
+      playlist.trackIds = playlist.trackIds.filter(id => id !== trackId);
+      await offlineDb.savePlaylist(playlist);
+      triggerToast('Removed from playlist', 'success');
+      const updated = await offlineDb.getAllPlaylists();
+      setOfflinePlaylists(updated);
+    } catch (err) {
+      triggerToast('Failed to remove track', 'error');
+    }
+  };
+
+  const handleDeletePlaylist = async (playlistId) => {
+    if (!confirm('Are you sure you want to delete this playlist?')) return;
+    try {
+      await offlineDb.deletePlaylist(playlistId);
+      triggerToast('Playlist deleted', 'success');
+      const updated = await offlineDb.getAllPlaylists();
+      setOfflinePlaylists(updated);
+      if (activeOfflinePlaylistId === playlistId) {
+        setActiveOfflinePlaylistId(null);
+      }
+    } catch (err) {
+      triggerToast('Failed to delete playlist', 'error');
+    }
+  };
+
+  const handleDeleteTrack = async (trackId) => {
+    if (!confirm('Delete this downloaded track from offline storage?')) return;
+    try {
+      await offlineDb.deleteTrack(trackId);
+      triggerToast('Track deleted from offline storage', 'success');
+      
+      const updatedTracks = await offlineDb.getAllTracks();
+      setOfflineTracks(updatedTracks);
+      
+      let playlistsModified = false;
+      const updatedPlaylists = await Promise.all(offlinePlaylists.map(async (playlist) => {
+        if (playlist.trackIds.includes(trackId)) {
+          playlist.trackIds = playlist.trackIds.filter(id => id !== trackId);
+          await offlineDb.savePlaylist(playlist);
+          playlistsModified = true;
+        }
+        return playlist;
+      }));
+      if (playlistsModified) {
+        const freshPlaylists = await offlineDb.getAllPlaylists();
+        setOfflinePlaylists(freshPlaylists);
+      }
+    } catch (err) {
+      triggerToast('Failed to delete track', 'error');
+    }
+  };
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -726,6 +864,26 @@ export default function HomePage() {
     }
   };
 
+  const filteredOfflineTracks = useMemo(() => {
+    let list = offlineTracks;
+    if (activeOfflinePlaylistId) {
+      const playlist = offlinePlaylists.find(p => p.id === activeOfflinePlaylistId);
+      if (playlist) {
+        list = offlineTracks.filter(track => playlist.trackIds.includes(track.id));
+      } else {
+        list = [];
+      }
+    }
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      list = list.filter(track => 
+        track.track_name.toLowerCase().includes(query) ||
+        track.artist.toLowerCase().includes(query)
+      );
+    }
+    return list;
+  }, [offlineTracks, offlinePlaylists, activeOfflinePlaylistId, searchQuery]);
+
   return (
     <div className="landing-wrapper">
 
@@ -764,6 +922,29 @@ export default function HomePage() {
         </AnimatePresence>
       </div>
 
+      {isOffline && (
+        <div style={{
+          background: 'linear-gradient(90deg, #ff9f1c, #ff5500)',
+          color: '#08080a',
+          padding: '12px 24px',
+          textAlign: 'center',
+          fontWeight: '700',
+          fontSize: '13px',
+          letterSpacing: '0.05em',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+          boxShadow: '0 4px 20px rgba(255, 159, 28, 0.25)',
+          position: 'sticky',
+          top: 0,
+          zIndex: 1000
+        }}>
+          <AlertTriangle size={16} />
+          <span>YOU ARE CURRENTLY OFFLINE. PLAYING CACHED OFFLINE LIBRARY.</span>
+        </div>
+      )}
+
       {/* Ambient background */}
       <div className="landing-bg-glows" aria-hidden="true">
         <div className="glow-1" style={{ background: `radial-gradient(circle, ${amberColor}1e 0%, rgba(0,0,0,0) 65%)` }} />
@@ -791,13 +972,375 @@ export default function HomePage() {
         isPlayingPreview={isPlayingPreview}
       />
 
-      <motion.section
-        id="active-rooms"
-        className="rooms-section"
-        initial={{ opacity: 0, y: 40 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, delay: 0.3 }}
-      >
+      {isOffline ? (
+        <motion.section
+          id="offline-library"
+          className="rooms-section"
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.3 }}
+        >
+          <div className="rooms-section-header">
+            <div className="rooms-section-heading-group">
+              <h2 className="rooms-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FolderHeart size={24} style={{ color: 'var(--amber)' }} />
+                <span>My Offline Library</span>
+              </h2>
+              <p className="rooms-section-subtitle">
+                Play your locally cached tracks and manage your playlists.
+              </p>
+            </div>
+            <div className="rooms-header-meta">
+              <span className="rooms-count font-mono">
+                {offlineTracks.length} track{offlineTracks.length !== 1 ? 's' : ''}
+              </span>
+              <span className="connection-chip offline">
+                Offline Mode
+              </span>
+            </div>
+          </div>
+
+          {/* Search */}
+          <div className="search-wrap">
+            <div className="input-with-icon">
+              <span className="icon-prefix">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+                </svg>
+              </span>
+              <input
+                type="text"
+                className="input-field"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search offline tracks..."
+                autoComplete="off"
+              />
+            </div>
+            <div className="rooms-toolbar-meta">
+              <span className="results-copy">
+                Showing {filteredOfflineTracks.length} track{filteredOfflineTracks.length !== 1 ? 's' : ''}
+                {searchQuery ? ` for "${searchQuery}"` : ''}
+              </span>
+              {searchQuery && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-toolbar-clear"
+                  onClick={() => setSearchQuery('')}
+                >
+                  Clear search
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="offline-library-grid">
+            {/* Playlists Column */}
+            <div className="glass-card" style={{
+              padding: '24px',
+              borderRadius: '24px',
+              border: '1px solid rgba(255, 159, 28, 0.15)',
+              background: 'rgba(10, 9, 12, 0.5)',
+              backdropFilter: 'blur(20px)',
+              height: 'fit-content'
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '16px'
+              }}>
+                <h3 style={{
+                  fontFamily: 'var(--font-display), sans-serif',
+                  fontSize: '18px',
+                  fontWeight: 700,
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  <ListMusic size={20} color="var(--amber)" /> Custom Playlists
+                </h3>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ padding: '6px 12px', fontSize: '12px' }}
+                  onClick={() => setShowCreatePlaylistModal(true)}
+                >
+                  <Plus size={14} style={{ marginRight: '4px' }} /> Create
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div
+                  className={`playlist-item ${!activeOfflinePlaylistId ? 'active' : ''}`}
+                  style={{
+                    padding: '12px 16px',
+                    borderRadius: '12px',
+                    background: !activeOfflinePlaylistId ? 'rgba(255, 159, 28, 0.1)' : 'rgba(255, 255, 255, 0.02)',
+                    border: !activeOfflinePlaylistId ? '1px solid var(--amber)' : '1px solid rgba(255,255,255,0.05)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onClick={() => setActiveOfflinePlaylistId(null)}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <Music size={16} color="var(--amber)" />
+                    <span style={{ fontWeight: 600, fontSize: '14px' }}>All Downloaded</span>
+                  </div>
+                  <span style={{ fontSize: '12px', color: 'var(--text-3)' }}>{offlineTracks.length}</span>
+                </div>
+
+                {offlinePlaylists.map(playlist => (
+                  <div
+                    key={playlist.id}
+                    className={`playlist-item ${activeOfflinePlaylistId === playlist.id ? 'active' : ''}`}
+                    style={{
+                      padding: '12px 16px',
+                      borderRadius: '12px',
+                      background: activeOfflinePlaylistId === playlist.id ? 'rgba(255, 159, 28, 0.1)' : 'rgba(255, 255, 255, 0.02)',
+                      border: activeOfflinePlaylistId === playlist.id ? '1px solid var(--amber)' : '1px solid rgba(255,255,255,0.05)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onClick={() => setActiveOfflinePlaylistId(playlist.id)}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                      <ListMusic size={16} color="var(--amber)" />
+                      <span style={{ fontWeight: 600, fontSize: '14px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                        {playlist.name}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-3)' }}>{playlist.trackIds?.length || 0}</span>
+                      <button
+                        type="button"
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'rgba(255,255,255,0.3)',
+                          cursor: 'pointer',
+                          padding: '2px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeletePlaylist(playlist.id);
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Tracks List Column */}
+            <div className="glass-card" style={{
+              padding: '24px',
+              borderRadius: '24px',
+              border: '1px solid rgba(255, 159, 28, 0.15)',
+              background: 'rgba(10, 9, 12, 0.5)',
+              backdropFilter: 'blur(20px)'
+            }}>
+              <h3 style={{
+                fontFamily: 'var(--font-display), sans-serif',
+                fontSize: '18px',
+                fontWeight: 700,
+                color: '#fff',
+                marginBottom: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <Music size={20} color="var(--amber)" />
+                {activeOfflinePlaylistId 
+                  ? `${offlinePlaylists.find(p => p.id === activeOfflinePlaylistId)?.name || 'Playlist'} Tracks`
+                  : 'Downloaded Tracks'}
+              </h3>
+
+              {filteredOfflineTracks.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {filteredOfflineTracks.map((track) => {
+                    const isCurrent = activePreview && activePreview.trackUri === track.id;
+                    const isPlaying = isCurrent && isPlayingPreview;
+                    
+                    return (
+                      <div
+                        key={track.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '12px',
+                          borderRadius: '16px',
+                          background: 'rgba(255, 255, 255, 0.02)',
+                          border: '1px solid rgba(255, 255, 255, 0.05)',
+                          transition: 'all 0.2s ease',
+                          gap: '12px'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, overflow: 'hidden' }}>
+                          <div style={{ position: 'relative', width: '48px', height: '48px', flexShrink: 0 }}>
+                            <img
+                              src={track.album_art_url || '/static/img/default_art.png'}
+                              alt={track.track_name}
+                              style={{ width: '48px', height: '48px', borderRadius: '8px', objectFit: 'cover' }}
+                            />
+                            <button
+                              type="button"
+                              style={{
+                                position: 'absolute',
+                                inset: 0,
+                                background: 'rgba(0,0,0,0.5)',
+                                border: 'none',
+                                borderRadius: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                opacity: isCurrent ? 1 : 0,
+                                transition: 'opacity 0.2s ease',
+                                color: '#fff'
+                              }}
+                              onClick={() => handlePlayPreview({
+                                trackUri: track.id,
+                                trackName: track.track_name,
+                                artist: track.artist,
+                                src: track.album_art_url,
+                                duration_ms: track.duration_ms
+                              })}
+                            >
+                              {isPlaying ? <Pause size={16} fill="#fff" /> : <Play size={16} fill="#fff" />}
+                            </button>
+                          </div>
+                          <div style={{ overflow: 'hidden' }}>
+                            <div style={{
+                              fontWeight: 600,
+                              fontSize: '14px',
+                              color: isCurrent ? 'var(--amber)' : '#fff',
+                              whiteSpace: 'nowrap',
+                              textOverflow: 'ellipsis',
+                              overflow: 'hidden'
+                            }}>
+                              {track.track_name}
+                            </div>
+                            <div style={{
+                              fontSize: '12px',
+                              color: 'var(--text-3)',
+                              whiteSpace: 'nowrap',
+                              textOverflow: 'ellipsis',
+                              overflow: 'hidden'
+                            }}>
+                              {track.artist}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {/* Playlist Select Dropdown */}
+                          {offlinePlaylists.length > 0 && (
+                            <select
+                              style={{
+                                background: '#151419',
+                                border: '1px solid rgba(255, 159, 28, 0.15)',
+                                color: 'var(--text-2)',
+                                padding: '6px 12px',
+                                borderRadius: '12px',
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                                maxWidth: '120px'
+                              }}
+                              onChange={(e) => {
+                                if (e.target.value) {
+                                  handleAddTrackToPlaylist(track.id, e.target.value);
+                                  e.target.value = '';
+                                }
+                              }}
+                              defaultValue=""
+                            >
+                              <option value="" disabled>Add to playlist...</option>
+                              {offlinePlaylists.map(p => (
+                                <option key={p.id} value={p.id}>{p.name}</option>
+                              ))}
+                            </select>
+                          )}
+
+                          {activeOfflinePlaylistId && (
+                            <button
+                              type="button"
+                              className="btn btn-ghost"
+                              style={{
+                                padding: '6px 10px',
+                                fontSize: '12px',
+                                borderRadius: '12px',
+                                border: '1px solid rgba(255,255,255,0.05)',
+                                color: 'rgba(255,255,255,0.6)'
+                              }}
+                              onClick={() => handleRemoveTrackFromPlaylist(track.id, activeOfflinePlaylistId)}
+                            >
+                              Remove
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            style={{
+                              padding: '8px',
+                              borderRadius: '12px',
+                              border: '1px solid rgba(255,255,255,0.05)',
+                              color: 'var(--red)'
+                            }}
+                            onClick={() => handleDeleteTrack(track.id)}
+                            title="Delete from device storage"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div style={{
+                  textAlign: 'center',
+                  padding: '48px 24px',
+                  color: 'var(--text-3)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '12px'
+                }}>
+                  <div style={{ fontSize: '32px' }}>🎵</div>
+                  <div style={{ fontWeight: 600 }}>No tracks here yet</div>
+                  <div style={{ fontSize: '13px', maxWidth: '320px', lineHeight: 1.5 }}>
+                    {activeOfflinePlaylistId 
+                      ? 'Add downloaded tracks to this playlist using the "Add to playlist..." dropdown on any track.'
+                      : 'Search or join rooms while online, and download tracks to build your offline library!'}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </motion.section>
+      ) : (
+        <motion.section
+          id="active-rooms"
+          className="rooms-section"
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.3 }}
+        >
         <div className="rooms-section-header">
           <div className="rooms-section-heading-group">
             <h2 className="rooms-section-title">
@@ -943,6 +1486,7 @@ export default function HomePage() {
           )}
         </AnimatePresence>
       </motion.section>
+      )}
 
 
 
@@ -1022,6 +1566,77 @@ export default function HomePage() {
         onClose={() => setShowLeaveModal(false)}
         onConfirm={handleLogout}
       />
+
+      {showCreatePlaylistModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(10, 9, 12, 0.85)',
+          backdropFilter: 'blur(16px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000
+        }} onClick={() => setShowCreatePlaylistModal(false)}>
+          <div style={{
+            background: 'var(--bg-base, #111015)',
+            border: '1px solid rgba(255, 159, 28, 0.2)',
+            borderRadius: '24px',
+            padding: '32px',
+            width: 'calc(100% - 32px)',
+            maxWidth: '400px',
+            boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
+            position: 'relative'
+          }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{
+              fontFamily: 'var(--font-display), sans-serif',
+              fontSize: '20px',
+              fontWeight: 700,
+              color: '#fff',
+              marginBottom: '16px'
+            }}>Create Offline Playlist</h3>
+            
+            <input
+              type="text"
+              className="input-field"
+              style={{
+                width: '100%',
+                marginBottom: '24px',
+                background: '#151419',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                padding: '12px 16px',
+                borderRadius: '12px',
+                color: '#fff'
+              }}
+              placeholder="Playlist Name"
+              value={newPlaylistName}
+              onChange={(e) => setNewPlaylistName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleCreatePlaylist();
+              }}
+              autoFocus
+            />
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => setShowCreatePlaylistModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleCreatePlaylist}
+                disabled={!newPlaylistName.trim()}
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

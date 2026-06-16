@@ -5,8 +5,9 @@ import { useSocket } from '@/contexts/SocketContext';
 import YouTubePlayer from '@/utils/YouTubePlayer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MusicPlayer } from '@/components/ui/music-player';
-import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart, CheckCircle, AlertCircle, AlertTriangle, Info } from 'lucide-react';
+import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart, CheckCircle, AlertCircle, AlertTriangle, Info, Download, Check } from 'lucide-react';
 import PwaInstallPrompt from '@/components/PwaInstallPrompt';
+import { offlineDb } from '@/utils/offlineDb';
 
 export default function RoomClient({ roomId }) {
   const { socket, isConnected, reconnect } = useSocket();
@@ -117,6 +118,97 @@ export default function RoomClient({ roomId }) {
   }, [activeTab, nowPlaying]);
 
   const isHost = me && room && room.host_user_id === me.id;
+
+  const [downloadingTracks, setDownloadingTracks] = useState({});
+  const [downloadedTracks, setDownloadedTracks] = useState(new Set());
+
+  // Load downloaded tracks on mount
+  useEffect(() => {
+    offlineDb.getAllTracks().then((tracks) => {
+      const ids = new Set(tracks.map(t => t.id));
+      setDownloadedTracks(ids);
+    }).catch(err => {
+      console.error('Failed to load local downloads:', err);
+    });
+  }, []);
+
+  const handleDownloadTrack = async (track) => {
+    const trackId = track.track_uri || track.id || track.uri;
+    if (!trackId) return;
+
+    if (downloadedTracks.has(trackId)) {
+      triggerToast("Track already downloaded!", "info");
+      return;
+    }
+
+    setDownloadingTracks(prev => ({ ...prev, [trackId]: 0 }));
+    triggerToast(`Downloading "${track.track_name || 'Track'}"…`, "info");
+
+    try {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || '';
+      const cleanBackendUrl = backendUrl !== 'undefined' && backendUrl !== 'null' && backendUrl.trim() !== ''
+        ? backendUrl.replace(/\/$/, '')
+        : (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+          ? 'http://localhost:8000'
+          : 'https://openjam.onrender.com');
+
+      const response = await fetch(`${cleanBackendUrl}/stream/${trackId}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch stream: ${response.status}`);
+      }
+
+      const contentLength = response.headers.get('content-length');
+      const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
+      
+      const reader = response.body.getReader();
+      let receivedBytes = 0;
+      const chunks = [];
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        chunks.push(value);
+        receivedBytes += value.length;
+
+        if (totalBytes > 0) {
+          const progress = Math.round((receivedBytes / totalBytes) * 100);
+          setDownloadingTracks(prev => ({ ...prev, [trackId]: progress }));
+        }
+      }
+
+      const blob = new Blob(chunks, { type: response.headers.get('content-type') || 'audio/webm' });
+
+      await offlineDb.saveTrack({
+        id: trackId,
+        track_name: track.track_name || track.name || 'Unknown Track',
+        artist: track.artist || 'Unknown Artist',
+        album_art_url: track.album_art_url || track.artwork || '/static/img/logo.png',
+        duration_ms: track.duration_ms || track.duration || 0,
+        blob: blob,
+        playCount: 0,
+        liked: 0,
+        downloadedAt: Date.now()
+      });
+
+      setDownloadedTracks(prev => {
+        const next = new Set(prev);
+        next.add(trackId);
+        return next;
+      });
+
+      triggerToast(`Downloaded "${track.track_name || 'Track'}" successfully!`, "success");
+    } catch (e) {
+      console.error('[Download] Failed:', e);
+      triggerToast("Download failed. Please try again.", "error");
+    } finally {
+      setDownloadingTracks(prev => {
+        const next = { ...prev };
+        delete next[trackId];
+        return next;
+      });
+    }
+  };
 
   // Notification helper
   const triggerToast = (text, type = 'info') => {
@@ -1918,6 +2010,29 @@ export default function RoomClient({ roomId }) {
                             <span style={{ fontSize: '10px', color: 'var(--text-4)', marginTop: '2px' }}>added by @{item.added_by_name}</span>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                            {downloadedTracks.has(item.track_uri || item.id) ? (
+                              <button className="btn-vote" disabled title="Downloaded" style={{ background: 'rgba(74, 222, 128, 0.1)', color: '#4ade80', cursor: 'default' }}>
+                                <Check size={12} />
+                              </button>
+                            ) : downloadingTracks[item.track_uri || item.id] !== undefined ? (
+                              <button className="btn-vote" disabled style={{ color: 'var(--amber)' }}>
+                                {downloadingTracks[item.track_uri || item.id]}%
+                              </button>
+                            ) : (
+                              <button 
+                                className="btn-vote" 
+                                onClick={() => handleDownloadTrack({
+                                  track_uri: item.track_uri || item.id,
+                                  track_name: item.track_name,
+                                  artist: item.artist,
+                                  album_art_url: item.album_art_url,
+                                  duration_ms: item.duration_ms
+                                })} 
+                                title="Download Track"
+                              >
+                                <Download size={12} />
+                              </button>
+                            )}
                             <button 
                               className={`btn-vote ${item.voted ? 'voted' : ''}`}
                               onClick={() => handleVoteQueueTrack(item.id)}
@@ -1967,13 +2082,39 @@ export default function RoomClient({ roomId }) {
                             <span className="q-track-title" style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.track_name}</span>
                             <span className="q-track-artist" style={{ fontSize: '11px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.artist}</span>
                           </div>
-                          <button 
-                            className="btn btn-secondary" 
-                            onClick={() => handleAddTrack(item)} 
-                            style={{ fontSize: '11px', padding: '6px 12px', borderRadius: '8px' }}
-                          >
-                            + Add Back
-                          </button>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            {downloadedTracks.has(item.track_uri || item.id) ? (
+                              <button className="btn btn-secondary" disabled title="Downloaded" style={{ background: 'rgba(74, 222, 128, 0.1)', color: '#4ade80', padding: '6px 8px', borderRadius: '8px' }}>
+                                <Check size={12} />
+                              </button>
+                            ) : downloadingTracks[item.track_uri || item.id] !== undefined ? (
+                              <button className="btn btn-secondary" disabled style={{ fontSize: '11px', padding: '6px 8px', borderRadius: '8px', color: 'var(--amber)' }}>
+                                {downloadingTracks[item.track_uri || item.id]}%
+                              </button>
+                            ) : (
+                              <button 
+                                className="btn btn-secondary" 
+                                onClick={() => handleDownloadTrack({
+                                  track_uri: item.track_uri || item.id,
+                                  track_name: item.track_name || item.title,
+                                  artist: item.artist,
+                                  album_art_url: item.album_art_url || item.artwork,
+                                  duration_ms: item.duration_ms || item.duration
+                                })} 
+                                title="Download Track"
+                                style={{ padding: '6px 8px', borderRadius: '8px' }}
+                              >
+                                <Download size={12} />
+                              </button>
+                            )}
+                            <button 
+                              className="btn btn-secondary" 
+                              onClick={() => handleAddTrack(item)} 
+                              style={{ fontSize: '11px', padding: '6px 12px', borderRadius: '8px' }}
+                            >
+                              + Add Back
+                            </button>
+                          </div>
                         </div>
                       ))
                     ) : (
