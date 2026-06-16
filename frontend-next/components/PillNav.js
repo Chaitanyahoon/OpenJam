@@ -269,7 +269,7 @@ const PillNav = ({
                     <span className="label-stack">
                       <span className="pill-label">{item.label}</span>
                       <span className="pill-label-hover" aria-hidden="true">
-                        {item.label}
+                        {item.labelHover || item.label}
                       </span>
                     </span>
                   </Link>
@@ -293,7 +293,7 @@ const PillNav = ({
                     <span className="label-stack">
                       <span className="pill-label">{item.label}</span>
                       <span className="pill-label-hover" aria-hidden="true">
-                        {item.label}
+                        {item.labelHover || item.label}
                       </span>
                     </span>
                   </a>

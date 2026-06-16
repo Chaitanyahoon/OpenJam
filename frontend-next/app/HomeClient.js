@@ -423,12 +423,19 @@ export default function HomePage() {
               {getInitials(me.display_name)}
             </span>
           )}
-          <span>{me.display_name}</span>
+          <span>{me.display_name} ▾</span>
+        </span>
+      );
+
+      const userLabelHover = (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#ef4444' }}>
+          <span>Logout ⎋</span>
         </span>
       );
 
       list.push({
         label: userLabel,
+        labelHover: userLabelHover,
         href: '#leave',
         ariaLabel: `Leave session for ${me.display_name}`,
         onClick: (e) => {

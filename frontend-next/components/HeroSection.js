@@ -89,8 +89,8 @@ export default function HeroSection({
       style={{
         position: 'relative',
         zIndex: 10,
-        padding: '120px 24px 100px',
-        minHeight: '90vh',
+        padding: '80px 24px 60px',
+        minHeight: '82vh',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
