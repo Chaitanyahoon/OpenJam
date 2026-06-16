@@ -415,6 +415,13 @@ export default function RoomClient({ roomId }) {
     };
   }, [roomId]);
 
+  // Connection status observer
+  useEffect(() => {
+    if (!isConnected && isReady) {
+      triggerToast('Connecting to live session server...', 'warning');
+    }
+  }, [isConnected, isReady]);
+
   // 2. WebSocket Listeners Setup
   useEffect(() => {
     if (!socket || !isReady) {

@@ -42,6 +42,14 @@ class Settings:
             for origin in self.ALLOWED_ORIGINS.split(",")
             if origin.strip()
         ]
+        # Auto-append www. versions of custom HTTPS domains to prevent CORS blockages
+        extra_origins = []
+        for origin in self.ALLOWED_ORIGINS:
+            if origin.startswith("https://") and not origin.startswith("https://www."):
+                www_version = origin.replace("https://", "https://www.", 1)
+                if www_version not in self.ALLOWED_ORIGINS:
+                    extra_origins.append(www_version)
+        self.ALLOWED_ORIGINS.extend(extra_origins)
         if self.ENVIRONMENT == "development":
             local_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
             try:
