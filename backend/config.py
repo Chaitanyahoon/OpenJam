@@ -42,6 +42,19 @@ class Settings:
             for origin in self.ALLOWED_ORIGINS.split(",")
             if origin.strip()
         ]
+        if self.ENVIRONMENT == "development":
+            local_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
+            try:
+                import socket
+                hostname = socket.gethostname()
+                local_ip = socket.gethostbyname(hostname)
+                if local_ip:
+                    local_origins.append(f"http://{local_ip}:3000")
+            except Exception:
+                pass
+            for origin in local_origins:
+                if origin not in self.ALLOWED_ORIGINS:
+                    self.ALLOWED_ORIGINS.append(origin)
         if self.ENVIRONMENT == "production" and (
             not self.SECRET_KEY or self.SECRET_KEY == "change-me-in-production"
         ):

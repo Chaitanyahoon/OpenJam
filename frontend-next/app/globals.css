@@ -2439,7 +2439,7 @@ body:not(.room-page) .navbar {
   .hero-actions {
     flex-direction: column; width: 100%; max-width: 320px; margin: 0 auto;
   }
-  .hero-actions .btn { width: 100%; justify-content: center; }
+  .hero-actions > .btn { width: 100%; justify-content: center; }
   #btn-instant-jam { padding: 14px 24px; font-size: 14px; }
   .btn-discord-cta { padding: 12px 20px; font-size: 13px; }
   .hero-showcase-right { width: 100%; max-width: 300px; }
@@ -9578,12 +9578,14 @@ body:not(.room-page) .navbar:hover {
     gap: 10px !important;
     height: calc(100dvh - 136px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) !important;
     overflow: hidden !important;
+    justify-content: flex-start !important;
   }
   .room-now-playing {
     display: none !important;
   }
   .room-now-playing.tab-active {
     display: flex !important;
+    height: 100% !important;
     animation: tabSlideIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
   }
   .room-sidebar {
@@ -10374,3 +10376,23 @@ div:hover > .play-hover-btn,
     grid-template-columns: 1fr;
   }
 }
+
+.hero-sub-actions-row {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  width: 100% !important;
+  gap: 10px !important;
+  justify-content: center !important;
+  align-items: center !important;
+}
+
+@media (max-width: 640px) {
+  .hero-sub-actions-row .btn {
+    flex: 1 1 calc(50% - 5px) !important;
+    min-width: 0 !important;
+    padding: 10px 12px !important;
+    font-size: 13px !important;
+  }
+}
+

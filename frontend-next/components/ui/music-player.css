@@ -1838,9 +1838,7 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
 
   .mp-theater-body.lyrics-visible .mp-theater-lyrics {
     display: flex !important;
-    flex: 1 1 auto !important;
-    height: 220px !important;
-    min-height: 180px !important;
+    flex: 1 1 0% !important;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
     order: 1 !important;
   }

@@ -2,19 +2,23 @@ import { offlineDb } from './offlineDb';
 
 const SILENT_WAV_B64 = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQAAAAA=";
 const getBackendUrl = () => {
+  if (typeof window !== 'undefined') {
+    const isLocal = window.location.hostname === 'localhost' ||
+                    window.location.hostname === '127.0.0.1' ||
+                    window.location.hostname.startsWith('192.168.') ||
+                    window.location.hostname.startsWith('10.') ||
+                    /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(window.location.hostname);
+    if (isLocal) {
+      return `http://${window.location.hostname}:8000`;
+    }
+  }
   if (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_BACKEND_URL) {
     const url = process.env.NEXT_PUBLIC_BACKEND_URL;
     if (url !== 'undefined' && url !== 'null' && url.trim() !== '') {
       return url.replace(/\/$/, '');
     }
   }
-  if (typeof window !== 'undefined') {
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      return 'http://localhost:8000';
-    }
-    return 'https://openjam.onrender.com';
-  }
-  return 'http://localhost:8000';
+  return 'https://openjam.onrender.com';
 };
 const BACKEND_URL = getBackendUrl();
 
