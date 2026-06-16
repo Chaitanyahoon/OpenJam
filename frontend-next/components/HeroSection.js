@@ -57,6 +57,8 @@ export default function HeroSection({
   domeTracks = [],
   activePreview,
   isPlayingPreview,
+  showInstallBtn,
+  onInstallClick,
 }) {
   const [mounted, setMounted] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -543,6 +545,34 @@ export default function HeroSection({
                 <div className="bubble-bg b4" />
                 <span className="btn-bubble-content">
                   ➕ Create Jam
+                </span>
+              </motion.button>
+            )}
+
+            {showInstallBtn && (
+              <motion.button
+                type="button"
+                className="btn btn-secondary btn-elegant-glow btn-bubble"
+                onClick={onInstallClick}
+                style={{ 
+                  padding: '14px 28px', 
+                  fontSize: '15px', 
+                  borderRadius: '99px',
+                  border: '1px solid rgba(255, 176, 58, 0.4)',
+                  boxShadow: '0 4px 15px rgba(255, 176, 58, 0.1)',
+                }}
+                whileHover={reduceMotion ? undefined : { 
+                  scale: 1.05, 
+                  boxShadow: '0 12px 32px rgba(255, 176, 58, 0.25)' 
+                }}
+                whileTap={reduceMotion ? undefined : { scale: 0.98 }}
+              >
+                <div className="bubble-bg b1" />
+                <div className="bubble-bg b2" />
+                <div className="bubble-bg b3" />
+                <div className="bubble-bg b4" />
+                <span className="btn-bubble-content" style={{ color: '#ffb03a' }}>
+                  📱 Install App
                 </span>
               </motion.button>
             )}

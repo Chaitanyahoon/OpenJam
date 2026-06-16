@@ -159,7 +159,7 @@ export default function PwaInstallPrompt() {
           </button>
         </div>
 
-        {installType === 'android' ? (
+        {deferredPrompt ? (
           <button
             onClick={handleInstallClick}
             style={{
@@ -182,7 +182,7 @@ export default function PwaInstallPrompt() {
             <Download className="h-4 w-4" />
             Install App
           </button>
-        ) : (
+        ) : isIOS ? (
           <div style={{
             background: 'rgba(255, 255, 255, 0.03)',
             borderRadius: '10px',
@@ -198,6 +198,24 @@ export default function PwaInstallPrompt() {
             <Share2 className="h-4 w-4" style={{ color: '#ffb03a', flexShrink: 0 }} />
             <span>
               Tap the <strong>Share</strong> button, then select <strong>Add to Home Screen</strong> to install.
+            </span>
+          </div>
+        ) : (
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.03)',
+            borderRadius: '10px',
+            padding: '10px',
+            border: '1px solid rgba(255, 255, 255, 0.05)',
+            fontSize: '11px',
+            color: 'rgba(255, 255, 255, 0.8)',
+            lineHeight: '1.5',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <Smartphone className="h-4 w-4" style={{ color: '#ffb03a', flexShrink: 0 }} />
+            <span>
+              Tap your browser menu (e.g. <strong>three dots</strong>) and select <strong>Add to Home Screen</strong> or <strong>Install</strong>.
             </span>
           </div>
         )}
