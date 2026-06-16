@@ -26,8 +26,15 @@ export default class YouTubePlayer {
   constructor(options = {}) {
     if (typeof window === 'undefined') return;
 
-    this.player = new Audio();
-    this.player.preload = "auto";
+    this.playerA = new Audio();
+    this.playerA.preload = "auto";
+    this.playerB = new Audio();
+    this.playerB.preload = "auto";
+    this.activePlayer = this.playerA;
+    this.player = this.activePlayer;
+    this.fadePlayer = null;
+    this.fadeOutInterval = null;
+    this.fadeInInterval = null;
     this.ytPlayer = null;
     this.currentVideoId = null;
     this.positionMs = 0;
@@ -72,118 +79,137 @@ export default class YouTubePlayer {
   }
 
   _initAudio() {
-    this.player.addEventListener('loadstart', () => {
-      if (!this.player.src || !this.player.src.includes('/stream/')) return;
+    this._setupAudioListeners(this.playerA, 'playerA');
+    this._setupAudioListeners(this.playerB, 'playerB');
+  }
+
+  _setupAudioListeners(audioElement, name) {
+    audioElement.addEventListener('loadstart', () => {
+      if (audioElement !== this.activePlayer) return;
+      if (!audioElement.src || !audioElement.src.includes('/stream/')) return;
       this._showLoadIndicator();
     });
-    this.player.addEventListener('play', () => {
-      if (!this.player.src || !this.player.src.includes('/stream/')) return;
+    audioElement.addEventListener('play', () => {
+      if (audioElement !== this.activePlayer) return;
+      if (!audioElement.src || !audioElement.src.includes('/stream/')) return;
       this._onStateChange('play');
       this._hideLoadIndicator();
+      
+      // Trigger fade-in if crossfading is active
+      if (this.fadePlayer) {
+        this.startFadeIn(audioElement);
+      }
     });
-    this.player.addEventListener('pause', () => {
-      if (!this.player.src || !this.player.src.includes('/stream/')) return;
+    audioElement.addEventListener('pause', () => {
+      if (audioElement !== this.activePlayer) return;
+      if (!audioElement.src || !audioElement.src.includes('/stream/')) return;
       this._onStateChange('pause');
     });
-    this.player.addEventListener('ended', () => {
-      if (!this.player.src || !this.player.src.includes('/stream/')) return;
+    audioElement.addEventListener('ended', () => {
+      if (audioElement !== this.activePlayer) return;
+      if (!audioElement.src || !audioElement.src.includes('/stream/')) return;
       this._onStateChange('ended');
     });
-    this.player.addEventListener('canplay', () => {
-      if (!this.player.src || !this.player.src.includes('/stream/')) return;
+    audioElement.addEventListener('canplay', () => {
+      if (audioElement !== this.activePlayer) return;
+      if (!audioElement.src || !audioElement.src.includes('/stream/')) return;
       if (this._stallTimer) { clearTimeout(this._stallTimer); this._stallTimer = null; }
       this._hideLoadIndicator();
     });
 
-    const handleAudioError = (source) => {
-      if (!this.player.src || !this.player.src.includes('/stream/')) return;
-      this._hideLoadIndicator();
-      console.error(`Audio stream error from ${source}, fail count:`, this._streamFailCount);
-      this._streamFailCount++;
+    audioElement.addEventListener('error', () => {
+      if (audioElement !== this.activePlayer) return;
+      if (!audioElement.src || !audioElement.src.includes('/stream/')) return;
+      const err = audioElement.error;
+      console.error(`HTML5 Audio Error details (${name}):`, err ? { code: err.code, message: err.message } : "No details");
+      console.error(`HTML5 Audio Player State (${name}):`, {
+        src: audioElement.src,
+        networkState: audioElement.networkState,
+        readyState: audioElement.readyState
+      });
+      this._handleAudioError('error_event', audioElement);
+    });
 
-      if (this._streamFailCount >= this._maxStreamFails) {
-        if (!this._useIFrame) {
-          console.warn('Stream failed completely, switching to YouTube IFrame fallback');
-          if (this.onStreamFailUpdate) this.onStreamFailUpdate(null);
-          
-          try {
-            this.player.pause();
-            this.player.src = '';
-            this.player.load();
-          } catch (e) {}
+    audioElement.addEventListener('stalled', () => {
+      if (audioElement !== this.activePlayer) return;
+      if (!audioElement.src || !audioElement.src.includes('/stream/')) return;
+      if (this._stallTimer) clearTimeout(this._stallTimer);
+      this._showLoadIndicator();
+      this._stallTimer = setTimeout(() => {
+        if (audioElement.readyState < 2 && !audioElement.paused) {
+          console.warn('Stream stalled for 12s, triggering error');
+          this._handleAudioError('stalled_timeout', audioElement);
+        }
+      }, 12000);
+    });
 
-          this._useIFrame = true;
-          this._initIFramePlayer();
-          if (this.currentVideoId) {
-            this._loadVideo(this.currentVideoId, Math.round(this.positionMs / 1000));
-          }
-        } else {
-          console.error(`Playback failed completely after ${this._streamFailCount} attempts.`);
-          this.toast("Playback failed after multiple retries. Skipping...", "error");
-          this._emitControlEvent('nexttrack');
+    audioElement.addEventListener('waiting', () => {
+      if (audioElement !== this.activePlayer) return;
+      if (!audioElement.src || !audioElement.src.includes('/stream/')) return;
+      if (this._stallTimer) clearTimeout(this._stallTimer);
+      this._showLoadIndicator();
+      this._stallTimer = setTimeout(() => {
+        if (audioElement.readyState < 2 && !audioElement.paused) {
+          console.warn('Stream waiting too long, triggering error');
+          this._handleAudioError('waiting_timeout', audioElement);
+        }
+      }, 12000);
+    });
+  }
+
+  _handleAudioError(source, audioElement) {
+    if (audioElement !== this.activePlayer) return;
+    if (!audioElement.src || !audioElement.src.includes('/stream/')) return;
+    this._hideLoadIndicator();
+    console.error(`Audio stream error from ${source}, fail count:`, this._streamFailCount);
+    this._streamFailCount++;
+
+    if (this._streamFailCount >= this._maxStreamFails) {
+      if (!this._useIFrame) {
+        console.warn('Stream failed completely, switching to YouTube IFrame fallback');
+        if (this.onStreamFailUpdate) this.onStreamFailUpdate(null);
+        
+        try {
+          audioElement.pause();
+          audioElement.src = '';
+          audioElement.load();
+        } catch (e) {}
+
+        this._useIFrame = true;
+        this._initIFramePlayer();
+        if (this.currentVideoId) {
+          this._loadVideo(this.currentVideoId, Math.round(this.positionMs / 1000));
         }
       } else {
-        if (this._streamFailCount === 1 && !this._useLowBitrate && this.currentVideoId) {
-          console.warn('Stream failed, trying low bitrate fallback...');
-          if (this.onStreamFailUpdate) this.onStreamFailUpdate("Trying alternative source…");
-          this._useLowBitrate = true;
-          this.player.src = `${BACKEND_URL}/stream/${this.currentVideoId}?low=true`;
-          this.setVolume(this.volume);
-          this.player.currentTime = Math.round(this.positionMs / 1000);
-          this.player.play().catch(() => {});
-        } else if (this._streamFailCount === 2 && this.currentVideoId) {
-          console.warn('Stream failed again, trying low bitrate with cache-buster...');
-          if (this.onStreamFailUpdate) this.onStreamFailUpdate("Refreshing stream metadata…");
-          this.player.src = `${BACKEND_URL}/stream/${this.currentVideoId}?low=true&nocache=true`;
-          this.setVolume(this.volume);
-          this.player.currentTime = Math.round(this.positionMs / 1000);
-          this.player.play().catch(() => {});
-        } else if (this._streamFailCount === 3 && this.currentVideoId) {
-          console.warn('Stream failed 3 times, trying fresh standard stream...');
-          if (this.onStreamFailUpdate) this.onStreamFailUpdate("Retrying standard source…");
-          this.player.src = `${BACKEND_URL}/stream/${this.currentVideoId}?nocache=true`;
-          this.setVolume(this.volume);
-          this.player.currentTime = Math.round(this.positionMs / 1000);
-          this.player.play().catch(() => {});
-        }
+        console.error(`Playback failed completely after ${this._streamFailCount} attempts.`);
+        this.toast("Playback failed after multiple retries. Skipping...", "error");
+        this._emitControlEvent('nexttrack');
       }
-    };
-
-    this.player.addEventListener('error', () => {
-      if (!this.player.src || !this.player.src.includes('/stream/')) return;
-      const err = this.player.error;
-      console.error("HTML5 Audio Error details:", err ? { code: err.code, message: err.message } : "No details");
-      console.error("HTML5 Audio Player State:", {
-        src: this.player.src,
-        networkState: this.player.networkState,
-        readyState: this.player.readyState
-      });
-      handleAudioError('error_event');
-    });
-
-    this.player.addEventListener('stalled', () => {
-      if (!this.player.src || !this.player.src.includes('/stream/')) return;
-      if (this._stallTimer) clearTimeout(this._stallTimer);
-      this._showLoadIndicator();
-      this._stallTimer = setTimeout(() => {
-        if (this.player.readyState < 2 && !this.player.paused) {
-          console.warn('Stream stalled for 12s, triggering error');
-          handleAudioError('stalled_timeout');
-        }
-      }, 12000);
-    });
-
-    this.player.addEventListener('waiting', () => {
-      if (!this.player.src || !this.player.src.includes('/stream/')) return;
-      if (this._stallTimer) clearTimeout(this._stallTimer);
-      this._showLoadIndicator();
-      this._stallTimer = setTimeout(() => {
-        if (this.player.readyState < 2 && !this.player.paused) {
-          console.warn('Stream waiting too long, triggering error');
-          handleAudioError('waiting_timeout');
-        }
-      }, 12000);
-    });
+    } else {
+      if (this._streamFailCount === 1 && !this._useLowBitrate && this.currentVideoId) {
+        console.warn('Stream failed, trying low bitrate fallback...');
+        if (this.onStreamFailUpdate) this.onStreamFailUpdate("Trying alternative source…");
+        this._useLowBitrate = true;
+        audioElement.src = `${BACKEND_URL}/stream/${this.currentVideoId}?low=true`;
+        this.setVolume(this.volume);
+        audioElement.currentTime = Math.round(this.positionMs / 1000);
+        audioElement.play().catch(() => {});
+      } else if (this._streamFailCount === 2 && this.currentVideoId) {
+        console.warn('Stream failed again, trying low bitrate with cache-buster...');
+        if (this.onStreamFailUpdate) this.onStreamFailUpdate("Refreshing stream metadata…");
+        audioElement.src = `${BACKEND_URL}/stream/${this.currentVideoId}?low=true&nocache=true`;
+        this.setVolume(this.volume);
+        audioElement.currentTime = Math.round(this.positionMs / 1000);
+        audioElement.play().catch(() => {});
+      } else if (this._streamFailCount === 3 && this.currentVideoId) {
+        console.warn('Stream failed 3 times, trying fresh standard stream...');
+        if (this.onStreamFailUpdate) this.onStreamFailUpdate("Retrying standard source…");
+        audioElement.src = `${BACKEND_URL}/stream/${this.currentVideoId}?nocache=true`;
+        this.setVolume(this.volume);
+        audioElement.currentTime = Math.round(this.positionMs / 1000);
+        audioElement.play().catch(() => {});
+      }
+    }
   }
 
   _initIFramePlayer() {
@@ -407,6 +433,98 @@ export default class YouTubePlayer {
     if (this.onStreamFailUpdate) this.onStreamFailUpdate(null);
   }
 
+  startFadeOut(player) {
+    if (!player) return;
+    
+    const duration = 4000; // 4 seconds
+    const intervalTime = 100; // 100ms
+    const steps = duration / intervalTime;
+    let currentStep = 0;
+    
+    const startVol = player.volume;
+    
+    // Clear any existing fade-out interval
+    if (this.fadeOutInterval) {
+      clearInterval(this.fadeOutInterval);
+    }
+    
+    this.fadeOutInterval = setInterval(() => {
+      currentStep++;
+      const ratio = currentStep / steps; // 0 to 1
+      
+      try {
+        player.volume = Math.max(0, startVol * (1 - ratio));
+      } catch (e) {}
+      
+      if (currentStep >= steps) {
+        clearInterval(this.fadeOutInterval);
+        this.fadeOutInterval = null;
+        if (this.fadePlayer === player) {
+          this.fadePlayer = null;
+        }
+        try {
+          player.pause();
+          player.src = '';
+        } catch (e) {}
+      }
+    }, intervalTime);
+  }
+
+  startFadeIn(player) {
+    if (!player) return;
+    
+    const duration = 4000; // 4 seconds
+    const intervalTime = 100; // 100ms
+    const steps = duration / intervalTime;
+    let currentStep = 0;
+    
+    // Clear any existing fade-in interval
+    if (this.fadeInInterval) {
+      clearInterval(this.fadeInInterval);
+    }
+    
+    player.volume = 0;
+    
+    this.fadeInInterval = setInterval(() => {
+      currentStep++;
+      const ratio = currentStep / steps; // 0 to 1
+      const targetVol = this.volume / 100;
+      
+      try {
+        player.volume = Math.min(targetVol, targetVol * ratio);
+      } catch (e) {}
+      
+      if (currentStep >= steps) {
+        clearInterval(this.fadeInInterval);
+        this.fadeInInterval = null;
+        try {
+          player.volume = targetVol;
+        } catch (e) {}
+      }
+    }, intervalTime);
+  }
+
+  stopCrossfade() {
+    if (this.fadeOutInterval) {
+      clearInterval(this.fadeOutInterval);
+      this.fadeOutInterval = null;
+    }
+    if (this.fadeInInterval) {
+      clearInterval(this.fadeInInterval);
+      this.fadeInInterval = null;
+    }
+    if (this.fadePlayer) {
+      try {
+        this.fadePlayer.pause();
+        this.fadePlayer.src = '';
+      } catch (e) {}
+      this.fadePlayer = null;
+    }
+    if (this.activePlayer) {
+      this.activePlayer.volume = this.volume / 100;
+    }
+  }
+
   _loadVideo(videoId, startSeconds = 0) {
     if (!videoId) return;
     if (!this._userUnlocked) {
@@ -430,10 +548,32 @@ export default class YouTubePlayer {
           }
         }
       }
-      try {
-        this.player.pause();
-        this.player.src = '';
-      } catch (e) {}
+      
+      // Swap players if we already have an active track playing
+      if (this.currentVideoId && !this._useIFrame) {
+        if (this.fadePlayer) {
+          try {
+            this.fadePlayer.pause();
+            this.fadePlayer.src = '';
+          } catch (e) {}
+        }
+        this.fadePlayer = this.activePlayer;
+        this.activePlayer = (this.activePlayer === this.playerA) ? this.playerB : this.playerA;
+        this.player = this.activePlayer;
+        
+        this.startFadeOut(this.fadePlayer);
+      } else {
+        this.stopCrossfade();
+        try {
+          this.playerA.pause();
+          this.playerA.src = '';
+          this.playerB.pause();
+          this.playerB.src = '';
+        } catch (e) {}
+        this.activePlayer = this.playerA;
+        this.player = this.activePlayer;
+        this.fadePlayer = null;
+      }
     }
 
     this.currentVideoId = videoId;
@@ -474,7 +614,13 @@ export default class YouTubePlayer {
           this.player.src = `${BACKEND_URL}/stream/${videoId}`;
         }
         
-        this.setVolume(this.volume);
+        // If crossfading, start new player volume at 0
+        if (this.fadePlayer) {
+          this.player.volume = 0;
+        } else {
+          this.player.volume = this.volume / 100;
+        }
+        
         if (startSeconds > 0) {
           this.player.addEventListener('loadedmetadata', () => {
             this.player.currentTime = startSeconds;
@@ -492,7 +638,13 @@ export default class YouTubePlayer {
       }).catch((err) => {
         console.error('[Player] Error checking offline cache:', err);
         this.player.src = `${BACKEND_URL}/stream/${videoId}`;
-        this.setVolume(this.volume);
+        
+        if (this.fadePlayer) {
+          this.player.volume = 0;
+        } else {
+          this.player.volume = this.volume / 100;
+        }
+        
         if (startSeconds > 0) {
           this.player.addEventListener('loadedmetadata', () => {
             this.player.currentTime = startSeconds;
@@ -615,6 +767,7 @@ export default class YouTubePlayer {
       } else {
         this.player.pause();
         this.stopProgressTimer();
+        this.stopCrossfade(); // Terminate any ongoing crossfade immediately on pause
       }
     }
     setTimeout(() => { this._suppressStateChange = false; }, 500);
@@ -667,6 +820,7 @@ export default class YouTubePlayer {
 
   stop() {
     this.stopProgressTimer();
+    this.stopCrossfade(); // Ensure active crossfade is terminated
     this._hideOverlay();
     this._hideLoadIndicator();
     this.isPlaying = false;
@@ -694,7 +848,10 @@ export default class YouTubePlayer {
 
   setVolume(vol) {
     this.volume = vol;
-    if (this.player) this.player.volume = vol / 100;
+    // Update player volumes, but avoid overriding active fadeInInterval
+    if (!this.fadeInInterval && this.player) {
+      this.player.volume = vol / 100;
+    }
     if (this.ytPlayer && this._ready && typeof this.ytPlayer.setVolume === 'function') {
       this.ytPlayer.setVolume(vol);
     }
@@ -702,6 +859,11 @@ export default class YouTubePlayer {
 
   destroy() {
     this.stop();
+    this.stopCrossfade();
+    try {
+      this.playerA.src = '';
+      this.playerB.src = '';
+    } catch (e) {}
     if (this._useIFrame && this.ytPlayer) {
       try { this.ytPlayer.destroy(); } catch(e) {}
       this.ytPlayer = null;

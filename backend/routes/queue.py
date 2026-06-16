@@ -222,14 +222,41 @@ async def vote_track(room_id: str, item_id: str, request: Request, db: Session =
     if not success:
         raise HTTPException(status_code=409, detail="Already voted")
     queue = queue_manager.get_queue(db, room_id)
+
+    # Pre-resolve the new next track in queue in background
+    if queue:
+        next_track_uri = None
+        for q_item in queue:
+            if q_item.get("status") != "playing" and q_item.get("status") != "played":
+                next_track_uri = q_item.get("track_uri")
+                break
+        if next_track_uri and len(next_track_uri) == 11:
+            asyncio.create_task(pre_resolve_url(next_track_uri))
+
     return {"queue": queue}
 
+
+async def pre_resolve_search_results(tracks: list):
+    """Resolve YouTube IDs and pre-resolve stream URLs in background for search/reco results."""
+    for track in tracks:
+        uri = track.get("uri")
+        if uri and (" " in uri or len(uri) != 11):
+            try:
+                # Run resolve_youtube in threadpool since it can block
+                video_id = await asyncio.to_thread(lastfm_service.resolve_youtube, uri)
+                if video_id:
+                    # Pre-resolve stream URL (and download to cache if configured)
+                    await pre_resolve_url(video_id)
+            except Exception as e:
+                logger.warning(f"Failed to pre-resolve search result {uri}: {e}")
 
 @router.get("/search/tracks")
 async def search_tracks(q: str = ""):
     if not q.strip():
         return {"tracks": []}
     tracks = await asyncio.to_thread(lastfm_service.search_tracks, q.strip())
+    if tracks:
+        asyncio.create_task(pre_resolve_search_results(tracks[:3]))
     return {"tracks": tracks}
 
 
@@ -273,6 +300,8 @@ async def resolve_youtube(q: str = ""):
 async def get_recommendations():
     """Return trending/popular tracks as search starting suggestions (no key needed)."""
     tracks = await asyncio.to_thread(lastfm_service.get_recommendations)
+    if tracks:
+        asyncio.create_task(pre_resolve_search_results(tracks[:3]))
     return {"tracks": tracks}
 
 
