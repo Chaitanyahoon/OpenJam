@@ -1,8 +1,0 @@
-User-agent: *
-Allow: /
-Disallow: /admin
-Disallow: /room/
-Disallow: /offline
-Disallow: /_next/
-
-Sitemap: https://www.openjam.fun/sitemap.xml
