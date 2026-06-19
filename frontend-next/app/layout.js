@@ -14,21 +14,6 @@ export const metadata = {
     template: "%s | Open Jam"
   },
   description: "Create and join public listening rooms. Stream music, sync playback with friends, share queues, and discover new songs together in real-time.",
-  keywords: [
-    "listen together",
-    "music synchronization",
-    "synchronized music room",
-    "listen with friends",
-    "youtube sync",
-    "social listening room",
-    "online jukebox",
-    "group listening",
-    "music watch party",
-    "collaborative queue",
-    "realtime music sync",
-    "open jam",
-    "openjam"
-  ],
   manifest: "/manifest.json",
   icons: {
     icon: "/static/img/logo.png",
@@ -67,9 +52,10 @@ export const metadata = {
     description: "Create and join public listening rooms. Stream music, sync playback with friends, share queues, and discover new songs together in real-time.",
     images: ["/static/img/og-image.svg"],
   },
-  other: {
-    "mobile-web-app-capable": "yes",
-    "apple-mobile-web-app-status-bar-style": "black-translucent",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Open Jam",
   }
 };
 

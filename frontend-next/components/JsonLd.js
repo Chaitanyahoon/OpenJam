@@ -27,7 +27,7 @@ export function JsonLd() {
         name: "Open Jam",
         url: SITE_URL,
         image: `${SITE_URL}/static/img/logo.png`,
-        applicationCategory: "MultimediaApplication",
+        applicationCategory: "MusicApplication",
         operatingSystem: "Windows, macOS, Linux, iOS, Android",
         browserRequirements: "Requires HTML5, Web Audio API, JavaScript",
         description: "A real-time collaborative music listening platform to stream music, synchronize queues, and enjoy audio sessions with friends.",

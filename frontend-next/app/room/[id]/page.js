@@ -13,6 +13,7 @@ export async function generateMetadata({ params }) {
     return {
       title: 'Jam Room — Open Jam',
       description: 'Join a live listening room, queue tracks, and stream music with friends.',
+      robots: { index: false, follow: false },
     };
   }
 
@@ -50,7 +51,8 @@ export async function generateMetadata({ params }) {
         return {
           title,
           description,
-          alternates: { canonical: `https://www.openjam.fun/room/${id}` },
+          robots: { index: false, follow: false },
+          alternates: { canonical: 'https://www.openjam.fun' },
           openGraph: {
             title,
             description,
@@ -82,6 +84,7 @@ export async function generateMetadata({ params }) {
   return {
     title: 'Jam Room — Open Jam',
     description: 'Join a live listening room and discover music together in real-time on Open Jam.',
+    robots: { index: false, follow: false },
     alternates: { canonical: 'https://www.openjam.fun' },
     openGraph: {
       title: 'Jam Room — Open Jam',
