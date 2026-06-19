@@ -82,9 +82,17 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => {
-          return caches.match(event.request).then((cachedResponse) => {
-            return cachedResponse || caches.match('/offline');
-          });
+          // If already on /offline navigation, serve it directly from cache to prevent loop
+          if (url.pathname === '/offline') {
+            return caches.match('/offline');
+          }
+          // Redirect the browser to the /offline route so the address bar updates and Next.js handles it cleanly
+          try {
+            return Response.redirect('/offline', 302);
+          } catch (err) {
+            // Fallback if Response.redirect fails in legacy browsers
+            return caches.match('/offline');
+          }
         })
     );
     return;

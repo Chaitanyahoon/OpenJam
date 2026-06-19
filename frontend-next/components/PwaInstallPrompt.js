@@ -3,13 +3,31 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Smartphone, Download, Share2, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 export default function PwaInstallPrompt() {
+  const router = useRouter();
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   const [showPrompt, setShowPrompt] = useState(false);
   const [installType, setInstallType] = useState(null); // 'android' or 'ios'
+
+  // Prefetch /offline page chunks to ensure offline support works flawlessly when connection drops
+  useEffect(() => {
+    if (typeof window === 'undefined' || !navigator.onLine) return;
+    
+    const prefetchTimer = setTimeout(() => {
+      try {
+        router.prefetch('/offline');
+        console.log('[PWA] Prefetched /offline chunks for seamless offline access.');
+      } catch (err) {
+        console.warn('[PWA] Prefetching /offline failed:', err);
+      }
+    }, 5000); // 5s delay to let critical assets load first
+
+    return () => clearTimeout(prefetchTimer);
+  }, [router]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;

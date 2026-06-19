@@ -41,6 +41,7 @@ export default function RoomClient({ roomId }) {
   const [settingsSound, setSettingsSound] = useState(true);
   const [settingsVisuals, setSettingsVisuals] = useState(true);
   const [settingsHaptics, setSettingsHaptics] = useState(true);
+  const [settingsNotifications, setSettingsNotifications] = useState(false);
 
   // Search & Inputs
   const [chatInput, setChatInput] = useState('');
@@ -89,6 +90,27 @@ export default function RoomClient({ roomId }) {
     playbackStateRef.current = playbackState;
   }, [playbackState]);
 
+  const settingsNotificationsRef = useRef(false);
+  const roomRef = useRef(null);
+  const activeTabRef = useRef('playing');
+  const meRef = useRef(null);
+
+  useEffect(() => {
+    settingsNotificationsRef.current = settingsNotifications;
+  }, [settingsNotifications]);
+
+  useEffect(() => {
+    roomRef.current = room;
+  }, [room]);
+
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
+  useEffect(() => {
+    meRef.current = me;
+  }, [me]);
+
   useEffect(() => {
     streamErrorMsgRef.current = streamErrorMsg;
   }, [streamErrorMsg]);
@@ -118,6 +140,55 @@ export default function RoomClient({ roomId }) {
   }, [activeTab, nowPlaying]);
 
   const isHost = me && room && room.host_user_id === me.id;
+
+  const sendDesktopNotification = (title, options = {}) => {
+    if (!settingsNotificationsRef.current) return;
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
+
+    try {
+      new Notification(title, {
+        icon: '/logo.png',
+        ...options,
+      });
+    } catch (e) {
+      console.error('Failed to show notification:', e);
+    }
+  };
+
+  const handleToggleNotifications = async (val) => {
+    if (!val) {
+      setSettingsNotifications(false);
+      localStorage.setItem('openjam_setting_notifications', 'false');
+      return;
+    }
+
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      alert('Desktop notifications are not supported in this browser.');
+      return;
+    }
+
+    if (Notification.permission === 'granted') {
+      setSettingsNotifications(true);
+      localStorage.setItem('openjam_setting_notifications', 'true');
+      sendDesktopNotification('OpenJam Notifications Enabled', {
+        body: 'You will receive notifications for new chat messages and alerts when not active.'
+      });
+    } else if (Notification.permission !== 'denied') {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        setSettingsNotifications(true);
+        localStorage.setItem('openjam_setting_notifications', 'true');
+        sendDesktopNotification('OpenJam Notifications Enabled', {
+          body: 'You will receive notifications for new chat messages and alerts when not active.'
+        });
+      } else {
+        alert('Notification permission denied. Please allow notifications in your browser settings.');
+      }
+    } else {
+      alert('Notification permission is denied. Please reset the site permissions in your browser address bar.');
+    }
+  };
 
   const [downloadingTracks, setDownloadingTracks] = useState({});
   const [downloadedTracks, setDownloadedTracks] = useState(new Set());
@@ -236,6 +307,15 @@ export default function RoomClient({ roomId }) {
     if (settingsHaptics && navigator.vibrate) {
       navigator.vibrate(50);
     }
+
+    const isWindowBackground = typeof document !== 'undefined' && (document.visibilityState === 'hidden' || !document.hasFocus());
+    if (isWindowBackground) {
+      sendDesktopNotification('OpenJam Alert', {
+        body: text,
+        tag: 'room-alert',
+        renotify: true
+      });
+    }
   };
 
   const playAlertSound = (type) => {
@@ -333,6 +413,19 @@ export default function RoomClient({ roomId }) {
     
     const storedHaptics = localStorage.getItem('openjam_setting_haptics');
     if (storedHaptics !== null) setSettingsHaptics(storedHaptics === 'true');
+
+    const storedNotifications = localStorage.getItem('openjam_setting_notifications');
+    if (storedNotifications !== null) {
+      const enabled = storedNotifications === 'true';
+      if (enabled && typeof window !== 'undefined' && 'Notification' in window) {
+        if (Notification.permission === 'granted') {
+          setSettingsNotifications(true);
+        } else {
+          setSettingsNotifications(false);
+          localStorage.setItem('openjam_setting_notifications', 'false');
+        }
+      }
+    }
 
     const handleResize = () => {
       if (window.innerWidth < 480) {
@@ -518,6 +611,19 @@ export default function RoomClient({ roomId }) {
     socket.on('chat_message', (msg) => {
       setChatMsgs((prev) => [...prev, msg]);
       scrollToChatBottom();
+
+      const isSelf = meRef.current && msg.user_id === meRef.current.id;
+      if (!isSelf && msg.type !== 'system') {
+        const isWindowBackground = typeof document !== 'undefined' && (document.visibilityState === 'hidden' || !document.hasFocus());
+        const isChatNotVisible = activeTabRef.current !== 'chat';
+        if (isWindowBackground || isChatNotVisible) {
+          sendDesktopNotification(msg.user_name || 'New Message', {
+            body: msg.content,
+            tag: 'chat-message',
+            renotify: true
+          });
+        }
+      }
     });
 
     socket.on('reaction', (data) => {
@@ -2545,7 +2651,7 @@ export default function RoomClient({ roomId }) {
                   </label>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                   <div>
                     <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-1)' }}>Haptic Feedback</div>
                     <div style={{ fontSize: '12px', color: 'var(--text-3)', marginTop: '2px' }}>Enable vibrations on interactions (mobile)</div>
@@ -2558,6 +2664,21 @@ export default function RoomClient({ roomId }) {
                         setSettingsHaptics(e.target.checked);
                         localStorage.setItem('openjam_setting_haptics', e.target.checked);
                       }}
+                    />
+                    <span className="toggle-switch-slider"></span>
+                  </label>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-1)' }}>Desktop Notifications</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-3)', marginTop: '2px' }}>Receive notifications for chat & room alerts</div>
+                  </div>
+                  <label className="toggle-switch">
+                    <input 
+                      type="checkbox" 
+                      checked={settingsNotifications} 
+                      onChange={(e) => handleToggleNotifications(e.target.checked)}
                     />
                     <span className="toggle-switch-slider"></span>
                   </label>
