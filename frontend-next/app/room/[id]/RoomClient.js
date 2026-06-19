@@ -671,6 +671,11 @@ export default function RoomClient({ roomId }) {
       if (data.listeners) setListeners(data.listeners);
     });
 
+    socket.on('host_changed', (data) => {
+      setRoom((prev) => prev ? { ...prev, host_user_id: data.host_user_id } : null);
+      triggerToast(`@${data.host_name} is now the host of the room`, 'info');
+    });
+
     socket.on('queue_updated', (data) => {
       setQueue(data.queue || []);
     });
@@ -787,6 +792,7 @@ export default function RoomClient({ roomId }) {
       socket.off('user_joined');
       socket.off('user_left');
       socket.off('listener_count');
+      socket.off('host_changed');
       socket.off('queue_updated');
       socket.off('queue_error');
       socket.off('playback_sync');
