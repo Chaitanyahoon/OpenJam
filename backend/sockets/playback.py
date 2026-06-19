@@ -79,6 +79,14 @@ async def _do_advance(room_id: str, sio: socketio.AsyncServer):
         except Exception as e:
             from backend.logger import get_logger
             get_logger(__name__).error(f"Failed to emit track_changed for room {room_id}: {e}")
+        
+        # Broadcast skip votes reset for the new track
+        listeners = room_manager.get_listener_count(room_id)
+        required = max(1, (listeners + 1) // 2)
+        try:
+            await sio.emit("skip_votes_updated", {"votes": 0, "required": required}, room=room_id)
+        except Exception:
+            pass
     else:
         stop_sync_loop(room_id)
         room_manager.update_playback(room_id, "", "", "", "", 0, 0, False, False)
@@ -87,6 +95,11 @@ async def _do_advance(room_id: str, sio: socketio.AsyncServer):
         except Exception as e:
             from backend.logger import get_logger
             get_logger(__name__).error(f"Failed to emit track_changed (none) for room {room_id}: {e}")
+        
+        try:
+            await sio.emit("skip_votes_updated", {"votes": 0, "required": 0}, room=room_id)
+        except Exception:
+            pass
 
     try:
         await sio.emit("queue_updated", {"queue": queue}, room=room_id)
@@ -222,6 +235,33 @@ def stop_sync_loop(room_id: str):
         task.cancel()
 
 
+async def evaluate_skip_votes(room_id: str, sio: socketio.AsyncServer):
+    """Evaluate democratic skip voting status in real-time.
+    If the threshold is met, skip to the next track. Otherwise, broadcast skip update."""
+    from backend.logger import get_logger
+    logger = get_logger(__name__)
+
+    votes = room_manager.get_skip_votes(room_id)
+    listeners = room_manager.get_listener_count(room_id)
+    required = max(1, (listeners + 1) // 2)
+
+    logger.info(f"Evaluating skip votes for room {room_id}: votes={votes}, listeners={listeners}, required={required}")
+
+    if votes >= required:
+        # Check if the room has an active playback, if not, nothing to skip
+        pb = room_manager.get_playback(room_id)
+        if pb and pb.get("track_uri"):
+            lock = _get_advance_lock(room_id)
+            async with lock:
+                stop_sync_loop(room_id)
+                await _do_advance(room_id, sio)
+    else:
+        try:
+            await sio.emit("skip_votes_updated", {"votes": votes, "required": required}, room=room_id)
+        except Exception as e:
+            logger.error(f"Failed to emit skip_votes_updated for room {room_id}: {e}")
+
+
 def register_playback_handlers(sio: socketio.AsyncServer):
     from backend.logger import get_logger
     logger = get_logger(__name__)
@@ -285,20 +325,7 @@ def register_playback_handlers(sio: socketio.AsyncServer):
 
         added = room_manager.add_skip_vote(room_id, user_id)
         if added:
-            votes = room_manager.get_skip_votes(room_id)
-            listeners = room_manager.get_listener_count(room_id)
-            # Dynamic threshold: ceil(listeners / 2)
-            # 2 people → 1, 3 → 2, 4 → 2, 5 → 3, 6 → 3, etc.
-            required = max(1, (listeners + 1) // 2)
-            if votes >= required:
-                # threshold reached, skip!
-                await next_track(sid, {"room_id": room_id})
-            else:
-                # broadcast vote update
-                try:
-                    await sio.emit("skip_votes_updated", {"votes": votes, "required": required}, room=room_id)
-                except Exception as e:
-                    logger.error(f"Failed to emit skip_votes_updated for room {room_id}: {e}")
+            await evaluate_skip_votes(room_id, sio)
 
     @sio.event
     async def next_track(sid, data):

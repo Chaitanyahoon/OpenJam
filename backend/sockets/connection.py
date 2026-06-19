@@ -163,6 +163,11 @@ def register_connection_handlers(sio: socketio.AsyncServer):
             # Non-host departed. If room is now empty, schedule close
             if room_manager.get_listener_count(room_id) == 0:
                 schedule_room_close(room_id, sio, SessionLocal, delay=600)
+        
+        # Re-evaluate skip votes dynamically (since listener count decreased)
+        if room_manager.get_listener_count(room_id) > 0:
+            from backend.sockets.playback import evaluate_skip_votes
+            await evaluate_skip_votes(room_id, sio)
 
     @sio.event
     async def disconnect(sid):
@@ -354,6 +359,10 @@ def register_connection_handlers(sio: socketio.AsyncServer):
             "count": room_manager.get_listener_count(room_id),
             "listeners": room_manager.get_listeners(room_id),
         }, room=room_id)
+
+        # Re-evaluate skip votes dynamically (since listener count increased)
+        from backend.sockets.playback import evaluate_skip_votes
+        await evaluate_skip_votes(room_id, sio)
 
     @sio.event
     async def leave_room(sid, data):

@@ -94,6 +94,13 @@ class RoomManager:
                 room["users"].pop(user_id, None)
                 if not room["users"] and "empty_since" not in room:
                     room["empty_since"] = time.time()
+                # Clear skip vote if user left
+                pb = room.get("playback")
+                if pb:
+                    skip_voters = pb.get("skip_voters", set())
+                    if isinstance(skip_voters, set):
+                        skip_voters.discard(user_id)
+                    pb["skip_voters"] = skip_voters
                 self.store.set_room(room_id, room)
 
     def leave_room(self, sid: str) -> dict | None:
@@ -116,6 +123,13 @@ class RoomManager:
                 room["users"].pop(user_id, None)
                 if not room["users"] and "empty_since" not in room:
                     room["empty_since"] = time.time()
+                # Clear skip vote if user left
+                pb = room.get("playback")
+                if pb:
+                    skip_voters = pb.get("skip_voters", set())
+                    if isinstance(skip_voters, set):
+                        skip_voters.discard(user_id)
+                    pb["skip_voters"] = skip_voters
                 self.store.set_room(room_id, room)
         return info
 
