@@ -1502,7 +1502,7 @@ export default function HomePage() {
               position: 'fixed',
               bottom: '24px',
               left: '50%',
-              zIndex: 999,
+              zIndex: (showJoinModal || showCreateModal || showLeaveModal) ? 800 : 999,
               width: 'calc(100% - 32px)',
               maxWidth: '440px'
             }}
