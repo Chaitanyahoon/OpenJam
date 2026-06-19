@@ -4,8 +4,8 @@ export default function robots() {
     rules: {
       userAgent: '*',
       allow: '/',
-      disallow: ['/admin', '/room/', '/offline', '/_next/'],
+      disallow: ['/admin', '/offline', '/_next/'],
     },
-    sitemap: `${baseUrl}/sitemap_index.xml`,
+    sitemap: `${baseUrl}/sitemap.xml`,
   };
 }

@@ -9,32 +9,62 @@ const SITE_URL = "https://www.openjam.fun";
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
-  title: "Open Jam — Listen Together",
-  description: "Create and join public listening rooms. Discover music with friends in real-time.",
+  title: {
+    default: "Open Jam — Listen Together in Real-Time",
+    template: "%s | Open Jam"
+  },
+  description: "Create and join public listening rooms. Stream music, sync playback with friends, share queues, and discover new songs together in real-time.",
+  keywords: [
+    "listen together",
+    "music synchronization",
+    "synchronized music room",
+    "listen with friends",
+    "youtube sync",
+    "social listening room",
+    "online jukebox",
+    "group listening",
+    "music watch party",
+    "collaborative queue",
+    "realtime music sync",
+    "open jam",
+    "openjam"
+  ],
   manifest: "/manifest.json",
   icons: {
     icon: "/static/img/logo.png",
     apple: "/static/img/icon-192.png",
   },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
   openGraph: {
-    title: "Open Jam — Listen Together",
-    description: "Create and join public listening rooms. Discover music with friends in real-time.",
+    title: "Open Jam — Listen Together in Real-Time",
+    description: "Create and join public listening rooms. Stream music, sync playback with friends, share queues, and discover new songs together in real-time.",
     url: SITE_URL,
     siteName: "Open Jam",
+    locale: "en_US",
     type: "website",
     images: [
       {
         url: "/static/img/og-image.svg",
         width: 1200,
         height: 630,
-        alt: "Open Jam — Listen Together",
+        alt: "Open Jam — Listen Together in Real-Time",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Open Jam — Listen Together",
-    description: "Create and join public listening rooms. Discover music with friends in real-time.",
+    title: "Open Jam — Listen Together in Real-Time",
+    description: "Create and join public listening rooms. Stream music, sync playback with friends, share queues, and discover new songs together in real-time.",
     images: ["/static/img/og-image.svg"],
   },
   other: {
