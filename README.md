@@ -81,6 +81,6 @@ Contributing
 
 License & thanks
 
-MIT. Built with coffee, cat memes, and an unreasonable devotion to good timing.
+Proprietary / All Rights Reserved. See [COPYRIGHT_WARNING.md](file:///c:/Users/patil/OneDrive/Desktop/open/OpenJam/COPYRIGHT_WARNING.md) for terms of use. Built with coffee, cat memes, and an unreasonable devotion to good timing.
 
 Enjoy the vibes. 😸
