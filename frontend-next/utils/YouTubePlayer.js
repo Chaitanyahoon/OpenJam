@@ -629,10 +629,9 @@ export default class YouTubePlayer {
         this.player.play().catch(e => {
           if (e.name === 'AbortError') return;
           console.error('Autoplay prevented:', e);
-          if (!this._userUnlocked) {
-            this._pendingPlayAfterUnlock = { videoId, startSeconds };
-            this._showOverlay();
-          }
+          this._userUnlocked = false;
+          this._pendingPlayAfterUnlock = { videoId, startSeconds };
+          this._showOverlay();
         });
         setTimeout(() => { this._suppressStateChange = false; }, 1000);
       }).catch((err) => {
@@ -653,10 +652,9 @@ export default class YouTubePlayer {
         this.player.play().catch(e => {
           if (e.name === 'AbortError') return;
           console.error('Autoplay prevented:', e);
-          if (!this._userUnlocked) {
-            this._pendingPlayAfterUnlock = { videoId, startSeconds };
-            this._showOverlay();
-          }
+          this._userUnlocked = false;
+          this._pendingPlayAfterUnlock = { videoId, startSeconds };
+          this._showOverlay();
         });
         setTimeout(() => { this._suppressStateChange = false; }, 1000);
       });
@@ -735,10 +733,9 @@ export default class YouTubePlayer {
       if (isPlaying) {
         this.player.play().catch(e => {
           console.error('Autoplay prevented on sync:', e);
-          if (!this._userUnlocked) {
-            this._pendingPlayAfterUnlock = { videoId: this.currentVideoId, startSeconds: positionMs / 1000 };
-            this._showOverlay();
-          }
+          this._userUnlocked = false;
+          this._pendingPlayAfterUnlock = { videoId: this.currentVideoId, startSeconds: positionMs / 1000 };
+          this._showOverlay();
         });
         this.startProgressTimer();
       } else {

@@ -1885,10 +1885,6 @@ export default function RoomClient({ roomId }) {
                               onClick={() => {
                                 handleAddTrack(track);
                               }}
-                              onTouchStart={(e) => {
-                                e.preventDefault();
-                                handleAddTrack(track);
-                              }}
                               style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', cursor: 'grab' }}
                             >
                               <img decoding="async" loading="lazy" draggable="false" src={track.album_art_url || '/placeholder.svg'} alt="" style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} />

@@ -10156,10 +10156,14 @@ body:not(.room-page) .navbar:hover {
   .hero-glass-card .hero-slogan {
     font-size: 18px !important;
     margin-bottom: 10px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
   }
 
   .hero-slogan-dynamic {
-    min-width: 0 !important;
+    width: 100% !important;
+    min-width: 100% !important;
     text-align: center !important;
     display: block !important;
     margin-top: 4px;
