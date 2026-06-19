@@ -4,7 +4,7 @@
    ============================================================ */
 
 /* ---- Google Fonts ---- */
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Poppins:wght@300;400;500;600;700&family=Righteous&family=JetBrains+Mono:wght@400;500&display=swap');
+/* Loaded via next/font in layout.js to optimize performance and prevent CLS */
 
 /* ---- Design Tokens ---- */
 :root {
@@ -40,9 +40,10 @@
   --border-focus: rgba(255, 159, 28, 0.55);
 
   /* Fonts */
-  --font-ui:      'Poppins', -apple-system, sans-serif;
-  --font-display: 'Outfit', sans-serif;
-  --font-mono:    'JetBrains Mono', monospace;
+  --font-ui:      var(--font-ui-next), 'Poppins', -apple-system, sans-serif;
+  --font-display: var(--font-display-next), 'Outfit', sans-serif;
+  --font-mono:    var(--font-mono-next), 'JetBrains Mono', monospace;
+  --font-righteous: var(--font-righteous-next), 'Righteous', cursive;
 
   /* Spacing */
   --s1: 4px;   --s2: 8px;   --s3: 12px;
@@ -1464,7 +1465,7 @@ body:not(.room-page) .navbar {
   transition: filter 0.3s ease;
 }
 .navbar-brand:hover .navbar-icon { filter: drop-shadow(0 0 14px rgba(255, 159, 28,0.5)); }
-.navbar-logo { font-size: 18px; font-weight: 700; font-family: 'Righteous', cursive; letter-spacing: 0.5px; }
+.navbar-logo { font-size: 18px; font-weight: 700; font-family: var(--font-righteous); letter-spacing: 0.5px; }
 .navbar-logo span { color: var(--amber); text-shadow: 0 0 20px rgba(255, 159, 28,0.3); }
 .navbar-right { display: flex; align-items: center; gap: var(--s3); }
 .navbar-user { display: flex; align-items: center; gap: var(--s2); font-size: 13px; color: var(--text-2); }
@@ -4169,7 +4170,7 @@ body:not(.room-page) .navbar {
 /* Dramatic Hero Title Gradient Animation */
 .hero-title {
   font-size: clamp(3rem, 7vw, 5.5rem);
-  font-family: 'Righteous', cursive;
+  font-family: var(--font-righteous);
   margin-bottom: 16px;
   background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 35%, #ef4444 65%, #ff8800 100%);
   background-size: 200% auto;
@@ -6959,7 +6960,7 @@ body:not(.room-page) .navbar:hover {
   align-items: center;
   justify-content: center;
   color: #000;
-  font-family: 'Righteous', sans-serif;
+  font-family: var(--font-righteous);
   font-weight: bold;
   pointer-events: none;
   width: 100%;

@@ -46,7 +46,8 @@ export async function generateMetadata({ params }) {
           description = `Listening to "${currentTrack.track_name}" by ${currentTrack.artist} in ${room.name} with ${listenerCount} other listener(s). Join Open Jam to listen along!`;
         }
 
-        const ogImage = currentTrack?.album_art_url || 'https://www.openjam.fun/static/img/og-image.svg';
+        const inviter = room.host_name || 'Someone';
+        const ogImage = currentTrack?.album_art_url || `${backendUrl}/api/og/room/${id}.png?inviter=${encodeURIComponent(inviter)}`;
 
         return {
           title,

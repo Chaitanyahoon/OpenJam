@@ -1,11 +1,18 @@
 export default function robots() {
   const baseUrl = "https://www.openjam.fun";
   return {
-    rules: {
-      userAgent: '*',
-      allow: '/',
-      disallow: ['/admin', '/offline', '/_next/'],
-    },
+    rules: [
+      {
+        userAgent: '*',
+        allow: '/',
+        disallow: ['/admin', '/offline', '/_next/'],
+      },
+      {
+        userAgent: ['GPTBot', 'ClaudeBot', 'PerplexityBot', 'Google-Extended'],
+        allow: ['/', '/privacy', '/terms'],
+        disallow: ['/room/', '/admin', '/offline', '/_next/'],
+      }
+    ],
     sitemap: `${baseUrl}/sitemap.xml`,
   };
 }

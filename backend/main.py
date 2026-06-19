@@ -52,9 +52,19 @@ if sentry_dsn:
 # Rate limiting
 limiter = Limiter(key_func=get_remote_address, default_limits=["120/minute"])
 
+# Setup Socket.io manager for scaling if Redis is configured (free-tier safe fallback)
+sio_mgr = None
+if settings.REDIS_URL:
+    try:
+        sio_mgr = socketio.AsyncRedisManager(settings.REDIS_URL)
+        logger.info("Socket.io initialized with AsyncRedisManager for scaling")
+    except Exception as e:
+        logger.error(f"Failed to initialize Socket.io Redis manager: {e}")
+
 sio = socketio.AsyncServer(
     async_mode="asgi",
     cors_allowed_origins=settings.ALLOWED_ORIGINS,
+    client_manager=sio_mgr,
     logger=False,
     engineio_logger=False,
 )

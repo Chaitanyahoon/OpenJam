@@ -4,6 +4,33 @@ import ClientSocketProvider from "@/contexts/ClientSocketProvider";
 import PwaInstallPrompt from "@/components/PwaInstallPrompt";
 import { PreloadResources } from "@/components/PreloadResources";
 import { JsonLd } from "@/components/JsonLd";
+import { Outfit, Poppins, JetBrains_Mono, Righteous } from "next/font/google";
+
+const outfit = Outfit({
+  subsets: ["latin"],
+  variable: "--font-display-next",
+  display: "swap",
+});
+
+const poppins = Poppins({
+  weight: ["300", "400", "500", "600", "700"],
+  subsets: ["latin"],
+  variable: "--font-ui-next",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono-next",
+  display: "swap",
+});
+
+const righteous = Righteous({
+  weight: ["400"],
+  subsets: ["latin"],
+  variable: "--font-righteous-next",
+  display: "swap",
+});
 
 const SITE_URL = "https://www.openjam.fun";
 
@@ -70,7 +97,7 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${outfit.variable} ${poppins.variable} ${jetbrainsMono.variable} ${righteous.variable}`}>
       <body>
         <PreloadResources />
         <JsonLd />
