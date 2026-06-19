@@ -253,10 +253,39 @@ class MusicSearchService:
             req = urllib.request.Request(url, headers={"User-Agent": "OpenJam/1.0"})
             with urllib.request.urlopen(req, timeout=5) as resp:
                 data = json.loads(resp.read().decode())
+                
+                title = data.get("title") or "YouTube Video"
+                author = data.get("author_name") or "YouTube"
+                thumbnail = data.get("thumbnail_url") or f"https://img.youtube.com/vi/{video_id}/0.jpg"
+                
+                clean_author = author.replace(" - Topic", "").strip()
+                song_title = title
+                artist_name = clean_author
+                
+                split_char = None
+                if " - " in title:
+                    split_char = " - "
+                elif " | " in title:
+                    split_char = " | "
+                elif " – " in title:  # En dash
+                    split_char = " – "
+                
+                if split_char:
+                    parts = title.split(split_char, 1)
+                    p0 = parts[0].strip()
+                    p1 = parts[1].strip()
+                    
+                    if p1.lower() in clean_author.lower() or clean_author.lower() in p1.lower():
+                        song_title = p0
+                        artist_name = p1
+                    else:
+                        song_title = p1
+                        artist_name = p0
+                
                 return {
-                    "title": data.get("title", "YouTube Video"),
-                    "author": data.get("author_name", "YouTube"),
-                    "thumbnail": data.get("thumbnail_url", f"https://img.youtube.com/vi/{video_id}/0.jpg")
+                    "title": song_title,
+                    "author": artist_name,
+                    "thumbnail": thumbnail
                 }
         except Exception as e:
             logger.error(f"Failed to fetch YouTube oembed metadata for {video_id}: {e}")

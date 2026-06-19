@@ -852,16 +852,31 @@ async def import_playlist(url: str):
                     if not entry:
                         continue
                     title = entry.get("title", "")
-                    artist = "Unknown"
+                    uploader = entry.get("uploader") or "Unknown"
+                    clean_uploader = uploader.replace(" - Topic", "").strip()
+                    
+                    artist = clean_uploader
                     name = title
+                    
+                    split_char = None
                     if " - " in title:
-                        parts = title.split(" - ", 1)
-                        artist = parts[0].strip()
-                        name = parts[1].strip()
+                        split_char = " - "
                     elif " | " in title:
-                        parts = title.split(" | ", 1)
-                        artist = parts[0].strip()
-                        name = parts[1].strip()
+                        split_char = " | "
+                    elif " – " in title:
+                        split_char = " – "
+                    
+                    if split_char:
+                        parts = title.split(split_char, 1)
+                        p0 = parts[0].strip()
+                        p1 = parts[1].strip()
+                        
+                        if p1.lower() in clean_uploader.lower() or clean_uploader.lower() in p1.lower():
+                            name = p0
+                            artist = p1
+                        else:
+                            name = p1
+                            artist = p0
                     
                     video_id = entry.get("id")
                     uri = video_id if (video_id and len(video_id) == 11) else title

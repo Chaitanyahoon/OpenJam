@@ -1319,39 +1319,44 @@ export default function RoomClient({ roomId }) {
     
     triggerToast('Processing bulk import...', 'info');
     
-    const promises = lines.map(async (line) => {
+    const tracksToAdd = [];
+    const playlistPromises = [];
+
+    lines.forEach((line) => {
       const lineClean = line.trim();
       const isSpotifyPlaylist = lineClean.includes('spotify.com/playlist/');
       const isYoutubePlaylist = lineClean.includes('youtube.com/playlist') || lineClean.includes('list=');
       
       if (isSpotifyPlaylist || isYoutubePlaylist) {
-        try {
-          const res = await fetch(`/search/playlist?url=${encodeURIComponent(lineClean)}`, { credentials: 'include' });
-          if (res.ok) {
-            const data = await res.json();
-            if (data.tracks && data.tracks.length > 0) {
-              data.tracks.forEach((track) => {
-                socket.emit('add_to_queue', {
-                  room_id: roomId,
-                  track_uri: track.uri,
-                  track_name: track.name,
-                  artist: track.artist,
-                  album_art_url: track.album_art_url || '/static/img/logo.png',
-                  duration_ms: track.duration_ms || 0
+        const fetchPlaylist = async () => {
+          try {
+            const res = await fetch(`/search/playlist?url=${encodeURIComponent(lineClean)}`, { credentials: 'include' });
+            if (res.ok) {
+              const data = await res.json();
+              if (data.tracks && data.tracks.length > 0) {
+                data.tracks.forEach((track) => {
+                  tracksToAdd.push({
+                    track_uri: track.uri,
+                    track_name: track.name,
+                    artist: track.artist,
+                    album_art_url: track.album_art_url || '/static/img/logo.png',
+                    duration_ms: track.duration_ms || 0
+                  });
                 });
-              });
-              triggerToast(`Successfully added ${data.tracks.length} tracks from playlist!`, 'success');
+                triggerToast(`Extracted ${data.tracks.length} tracks from playlist!`, 'success');
+              } else {
+                triggerToast('No tracks found in playlist', 'warning');
+              }
             } else {
-              triggerToast('No tracks found in playlist', 'warning');
+              const errData = await res.json().catch(() => ({}));
+              triggerToast(errData.detail || 'Failed to import playlist', 'error');
             }
-          } else {
-            const errData = await res.json().catch(() => ({}));
-            triggerToast(errData.detail || 'Failed to import playlist', 'error');
+          } catch (err) {
+            console.error('Error importing playlist:', err);
+            triggerToast('Error importing playlist', 'error');
           }
-        } catch (err) {
-          console.error('Error importing playlist:', err);
-          triggerToast('Error importing playlist', 'error');
-        }
+        };
+        playlistPromises.push(fetchPlaylist());
       } else {
         let track_uri = '';
         if (lineClean.includes('youtube.com/') || lineClean.includes('youtu.be/')) {
@@ -1361,8 +1366,7 @@ export default function RoomClient({ roomId }) {
         }
         
         if (track_uri) {
-          socket.emit('add_to_queue', {
-            room_id: roomId,
+          tracksToAdd.push({
             track_uri: track_uri,
             track_name: 'YouTube Video',
             artist: 'YouTube',
@@ -1370,8 +1374,7 @@ export default function RoomClient({ roomId }) {
             duration_ms: 0
           });
         } else {
-          socket.emit('add_to_queue', {
-            room_id: roomId,
+          tracksToAdd.push({
             track_uri: lineClean,
             track_name: lineClean,
             artist: 'Search Query',
@@ -1382,7 +1385,18 @@ export default function RoomClient({ roomId }) {
       }
     });
 
-    await Promise.all(promises);
+    if (playlistPromises.length > 0) {
+      await Promise.all(playlistPromises);
+    }
+
+    if (tracksToAdd.length > 0) {
+      socket.emit('add_multiple_to_queue', {
+        room_id: roomId,
+        tracks: tracksToAdd
+      });
+      triggerToast(`Adding ${tracksToAdd.length} tracks to queue…`, 'info');
+    }
+
     setShowBulkAdd(false);
     setBulkImportText('');
   };
@@ -1739,16 +1753,13 @@ export default function RoomClient({ roomId }) {
 
                 
                 
-                // Instantly update room playback
-                socket.emit('playback_update', {
-                  room_id: roomId,
+                // Instantly update room playback and database state
+                socket.emit('play_now', {
                   track_uri: trackUri,
                   track_name: trackName,
                   artist: artist,
                   album_art_url: albumArtUrl,
-                  position_ms: 0,
                   duration_ms: durationMs,
-                  is_playing: true,
                 });
                 
                 triggerToast(`Playing "${trackName}" instantly!`, "success");

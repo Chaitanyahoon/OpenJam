@@ -228,3 +228,158 @@ async def test_room_closer_protects_active_listeners(db_session, test_user, test
     
     # Cleanup room_manager
     room_manager.leave_room("sid-listener")
+
+
+@pytest.mark.asyncio
+async def test_add_multiple_to_queue(db_session, test_user, test_room):
+    """Test bulk track addition handler and background resolution invocation."""
+    sio = MagicMock()
+    events = {}
+    sio.event = lambda fn: events.update({fn.__name__: fn}) or fn
+    sio.get_session = AsyncMock(return_value={"user_id": test_user.id})
+    sio.emit = AsyncMock()
+
+    register_queue_handlers(sio)
+    add_multiple_handler = events["add_multiple_to_queue"]
+
+    # Mock room_manager membership
+    room_manager.join_room(test_room.id, test_user.id, "sid-user", test_user.display_name)
+
+    tracks = [
+        {"track_uri": "bulk1", "track_name": "Bulk Song 1", "artist": "Artist 1"},
+        {"track_uri": "bulk2", "track_name": "Bulk Song 2", "artist": "Artist 2"}
+    ]
+
+    original_close = db_session.close
+    db_session.close = MagicMock()
+    try:
+        with patch("backend.sockets.queue.SessionLocal", return_value=db_session), \
+             patch("backend.sockets.queue.resolve_room_queue_background", new_callable=AsyncMock) as mock_resolve:
+            await add_multiple_handler("sid-user", {"tracks": tracks})
+            
+            # Verify tracks were inserted
+            items = db_session.query(QueueItem).filter(QueueItem.room_id == test_room.id).all()
+            assert len(items) == 2
+            assert items[0].track_name == "Bulk Song 1"
+            assert items[1].track_name == "Bulk Song 2"
+            
+            # Verify background resolver task was triggered
+            mock_resolve.assert_called_once_with(test_room.id, sio)
+    finally:
+        db_session.close = original_close
+
+    room_manager.leave_room("sid-user")
+
+
+@pytest.mark.asyncio
+async def test_play_now_handler(db_session, test_user, test_room):
+    """Test that play_now instantly plays a track and updates DB status."""
+    # Add a track currently playing
+    q_playing = QueueItem(
+        room_id=test_room.id,
+        track_uri="old_playing",
+        track_name="Old Song",
+        artist="Old Artist",
+        added_by_user_id=test_user.id,
+        added_by_name=test_user.display_name,
+        status="playing",
+        position=0
+    )
+    db_session.add(q_playing)
+    db_session.commit()
+
+    sio = MagicMock()
+    events = {}
+    sio.event = lambda fn: events.update({fn.__name__: fn}) or fn
+    sio.get_session = AsyncMock(return_value={"user_id": test_user.id})
+    sio.emit = AsyncMock()
+
+    register_queue_handlers(sio)
+    play_now_handler = events["play_now"]
+
+    room_manager.join_room(test_room.id, test_user.id, "sid-host", test_user.display_name)
+    room_manager.set_host(test_room.id, "sid-host")
+
+    track_to_play = {
+        "track_uri": "new_playing",
+        "track_name": "New Song",
+        "artist": "New Artist"
+    }
+
+    original_close = db_session.close
+    db_session.close = MagicMock()
+    try:
+        with patch("backend.sockets.queue.SessionLocal", return_value=db_session):
+            await play_now_handler("sid-host", track_to_play)
+
+            # Check DB states
+            db_session.refresh(q_playing)
+            assert q_playing.status == "played"
+
+            new_item = db_session.query(QueueItem).filter(
+                QueueItem.room_id == test_room.id,
+                QueueItem.track_uri == "new_playing"
+            ).first()
+            assert new_item is not None
+            assert new_item.status == "playing"
+    finally:
+        db_session.close = original_close
+
+    room_manager.leave_room("sid-host")
+
+
+@pytest.mark.asyncio
+async def test_remove_playing_track_handler(db_session, test_user, test_room):
+    """Test remove_from_queue handler automatically advances the queue if playing track is removed."""
+    q_playing = QueueItem(
+        room_id=test_room.id,
+        track_uri="playing_vid",
+        track_name="Playing Song",
+        artist="Artist",
+        added_by_user_id=test_user.id,
+        added_by_name=test_user.display_name,
+        status="playing",
+        position=0
+    )
+    q_pending = QueueItem(
+        room_id=test_room.id,
+        track_uri="pending_vid",
+        track_name="Pending Song",
+        artist="Artist",
+        added_by_user_id=test_user.id,
+        added_by_name=test_user.display_name,
+        status="pending",
+        position=1
+    )
+    db_session.add_all([q_playing, q_pending])
+    db_session.commit()
+
+    sio = MagicMock()
+    events = {}
+    sio.event = lambda fn: events.update({fn.__name__: fn}) or fn
+    sio.get_session = AsyncMock(return_value={"user_id": test_user.id})
+    sio.emit = AsyncMock()
+
+    register_queue_handlers(sio)
+    remove_handler = events["remove_from_queue"]
+
+    room_manager.join_room(test_room.id, test_user.id, "sid-host", test_user.display_name)
+    room_manager.set_host(test_room.id, "sid-host")
+
+    original_close = db_session.close
+    db_session.close = MagicMock()
+    try:
+        with patch("backend.sockets.queue.SessionLocal", return_value=db_session):
+            await remove_handler("sid-host", {"queue_item_id": q_playing.id})
+
+            # Verify playing track is deleted from DB
+            deleted = db_session.query(QueueItem).filter(QueueItem.id == q_playing.id).first()
+            assert deleted is None
+
+            # Verify pending track was advanced to playing
+            db_session.refresh(q_pending)
+            assert q_pending.status == "playing"
+    finally:
+        db_session.close = original_close
+
+    room_manager.leave_room("sid-host")

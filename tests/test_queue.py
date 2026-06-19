@@ -117,7 +117,8 @@ def test_queue_no_cap_limit(db_session, test_room, test_user):
     user_id = test_user.id
     display_name = test_user.display_name
 
-    with patch('backend.sockets.queue.SessionLocal', return_value=db_session):
+    with patch('backend.sockets.queue.SessionLocal', return_value=db_session), \
+         patch('backend.services.music_search.music_search_service.resolve_youtube', side_effect=lambda q: f"video{int(q.split('-')[-1]):06d}"):
         # Add 12 distinct tracks successfully
         for i in range(12):
             track_data = {
