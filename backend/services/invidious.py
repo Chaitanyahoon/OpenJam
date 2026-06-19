@@ -100,8 +100,11 @@ async def update_instances_dynamically():
     # 1. Invidious Instances
     try:
         url = "https://api.invidious.io/instances.json"
-        async with httpx.AsyncClient(timeout=8.0) as client:
-            r = await client.get(url)
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+            r = await client.get(url, headers=headers)
             if r.status_code == 200:
                 data = r.json()
                 new_inv = []
@@ -141,8 +144,11 @@ async def update_instances_dynamically():
     # 2. Piped Instances
     try:
         url = "https://piped-instances.kavin.rocks"
-        async with httpx.AsyncClient(timeout=8.0) as client:
-            r = await client.get(url)
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+            r = await client.get(url, headers=headers)
             if r.status_code == 200:
                 data = r.json()
                 new_piped = []
@@ -185,8 +191,11 @@ async def _health_check_instances_bg():
 
     async def check(url: str):
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                r = await client.get(f"{url}/api/v1/status")
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+            async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as client:
+                r = await client.get(f"{url}/api/v1/status", headers=headers)
                 if r.status_code == 200:
                     data = r.json()
                     if data.get("version"):
@@ -207,8 +216,11 @@ async def _health_check_instances_bg():
 
     async def check_piped(url: str):
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                r = await client.get(url)
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+            async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as client:
+                r = await client.get(url, headers=headers)
                 if r.status_code in (200, 404):
                     _piped_health[url] = {
                         "score": 100,
@@ -316,7 +328,16 @@ def report_stream_failure(stream_url: str):
 
 
 def _rewrite_googlevideo_url(url: str, instance: str) -> str:
-    # Bypass host rewriting to stream directly from high-speed Googlevideo CDN domains
+    # Rewrite googlevideo URL to proxy through Invidious instance itself
+    if "googlevideo.com" in url:
+        from urllib.parse import urlparse, urlunparse
+        parsed_url = urlparse(url)
+        parsed_instance = urlparse(instance)
+        new_url = parsed_url._replace(
+            scheme=parsed_instance.scheme,
+            netloc=parsed_instance.netloc
+        )
+        return urlunparse(new_url)
     return url
 
 
@@ -326,10 +347,14 @@ async def get_stream_url(video_id: str) -> Optional[str]:
 
     async def _try_instance(instance: str) -> Optional[str]:
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+            async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as client:
                 r = await client.get(
                     f"{instance}/api/v1/videos/{video_id}",
                     params={"fields": "formatStreams,adaptiveFormats"},
+                    headers=headers,
                 )
                 if r.status_code != 200:
                     return None
@@ -363,8 +388,11 @@ async def get_stream_url(video_id: str) -> Optional[str]:
     async def _try_piped(instance: str) -> Optional[str]:
         """Try to get audio stream URL from a Piped API instance."""
         try:
-            async with httpx.AsyncClient(timeout=6.0) as client:
-                r = await client.get(f"{instance}/streams/{video_id}")
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+            async with httpx.AsyncClient(timeout=6.0, follow_redirects=True) as client:
+                r = await client.get(f"{instance}/streams/{video_id}", headers=headers)
                 if r.status_code != 200:
                     return None
                 data = r.json()
@@ -402,8 +430,11 @@ async def get_video_info(video_id: str) -> Optional[dict]:
 
     for instance in _get_sorted_instances():
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                r = await client.get(f"{instance}/api/v1/videos/{video_id}")
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+            async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+                r = await client.get(f"{instance}/api/v1/videos/{video_id}", headers=headers)
                 if r.status_code == 200:
                     data = r.json()
                     return {

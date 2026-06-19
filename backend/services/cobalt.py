@@ -17,6 +17,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 DEFAULT_COBALT_INSTANCES = [
+    "https://api.cobalt.blackcat.sweeux.org",
     "https://grapefruit.clxxped.lol",
     "https://subito-c.meowing.de",
     "https://nuko-c.meowing.de",
@@ -45,13 +46,13 @@ async def get_cobalt_stream_url(video_id: str) -> Optional[str]:
         if inst_clean not in instances:
             instances.append(inst_clean)
             
-    payload = {
-        "url": f"https://www.youtube.com/watch?v={video_id}",
-        "isAudioOnly": True,
-        "audioFormat": "opus",
-    }
-    
     async def _try_instance(cobalt_url: str) -> Optional[str]:
+        # Try Cobalt v10 first
+        payload = {
+            "url": f"https://www.youtube.com/watch?v={video_id}",
+            "downloadMode": "audio",
+            "audioFormat": "opus",
+        }
         try:
             # Keep individual timeouts short so the race completes fast
             async with httpx.AsyncClient(timeout=4.5, follow_redirects=True) as client:
@@ -63,6 +64,30 @@ async def get_cobalt_stream_url(video_id: str) -> Optional[str]:
                         "Content-Type": "application/json",
                     },
                 )
+                
+                # If v10 failed with 400 (invalid body) or similar, try legacy payload
+                if r.status_code == 400:
+                    try:
+                        err_code = r.json().get("error", {}).get("code", "")
+                    except Exception:
+                        err_code = ""
+                        
+                    if "invalid_body" in err_code or "body" in err_code or r.status_code == 400:
+                        logger.debug(f"Cobalt v10 payload rejected by {cobalt_url}, trying legacy payload...")
+                        legacy_payload = {
+                            "url": f"https://www.youtube.com/watch?v={video_id}",
+                            "isAudioOnly": True,
+                            "audioFormat": "opus",
+                        }
+                        r = await client.post(
+                            cobalt_url + "/",
+                            json=legacy_payload,
+                            headers={
+                                "Accept": "application/json",
+                                "Content-Type": "application/json",
+                            },
+                        )
+
                 if r.status_code == 200:
                     data = r.json()
                     url = data.get("url")
