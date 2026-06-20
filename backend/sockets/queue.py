@@ -192,9 +192,8 @@ async def resolve_room_queue_background(room_id: str, sio: socketio.AsyncServer)
             items_to_resolve = []
             for item in pending_items:
                 uri = item.track_uri
-                is_unresolved = not uri or (" " in uri or len(uri) != 11)
                 is_placeholder = item.track_name in ["YouTube Video", "", None, uri] or item.artist in ["YouTube", "Search Query", "", None] or "spotify.com" in str(item.track_name)
-                if is_unresolved or is_placeholder:
+                if is_placeholder:
                     items_to_resolve.append(item.id)
         finally:
             db.close()
@@ -390,15 +389,8 @@ def register_queue_handlers(sio: socketio.AsyncServer):
         await sio.emit("queue_updated", {"queue": queue}, room=room_id)
 
         # Pre-resolve the next track in queue in background (fire-and-forget)
-        if queue and len(queue) > 1:
-            next_track_uri = None
-            for item in queue:
-                if item.get("status") != "playing" and item.get("status") != "played":
-                    next_track_uri = item.get("track_uri")
-                    break
-            if next_track_uri and len(next_track_uri) == 11:
-                from backend.routes.queue import pre_resolve_url
-                asyncio.create_task(pre_resolve_url(next_track_uri))
+        from backend.sockets.playback import pre_resolve_next_track_background
+        asyncio.create_task(pre_resolve_next_track_background(room_id, queue, sio))
 
     @sio.event
     async def vote_track(sid, data):
@@ -699,6 +691,8 @@ def register_queue_handlers(sio: socketio.AsyncServer):
 
         await sio.emit("queue_updated", {"queue": queue}, room=room_id)
         
+        from backend.sockets.playback import pre_resolve_next_track_background
+        asyncio.create_task(pre_resolve_next_track_background(room_id, queue, sio))
         asyncio.create_task(resolve_room_queue_background(room_id, sio))
 
     @sio.event
@@ -757,5 +751,9 @@ def register_queue_handlers(sio: socketio.AsyncServer):
         
         await sio.emit("track_changed", playing_item, room=room_id)
         await sio.emit("queue_updated", {"queue": queue}, room=room_id)
+
+        # Pre-resolve the new next track in queue in background
+        from backend.sockets.playback import pre_resolve_next_track_background
+        asyncio.create_task(pre_resolve_next_track_background(room_id, queue, sio))
 
 

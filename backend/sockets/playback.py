@@ -40,6 +40,82 @@ def _make_json_safe(data: dict) -> dict:
     return safe_data
 
 
+async def pre_resolve_next_track_background(room_id: str, queue: list, sio: socketio.AsyncServer):
+    """Find the immediate next pending track in the queue, resolve its YouTube ID if needed, 
+    commit it to the DB, and pre-warm the stream URL."""
+    from backend.logger import get_logger
+    logger = get_logger(__name__)
+
+    if not queue:
+        return
+
+    # Find the first pending track
+    next_track = None
+    for item in queue:
+        if item.get("status") == "pending":
+            next_track = item
+            break
+
+    if not next_track:
+        return
+
+    track_id = next_track.get("id")
+    uri = next_track.get("track_uri")
+    if not uri:
+        return
+
+    # Check if it needs YouTube ID resolution
+    is_unresolved = " " in uri or len(uri) != 11
+    
+    if is_unresolved:
+        logger.info(f"Pre-resolving next track query in background: '{uri}' for room {room_id}")
+        from backend.services.music_search import music_search_service
+        
+        # Resolve query to video ID in threadpool
+        resolved_id = await asyncio.to_thread(music_search_service.resolve_youtube, uri)
+        if not resolved_id:
+            logger.warning(f"Could not pre-resolve next track query '{uri}'")
+            return
+            
+        # Update database with the resolved ID
+        from backend.database import SessionLocal
+        from backend.models.queue_item import QueueItem
+        from backend.services.queue_manager import queue_manager
+        
+        db = SessionLocal()
+        try:
+            item = db.query(QueueItem).filter(QueueItem.id == track_id).first()
+            if item and item.status == "pending":
+                item.track_uri = resolved_id
+                
+                # Check if we should also resolve metadata if it is a placeholder
+                is_placeholder = item.track_name in ["YouTube Video", "", None, resolved_id] or item.artist in ["YouTube", "Search Query", "", None] or "spotify.com" in str(item.track_name)
+                if is_placeholder:
+                    metadata = await asyncio.to_thread(music_search_service.resolve_youtube_metadata, resolved_id)
+                    if metadata:
+                        item.track_name = metadata["title"]
+                        item.artist = metadata["author"]
+                        if metadata.get("thumbnail"):
+                            item.album_art_url = metadata["thumbnail"]
+                
+                db.commit()
+                
+                # Retrieve updated queue and broadcast
+                updated_queue = queue_manager.get_queue(db, room_id)
+                await sio.emit("queue_updated", {"queue": updated_queue}, room=room_id)
+                uri = resolved_id
+        except Exception as e:
+            logger.error(f"Error saving pre-resolved track to DB: {e}")
+        finally:
+            db.close()
+
+    # Pre-resolve the stream URL (this will also trigger caching)
+    if uri and len(uri) == 11:
+        from backend.routes.queue import pre_resolve_url
+        logger.info(f"Pre-resolving stream URL for track {uri} (room {room_id})")
+        await pre_resolve_url(uri)
+
+
 async def _do_advance(room_id: str, sio: socketio.AsyncServer):
     """Advance to the next track in the queue. Must be called under _advance_lock."""
     from backend.database import SessionLocal
@@ -108,15 +184,8 @@ async def _do_advance(room_id: str, sio: socketio.AsyncServer):
         get_logger(__name__).error(f"Failed to emit queue_updated for room {room_id}: {e}")
 
     # Pre-resolve the next track in queue in background (fire-and-forget)
-    if queue and len(queue) > 1:
-        next_track_uri = None
-        for item in queue:
-            if item.get("status") != "playing" and item.get("status") != "played":
-                next_track_uri = item.get("track_uri")
-                break
-        if next_track_uri and len(next_track_uri) == 11:
-            from backend.routes.queue import pre_resolve_url
-            asyncio.create_task(pre_resolve_url(next_track_uri))
+    asyncio.create_task(pre_resolve_next_track_background(room_id, queue, sio))
+
 
 
 async def _playback_sync_loop(room_id: str, sio: socketio.AsyncServer):

@@ -15,19 +15,32 @@ class MusicSearchService:
     """Search tracks via the Apple iTunes Search API (completely free, no key needed)."""
 
     def __init__(self):
+        import threading
         self._ytmusic = None  # Lazy singleton
         self._resolve_cache = {}  # In-memory track query resolution cache
+        self._ytmusic_lock = threading.Lock()
+        threading.Thread(target=self._init_ytmusic_eagerly, daemon=True).start()
+
+    def _init_ytmusic_eagerly(self):
+        """Warm up YTMusic in a background thread to prevent first-request lag."""
+        try:
+            self._get_ytmusic()
+        except Exception as e:
+            logger.error(f"Eager YTMusic initialization failed: {e}")
 
     def _get_ytmusic(self):
         """Lazy-init a singleton YTMusic instance (reused across requests)."""
         if self._ytmusic is None:
-            try:
-                from ytmusicapi import YTMusic
-                self._ytmusic = YTMusic()
-                logger.info("YTMusic instance initialized successfully")
-            except Exception as e:
-                logger.error(f"Failed to initialize YTMusic: {e}")
+            with self._ytmusic_lock:
+                if self._ytmusic is None:
+                    try:
+                        from ytmusicapi import YTMusic
+                        self._ytmusic = YTMusic()
+                        logger.info("YTMusic instance initialized successfully")
+                    except Exception as e:
+                        logger.error(f"Failed to initialize YTMusic: {e}")
         return self._ytmusic
+
 
     def search_tracks(self, query: str, limit: int = 10) -> list:
         """Search iTunes for tracks. Returns list compatible with existing data shape."""

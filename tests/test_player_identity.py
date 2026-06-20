@@ -383,3 +383,80 @@ async def test_remove_playing_track_handler(db_session, test_user, test_room):
         db_session.close = original_close
 
     room_manager.leave_room("sid-host")
+
+
+@pytest.mark.asyncio
+async def test_lazy_resolution_logic(db_session, test_user, test_room):
+    """Test that resolve_room_queue_background skips clean tracks and pre_resolve_next_track_background resolves them."""
+    # 1. Add a clean/non-placeholder track but unresolved (query URI)
+    clean_track = QueueItem(
+        room_id=test_room.id,
+        track_uri="clean query",
+        track_name="Clean Song",
+        artist="Clean Artist",
+        added_by_user_id=test_user.id,
+        added_by_name=test_user.display_name,
+        status="pending",
+        position=0
+    )
+    # 2. Add a placeholder track (generic name)
+    placeholder_track = QueueItem(
+        room_id=test_room.id,
+        track_uri="placeholder query",
+        track_name="YouTube Video",
+        artist="Search Query",
+        added_by_user_id=test_user.id,
+        added_by_name=test_user.display_name,
+        status="pending",
+        position=1
+    )
+    db_session.add_all([clean_track, placeholder_track])
+    db_session.commit()
+
+    sio = MagicMock()
+    sio.emit = AsyncMock()
+
+    # We mock lastfm_service.resolve_youtube and resolve_youtube_metadata
+    from backend.services.music_search import music_search_service
+    
+    original_close = db_session.close
+    db_session.close = MagicMock()
+    try:
+        with patch.object(music_search_service, "resolve_youtube", return_value="11char_vid0") as mock_resolve, \
+             patch.object(music_search_service, "resolve_youtube_metadata", return_value={"title": "Resolved Placeholder", "author": "Resolved Author", "thumbnail": "thumb"}) as mock_meta, \
+             patch("backend.sockets.queue.SessionLocal", return_value=db_session), \
+             patch("backend.database.SessionLocal", return_value=db_session):
+
+            # Run resolve_room_queue_background
+            from backend.sockets.queue import resolve_room_queue_background
+            await resolve_room_queue_background(test_room.id, sio)
+
+            # Refresh database items
+            db_session.refresh(clean_track)
+            db_session.refresh(placeholder_track)
+
+            # Clean track should NOT have been resolved in the background resolver
+            assert clean_track.track_uri == "clean query"
+            assert clean_track.track_name == "Clean Song"
+
+            # Placeholder track SHOULD have been resolved in the background resolver
+            assert placeholder_track.track_uri == "11char_vid0"
+            assert placeholder_track.track_name == "Resolved Placeholder"
+            assert placeholder_track.artist == "Resolved Author"
+
+            # Now, call pre_resolve_next_track_background on the queue (which contains clean_track as next pending)
+            from backend.sockets.playback import pre_resolve_next_track_background
+            queue_data = [clean_track.to_dict()]
+            
+            # We mock pre_resolve_url to prevent actual cache download task triggering
+            with patch("backend.routes.queue.pre_resolve_url", new_callable=AsyncMock) as mock_pre_url:
+                await pre_resolve_next_track_background(test_room.id, queue_data, sio)
+
+                # Clean track SHOULD now be resolved
+                db_session.refresh(clean_track)
+                assert clean_track.track_uri == "11char_vid0"
+                mock_pre_url.assert_called_once_with("11char_vid0")
+    finally:
+        db_session.close = original_close
+
+
