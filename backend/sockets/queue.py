@@ -31,19 +31,26 @@ def _db_add_and_get_queue(room_id: str, track_data: dict, user_id: str, display_
         else:
             display_name = user.display_name
 
-        # Resolve YouTube Video ID immediately if needed
+        # Check if the song will play immediately
+        live_playback = room_manager.get_playback(room_id)
+        is_playing_live = live_playback and live_playback.get("is_playing", False)
+        now_playing = queue_manager.get_now_playing(db, room_id)
+        is_playing_immediately = not now_playing and not is_playing_live
+
+        # Resolve YouTube Video ID immediately if needed (only if playing immediately)
         uri = track_data.get("uri")
         if uri and (" " in uri or len(uri) != 11):
-            from backend.services.music_search import music_search_service as lastfm_service
-            resolved_id = lastfm_service.resolve_youtube(uri)
-            if resolved_id:
-                track_data["uri"] = resolved_id
-                uri = resolved_id
-            else:
-                raise ValueError(f"Could not resolve track: '{uri}'")
+            if is_playing_immediately:
+                from backend.services.music_search import music_search_service as lastfm_service
+                resolved_id = lastfm_service.resolve_youtube(uri)
+                if resolved_id:
+                    track_data["uri"] = resolved_id
+                    uri = resolved_id
+                else:
+                    raise ValueError(f"Could not resolve track: '{uri}'")
 
-        # Resolve actual YouTube title, artist, and thumbnail if generic or missing
-        if uri and len(uri) == 11:
+        # Resolve actual YouTube title, artist, and thumbnail if generic/missing (only if playing immediately)
+        if uri and len(uri) == 11 and is_playing_immediately:
             if track_data.get("name") in ["YouTube Video", "", None, uri] or track_data.get("artist") in ["YouTube", "Search Query", "", None] or "spotify.com" in str(track_data.get("name")):
                 from backend.services.music_search import music_search_service as lastfm_service
                 metadata = lastfm_service.resolve_youtube_metadata(uri)
@@ -391,6 +398,7 @@ def register_queue_handlers(sio: socketio.AsyncServer):
         # Pre-resolve the next track in queue in background (fire-and-forget)
         from backend.sockets.playback import pre_resolve_next_track_background
         asyncio.create_task(pre_resolve_next_track_background(room_id, queue, sio))
+        asyncio.create_task(resolve_room_queue_background(room_id, sio))
 
     @sio.event
     async def vote_track(sid, data):

@@ -44,6 +44,16 @@ async def get_download_lock(video_id: str):
             _downloading_locks[video_id] = asyncio.Lock()
         return _downloading_locks[video_id]
 
+# Lock map to serialize duplicate concurrent resolutions of the same video ID
+_resolving_locks = {}
+_resolving_locks_lock = asyncio.Lock()
+
+async def get_resolve_lock(video_id: str):
+    async with _resolving_locks_lock:
+        if video_id not in _resolving_locks:
+            _resolving_locks[video_id] = asyncio.Lock()
+        return _resolving_locks[video_id]
+
 async def cleanup_old_cache(max_cache_size_mb: int = 100):
     """Cleanup oldest cache files if total cache size exceeds max_cache_size_mb."""
     try:
@@ -420,6 +430,7 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
 
     cache_key = f"{video_id}_low" if low else video_id
 
+    # Fast path check outside lock
     if cache_key in _url_cache:
         url, expiry = _url_cache[cache_key]
         if time.time() < expiry:
@@ -436,67 +447,87 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
         except Exception as e:
             logger.warning(f"Failed to retrieve stream URL from Redis for {cache_key}: {e}")
 
-    async def _try_cobalt() -> str | None:
-        try:
-            from backend.services.cobalt import get_cobalt_stream_url
-            return await get_cobalt_stream_url(video_id)
-        except Exception as e:
-            logger.warning(f"Cobalt failed for {video_id}: {e}")
-            return None
+    # Acquire resolve lock for this video ID to serialize concurrent requests
+    resolve_lock = await get_resolve_lock(video_id)
+    async with resolve_lock:
+        # Check cache again inside lock in case another task resolved it while we were waiting
+        if cache_key in _url_cache:
+            url, expiry = _url_cache[cache_key]
+            if time.time() < expiry:
+                return url
+            del _url_cache[cache_key]
 
-    async def _try_invidious() -> str | None:
-        try:
-            return await get_invidious_stream_url(video_id)
-        except Exception as e:
-            logger.warning(f"Invidious failed for {video_id}: {e}")
-            return None
-
-    async def _try_ytdlp() -> str | None:
-        try:
-            return await asyncio.to_thread(_extract_ytdlp_sync, video_id, low)
-        except Exception as e:
-            logger.warning(f"yt-dlp failed for {video_id}: {e}")
-            return None
-
-    logger.info(f"Initiating concurrent stream extraction race (Cobalt, Invidious, yt-dlp) for {video_id}")
-    
-    tasks = [
-        asyncio.create_task(_try_cobalt()),
-        asyncio.create_task(_try_invidious()),
-        asyncio.create_task(_try_ytdlp())
-    ]
-    
-    url = None
-    try:
-        async def _race():
-            nonlocal url
-            for future in asyncio.as_completed(tasks):
-                try:
-                    res = await future
-                    if res:
-                        url = res
-                        break
-                except Exception:
-                    pass
-        await asyncio.wait_for(_race(), timeout=6.0)
-    except asyncio.TimeoutError:
-        logger.warning(f"Stream extraction race timed out after 6.0s for {video_id}")
-    finally:
-        # Cancel any remaining tasks to free up network/CPU resources
-        for task in tasks:
-            if not task.done():
-                task.cancel()
-
-    if url:
-        _prune_url_cache()
-        _url_cache[cache_key] = (url, time.time() + _URL_CACHE_TTL)
         if redis_store.client:
             try:
-                redis_store.client.set(f"openjam:url:{cache_key}", url, ex=_URL_CACHE_TTL)
-                logger.info(f"Successfully cached stream URL for {cache_key} in Redis")
+                cached_url = redis_store.client.get(f"openjam:url:{cache_key}")
+                if cached_url:
+                    _url_cache[cache_key] = (cached_url, time.time() + _URL_CACHE_TTL)
+                    logger.info(f"Resolved stream URL for {cache_key} from Redis cache (inside lock)")
+                    return cached_url
+            except Exception:
+                pass
+
+        async def _try_cobalt() -> str | None:
+            try:
+                from backend.services.cobalt import get_cobalt_stream_url
+                return await get_cobalt_stream_url(video_id)
             except Exception as e:
-                logger.warning(f"Failed to cache stream URL in Redis for {cache_key}: {e}")
-    return url
+                logger.warning(f"Cobalt failed for {video_id}: {e}")
+                return None
+
+        async def _try_invidious() -> str | None:
+            try:
+                return await get_invidious_stream_url(video_id)
+            except Exception as e:
+                logger.warning(f"Invidious failed for {video_id}: {e}")
+                return None
+
+        async def _try_ytdlp() -> str | None:
+            try:
+                return await asyncio.to_thread(_extract_ytdlp_sync, video_id, low)
+            except Exception as e:
+                logger.warning(f"yt-dlp failed for {video_id}: {e}")
+                return None
+
+        logger.info(f"Initiating concurrent stream extraction race (Cobalt, Invidious, yt-dlp) for {video_id}")
+        
+        tasks = [
+            asyncio.create_task(_try_cobalt()),
+            asyncio.create_task(_try_invidious()),
+            asyncio.create_task(_try_ytdlp())
+        ]
+        
+        url = None
+        try:
+            async def _race():
+                nonlocal url
+                for future in asyncio.as_completed(tasks):
+                    try:
+                        res = await future
+                        if res:
+                            url = res
+                            break
+                    except Exception:
+                        pass
+            await asyncio.wait_for(_race(), timeout=6.0)
+        except asyncio.TimeoutError:
+            logger.warning(f"Stream extraction race timed out after 6.0s for {video_id}")
+        finally:
+            # Cancel any remaining tasks to free up network/CPU resources
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+
+        if url:
+            _prune_url_cache()
+            _url_cache[cache_key] = (url, time.time() + _URL_CACHE_TTL)
+            if redis_store.client:
+                try:
+                    redis_store.client.set(f"openjam:url:{cache_key}", url, ex=_URL_CACHE_TTL)
+                    logger.info(f"Successfully cached stream URL for {cache_key} in Redis")
+                except Exception as e:
+                    logger.warning(f"Failed to cache stream URL in Redis for {cache_key}: {e}")
+        return url
 
 
 async def pre_resolve_url(video_id: str):
@@ -533,6 +564,13 @@ async def pre_resolve_url(video_id: str):
 async def stream_audio(video_id: str, request: Request, low: bool = False, nocache: bool = False):
     if not _is_valid_video_id(video_id):
         raise HTTPException(status_code=400, detail="Invalid video ID")
+
+    # Check if a download is in progress, if so wait for it
+    download_lock = await get_download_lock(video_id)
+    if download_lock.locked():
+        logger.info(f"Waiting for in-flight download of {video_id} to finish...")
+        async with download_lock:
+            pass  # wait for completion
 
     # Check if high-quality or low-quality is already cached locally
     for vid_id in [video_id, f"{video_id}_low"]:

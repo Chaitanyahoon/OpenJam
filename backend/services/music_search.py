@@ -155,14 +155,13 @@ class MusicSearchService:
             if not ytm:
                 return None
 
-            results = ytm.search(query, filter="songs", limit=1)
-            if not results:
-                results = ytm.search(query, limit=1)
+            results = ytm.search(query, limit=3)
             if results:
-                vid = results[0].get("videoId")
-                if vid:
-                    logger.debug(f"ytmusicapi resolved '{query}' → {vid}")
-                    return vid
+                for r in results:
+                    vid = r.get("videoId")
+                    if vid:
+                        logger.debug(f"ytmusicapi resolved '{query}' → {vid}")
+                        return vid
         except Exception as e:
             logger.warning(f"ytmusicapi resolve failed for '{query}': {e}")
             # Reset the instance so it reinitializes on next call
