@@ -38,6 +38,30 @@ const nextConfig = {
         destination: `${BACKEND_URL}/admin/:path*`,
       },
       {
+        source: '/likes',
+        destination: `${BACKEND_URL}/likes`,
+      },
+      {
+        source: '/likes/:path*',
+        destination: `${BACKEND_URL}/likes/:path*`,
+      },
+      {
+        source: '/playlists',
+        destination: `${BACKEND_URL}/playlists`,
+      },
+      {
+        source: '/playlists/:path*',
+        destination: `${BACKEND_URL}/playlists/:path*`,
+      },
+      {
+        source: '/profile',
+        destination: `${BACKEND_URL}/profile`,
+      },
+      {
+        source: '/profile/:path*',
+        destination: `${BACKEND_URL}/profile/:path*`,
+      },
+      {
         source: '/ping',
         destination: `${BACKEND_URL}/ping`,
       },
