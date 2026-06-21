@@ -22,7 +22,7 @@ from backend.middleware.auth import get_current_user_id
 from backend.services.queue_manager import queue_manager
 from backend.services.music_search import music_search_service as lastfm_service
 from backend.services.invidious import get_stream_url as get_invidious_stream_url, report_stream_failure
-from backend.schemas import QueueTrackRequest
+from backend.schemas import QueueTrackRequest, PlaylistTrackRequest
 from backend.routes.rooms import check_room_access
 from backend.services.redis_store import RedisStore
 
