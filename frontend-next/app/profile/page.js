@@ -1,60 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   User, Music, Heart, Plus, Trash2, Globe, Lock, Share2, 
-  ArrowLeft, Edit2, Check, X, Disc, ExternalLink, Play 
+  ArrowLeft, Edit2, Check, X, Disc, ExternalLink, Play, LogOut,
+  ListMusic, FolderHeart
 } from 'lucide-react';
-
-const THEMES = {
-  amber: {
-    primary: '#ff9f1c',
-    secondary: '#ffd23f',
-    glow: 'rgba(255, 159, 28, 0.15)',
-    name: 'Warm Amber',
-    shadow: '0 8px 32px rgba(255, 170, 0, 0.25), 0 0 0 1px rgba(255, 170, 0, 0.15)',
-    hoverBg: 'linear-gradient(135deg, #ffb732, #ffe066)',
-    hoverShadow: '0 12px 40px rgba(255,170,0,0.4)',
-  },
-  cobalt: {
-    primary: '#38bdf8',
-    secondary: '#60a5fa',
-    glow: 'rgba(56, 189, 248, 0.15)',
-    name: 'Cobalt Blue',
-    shadow: '0 8px 32px rgba(56, 189, 248, 0.25), 0 0 0 1px rgba(56, 189, 248, 0.15)',
-    hoverBg: 'linear-gradient(135deg, #60d2ff, #93c5fd)',
-    hoverShadow: '0 12px 40px rgba(56, 189, 248, 0.4)',
-  },
-  rose: {
-    primary: '#f43f5e',
-    secondary: '#fb7185',
-    glow: 'rgba(244, 63, 94, 0.15)',
-    name: 'Neon Rose',
-    shadow: '0 8px 32px rgba(244, 63, 94, 0.25), 0 0 0 1px rgba(244, 63, 94, 0.15)',
-    hoverBg: 'linear-gradient(135deg, #ff5b78, #fda4af)',
-    hoverShadow: '0 12px 40px rgba(244, 63, 94, 0.4)',
-  },
-  emerald: {
-    primary: '#10b981',
-    secondary: '#34d399',
-    glow: 'rgba(16, 185, 129, 0.15)',
-    name: 'Emerald Green',
-    shadow: '0 8px 32px rgba(16, 185, 129, 0.25), 0 0 0 1px rgba(16, 185, 129, 0.15)',
-    hoverBg: 'linear-gradient(135deg, #22d3ee, #6ee7b7)',
-    hoverShadow: '0 12px 40px rgba(16, 185, 129, 0.4)',
-  },
-  violet: {
-    primary: '#8b5cf6',
-    secondary: '#a78bfa',
-    glow: 'rgba(139, 92, 246, 0.15)',
-    name: 'Electric Violet',
-    shadow: '0 8px 32px rgba(139, 92, 246, 0.25), 0 0 0 1px rgba(139, 92, 246, 0.15)',
-    hoverBg: 'linear-gradient(135deg, #a78bfa, #c084fc)',
-    hoverShadow: '0 12px 40px rgba(139, 92, 246, 0.4)',
-  },
-};
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState(null);
@@ -71,6 +24,26 @@ export default function ProfilePage() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState('');
   const [toasts, setToasts] = useState([]);
+
+  const cursorGlowRef = useRef(null);
+
+  // Mouse move handler for interactive background glow
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (cursorGlowRef.current) {
+        cursorGlowRef.current.style.left = `${e.clientX}px`;
+        cursorGlowRef.current.style.top = `${e.clientY}px`;
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('mousemove', handleMouseMove);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('mousemove', handleMouseMove);
+      }
+    };
+  }, []);
 
   const addToast = (text, type = 'success') => {
     const id = Date.now();
@@ -124,29 +97,6 @@ export default function ProfilePage() {
         addToast('Profile updated!', 'success');
       } else {
         addToast('Failed to update profile name', 'error');
-      }
-    } catch (err) {
-      addToast('Connection error', 'error');
-    }
-  };
-
-  const handleUpdateTheme = async (themeKey) => {
-    if (!profile) return;
-    try {
-      const res = await fetch('/profile/me', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          display_name: profile.display_name, 
-          profile_theme: themeKey 
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setProfile(data.user);
-        addToast('Theme updated!', 'success');
-      } else {
-        addToast('Failed to update theme', 'error');
       }
     } catch (err) {
       addToast('Connection error', 'error');
@@ -270,6 +220,11 @@ export default function ProfilePage() {
     addToast('Shareable link copied to clipboard!', 'success');
   };
 
+  const getInitials = (name) => {
+    if (!name) return '?';
+    return name.slice(0, 2).toUpperCase();
+  };
+
   if (loading) {
     return (
       <div style={{
@@ -306,7 +261,7 @@ export default function ProfilePage() {
         fontFamily: 'sans-serif'
       }}>
         <Disc size={64} color="var(--amber, #ff9f1c)" style={{ marginBottom: '24px' }} />
-        <h1 style={{ fontSize: '28px', fontWeight: 800, marginBottom: '16px' }}>Unlock Premium Music Sharing</h1>
+        <h1 style={{ fontSize: '28px', fontWeight: 800, marginBottom: '16px', letterSpacing: '-0.02em' }}>Unlock Premium Music Sharing</h1>
         <p style={{ color: '#aaa', maxWidth: '450px', marginBottom: '32px', lineHeight: '1.6' }}>
           Connect with Discord to create personal playlists, save your favorite tracks, customize your profile, and share your playlists with friends.
         </p>
@@ -321,7 +276,8 @@ export default function ProfilePage() {
             padding: '12px 24px',
             borderRadius: '30px',
             fontWeight: 700,
-            textDecoration: 'none'
+            textDecoration: 'none',
+            boxShadow: '0 8px 24px rgba(88, 101, 242, 0.35)'
           }}>
             Sign in with Discord
           </a>
@@ -330,35 +286,32 @@ export default function ProfilePage() {
     );
   }
 
-  const activeTheme = THEMES[profile?.profile_theme] || THEMES.amber;
-
   return (
     <div style={{
       minHeight: '100vh',
       background: 'radial-gradient(circle at top, #141318 0%, #08080a 70%)',
       color: '#fff',
-      fontFamily: 'var(--font-sans), sans-serif',
+      fontFamily: 'var(--font-ui), sans-serif',
       padding: '40px 24px',
       position: 'relative',
-      '--amber': activeTheme.primary,
-      '--amber-glow': activeTheme.glow,
-      '--theme-accent': activeTheme.primary,
-      '--theme-accent-glow': activeTheme.glow
+      overflow: 'hidden'
     }}>
-      <style dangerouslySetInnerHTML={{__html: `
-        :root {
-          --theme-accent: ${activeTheme.primary};
-          --theme-accent-glow: ${activeTheme.glow};
-          --amber: ${activeTheme.primary};
-          --amber-glow: ${activeTheme.glow};
-          --gold: ${activeTheme.secondary};
-          --shadow-amber: ${activeTheme.shadow};
-        }
-        .btn-primary:hover {
-          background: ${activeTheme.hoverBg} !important;
-          box-shadow: ${activeTheme.hoverShadow} !important;
-        }
-      `}} />
+      {/* Interactive Cursor Glow */}
+      <div 
+        ref={cursorGlowRef} 
+        style={{
+          position: 'fixed',
+          width: '500px',
+          height: '500px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(255, 159, 28, 0.04) 0%, rgba(255, 159, 28, 0) 70%)',
+          transform: 'translate(-50%, -50%)',
+          pointerEvents: 'none',
+          zIndex: 0,
+          mixBlendMode: 'screen'
+        }}
+      />
+
       {/* Toast notifications */}
       <div style={{
         position: 'fixed',
@@ -397,10 +350,10 @@ export default function ProfilePage() {
         </AnimatePresence>
       </div>
 
-      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+      <div style={{ maxWidth: '1200px', margin: '0 auto', position: 'relative', zIndex: 1 }}>
         {/* Navigation */}
         <div style={{ marginBottom: '32px' }}>
-          <Link href="/" className="btn btn-ghost" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: '#aaa', textDecoration: 'none' }}>
+          <Link href="/" className="btn btn-ghost" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: '#888', textDecoration: 'none', transition: 'color 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.color = '#fff'} onMouseLeave={(e) => e.currentTarget.style.color = '#888'}>
             <ArrowLeft size={16} /> Back to OpenJam Rooms
           </Link>
         </div>
@@ -409,9 +362,10 @@ export default function ProfilePage() {
         <div className="glass-card" style={{
           padding: '32px',
           borderRadius: '24px',
-          border: '1px solid rgba(255,255,255,0.06)',
-          background: 'rgba(255,255,255,0.02)',
+          border: '1px solid rgba(255,255,255,0.05)',
+          background: 'linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)',
           backdropFilter: 'blur(30px)',
+          boxShadow: '0 20px 50px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)',
           display: 'flex',
           flexDirection: 'row',
           alignItems: 'center',
@@ -421,26 +375,29 @@ export default function ProfilePage() {
           marginBottom: '40px'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap' }}>
-            {profile?.avatar_url ? (
-              <img 
-                src={profile.avatar_url} 
-                alt={profile.display_name} 
-                style={{ width: '80px', height: '80px', borderRadius: '50%', border: '2px solid var(--amber, #ff9f1c)' }} 
-              />
-            ) : (
+            <div style={{ position: 'relative', width: '84px', height: '84px' }}>
               <div style={{
-                width: '80px',
-                height: '80px',
-                borderRadius: '50%',
-                background: 'rgba(255,255,255,0.05)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: '2px solid rgba(255,255,255,0.1)'
-              }}>
-                <User size={36} color="#888" />
-              </div>
-            )}
+                position: 'absolute', inset: -3, borderRadius: '50%',
+                background: 'linear-gradient(135deg, var(--amber, #ff9f1c) 0%, var(--gold, #ffd23f) 100%)',
+                zIndex: 0, opacity: 0.8
+              }} />
+              {profile?.avatar_url ? (
+                <img 
+                  src={profile.avatar_url} 
+                  alt={profile.display_name} 
+                  style={{ width: '84px', height: '84px', borderRadius: '50%', objectFit: 'cover', border: '3px solid #0e0e12', position: 'relative', zIndex: 1 }} 
+                />
+              ) : (
+                <div style={{
+                  width: '84px', height: '84px', borderRadius: '50%',
+                  background: 'rgba(255,255,255,0.04)', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center',
+                  border: '3px solid #0e0e12', position: 'relative', zIndex: 1
+                }}>
+                  <User size={36} color="#888" />
+                </div>
+              )}
+            </div>
 
             <div>
               {isEditingName ? (
@@ -450,7 +407,7 @@ export default function ProfilePage() {
                     value={editedName}
                     onChange={(e) => setEditedName(e.target.value)}
                     style={{
-                      background: 'rgba(0,0,0,0.3)',
+                      background: 'rgba(0,0,0,0.4)',
                       border: '1px solid var(--amber, #ff9f1c)',
                       color: '#fff',
                       fontSize: '24px',
@@ -458,7 +415,8 @@ export default function ProfilePage() {
                       borderRadius: '8px',
                       padding: '4px 12px',
                       outline: 'none',
-                      maxWidth: '220px'
+                      maxWidth: '220px',
+                      boxShadow: '0 0 12px rgba(255, 159, 28, 0.2)'
                     }}
                     autoFocus
                   />
@@ -471,45 +429,28 @@ export default function ProfilePage() {
                 </div>
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <h2 style={{ fontSize: '28px', fontWeight: 800, letterSpacing: '-0.02em' }}>{profile?.display_name}</h2>
+                  <h2 style={{ fontSize: '32px', fontWeight: 800, letterSpacing: '-0.03em', background: 'linear-gradient(135deg, #fff 0%, #ccc 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                    {profile?.display_name}
+                  </h2>
                   <button 
                     onClick={() => setIsEditingName(true)} 
-                    style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', transition: 'color 0.2s' }}
-                    onMouseEnter={(e) => e.currentTarget.style.color = 'var(--amber, #ff9f1c)'}
-                    onMouseLeave={(e) => e.currentTarget.style.color = '#666'}
+                    style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: '#aaa', padding: '6px', borderRadius: '50%', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--amber, #ff9f1c)'; e.currentTarget.style.background = 'rgba(255, 159, 28, 0.1)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = '#aaa'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
                   >
-                    <Edit2 size={16} />
+                    <Edit2 size={13} />
                   </button>
                 </div>
               )}
               
               <div style={{ display: 'flex', gap: '16px', marginTop: '8px', color: '#888', fontSize: '13px' }}>
-                {profile?.discord_username && <span>Discord: @{profile.discord_username}</span>}
-                <span>Member since: {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : 'N/A'}</span>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '16px' }}>
-                <span style={{ fontSize: '13px', color: '#888', fontWeight: 600 }}>Profile Theme:</span>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  {Object.entries(THEMES).map(([key, val]) => (
-                    <button
-                      key={key}
-                      onClick={() => handleUpdateTheme(key)}
-                      style={{
-                        width: '20px',
-                        height: '20px',
-                        borderRadius: '50%',
-                        background: val.primary,
-                        border: profile?.profile_theme === key ? '2px solid #fff' : '2px solid transparent',
-                        boxShadow: profile?.profile_theme === key ? `0 0 10px ${val.primary}` : 'none',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        transform: profile?.profile_theme === key ? 'scale(1.2)' : 'none',
-                      }}
-                      title={val.name}
-                    />
-                  ))}
-                </div>
+                {profile?.discord_username && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#5865F2' }} />
+                    Discord: @{profile.discord_username}
+                  </span>
+                )}
+                <span>Member since: {profile?.created_at ? new Date(profile.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}</span>
               </div>
             </div>
           </div>
@@ -518,8 +459,23 @@ export default function ProfilePage() {
             <button 
               className="btn btn-ghost" 
               onClick={handleLogout}
-              style={{ padding: '8px 16px', fontSize: '14px' }}
+              style={{
+                padding: '10px 20px',
+                fontSize: '14px',
+                borderRadius: '30px',
+                background: 'rgba(255, 71, 87, 0.04)',
+                border: '1px solid rgba(255, 71, 87, 0.15)',
+                color: '#ff4757',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255, 71, 87, 0.12)'; e.currentTarget.style.borderColor = 'rgba(255, 71, 87, 0.3)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 71, 87, 0.04)'; e.currentTarget.style.borderColor = 'rgba(255, 71, 87, 0.15)'; }}
             >
+              <LogOut size={14} />
               Sign Out
             </button>
           </div>
@@ -528,42 +484,55 @@ export default function ProfilePage() {
         {/* Dashboard Grid */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: '320px 1fr',
+          gridTemplateColumns: '340px 1fr',
           gap: '32px',
           alignItems: 'start'
         }}>
           {/* Sidebar (Playlists Navigation) */}
           <div className="glass-card" style={{
             padding: '24px',
-            borderRadius: '20px',
-            border: '1px solid rgba(255,255,255,0.06)',
-            background: 'rgba(10, 9, 12, 0.4)',
-            backdropFilter: 'blur(20px)'
+            borderRadius: '24px',
+            border: '1px solid rgba(255,255,255,0.04)',
+            background: 'linear-gradient(135deg, rgba(20, 20, 28, 0.4) 0%, rgba(10, 10, 14, 0.6) 100%)',
+            backdropFilter: 'blur(20px)',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.3)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#888' }}>
+              <h3 style={{ fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#888' }}>
                 My Library
               </h3>
               <button 
                 onClick={() => setShowCreateModal(true)} 
                 className="btn btn-primary"
-                style={{ padding: '6px 10px', fontSize: '12px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                style={{
+                  padding: '8px 14px',
+                  fontSize: '13px',
+                  borderRadius: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontWeight: 700,
+                  background: 'linear-gradient(135deg, var(--amber, #ff9f1c) 0%, var(--gold, #ffd23f) 100%)',
+                  border: 'none',
+                  color: '#000',
+                  cursor: 'pointer'
+                }}
               >
-                <Plus size={14} /> New
+                <Plus size={14} /> New Playlist
               </button>
             </div>
 
             {/* List */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <button
                 onClick={() => setActivePlaylistId(null)}
                 style={{
                   width: '100%',
-                  padding: '12px 16px',
-                  borderRadius: '12px',
+                  padding: '14px 18px',
+                  borderRadius: '16px',
                   border: '1px solid',
-                  borderColor: activePlaylistId === null ? 'var(--amber, #ff9f1c)' : 'transparent',
-                  background: activePlaylistId === null ? activeTheme.glow : 'rgba(255,255,255,0.02)',
+                  borderColor: activePlaylistId === null ? 'var(--amber, #ff9f1c)' : 'rgba(255,255,255,0.03)',
+                  background: activePlaylistId === null ? 'rgba(255, 159, 28, 0.08)' : 'rgba(255,255,255,0.02)',
                   color: '#fff',
                   textAlign: 'left',
                   cursor: 'pointer',
@@ -571,13 +540,15 @@ export default function ProfilePage() {
                   fontSize: '14px',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '10px',
+                  gap: '12px',
                   transition: 'all 0.2s'
                 }}
+                onMouseEnter={(e) => { if (activePlaylistId !== null) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+                onMouseLeave={(e) => { if (activePlaylistId !== null) e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}
               >
                 <Heart size={16} color="var(--amber, #ff9f1c)" fill="var(--amber, #ff9f1c)" />
                 Liked Songs
-                <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#666' }}>{likes.length}</span>
+                <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#666', background: 'rgba(0,0,0,0.3)', padding: '2px 8px', borderRadius: '10px' }}>{likes.length}</span>
               </button>
 
               {playlists.map((pl) => (
@@ -586,19 +557,21 @@ export default function ProfilePage() {
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    borderRadius: '12px',
+                    borderRadius: '16px',
                     border: '1px solid',
-                    borderColor: activePlaylistId === pl.id ? 'var(--amber, #ff9f1c)' : 'transparent',
-                    background: activePlaylistId === pl.id ? activeTheme.glow : 'rgba(255,255,255,0.02)',
+                    borderColor: activePlaylistId === pl.id ? 'var(--amber, #ff9f1c)' : 'rgba(255,255,255,0.03)',
+                    background: activePlaylistId === pl.id ? 'rgba(255, 159, 28, 0.08)' : 'rgba(255,255,255,0.02)',
                     transition: 'all 0.2s',
                     overflow: 'hidden'
                   }}
+                  onMouseEnter={(e) => { if (activePlaylistId !== pl.id) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+                  onMouseLeave={(e) => { if (activePlaylistId !== pl.id) e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}
                 >
                   <button
                     onClick={() => setActivePlaylistId(pl.id)}
                     style={{
                       flex: 1,
-                      padding: '12px 16px',
+                      padding: '14px 18px',
                       border: 'none',
                       background: 'none',
                       color: '#fff',
@@ -608,7 +581,7 @@ export default function ProfilePage() {
                       fontSize: '14px',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '10px',
+                      gap: '12px',
                     }}
                   >
                     <Music size={16} color="#aaa" />
@@ -616,12 +589,12 @@ export default function ProfilePage() {
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
-                      maxWidth: '160px'
+                      maxWidth: '150px'
                     }}>{pl.name}</span>
                     {pl.is_private ? (
-                      <Lock size={12} color="#666" />
+                      <Lock size={12} color="#666" style={{ marginLeft: '6px' }} />
                     ) : (
-                      <Globe size={12} color="#666" />
+                      <Globe size={12} color="#666" style={{ marginLeft: '6px' }} />
                     )}
                   </button>
                   <button 
@@ -629,13 +602,13 @@ export default function ProfilePage() {
                     style={{
                       background: 'none',
                       border: 'none',
-                      color: '#666',
-                      padding: '12px 16px',
+                      color: '#555',
+                      padding: '14px 18px',
                       cursor: 'pointer',
                       transition: 'color 0.2s'
                     }}
                     onMouseEnter={(e) => e.currentTarget.style.color = '#ff4757'}
-                    onMouseLeave={(e) => e.currentTarget.style.color = '#666'}
+                    onMouseLeave={(e) => e.currentTarget.style.color = '#555'}
                   >
                     <Trash2 size={14} />
                   </button>
@@ -647,61 +620,66 @@ export default function ProfilePage() {
           {/* Main Area */}
           <div className="glass-card" style={{
             padding: '32px',
-            borderRadius: '20px',
-            border: '1px solid rgba(255,255,255,0.06)',
-            background: 'rgba(10, 9, 12, 0.4)',
+            borderRadius: '24px',
+            border: '1px solid rgba(255,255,255,0.04)',
+            background: 'linear-gradient(135deg, rgba(20, 20, 28, 0.4) 0%, rgba(10, 10, 14, 0.6) 100%)',
             backdropFilter: 'blur(20px)',
-            minHeight: '400px'
+            minHeight: '500px',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.3)'
           }}>
             {activePlaylistId === null ? (
               // LIKED SONGS VIEW
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '28px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '16px' }}>
                   <Heart size={28} color="var(--amber, #ff9f1c)" fill="var(--amber, #ff9f1c)" />
-                  <h3 style={{ fontSize: '22px', fontWeight: 800 }}>Liked Songs</h3>
-                  <span style={{ color: '#666', fontSize: '14px' }}>({likes.length} track{likes.length !== 1 ? 's' : ''})</span>
+                  <h3 style={{ fontSize: '24px', fontWeight: 800 }}>Liked Songs</h3>
+                  <span style={{ color: '#666', fontSize: '14px', marginLeft: '6px' }}>({likes.length} track{likes.length !== 1 ? 's' : ''})</span>
                 </div>
 
                 {likes.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '60px 0', color: '#666' }}>
-                    <Heart size={48} style={{ marginBottom: '16px', opacity: 0.3 }} />
-                    <p style={{ fontSize: '15px' }}>Tracks you like from search or rooms will appear here.</p>
+                  <div style={{ textAlign: 'center', padding: '80px 0', color: '#555' }}>
+                    <Heart size={48} style={{ marginBottom: '16px', opacity: 0.15 }} />
+                    <p style={{ fontSize: '16px', fontWeight: 500 }}>No liked songs yet.</p>
+                    <p style={{ fontSize: '13px', color: '#444', marginTop: '4px' }}>Tracks you like inside listening rooms will appear here.</p>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {likes.map((like) => (
                       <div
                         key={like.id}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          padding: '12px 16px',
+                          padding: '14px 20px',
                           background: 'rgba(255,255,255,0.02)',
-                          border: '1px solid rgba(255,255,255,0.03)',
-                          borderRadius: '12px',
-                          gap: '12px'
+                          border: '1px solid rgba(255,255,255,0.04)',
+                          borderRadius: '16px',
+                          gap: '16px',
+                          transition: 'all 0.2s'
                         }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.borderColor = 'rgba(255, 159, 28, 0.1)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)'; }}
                       >
                         {like.album_art_url ? (
                           <img 
                             src={like.album_art_url} 
                             alt={like.track_name} 
-                            style={{ width: '40px', height: '40px', borderRadius: '6px', objectFit: 'cover' }} 
+                            style={{ width: '46px', height: '46px', borderRadius: '8px', objectFit: 'cover' }} 
                           />
                         ) : (
                           <div style={{
-                            width: '40px', height: '40px', borderRadius: '6px',
+                            width: '46px', height: '46px', borderRadius: '8px',
                             background: 'rgba(255,255,255,0.05)', display: 'flex',
                             alignItems: 'center', justifyContent: 'center'
                           }}>
-                            <Music size={16} />
+                            <Music size={18} />
                           </div>
                         )}
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <h4 style={{ fontWeight: 600, fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          <h4 style={{ fontWeight: 600, fontSize: '15px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {like.track_name}
                           </h4>
-                          <p style={{ color: '#888', fontSize: '12px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '2px' }}>
+                          <p style={{ color: '#888', fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '3px' }}>
                             {like.artist}
                           </p>
                         </div>
@@ -712,11 +690,14 @@ export default function ProfilePage() {
                             border: 'none',
                             color: 'var(--amber, #ff9f1c)',
                             cursor: 'pointer',
-                            padding: '8px'
+                            padding: '10px',
+                            transition: 'transform 0.2s'
                           }}
+                          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.15)'}
+                          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                           title="Remove from Liked"
                         >
-                          <Heart size={16} fill="var(--amber, #ff9f1c)" />
+                          <Heart size={18} fill="var(--amber, #ff9f1c)" />
                         </button>
                       </div>
                     ))}
@@ -727,9 +708,9 @@ export default function ProfilePage() {
               // PLAYLIST DETAILS VIEW
               <div>
                 {loadingPlaylist ? (
-                  <div style={{ display: 'flex', justifyContent: 'center', padding: '60px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'center', padding: '80px' }}>
                     <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.5, ease: 'linear' }}>
-                      <Disc size={32} color="var(--amber, #ff9f1c)" />
+                      <Disc size={40} color="var(--amber, #ff9f1c)" />
                     </motion.div>
                   </div>
                 ) : activePlaylistData ? (
@@ -741,17 +722,17 @@ export default function ProfilePage() {
                       alignItems: 'flex-start',
                       flexWrap: 'wrap',
                       gap: '16px',
-                      marginBottom: '24px',
-                      borderBottom: '1px solid rgba(255,255,255,0.06)',
+                      marginBottom: '28px',
+                      borderBottom: '1px solid rgba(255,255,255,0.05)',
                       paddingBottom: '20px'
                     }}>
                       <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <h3 style={{ fontSize: '24px', fontWeight: 800 }}>{activePlaylistData.name}</h3>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <h3 style={{ fontSize: '26px', fontWeight: 800 }}>{activePlaylistData.name}</h3>
                           {activePlaylistData.is_private ? (
-                            <Lock size={14} color="#888" />
+                            <Lock size={16} color="#888" title="Private Playlist" />
                           ) : (
-                            <Globe size={14} color="#888" />
+                            <Globe size={16} color="#888" title="Public Playlist" />
                           )}
                         </div>
                         <p style={{ color: '#666', fontSize: '13px', marginTop: '6px' }}>
@@ -765,12 +746,14 @@ export default function ProfilePage() {
                             onClick={() => handleCopyPlaylistLink(activePlaylistData.id)}
                             className="btn btn-ghost"
                             style={{
-                              padding: '8px 16px',
+                              padding: '8px 18px',
                               fontSize: '13px',
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '6px',
-                              borderRadius: '20px'
+                              gap: '8px',
+                              borderRadius: '20px',
+                              background: 'rgba(255,255,255,0.02)',
+                              border: '1px solid rgba(255,255,255,0.08)'
                             }}
                           >
                             <Share2 size={14} /> Share Link
@@ -780,14 +763,16 @@ export default function ProfilePage() {
                           onClick={() => handleDeletePlaylist(activePlaylistData.id)}
                           className="btn btn-ghost"
                           style={{
-                            padding: '8px 16px',
+                            padding: '8px 18px',
                             fontSize: '13px',
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '6px',
+                            gap: '8px',
                             color: '#ff4757',
                             borderColor: 'rgba(255,71,87,0.2)',
-                            borderRadius: '20px'
+                            borderRadius: '20px',
+                            background: 'rgba(255,71,87,0.02)',
+                            border: '1px solid rgba(255,71,87,0.15)'
                           }}
                         >
                           <Trash2 size={14} /> Delete Playlist
@@ -797,48 +782,51 @@ export default function ProfilePage() {
 
                     {/* Track list */}
                     {!activePlaylistData.tracks || activePlaylistData.tracks.length === 0 ? (
-                      <div style={{ textAlign: 'center', padding: '60px 0', color: '#666' }}>
-                        <Music size={48} style={{ marginBottom: '16px', opacity: 0.3 }} />
-                        <p style={{ fontSize: '15px' }}>This playlist is empty.</p>
-                        <p style={{ fontSize: '13px', color: '#555', marginTop: '4px' }}>
+                      <div style={{ textAlign: 'center', padding: '80px 0', color: '#555' }}>
+                        <Music size={48} style={{ marginBottom: '16px', opacity: 0.15 }} />
+                        <p style={{ fontSize: '16px', fontWeight: 500 }}>This playlist is empty.</p>
+                        <p style={{ fontSize: '13px', color: '#444', marginTop: '4px' }}>
                           Add songs directly to this playlist while listening in rooms or from search.
                         </p>
                       </div>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                         {activePlaylistData.tracks.map((track) => (
                           <div
                             key={track.id}
                             style={{
                               display: 'flex',
                               alignItems: 'center',
-                              padding: '12px 16px',
+                              padding: '14px 20px',
                               background: 'rgba(255,255,255,0.02)',
-                              border: '1px solid rgba(255,255,255,0.03)',
-                              borderRadius: '12px',
-                              gap: '12px'
+                              border: '1px solid rgba(255,255,255,0.04)',
+                              borderRadius: '16px',
+                              gap: '16px',
+                              transition: 'all 0.2s'
                             }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)'; }}
                           >
                             {track.album_art_url ? (
                               <img 
                                 src={track.album_art_url} 
                                 alt={track.track_name} 
-                                style={{ width: '40px', height: '40px', borderRadius: '6px', objectFit: 'cover' }} 
+                                style={{ width: '46px', height: '46px', borderRadius: '8px', objectFit: 'cover' }} 
                               />
                             ) : (
                               <div style={{
-                                width: '40px', height: '40px', borderRadius: '6px',
+                                width: '46px', height: '46px', borderRadius: '8px',
                                 background: 'rgba(255,255,255,0.05)', display: 'flex',
                                 alignItems: 'center', justifyContent: 'center'
                               }}>
-                                <Music size={16} />
+                                <Music size={18} />
                               </div>
                             )}
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <h4 style={{ fontWeight: 600, fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              <h4 style={{ fontWeight: 600, fontSize: '15px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {track.track_name}
                               </h4>
-                              <p style={{ color: '#888', fontSize: '12px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '2px' }}>
+                              <p style={{ color: '#888', fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '3px' }}>
                                 {track.artist}
                               </p>
                             </div>
@@ -847,16 +835,16 @@ export default function ProfilePage() {
                               style={{
                                 background: 'none',
                                 border: 'none',
-                                color: '#666',
+                                color: '#555',
                                 cursor: 'pointer',
-                                padding: '8px',
+                                padding: '10px',
                                 transition: 'color 0.2s'
                               }}
                               onMouseEnter={(e) => e.currentTarget.style.color = '#ff4757'}
-                              onMouseLeave={(e) => e.currentTarget.style.color = '#666'}
+                              onMouseLeave={(e) => e.currentTarget.style.color = '#555'}
                               title="Remove from Playlist"
                             >
-                              <Trash2 size={16} />
+                              <Trash2 size={18} />
                             </button>
                           </div>
                         ))}
@@ -880,12 +868,12 @@ export default function ProfilePage() {
           left: 0,
           width: '100%',
           height: '100%',
-          background: 'rgba(0,0,0,0.8)',
+          background: 'rgba(0,0,0,0.85)',
           zIndex: 9999,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          backdropFilter: 'blur(8px)',
+          backdropFilter: 'blur(10px)',
           padding: '20px'
         }}>
           <motion.div
@@ -898,10 +886,10 @@ export default function ProfilePage() {
               padding: '32px',
               width: '100%',
               maxWidth: '440px',
-              boxShadow: '0 24px 64px rgba(0,0,0,0.6)'
+              boxShadow: '0 24px 64px rgba(0,0,0,0.8)'
             }}
           >
-            <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '20px' }}>Create New Playlist</h3>
+            <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '20px', letterSpacing: '-0.01em' }}>Create New Playlist</h3>
             <form onSubmit={handleCreatePlaylist}>
               <div style={{ marginBottom: '20px' }}>
                 <label style={{ display: 'block', fontSize: '13px', color: '#888', marginBottom: '8px', fontWeight: 600 }}>
@@ -970,14 +958,14 @@ export default function ProfilePage() {
                   type="button" 
                   className="btn btn-ghost" 
                   onClick={() => { setShowCreateModal(false); setNewPlaylistName(''); }}
-                  style={{ padding: '10px 20px', borderRadius: '12px' }}
+                  style={{ padding: '10px 20px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}
                 >
                   Cancel
                 </button>
                 <button 
                   type="submit" 
                   className="btn btn-primary"
-                  style={{ padding: '10px 20px', borderRadius: '12px' }}
+                  style={{ padding: '10px 20px', borderRadius: '12px', background: 'linear-gradient(135deg, var(--amber, #ff9f1c) 0%, var(--gold, #ffd23f) 100%)', border: 'none', color: '#000', fontWeight: 700 }}
                 >
                   Create Playlist
                 </button>
