@@ -108,7 +108,11 @@ class QueueManager:
         if next_item:
             next_item.status = "playing"
 
-            # Ensure the track_uri is a resolved YouTube ID
+            # Ensure the track_uri is a resolved YouTube ID.
+            # This is a safety-net fallback — tracks are normally pre-resolved by
+            # resolve_room_queue_background() on the async event loop. Here we use
+            # resolve_youtube_sync because advance_queue runs inside asyncio.to_thread
+            # (no event loop available in this thread).
             if next_item.track_uri and (" " in next_item.track_uri or len(next_item.track_uri) != 11):
                 from backend.services.music_search import music_search_service as lastfm_service
                 vid = lastfm_service.resolve_youtube_sync(next_item.track_uri)

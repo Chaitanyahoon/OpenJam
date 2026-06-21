@@ -111,9 +111,12 @@ class RedisStore:
         """Returns list of (sid, info) pairs."""
         if self.client:
             keys = list(self.client.scan_iter("openjam:sid:*"))
+            if not keys:
+                return []
+            # Use MGET to fetch all SID mappings in a single connection round-trip
+            values = self.client.mget(keys)
             items = []
-            for k in keys:
-                val = self.client.get(k)
+            for k, val in zip(keys, values):
                 if val:
                     sid = k.replace("openjam:sid:", "", 1)
                     items.append((sid, json.loads(val)))

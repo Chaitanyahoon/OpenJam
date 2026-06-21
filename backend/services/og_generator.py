@@ -9,8 +9,8 @@ logger = logging.getLogger(__name__)
 async def ensure_fonts():
     font_dir = os.path.join("backend", "assets", "fonts")
     os.makedirs(font_dir, exist_ok=True)
-    bold_font_path = os.path.join(font_dir, "Inter-Bold.ttf")
-    medium_font_path = os.path.join(font_dir, "Inter-Medium.ttf")
+    bold_font_path = os.path.join(font_dir, "Roboto-Bold.ttf")
+    medium_font_path = os.path.join(font_dir, "Roboto-Medium.ttf")
 
     async def download_file(url, path):
         try:
@@ -72,8 +72,8 @@ async def generate_og_image(inviter_name: str, room_name: str, avatar_url: str =
 
     # Load fonts
     font_dir = os.path.join("backend", "assets", "fonts")
-    bold_font_path = os.path.join(font_dir, "Inter-Bold.ttf")
-    medium_font_path = os.path.join(font_dir, "Inter-Medium.ttf")
+    bold_font_path = os.path.join(font_dir, "Roboto-Bold.ttf")
+    medium_font_path = os.path.join(font_dir, "Roboto-Medium.ttf")
 
     try:
         font_large = ImageFont.truetype(bold_font_path, 80)

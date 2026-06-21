@@ -3,7 +3,6 @@
 import logging
 import re
 import urllib.parse
-import urllib.request
 import json
 import asyncio
 import httpx
@@ -20,6 +19,7 @@ class MusicSearchService:
         import threading
         self._ytmusic = None  # Lazy singleton
         self._resolve_cache = {}  # In-memory track query resolution cache
+        self._search_cache = {}  # In-memory search results cache
         self._ytmusic_lock = threading.Lock()
         threading.Thread(target=self._init_ytmusic_eagerly, daemon=True).start()
 
@@ -47,6 +47,12 @@ class MusicSearchService:
         """Search iTunes for tracks asynchronously. Returns list compatible with existing data shape."""
         if not query or not query.strip():
             return []
+
+        q = query.strip().lower()
+        cache_key = f"{q}_{limit}"
+        if cache_key in self._search_cache:
+            logger.debug(f"Search results for '{query}' retrieved from cache")
+            return self._search_cache[cache_key]
 
         params = urllib.parse.urlencode({
             "term": query.strip(),
@@ -91,6 +97,10 @@ class MusicSearchService:
             })
 
         logger.debug(f"iTunes search '{query}' → {len(tracks)} results")
+        self._search_cache[cache_key] = tracks
+        if len(self._search_cache) > 200:
+            first_key = next(iter(self._search_cache))
+            self._search_cache.pop(first_key, None)
         return tracks
 
     async def resolve_youtube(self, query: str) -> str | None:
@@ -308,7 +318,13 @@ class MusicSearchService:
     # ════════════════════════════════════════════════════════════
 
     def _run_async_in_thread(self, coro):
-        """Helper to run async coroutines synchronously from any thread."""
+        """Run async coroutines synchronously from any context.
+
+        When called from asyncio.to_thread (the normal path via advance_queue),
+        there is no running event loop, so asyncio.run() is used directly.
+        The ThreadPoolExecutor fallback only activates if called from the main
+        async thread by mistake, preventing nested event loop errors.
+        """
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
