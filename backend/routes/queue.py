@@ -1007,7 +1007,15 @@ async def add_multiple_tracks_to_queue(
     now_playing = queue_manager.get_now_playing(db, room_id)
     
     if not now_playing and not is_playing_live:
-        await asyncio.to_thread(queue_manager.advance_queue, db, room_id)
+        def _db_advance(room_id):
+            from backend.database import SessionLocal
+            db_thread = SessionLocal()
+            try:
+                queue_manager.advance_queue(db_thread, room_id)
+            finally:
+                db_thread.close()
+        await asyncio.to_thread(_db_advance, room_id)
+        db.expire_all()
         
     # Get updated queue
     queue = queue_manager.get_queue(db, room_id, None)
