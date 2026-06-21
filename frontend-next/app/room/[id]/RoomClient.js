@@ -11,7 +11,7 @@ import { offlineDb } from '@/utils/offlineDb';
 import EmojiPicker from '@/components/EmojiPicker';
 
 export default function RoomClient({ roomId }) {
-  const { socket, isConnected, reconnect } = useSocket();
+  const { socket, isConnected, isReconnecting, isConnectionFailed, reconnect } = useSocket();
   const playerRef = useRef(null);
   const typingTimeoutRef = useRef(null);
 
@@ -728,7 +728,7 @@ export default function RoomClient({ roomId }) {
     });
 
     socket.on('chat_message', (msg) => {
-      setChatMsgs((prev) => [...prev, msg]);
+      setChatMsgs((prev) => [...prev, msg].slice(-150));
       scrollToChatBottom();
 
       const isSelf = meRef.current && msg.user_id === meRef.current.id;
@@ -766,7 +766,7 @@ export default function RoomClient({ roomId }) {
           content: data.emoji,
           timestamp: new Date().toISOString()
         }
-      ]);
+      ].slice(-150));
       scrollToChatBottom();
     });
 
@@ -1079,6 +1079,20 @@ export default function RoomClient({ roomId }) {
       localStorage.setItem('openjam_volume', volume.toString());
     }
   }, [volume, isMuted]);
+
+  // 4.5. AudioContext Cleanup on Unmount
+  useEffect(() => {
+    return () => {
+      if (audioContextRef.current) {
+        try {
+          audioContextRef.current.close();
+        } catch (e) {
+          console.error('Failed to close AudioContext:', e);
+        }
+        audioContextRef.current = null;
+      }
+    };
+  }, []);
 
   // 5. Search Sugggestions Debouncer
   useEffect(() => {
@@ -2022,6 +2036,58 @@ export default function RoomClient({ roomId }) {
           </div>
         </div>
       </header>
+
+      {/* Connection Warning Banner */}
+      {(!isConnected || isConnectionFailed) && (
+        <div 
+          style={{
+            background: isConnectionFailed ? 'rgba(239, 68, 68, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+            borderBottom: isConnectionFailed ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(245, 158, 11, 0.4)',
+            color: '#fff',
+            padding: '10px 24px',
+            fontSize: '13px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '12px',
+            backdropFilter: 'blur(10px)',
+            position: 'sticky',
+            top: '64px',
+            zIndex: 150,
+            width: '100%',
+            animation: 'fadeIn 0.3s ease-out'
+          }}
+        >
+          <AlertCircle size={16} style={{ color: isConnectionFailed ? '#ef4444' : '#f59e0b' }} />
+          <span>
+            {isConnectionFailed 
+              ? 'Real-time synchronization lost. Reconnection attempts failed.' 
+              : isReconnecting 
+                ? 'Reconnecting to OpenJam server...' 
+                : 'Connecting to real-time sync server...'}
+          </span>
+          <button 
+            onClick={() => {
+              reconnect();
+            }}
+            style={{
+              background: 'rgba(255,255,255,0.1)',
+              border: '1px solid rgba(255,255,255,0.2)',
+              color: '#fff',
+              padding: '4px 12px',
+              borderRadius: '6px',
+              fontSize: '11px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+          >
+            Retry Now
+          </button>
+        </div>
+      )}
 
       {/* ══ ROOM CONTENT — Premium Tabbed 2-Column Layout ════════════ */}
       <div className="room-content" id="room-grid">

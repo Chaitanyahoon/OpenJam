@@ -66,7 +66,7 @@ export const metadata = {
     type: "website",
     images: [
       {
-        url: "/static/img/og-image.svg",
+        url: "/static/img/hero_visual_showcase.webp",
         width: 1200,
         height: 630,
         alt: "Open Jam — Listen Together in Real-Time",
@@ -77,7 +77,7 @@ export const metadata = {
     card: "summary_large_image",
     title: "Open Jam — Listen Together in Real-Time",
     description: "Create and join public listening rooms. Stream music, sync playback with friends, share queues, and discover new songs together in real-time.",
-    images: ["/static/img/og-image.svg"],
+    images: ["/static/img/hero_visual_showcase.webp"],
   },
   appleWebApp: {
     capable: true,
@@ -89,8 +89,8 @@ export const metadata = {
 export const viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  maximumScale: 5,
+  userScalable: true,
   viewportFit: "cover",
   themeColor: "#08080a",
 };

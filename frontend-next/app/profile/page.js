@@ -602,24 +602,9 @@ export default function ProfilePage() {
           </div>
 
           <div style={{ display: 'flex', gap: '12px' }}>
-            <button 
-              className="btn btn-ghost" 
+            <button
               onClick={handleLogout}
-              style={{
-                padding: '10px 20px',
-                fontSize: '14px',
-                borderRadius: '30px',
-                background: 'rgba(255, 71, 87, 0.04)',
-                border: '1px solid rgba(255, 71, 87, 0.15)',
-                color: '#ff4757',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255, 71, 87, 0.12)'; e.currentTarget.style.borderColor = 'rgba(255, 71, 87, 0.3)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 71, 87, 0.04)'; e.currentTarget.style.borderColor = 'rgba(255, 71, 87, 0.15)'; }}
+              className="btn-signout"
             >
               <LogOut size={14} />
               Sign Out
@@ -628,12 +613,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Dashboard Grid */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '340px 1fr',
-          gap: '32px',
-          alignItems: 'start'
-        }}>
+        <div className="profile-dashboard-grid">
           {/* Sidebar (Playlists Navigation) */}
           <div className="glass-card" style={{
             padding: '24px',

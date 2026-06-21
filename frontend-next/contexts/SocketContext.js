@@ -8,6 +8,8 @@ const SocketContext = createContext(null);
 export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [isConnectionFailed, setIsConnectionFailed] = useState(false);
 
   const getCookie = (name) => {
     if (typeof document === 'undefined') return null;
@@ -55,10 +57,31 @@ export const SocketProvider = ({ children }) => {
 
     socketInstance.on('connect', () => {
       setIsConnected(true);
+      setIsReconnecting(false);
+      setIsConnectionFailed(false);
     });
 
-    socketInstance.on('disconnect', () => {
+    socketInstance.on('disconnect', (reason) => {
       setIsConnected(false);
+      if (reason === 'io server disconnect') {
+        setIsConnectionFailed(true);
+      }
+    });
+
+    socketInstance.on('connect_error', () => {
+      if (socketInstance.active === false) {
+        setIsConnectionFailed(true);
+      }
+    });
+
+    socketInstance.on('reconnect_attempt', () => {
+      setIsReconnecting(true);
+      setIsConnectionFailed(false);
+    });
+
+    socketInstance.on('reconnect_failed', () => {
+      setIsReconnecting(false);
+      setIsConnectionFailed(true);
     });
 
     setSocket(socketInstance);
@@ -70,6 +93,8 @@ export const SocketProvider = ({ children }) => {
 
   const reconnect = (newToken, newGuestName) => {
     if (socket) {
+      setIsReconnecting(true);
+      setIsConnectionFailed(false);
       const token = newToken || getCookie('session_token') || '';
       const guestName = newGuestName || localStorage.getItem('openjam_display_name') || '';
       socket.auth = { token, guest_name: guestName };
@@ -78,7 +103,7 @@ export const SocketProvider = ({ children }) => {
   };
 
   return (
-    <SocketContext.Provider value={{ socket, isConnected, reconnect }}>
+    <SocketContext.Provider value={{ socket, isConnected, isReconnecting, isConnectionFailed, reconnect }}>
       {children}
     </SocketContext.Provider>
   );
@@ -87,7 +112,7 @@ export const SocketProvider = ({ children }) => {
 export const useSocket = () => {
   const context = useContext(SocketContext);
   if (!context) {
-    return { socket: null, isConnected: false, reconnect: () => {} };
+    return { socket: null, isConnected: false, isReconnecting: false, isConnectionFailed: false, reconnect: () => {} };
   }
   return context;
 };
