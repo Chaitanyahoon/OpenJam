@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Music, Play, Pause, ArrowLeft, Disc, Share2, 
-  Plus, Users, Volume2, VolumeX, ListMusic, Globe, Lock 
+  Plus, Users, Volume2, VolumeX, ListMusic, Globe, Lock, Heart 
 } from 'lucide-react';
 
 export default function PlaylistClient() {
@@ -17,6 +17,8 @@ export default function PlaylistClient() {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [me, setMe] = useState(null);
+  const [likes, setLikes] = useState([]);
 
   // Preview player states
   const [activePreview, setActivePreview] = useState(null);
@@ -39,6 +41,26 @@ export default function PlaylistClient() {
 
   const loadData = async () => {
     try {
+      // Fetch user profile
+      const meRes = await fetch('/auth/me');
+      let isRegistered = false;
+      if (meRes.ok) {
+        const meData = await meRes.json();
+        if (meData.user) {
+          setMe(meData.user);
+          isRegistered = meData.user.is_registered;
+        }
+      }
+
+      // Fetch likes if registered
+      if (isRegistered) {
+        const likesRes = await fetch('/likes');
+        if (likesRes.ok) {
+          const likesData = await likesRes.json();
+          setLikes(likesData.likes || []);
+        }
+      }
+
       // Fetch playlist
       const playRes = await fetch(`/playlists/${playlistId}`);
       if (!playRes.ok) {
@@ -72,6 +94,48 @@ export default function PlaylistClient() {
       loadData();
     }
   }, [playlistId]);
+
+  const handleLikeToggle = async (track) => {
+    if (!me || !me.is_registered) {
+      addToast('Please sign in with Discord to save liked songs!', 'warning');
+      return;
+    }
+
+    const isLiked = likes.some((l) => l.track_uri === track.track_uri);
+
+    try {
+      if (isLiked) {
+        const res = await fetch(`/likes?track_uri=${encodeURIComponent(track.track_uri)}`, { method: 'DELETE' });
+        if (res.ok) {
+          setLikes(likes.filter((l) => l.track_uri !== track.track_uri));
+          addToast('Removed from liked songs', 'success');
+        } else {
+          addToast('Failed to unlike song', 'error');
+        }
+      } else {
+        const res = await fetch('/likes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            track_uri: track.track_uri,
+            track_name: track.track_name,
+            artist: track.artist,
+            album_art_url: track.album_art_url,
+            duration_ms: track.duration_ms || 240000
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setLikes([...likes, data.like]);
+          addToast('Added to liked songs!', 'success');
+        } else {
+          addToast('Failed to like song', 'error');
+        }
+      }
+    } catch (err) {
+      addToast('Connection error', 'error');
+    }
+  };
 
   const handlePlayPreview = (track) => {
     if (activePreview?.id === track.id) {
@@ -455,6 +519,28 @@ export default function PlaylistClient() {
                       {track.artist}
                     </p>
                   </div>
+
+                  {/* Heart/Like Toggle */}
+                  <button
+                    onClick={() => handleLikeToggle(track)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: likes.some((l) => l.track_uri === track.track_uri) ? 'var(--amber, #ff9f1c)' : '#555',
+                      cursor: 'pointer',
+                      padding: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'color 0.2s ease'
+                    }}
+                    title={likes.some((l) => l.track_uri === track.track_uri) ? 'Unlike Track' : 'Like Track'}
+                  >
+                    <Heart 
+                      size={16} 
+                      fill={likes.some((l) => l.track_uri === track.track_uri) ? 'var(--amber, #ff9f1c)' : 'none'} 
+                    />
+                  </button>
 
                   <div style={{ fontSize: '12px', color: '#666', fontFamily: 'monospace' }}>
                     {track.duration_ms ? (
