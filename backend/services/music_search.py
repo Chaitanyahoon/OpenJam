@@ -5,6 +5,8 @@ import re
 import urllib.parse
 import urllib.request
 import json
+import asyncio
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -41,9 +43,8 @@ class MusicSearchService:
                         logger.error(f"Failed to initialize YTMusic: {e}")
         return self._ytmusic
 
-
-    def search_tracks(self, query: str, limit: int = 10) -> list:
-        """Search iTunes for tracks. Returns list compatible with existing data shape."""
+    async def search_tracks(self, query: str, limit: int = 10) -> list:
+        """Search iTunes for tracks asynchronously. Returns list compatible with existing data shape."""
         if not query or not query.strip():
             return []
 
@@ -56,9 +57,10 @@ class MusicSearchService:
 
         try:
             url = f"{ITUNES_API}?{params}"
-            req = urllib.request.Request(url, headers={"User-Agent": "OpenJam/1.0"})
-            with urllib.request.urlopen(req, timeout=8) as resp:
-                data = json.loads(resp.read().decode())
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                resp = await client.get(url, headers={"User-Agent": "OpenJam/1.0"})
+                resp.raise_for_status()
+                data = resp.json()
         except Exception as e:
             logger.error(f"iTunes API error for query '{query}': {e}")
             return []
@@ -91,8 +93,8 @@ class MusicSearchService:
         logger.debug(f"iTunes search '{query}' → {len(tracks)} results")
         return tracks
 
-    def resolve_youtube(self, query: str) -> str | None:
-        """Resolve a YouTube video ID from a search query.
+    async def resolve_youtube(self, query: str) -> str | None:
+        """Resolve a YouTube video ID from a search query asynchronously.
         
         Strategy:
         1. Check memory cache (fast, 0ms)
@@ -112,11 +114,12 @@ class MusicSearchService:
                 track_id = match.group(1)
                 try:
                     embed_url = f"https://open.spotify.com/embed/track/{track_id}"
-                    req = urllib.request.Request(embed_url, headers={
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                    })
-                    with urllib.request.urlopen(req, timeout=5) as resp:
-                        html = resp.read().decode("utf-8", errors="ignore")
+                    async with httpx.AsyncClient(timeout=5.0) as client:
+                        resp = await client.get(embed_url, headers={
+                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                        })
+                        resp.raise_for_status()
+                        html = resp.text
                     next_data_match = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', html)
                     if next_data_match:
                         next_data = json.loads(next_data_match.group(1))
@@ -133,14 +136,14 @@ class MusicSearchService:
             logger.debug(f"Resolved query from cache: '{q}' → {self._resolve_cache[q]}")
             return self._resolve_cache[q]
 
-        # Method 1: ytmusicapi
-        video_id = self._resolve_via_ytmusic(q)
+        # Method 1: ytmusicapi (runs in thread pool because it's synchronous)
+        video_id = await asyncio.to_thread(self._resolve_via_ytmusic, q)
         if video_id:
             self._resolve_cache[q] = video_id
             return video_id
 
         # Method 2: YouTube HTML search fallback
-        video_id = self._resolve_via_youtube_scrape(q)
+        video_id = await self._resolve_via_youtube_scrape(q)
         if video_id:
             self._resolve_cache[q] = video_id
             return video_id
@@ -149,7 +152,7 @@ class MusicSearchService:
         return None
 
     def _resolve_via_ytmusic(self, query: str) -> str | None:
-        """Try resolving via ytmusicapi."""
+        """Try resolving via ytmusicapi (synchronous). Called via asyncio.to_thread."""
         try:
             ytm = self._get_ytmusic()
             if not ytm:
@@ -168,17 +171,18 @@ class MusicSearchService:
             self._ytmusic = None
         return None
 
-    def _resolve_via_youtube_scrape(self, query: str) -> str | None:
-        """Fallback: scrape YouTube search results page for a video ID."""
+    async def _resolve_via_youtube_scrape(self, query: str) -> str | None:
+        """Fallback: scrape YouTube search results page for a video ID asynchronously."""
         try:
             encoded = urllib.parse.quote_plus(query)
             url = f"https://www.youtube.com/results?search_query={encoded}"
-            req = urllib.request.Request(url, headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Accept-Language": "en-US,en;q=0.9",
-            })
-            with urllib.request.urlopen(req, timeout=8) as resp:
-                html = resp.read().decode("utf-8", errors="ignore")
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                resp = await client.get(url, headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "Accept-Language": "en-US,en;q=0.9",
+                })
+                resp.raise_for_status()
+                html = resp.text
 
             # Extract video IDs from the page — they appear in "videoId":"XXXXXXXXXXX" patterns
             matches = re.findall(r'"videoId":"([a-zA-Z0-9_-]{11})"', html)
@@ -193,12 +197,8 @@ class MusicSearchService:
     _reco_cache: list = []
     _reco_cache_date: str = ""
 
-    def get_recommendations(self, limit: int = 12) -> list:
-        """Return trending tracks from iTunes Top Songs, with daily rotation.
-        
-        Caches results per calendar day so they feel fresh each day.
-        Shuffles deterministically using the date as seed for variety.
-        """
+    async def get_recommendations(self, limit: int = 12) -> list:
+        """Return trending tracks from iTunes Top Songs asynchronously, with daily rotation."""
         import random
         from datetime import date
 
@@ -217,31 +217,32 @@ class MusicSearchService:
         all_tracks = []
         seen_names = set()
 
-        for chart_url in charts:
-            try:
-                req = urllib.request.Request(chart_url, headers={"User-Agent": "OpenJam/1.0"})
-                with urllib.request.urlopen(req, timeout=6) as resp:
-                    data = json.loads(resp.read().decode())
-                entries = data.get("feed", {}).get("entry", [])
-                for entry in entries:
-                    name = entry.get("im:name", {}).get("label", "")
-                    artist = entry.get("im:artist", {}).get("label", "")
-                    dedup_key = f"{name.lower()}_{artist.lower()}"
-                    if dedup_key in seen_names:
-                        continue
-                    seen_names.add(dedup_key)
-                    art100 = entry.get("im:image", [{}])[-1].get("label", "")
-                    art = art100.replace("55x55bb", "600x600bb").replace("170x170bb", "600x600bb")
-                    all_tracks.append({
-                        "name": name,
-                        "artist": artist,
-                        "album_art_url": art,
-                        "uri": f"{name} {artist} official audio",
-                        "duration_ms": 0,
-                    })
-            except Exception as e:
-                logger.warning(f"Chart fetch failed for {chart_url}: {e}")
-                continue
+        async with httpx.AsyncClient(timeout=6.0) as client:
+            for chart_url in charts:
+                try:
+                    resp = await client.get(chart_url, headers={"User-Agent": "OpenJam/1.0"})
+                    resp.raise_for_status()
+                    data = resp.json()
+                    entries = data.get("feed", {}).get("entry", [])
+                    for entry in entries:
+                        name = entry.get("im:name", {}).get("label", "")
+                        artist = entry.get("im:artist", {}).get("label", "")
+                        dedup_key = f"{name.lower()}_{artist.lower()}"
+                        if dedup_key in seen_names:
+                            continue
+                        seen_names.add(dedup_key)
+                        art100 = entry.get("im:image", [{}])[-1].get("label", "")
+                        art = art100.replace("55x55bb", "600x600bb").replace("170x170bb", "600x600bb")
+                        all_tracks.append({
+                            "name": name,
+                            "artist": artist,
+                            "album_art_url": art,
+                            "uri": f"{name} {artist} official audio",
+                            "duration_ms": 0,
+                        })
+                except Exception as e:
+                    logger.warning(f"Chart fetch failed for {chart_url}: {e}")
+                    continue
 
         if not all_tracks:
             return []
@@ -254,56 +255,84 @@ class MusicSearchService:
         self._reco_cache_date = today
         return all_tracks[:limit]
 
-    def resolve_youtube_metadata(self, video_id: str) -> dict | None:
-        """Fetch video title, author, and thumbnail using YouTube's oembed API."""
+    async def resolve_youtube_metadata(self, video_id: str) -> dict | None:
+        """Fetch video title, author, and thumbnail asynchronously using YouTube's oembed API."""
         if not video_id or len(video_id) != 11:
             return None
         try:
-            import urllib.request
-            import json
             url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
-            req = urllib.request.Request(url, headers={"User-Agent": "OpenJam/1.0"})
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                data = json.loads(resp.read().decode())
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(url, headers={"User-Agent": "OpenJam/1.0"})
+                resp.raise_for_status()
+                data = resp.json()
                 
-                title = data.get("title") or "YouTube Video"
-                author = data.get("author_name") or "YouTube"
-                thumbnail = data.get("thumbnail_url") or f"https://img.youtube.com/vi/{video_id}/0.jpg"
+            title = data.get("title") or "YouTube Video"
+            author = data.get("author_name") or "YouTube"
+            thumbnail = data.get("thumbnail_url") or f"https://img.youtube.com/vi/{video_id}/0.jpg"
+            
+            clean_author = author.replace(" - Topic", "").strip()
+            song_title = title
+            artist_name = clean_author
+            
+            split_char = None
+            if " - " in title:
+                split_char = " - "
+            elif " | " in title:
+                split_char = " | "
+            elif " – " in title:  # En dash
+                split_char = " – "
+            
+            if split_char:
+                parts = title.split(split_char, 1)
+                p0 = parts[0].strip()
+                p1 = parts[1].strip()
                 
-                clean_author = author.replace(" - Topic", "").strip()
-                song_title = title
-                artist_name = clean_author
-                
-                split_char = None
-                if " - " in title:
-                    split_char = " - "
-                elif " | " in title:
-                    split_char = " | "
-                elif " – " in title:  # En dash
-                    split_char = " – "
-                
-                if split_char:
-                    parts = title.split(split_char, 1)
-                    p0 = parts[0].strip()
-                    p1 = parts[1].strip()
-                    
-                    if p1.lower() in clean_author.lower() or clean_author.lower() in p1.lower():
-                        song_title = p0
-                        artist_name = p1
-                    else:
-                        song_title = p1
-                        artist_name = p0
-                
-                return {
-                    "title": song_title,
-                    "author": artist_name,
-                    "thumbnail": thumbnail
-                }
+                if p1.lower() in clean_author.lower() or clean_author.lower() in p1.lower():
+                    song_title = p0
+                    artist_name = p1
+                else:
+                    song_title = p1
+                    artist_name = p0
+            
+            return {
+                "title": song_title,
+                "author": artist_name,
+                "thumbnail": thumbnail
+            }
         except Exception as e:
             logger.error(f"Failed to fetch YouTube oembed metadata for {video_id}: {e}")
             return None
 
+    # ════════════════════════════════════════════════════════════
+    # Synchronous backward compatibility wrappers
+    # ════════════════════════════════════════════════════════════
+
+    def _run_async_in_thread(self, coro):
+        """Helper to run async coroutines synchronously from any thread."""
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # No event loop running in this thread, safe to use asyncio.run
+            return asyncio.run(coro)
+        else:
+            # Running loop exists (e.g. main thread). Execute in a separate thread pool to prevent nesting error
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(lambda: asyncio.run(coro))
+                return future.result()
+
+    def search_tracks_sync(self, query: str, limit: int = 10) -> list:
+        return self._run_async_in_thread(self.search_tracks(query, limit))
+
+    def resolve_youtube_sync(self, query: str) -> str | None:
+        return self._run_async_in_thread(self.resolve_youtube(query))
+
+    def get_recommendations_sync(self, limit: int = 12) -> list:
+        return self._run_async_in_thread(self.get_recommendations(limit))
+
+    def resolve_youtube_metadata_sync(self, video_id: str) -> dict | None:
+        return self._run_async_in_thread(self.resolve_youtube_metadata(video_id))
+
 
 music_search_service = MusicSearchService()
 lastfm_service = music_search_service  # Keep import alias for backward compatibility
-

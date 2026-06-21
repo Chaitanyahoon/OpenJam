@@ -4,22 +4,21 @@ from backend.database import get_db
 from backend.models.playlist import Playlist, PlaylistTrack
 from backend.middleware.auth import require_registered_user, get_current_user_id
 from backend.schemas import CreatePlaylistRequest, PlaylistTrackRequest, BulkTracksRequest
+from backend.services.playlist_importer import import_playlist
 
 router = APIRouter(prefix="/playlists", tags=["playlists"])
 
 
 @router.get("")
-async def get_my_playlists(request: Request, db: Session = Depends(get_db)):
+async def get_my_playlists(db: Session = Depends(get_db), user_id: str = Depends(require_registered_user)):
     """Retrieve all playlists created by the authenticated user."""
-    user_id = require_registered_user(request)
     playlists = db.query(Playlist).filter(Playlist.creator_id == user_id).order_by(Playlist.created_at.desc()).all()
     return {"playlists": [playlist.to_dict() for playlist in playlists]}
 
 
 @router.post("")
-async def create_playlist(request: Request, create_req: CreatePlaylistRequest, db: Session = Depends(get_db)):
+async def create_playlist(create_req: CreatePlaylistRequest, db: Session = Depends(get_db), user_id: str = Depends(require_registered_user)):
     """Create a new playlist."""
-    user_id = require_registered_user(request)
     
     playlist = Playlist(
         name=create_req.name,
@@ -53,9 +52,8 @@ async def get_playlist(playlist_id: str, request: Request, db: Session = Depends
 
 
 @router.delete("/{playlist_id}")
-async def delete_playlist(playlist_id: str, request: Request, db: Session = Depends(get_db)):
+async def delete_playlist(playlist_id: str, db: Session = Depends(get_db), user_id: str = Depends(require_registered_user)):
     """Delete a playlist."""
-    user_id = require_registered_user(request)
     playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
     
     if not playlist:
@@ -70,14 +68,13 @@ async def delete_playlist(playlist_id: str, request: Request, db: Session = Depe
 
 
 @router.post("/{playlist_id}/tracks/bulk")
-async def add_multiple_tracks_to_playlist(
+async def add_tracks_bulk(
     playlist_id: str,
     bulk_req: BulkTracksRequest,
-    request: Request,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user_id: str = Depends(require_registered_user)
 ):
     """Add multiple tracks to a playlist in bulk."""
-    user_id = require_registered_user(request)
     playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
     
     if not playlist:
@@ -114,11 +111,10 @@ async def add_multiple_tracks_to_playlist(
 async def add_track_to_playlist(
     playlist_id: str,
     track_req: PlaylistTrackRequest,
-    request: Request,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user_id: str = Depends(require_registered_user)
 ):
     """Add a track to a playlist."""
-    user_id = require_registered_user(request)
     playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
     
     if not playlist:
@@ -150,11 +146,10 @@ async def add_track_to_playlist(
 async def remove_track_from_playlist(
     playlist_id: str,
     track_id: str,
-    request: Request,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user_id: str = Depends(require_registered_user)
 ):
     """Remove a track from a playlist and re-order the remaining tracks."""
-    user_id = require_registered_user(request)
     playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
     
     if not playlist:
@@ -187,13 +182,12 @@ async def remove_track_from_playlist(
 
 
 @router.post("/{playlist_id}/sync")
-async def sync_playlist(
+async def sync_imported_playlist(
     playlist_id: str,
-    request: Request,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user_id: str = Depends(require_registered_user)
 ):
     """Sync an imported playlist by fetching its external tracks and updating the local copy."""
-    user_id = require_registered_user(request)
     playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
     
     if not playlist:
@@ -205,8 +199,6 @@ async def sync_playlist(
     if not playlist.import_url:
         raise HTTPException(status_code=400, detail="This playlist was not imported from an external source")
 
-    from backend.routes.queue import import_playlist
-    
     # Fetch tracks using import_playlist
     res = await import_playlist(playlist.import_url)
     external_tracks = res.get("tracks", [])

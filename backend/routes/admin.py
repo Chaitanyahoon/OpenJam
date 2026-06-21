@@ -10,7 +10,11 @@ from backend.models.like import UserLike
 from backend.models.chat_message import ChatMessage
 from backend.models.vote import Vote
 from backend.middleware.auth import require_admin
+import logging
+from backend.routes.auth import log_auth_event
 from backend.services.room_manager import room_manager
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -106,6 +110,8 @@ async def force_delete_all_rooms(
         room_manager.force_close_room(room_id)
         
     db.commit()
+    logger.info(f"Admin '{admin_id}' force-closed all active rooms.")
+    log_auth_event(f"Admin '{admin_id}' force-closed all active rooms.")
     return {"success": True, "message": f"All {len(active_rooms)} active rooms have been closed."}
 
 
@@ -137,6 +143,8 @@ async def force_delete_room(
     cancel_room_close(room_id)
     room_manager.force_close_room(room_id)
     
+    logger.info(f"Admin '{admin_id}' force-closed room '{room_id}'.")
+    log_auth_event(f"Admin '{admin_id}' force-closed room '{room_id}'.")
     return {"success": True, "message": f"Room {room_id} has been force-closed and deleted."}
 
 
@@ -165,6 +173,8 @@ async def toggle_user_premium(
         raise HTTPException(status_code=404, detail="User not found")
     user.is_premium = not user.is_premium
     db.commit()
+    logger.info(f"Admin '{admin_id}' toggled premium status for user '{user_id}' (new premium status: {user.is_premium}).")
+    log_auth_event(f"Admin '{admin_id}' toggled premium status for user '{user_id}' (new premium status: {user.is_premium}).")
     return {"success": True, "user": user.to_dict()}
 
 
@@ -182,6 +192,8 @@ async def toggle_user_admin(
         raise HTTPException(status_code=404, detail="User not found")
     user.is_admin = not user.is_admin
     db.commit()
+    logger.info(f"Admin '{admin_id}' toggled admin status for user '{user_id}' (new admin status: {user.is_admin}).")
+    log_auth_event(f"Admin '{admin_id}' toggled admin status for user '{user_id}' (new admin status: {user.is_admin}).")
     return {"success": True, "user": user.to_dict()}
 
 
@@ -213,6 +225,8 @@ async def delete_user(
     
     db.delete(user)
     db.commit()
+    logger.info(f"Admin '{admin_id}' permanently deleted user '{user_id}' ({user.display_name}) and all their data.")
+    log_auth_event(f"Admin '{admin_id}' permanently deleted user '{user_id}' ({user.display_name}) and all their data.")
     return {"success": True, "message": f"User {user.display_name} and all their data deleted successfully."}
 
 
@@ -255,6 +269,8 @@ async def delete_playlist_by_admin(
         raise HTTPException(status_code=404, detail="Playlist not found")
     db.delete(playlist)
     db.commit()
+    logger.info(f"Admin '{admin_id}' deleted playlist '{playlist_id}' ({playlist.name}).")
+    log_auth_event(f"Admin '{admin_id}' deleted playlist '{playlist_id}' ({playlist.name}).")
     return {"success": True, "message": "Playlist deleted successfully"}
 
 
@@ -275,4 +291,6 @@ async def trigger_invidious_healthcheck(
     from backend.services.invidious import _health_check_instances_bg
     import asyncio
     asyncio.create_task(_health_check_instances_bg())
+    logger.info(f"Admin '{admin_id}' manually triggered background Invidious health check.")
+    log_auth_event(f"Admin '{admin_id}' manually triggered background Invidious health check.")
     return {"success": True, "message": "Background healthcheck task started."}

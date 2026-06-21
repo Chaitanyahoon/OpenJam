@@ -1,7 +1,38 @@
 import io
 import os
 import httpx
+import logging
 from PIL import Image, ImageDraw, ImageFont
+
+logger = logging.getLogger(__name__)
+
+async def ensure_fonts():
+    font_dir = os.path.join("backend", "assets", "fonts")
+    os.makedirs(font_dir, exist_ok=True)
+    bold_font_path = os.path.join(font_dir, "Inter-Bold.ttf")
+    medium_font_path = os.path.join(font_dir, "Inter-Medium.ttf")
+
+    async def download_file(url, path):
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.get(url)
+                resp.raise_for_status()
+                with open(path, "wb") as f:
+                    f.write(resp.content)
+            logger.info(f"Downloaded font: {path}")
+        except Exception as e:
+            logger.error(f"Failed to download font from {url}: {e}")
+
+    if not os.path.exists(bold_font_path):
+        await download_file(
+            "https://raw.githubusercontent.com/googlefonts/roboto/main/src/hinted/Roboto-Bold.ttf",
+            bold_font_path
+        )
+    if not os.path.exists(medium_font_path):
+        await download_file(
+            "https://raw.githubusercontent.com/googlefonts/roboto/main/src/hinted/Roboto-Medium.ttf",
+            medium_font_path
+        )
 
 async def fetch_image(url: str) -> Image.Image:
     try:
@@ -19,6 +50,7 @@ def create_circular_mask(size):
     return mask
 
 async def generate_og_image(inviter_name: str, room_name: str, avatar_url: str = None) -> bytes:
+    await ensure_fonts()
     # Dimensions for Open Graph (1200x630)
     width, height = 1200, 630
     

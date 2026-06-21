@@ -9,17 +9,15 @@ router = APIRouter(prefix="/likes", tags=["likes"])
 
 
 @router.get("")
-async def get_likes(request: Request, db: Session = Depends(get_db)):
+async def get_likes(db: Session = Depends(get_db), user_id: str = Depends(require_registered_user)):
     """Retrieve all liked tracks of the authenticated user."""
-    user_id = require_registered_user(request)
     likes = db.query(UserLike).filter(UserLike.user_id == user_id).order_by(UserLike.created_at.desc()).all()
     return {"likes": [like.to_dict() for like in likes]}
 
 
 @router.post("")
-async def like_track(request: Request, like_req: LikeTrackRequest, db: Session = Depends(get_db)):
+async def like_track(like_req: LikeTrackRequest, db: Session = Depends(get_db), user_id: str = Depends(require_registered_user)):
     """Like a track. Ensures the track is not already liked by the user."""
-    user_id = require_registered_user(request)
     
     # Check if already liked
     existing_like = db.query(UserLike).filter(
@@ -46,12 +44,11 @@ async def like_track(request: Request, like_req: LikeTrackRequest, db: Session =
 
 @router.delete("")
 async def unlike_track(
-    request: Request,
     track_uri: str = Query(..., description="The URI of the track to unlike"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user_id: str = Depends(require_registered_user)
 ):
     """Unlike a track by its URI."""
-    user_id = require_registered_user(request)
     
     like = db.query(UserLike).filter(
         UserLike.user_id == user_id,

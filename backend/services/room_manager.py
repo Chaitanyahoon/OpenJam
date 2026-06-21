@@ -58,15 +58,10 @@ class RoomManager:
             if old_sid and old_sid != sid:
                 self.store.del_sid(old_sid)
         
-        # Remove old sid mapping for this user if they were already in the room on a different connection
-        if not is_in_room:
-            old_info = self.store.get_sid(sid)
-            if old_info and old_info["room_id"] != room_id:
-                self._leave_room_internal(old_info, sid)
-        else:
-            old_info = self.store.get_sid(sid)
-            if old_info and old_info["room_id"] != room_id:
-                self._leave_room_internal(old_info, sid)
+        # Remove old sid mapping for this user if they were already in a room on a different connection
+        old_info = self.store.get_sid(sid)
+        if old_info and old_info["room_id"] != room_id:
+            self._leave_room_internal(old_info, sid)
 
         # Refresh room object in case _leave_room_internal changed it
         room = self.store.get_room(room_id) or room

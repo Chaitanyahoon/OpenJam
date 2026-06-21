@@ -77,8 +77,8 @@ async def pre_resolve_next_track_background(room_id: str, queue: list, sio: sock
         logger.info(f"Pre-resolving next track query in background: '{uri}' for room {room_id}")
         from backend.services.music_search import music_search_service
         
-        # Resolve query to video ID in threadpool
-        resolved_id = await asyncio.to_thread(music_search_service.resolve_youtube, uri)
+        # Resolve query to video ID asynchronously
+        resolved_id = await music_search_service.resolve_youtube(uri)
         if not resolved_id:
             logger.warning(f"Could not pre-resolve next track query '{uri}'")
             return
@@ -97,7 +97,7 @@ async def pre_resolve_next_track_background(room_id: str, queue: list, sio: sock
                 # Check if we should also resolve metadata if it is a placeholder
                 is_placeholder = item.track_name in ["YouTube Video", "", None, resolved_id] or item.artist in ["YouTube", "Search Query", "", None] or "spotify.com" in str(item.track_name)
                 if is_placeholder:
-                    metadata = await asyncio.to_thread(music_search_service.resolve_youtube_metadata, resolved_id)
+                    metadata = await music_search_service.resolve_youtube_metadata(resolved_id)
                     if metadata:
                         item.track_name = metadata["title"]
                         item.artist = metadata["author"]

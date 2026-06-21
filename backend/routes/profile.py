@@ -17,9 +17,8 @@ class UpdateProfileRequest(BaseModel):
 
 
 @router.get("/me")
-async def get_my_profile(request: Request, db: Session = Depends(get_db)):
+async def get_my_profile(db: Session = Depends(get_db), user_id: str = Depends(require_registered_user)):
     """Retrieve full profile details, playlists, and liked songs for the signed-in user."""
-    user_id = require_registered_user(request)
     
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -37,12 +36,11 @@ async def get_my_profile(request: Request, db: Session = Depends(get_db)):
 
 @router.put("/me")
 async def update_my_profile(
-    request: Request,
     update_req: UpdateProfileRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user_id: str = Depends(require_registered_user)
 ):
     """Update user profile (display name and theme)."""
-    user_id = require_registered_user(request)
     
     user = db.query(User).filter(User.id == user_id).first()
     if not user:

@@ -111,7 +111,7 @@ class QueueManager:
             # Ensure the track_uri is a resolved YouTube ID
             if next_item.track_uri and (" " in next_item.track_uri or len(next_item.track_uri) != 11):
                 from backend.services.music_search import music_search_service as lastfm_service
-                vid = lastfm_service.resolve_youtube(next_item.track_uri)
+                vid = lastfm_service.resolve_youtube_sync(next_item.track_uri)
                 if vid:
                     next_item.track_uri = vid
 

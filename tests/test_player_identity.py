@@ -18,24 +18,33 @@ from backend.sockets.playback import register_playback_handlers
 from backend.services.room_closer import schedule_room_close, _close_room_after_delay
 
 
-def test_resolve_youtube_metadata_success():
+@pytest.mark.asyncio
+async def test_resolve_youtube_metadata_success():
     """Test resolve_youtube_metadata returns correct dictionary structure."""
-    with patch("urllib.request.urlopen") as mock_urlopen:
+    with patch("httpx.AsyncClient") as mock_client_cls:
+        mock_client = AsyncMock()
         mock_resp = MagicMock()
-        mock_resp.read.return_value = b'{"title": "Mock Video Title", "author_name": "Mock Channel", "thumbnail_url": "https://example.com/thumb.jpg"}'
-        mock_urlopen.return_value.__enter__.return_value = mock_resp
+        mock_resp.json.return_value = {
+            "title": "Mock Video Title",
+            "author_name": "Mock Channel",
+            "thumbnail_url": "https://example.com/thumb.jpg"
+        }
+        mock_resp.raise_for_status = MagicMock()
+        mock_client.get.return_value = mock_resp
+        mock_client_cls.return_value.__aenter__.return_value = mock_client
         
-        result = lastfm_service.resolve_youtube_metadata("dQw4w9WgXcQ")
+        result = await lastfm_service.resolve_youtube_metadata("dQw4w9WgXcQ")
         assert result is not None
         assert result["title"] == "Mock Video Title"
         assert result["author"] == "Mock Channel"
         assert result["thumbnail"] == "https://example.com/thumb.jpg"
 
 
-def test_resolve_youtube_metadata_invalid_id():
+@pytest.mark.asyncio
+async def test_resolve_youtube_metadata_invalid_id():
     """Test resolve_youtube_metadata with invalid inputs."""
-    assert lastfm_service.resolve_youtube_metadata("") is None
-    assert lastfm_service.resolve_youtube_metadata("short") is None
+    assert await lastfm_service.resolve_youtube_metadata("") is None
+    assert await lastfm_service.resolve_youtube_metadata("short") is None
 
 
 @pytest.mark.asyncio

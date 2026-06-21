@@ -2210,7 +2210,7 @@ export default function RoomClient({ roomId }) {
               artwork: q.album_art_url || '',
               duration: Math.floor((q.duration_ms || 240000) / 1000),
               votes: q.votes || 0,
-              isOwn: me && q.added_by_id === me.id
+              isOwn: me && q.added_by_user_id === me.id
             }))}
             history={history}
             currentIndex={queue.findIndex(q => q.track_uri === nowPlaying?.track_uri)}
@@ -2998,7 +2998,7 @@ export default function RoomClient({ roomId }) {
                             >
                               ▲ {item.votes}
                             </button>
-                            {(isHost || (me && item.added_by_id === me.id)) && (
+                            {(isHost || (me && item.added_by_user_id === me.id)) && (
                               <button className="btn-remove" onClick={() => handleRemoveQueueTrack(item.id)}>
                                 ✕
                               </button>

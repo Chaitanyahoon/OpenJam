@@ -37,29 +37,8 @@ def _db_add_and_get_queue(room_id: str, track_data: dict, user_id: str, display_
         now_playing = queue_manager.get_now_playing(db, room_id)
         is_playing_immediately = not now_playing and not is_playing_live
 
-        # Resolve YouTube Video ID immediately if needed (only if playing immediately)
         uri = track_data.get("uri")
-        if uri and (" " in uri or len(uri) != 11):
-            if is_playing_immediately:
-                from backend.services.music_search import music_search_service as lastfm_service
-                resolved_id = lastfm_service.resolve_youtube(uri)
-                if resolved_id:
-                    track_data["uri"] = resolved_id
-                    uri = resolved_id
-                else:
-                    raise ValueError(f"Could not resolve track: '{uri}'")
-
-        # Resolve actual YouTube title, artist, and thumbnail if generic/missing (only if playing immediately)
-        if uri and len(uri) == 11 and is_playing_immediately:
-            if track_data.get("name") in ["YouTube Video", "", None, uri] or track_data.get("artist") in ["YouTube", "Search Query", "", None] or "spotify.com" in str(track_data.get("name")):
-                from backend.services.music_search import music_search_service as lastfm_service
-                metadata = lastfm_service.resolve_youtube_metadata(uri)
-                if metadata:
-                    track_data["name"] = metadata["title"]
-                    track_data["artist"] = metadata["author"]
-                    track_data["album_art_url"] = metadata["thumbnail"]
-
-        if not track_data.get("uri") or not track_data.get("name"):
+        if not uri or not track_data.get("name"):
             raise ValueError("Track URI and Name are required")
 
         # 2. Song Deduplication (check if track is pending or playing)
@@ -217,7 +196,7 @@ async def resolve_room_queue_background(room_id: str, sio: socketio.AsyncServer)
                 
                 if not uri or (" " in uri or len(uri) != 11):
                     try:
-                        resolved_id = await asyncio.to_thread(lastfm_service.resolve_youtube, uri)
+                        resolved_id = await lastfm_service.resolve_youtube(uri)
                     except Exception as e:
                         logger.error(f"Background resolve failed for query '{uri}': {e}")
                     
@@ -230,7 +209,7 @@ async def resolve_room_queue_background(room_id: str, sio: socketio.AsyncServer)
                 is_placeholder = item.track_name in ["YouTube Video", "", None, uri] or item.artist in ["YouTube", "Search Query", "", None] or "spotify.com" in str(item.track_name)
                 if uri and len(uri) == 11 and is_placeholder:
                     try:
-                        metadata = await asyncio.to_thread(lastfm_service.resolve_youtube_metadata, uri)
+                        metadata = await lastfm_service.resolve_youtube_metadata(uri)
                         if metadata:
                             item.track_name = metadata["title"]
                             item.artist = metadata["author"]
@@ -269,24 +248,6 @@ def _db_play_now(room_id: str, track_data: dict, user_id: str, display_name: str
             display_name = user.display_name
 
         uri = track_data.get("uri")
-        if uri and (" " in uri or len(uri) != 11):
-            from backend.services.music_search import music_search_service as lastfm_service
-            resolved_id = lastfm_service.resolve_youtube(uri)
-            if resolved_id:
-                track_data["uri"] = resolved_id
-                uri = resolved_id
-            else:
-                raise ValueError(f"Could not resolve track: '{uri}'")
-
-        if uri and len(uri) == 11:
-            is_placeholder = track_data.get("name") in ["YouTube Video", "", None, uri] or track_data.get("artist") in ["YouTube", "Search Query", "", None] or "spotify.com" in str(track_data.get("name"))
-            if is_placeholder:
-                from backend.services.music_search import music_search_service as lastfm_service
-                metadata = lastfm_service.resolve_youtube_metadata(uri)
-                if metadata:
-                    track_data["name"] = metadata["title"]
-                    track_data["artist"] = metadata["author"]
-                    track_data["album_art_url"] = metadata["thumbnail"]
 
         playing_items = db.query(QueueItem).filter(
             QueueItem.room_id == room_id,
@@ -355,6 +316,41 @@ def register_queue_handlers(sio: socketio.AsyncServer):
         }
 
         try:
+            # Check if the song will play immediately to resolve YouTube ID and metadata asynchronously
+            is_playing_immediately = False
+            from backend.database import SessionLocal
+            db_check = SessionLocal()
+            try:
+                live_playback = room_manager.get_playback(room_id)
+                is_playing_live = live_playback and live_playback.get("is_playing", False)
+                now_playing = queue_manager.get_now_playing(db_check, room_id)
+                is_playing_immediately = not now_playing and not is_playing_live
+            finally:
+                db_check.close()
+
+            # Resolve YouTube Video ID immediately if needed
+            uri = track_data.get("uri")
+            if uri and (" " in uri or len(uri) != 11) and is_playing_immediately:
+                from backend.services.music_search import music_search_service as lastfm_service
+                resolved_id = await lastfm_service.resolve_youtube(uri)
+                if resolved_id:
+                    track_data["uri"] = resolved_id
+                    uri = resolved_id
+                else:
+                    await sio.emit("queue_error", {"message": f"Could not resolve track: '{uri}'"}, to=sid)
+                    return
+
+            # Resolve actual YouTube title, artist, and thumbnail if generic/missing
+            if uri and len(uri) == 11 and is_playing_immediately:
+                is_placeholder = track_data.get("name") in ["YouTube Video", "", None, uri] or track_data.get("artist") in ["YouTube", "Search Query", "", None] or "spotify.com" in str(track_data.get("name"))
+                if is_placeholder:
+                    from backend.services.music_search import music_search_service as lastfm_service
+                    metadata = await lastfm_service.resolve_youtube_metadata(uri)
+                    if metadata:
+                        track_data["name"] = metadata["title"]
+                        track_data["artist"] = metadata["author"]
+                        track_data["album_art_url"] = metadata["thumbnail"]
+
             queue, next_item = await asyncio.to_thread(
                 _db_add_and_get_queue, room_id, track_data, user_id, display_name
             )
@@ -730,6 +726,29 @@ def register_queue_handlers(sio: socketio.AsyncServer):
         }
 
         try:
+            # Resolve YouTube Video ID immediately if needed
+            uri = track_data.get("uri")
+            if uri and (" " in uri or len(uri) != 11):
+                from backend.services.music_search import music_search_service as lastfm_service
+                resolved_id = await lastfm_service.resolve_youtube(uri)
+                if resolved_id:
+                    track_data["uri"] = resolved_id
+                    uri = resolved_id
+                else:
+                    await sio.emit("queue_error", {"message": f"Could not resolve track: '{uri}'"}, to=sid)
+                    return
+
+            # Resolve actual YouTube title, artist, and thumbnail if generic/missing
+            if uri and len(uri) == 11:
+                is_placeholder = track_data.get("name") in ["YouTube Video", "", None, uri] or track_data.get("artist") in ["YouTube", "Search Query", "", None] or "spotify.com" in str(track_data.get("name"))
+                if is_placeholder:
+                    from backend.services.music_search import music_search_service as lastfm_service
+                    metadata = await lastfm_service.resolve_youtube_metadata(uri)
+                    if metadata:
+                        track_data["name"] = metadata["title"]
+                        track_data["artist"] = metadata["author"]
+                        track_data["album_art_url"] = metadata["thumbnail"]
+
             queue, playing_item = await asyncio.to_thread(
                 _db_play_now, room_id, track_data, user_id, display_name
             )

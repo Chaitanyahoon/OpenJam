@@ -14,7 +14,7 @@ class RedisStore:
 
     def __init__(self):
         self.client = None
-        self.redis_url = getattr(settings, "REDIS_URL", None)
+        self.redis_url = settings.REDIS_URL
         if self.redis_url:
             try:
                 import redis
@@ -124,9 +124,12 @@ class RedisStore:
         """Retrieve all active rooms. Used for aggregating server metrics."""
         if self.client:
             keys = list(self.client.scan_iter("openjam:room:*"))
+            if not keys:
+                return {}
+            # Use MGET to fetch all rooms in a single connection round-trip
+            values = self.client.mget(keys)
             rooms = {}
-            for k in keys:
-                val = self.client.get(k)
+            for k, val in zip(keys, values):
                 if val:
                     room_id = k.replace("openjam:room:", "", 1)
                     room = json.loads(val)
