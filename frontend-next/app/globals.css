@@ -7778,6 +7778,7 @@ body:not(.room-page) .navbar:hover {
 .queue-search-wrap {
   padding: 12px 20px;
   position: relative;
+  z-index: 50;
 }
 
 .queue-list {

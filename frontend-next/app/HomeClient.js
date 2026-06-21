@@ -23,7 +23,7 @@ const MusicPill = dynamic(() => import('@/components/MusicPill'), { ssr: false }
 
 
 export default function HomePage() {
-  const { isConnected } = useSocket();
+  const { isConnected, reconnect } = useSocket();
 
   // Authentication & User States
   const [me, setMe] = useState(null);
@@ -465,14 +465,14 @@ export default function HomePage() {
       const r = await fetch(`/auth/me?t=${Date.now()}`, { credentials: 'include', cache: 'no-store' });
       if (r.ok) {
         const data = await r.json();
-        setMe(data.user);
         if (data.user) {
+          setMe(data.user);
           localStorage.setItem('openjam_display_name', data.user.display_name);
           if (data.user.avatar_url) {
             localStorage.setItem('openjam_avatar_url', data.user.avatar_url);
           }
+          return data.user;
         }
-        return data.user;
       }
     } catch (e) {
       console.error('Error fetching auth:', e);
@@ -519,6 +519,10 @@ export default function HomePage() {
         const isSecure = window.location.protocol === 'https:';
         document.cookie = `session_token=${token}; max-age=${maxAge}; path=/; samesite=lax${isSecure ? '; secure' : ''}`;
         
+        if (reconnect) {
+          reconnect(token);
+        }
+
         // Clean the token query parameter from URL
         const newUrl = window.location.pathname;
         window.history.replaceState({}, '', newUrl);
@@ -689,6 +693,7 @@ export default function HomePage() {
   const handleLogout = async () => {
     localStorage.removeItem('openjam_display_name');
     localStorage.removeItem('openjam_avatar_url');
+    document.cookie = "session_token=; max-age=0; path=/;";
     try {
       await fetch('/auth/logout', { method: 'POST', credentials: 'include' });
     } catch (e) {}

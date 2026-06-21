@@ -62,7 +62,7 @@ export default class YouTubePlayer {
     this._keepAliveOsc = null;
 
     if (this._isMobile) {
-      this._maxStreamFails = 4;
+      this._maxStreamFails = 3;
     }
 
     this._initAudio();
@@ -137,10 +137,10 @@ export default class YouTubePlayer {
       this._showLoadIndicator();
       this._stallTimer = setTimeout(() => {
         if (audioElement.readyState < 2 && !audioElement.paused) {
-          console.warn('Stream stalled for 12s, triggering error');
+          console.warn('Stream stalled for 6s, triggering error');
           this._handleAudioError('stalled_timeout', audioElement);
         }
-      }, 12000);
+      }, 6000);
     });
 
     audioElement.addEventListener('waiting', () => {
@@ -153,7 +153,7 @@ export default class YouTubePlayer {
           console.warn('Stream waiting too long, triggering error');
           this._handleAudioError('waiting_timeout', audioElement);
         }
-      }, 12000);
+      }, 6000);
     });
   }
 
@@ -592,10 +592,10 @@ export default class YouTubePlayer {
       if (this._loadTimeout) clearTimeout(this._loadTimeout);
       this._loadTimeout = setTimeout(() => {
         if (this.player.readyState === 0 && this.player.src.includes('/stream/')) {
-          console.warn('Stream load timeout after 12s');
+          console.warn('Stream load timeout after 5s');
           this.player.dispatchEvent(new Event('error'));
         }
-      }, 12000);
+      }, 5000);
 
       this.player.loop = false;
       
