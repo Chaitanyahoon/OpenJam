@@ -34,8 +34,10 @@ export default function RoomClient({ roomId }) {
   const [isTyping, setIsTyping] = useState(false);
   const [toasts, setToasts] = useState([]);
   const [activeTab, setActiveTab] = useState('playing'); // playing, queue, chat, members
-  const [activeQueueTab, setActiveQueueTab] = useState('queue'); // queue, history
+  const [activeQueueTab, setActiveQueueTab] = useState('queue'); // queue, history, playlists
   const [playerSize, setPlayerSize] = useState(280);
+  const [activeRoomPlaylist, setActiveRoomPlaylist] = useState(null);
+  const [isLoadingPlaylist, setIsLoadingPlaylist] = useState(false);
   
   // Volume & Settings
   const [volume, setVolume] = useState(80);
@@ -2293,7 +2295,8 @@ export default function RoomClient({ roomId }) {
                                         style={{
                                           position: 'absolute',
                                           right: 0,
-                                          top: '100%',
+                                          bottom: '100%',
+                                          marginBottom: '4px',
                                           background: '#0e0e12',
                                           border: '1px solid rgba(255, 159, 28, 0.2)',
                                           borderRadius: '12px',
@@ -2508,6 +2511,17 @@ export default function RoomClient({ roomId }) {
                       >
                         History
                       </button>
+                      {me && me.is_registered && (
+                        <button 
+                          className={`queue-tab ${activeQueueTab === 'playlists' ? 'active' : ''}`}
+                          onClick={() => {
+                            setActiveQueueTab('playlists');
+                            setActiveRoomPlaylist(null);
+                          }}
+                        >
+                          Playlists
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -2604,7 +2618,8 @@ export default function RoomClient({ roomId }) {
                                       style={{
                                         position: 'absolute',
                                         right: 0,
-                                        top: '100%',
+                                        bottom: '100%',
+                                        marginBottom: '4px',
                                         background: '#0e0e12',
                                         border: '1px solid rgba(255, 159, 28, 0.2)',
                                         borderRadius: '12px',
@@ -2703,7 +2718,7 @@ export default function RoomClient({ roomId }) {
                         <div className="empty-sub">Search above to add tracks</div>
                       </div>
                     )
-                  ) : (
+                  ) : activeQueueTab === 'history' ? (
                     history.length > 0 ? (
                       history.map((item, idx) => (
                         <div 
@@ -2769,6 +2784,244 @@ export default function RoomClient({ roomId }) {
                         <div className="empty-sub">Tracks played will appear here</div>
                       </div>
                     )
+                  ) : (
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                      {activeRoomPlaylist === null ? (
+                        playlists.length > 0 ? (
+                          <div style={{ flex: 1, overflowY: 'auto', padding: '4px 16px 16px' }}>
+                            {playlists.map((pl) => (
+                              <div 
+                                key={pl.id}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  background: 'rgba(255, 255, 255, 0.015)',
+                                  border: '1px solid rgba(255, 255, 255, 0.03)',
+                                  borderRadius: '16px',
+                                  padding: '12px 16px',
+                                  marginBottom: '8px',
+                                  gap: '10px',
+                                  justifyContent: 'space-between',
+                                  transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                                  cursor: 'pointer'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                                  e.currentTarget.style.borderColor = 'rgba(255, 159, 28, 0.2)';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.background = 'rgba(255,255,255,0.015)';
+                                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.03)';
+                                }}
+                                onClick={async () => {
+                                  setIsLoadingPlaylist(true);
+                                  try {
+                                    const res = await fetch(`/playlists/${pl.id}`);
+                                    if (res.ok) {
+                                      const data = await res.json();
+                                      setActiveRoomPlaylist(data.playlist);
+                                    } else {
+                                      triggerToast('Failed to load playlist', 'error');
+                                    }
+                                  } catch (err) {
+                                    triggerToast('Connection error', 'error');
+                                  } finally {
+                                    setIsLoadingPlaylist(false);
+                                  }
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+                                  <Music size={14} color="#888" style={{ flexShrink: 0 }} />
+                                  <span style={{ fontSize: '13px', fontWeight: '600', color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {pl.name}
+                                  </span>
+                                </div>
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    triggerToast('Adding playlist tracks to queue...', 'info');
+                                    try {
+                                      const resPl = await fetch(`/playlists/${pl.id}`);
+                                      if (!resPl.ok) {
+                                        triggerToast('Failed to fetch playlist tracks', 'error');
+                                        return;
+                                      }
+                                      const plData = await resPl.json();
+                                      const tracks = plData.playlist.tracks || [];
+                                      if (tracks.length === 0) {
+                                        triggerToast('Playlist is empty', 'warning');
+                                        return;
+                                      }
+                                      
+                                      const resQueue = await fetch(`/rooms/${roomId}/queue/multiple`, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify(tracks.map(t => ({
+                                          track_uri: t.track_uri,
+                                          track_name: t.track_name,
+                                          artist: t.artist,
+                                          album_art_url: t.album_art_url,
+                                          duration_ms: t.duration_ms
+                                        })))
+                                      });
+                                      
+                                      if (resQueue.ok) {
+                                        triggerToast(`Added ${tracks.length} tracks to queue!`, 'success');
+                                      } else {
+                                        const data = await resQueue.json();
+                                        triggerToast(data.detail || 'Failed to queue tracks', 'error');
+                                      }
+                                    } catch (err) {
+                                      triggerToast('Connection error', 'error');
+                                    }
+                                  }}
+                                  style={{
+                                    background: 'rgba(255, 159, 28, 0.1)',
+                                    border: '1px solid rgba(255, 159, 28, 0.2)',
+                                    color: 'var(--amber)',
+                                    fontSize: '11px',
+                                    padding: '4px 8px',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    whiteSpace: 'nowrap'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = 'rgba(255, 159, 28, 0.2)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = 'rgba(255, 159, 28, 0.1)';
+                                  }}
+                                >
+                                  Queue All
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="empty" style={{ padding: '24px 0' }}>
+                            <div className="empty-title">No playlists found</div>
+                            <div className="empty-sub">Create one on your profile dashboard!</div>
+                          </div>
+                        )
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', padding: '4px 16px 16px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '8px', flexShrink: 0 }}>
+                            <button
+                              onClick={() => setActiveRoomPlaylist(null)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--text-3)',
+                                fontSize: '12px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                cursor: 'pointer',
+                                padding: '4px 0'
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
+                              onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-3)'}
+                            >
+                              ← Back
+                            </button>
+                            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px' }}>
+                              {activeRoomPlaylist.name}
+                            </span>
+                            <button
+                              onClick={async () => {
+                                const tracks = activeRoomPlaylist.tracks || [];
+                                if (tracks.length === 0) {
+                                  triggerToast('Playlist is empty', 'warning');
+                                  return;
+                                }
+                                triggerToast('Adding playlist tracks to queue...', 'info');
+                                try {
+                                  const resQueue = await fetch(`/rooms/${roomId}/queue/multiple`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify(tracks.map(t => ({
+                                      track_uri: t.track_uri,
+                                      track_name: t.track_name,
+                                      artist: t.artist,
+                                      album_art_url: t.album_art_url,
+                                      duration_ms: t.duration_ms
+                                    })))
+                                  });
+                                  if (resQueue.ok) {
+                                    triggerToast(`Added ${tracks.length} tracks to queue!`, 'success');
+                                  } else {
+                                    const data = await resQueue.json();
+                                    triggerToast(data.detail || 'Failed to queue tracks', 'error');
+                                  }
+                                } catch (err) {
+                                  triggerToast('Connection error', 'error');
+                                }
+                              }}
+                              style={{
+                                background: 'rgba(255, 159, 28, 0.1)',
+                                border: '1px solid rgba(255, 159, 28, 0.2)',
+                                color: 'var(--amber)',
+                                fontSize: '11px',
+                                padding: '4px 8px',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = 'rgba(255, 159, 28, 0.2)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'rgba(255, 159, 28, 0.1)';
+                              }}
+                            >
+                              Queue All
+                            </button>
+                          </div>
+                          
+                          <div style={{ flex: 1, overflowY: 'auto' }}>
+                            {activeRoomPlaylist.tracks && activeRoomPlaylist.tracks.length > 0 ? (
+                              activeRoomPlaylist.tracks.map((t, idx) => (
+                                <div
+                                  key={`${t.id || t.track_uri}-${idx}`}
+                                  className="search-result-item"
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '10px',
+                                    padding: '8px 10px',
+                                    borderRadius: '12px',
+                                    background: 'rgba(255, 255, 255, 0.01)',
+                                    marginBottom: '6px',
+                                    cursor: 'pointer'
+                                  }}
+                                  onClick={() => {
+                                    handleAddTrack({
+                                      track_uri: t.track_uri,
+                                      track_name: t.track_name,
+                                      artist: t.artist,
+                                      album_art_url: t.album_art_url,
+                                      duration_ms: t.duration_ms
+                                    });
+                                  }}
+                                >
+                                  <img decoding="async" loading="lazy" draggable="false" src={t.album_art_url || '/placeholder.svg'} alt="" style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} />
+                                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+                                    <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.track_name}</span>
+                                    <span style={{ fontSize: '10px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.artist}</span>
+                                  </div>
+                                  <Plus className="h-4 w-4" style={{ color: 'var(--amber)' }} />
+                                </div>
+                              ))
+                            ) : (
+                              <div className="empty" style={{ padding: '24px 0' }}>
+                                <div className="empty-title">Playlist is empty</div>
+                                <div className="empty-sub">Add tracks in other views first!</div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               </motion.div>

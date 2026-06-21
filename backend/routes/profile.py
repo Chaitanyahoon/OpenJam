@@ -64,6 +64,7 @@ async def search_profiles(q: str, db: Session = Depends(get_db)):
         return {"users": []}
     query_str = f"%{q.strip()}%"
     users = db.query(User).filter(
+        User.discord_id.isnot(None),
         (User.display_name.ilike(query_str)) | 
         (User.discord_username.ilike(query_str))
     ).limit(10).all()
@@ -84,7 +85,7 @@ async def search_profiles(q: str, db: Session = Depends(get_db)):
 @router.get("/{user_id}")
 async def get_public_profile(user_id: str, db: Session = Depends(get_db)):
     """Retrieve public profile info and public playlists of another user."""
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db.query(User).filter(User.id == user_id, User.discord_id.isnot(None)).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
         
