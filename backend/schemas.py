@@ -128,3 +128,26 @@ class SearchTracksResponse(BaseModel):
 class ErrorResponse(BaseModel):
     detail: str
     status_code: int
+
+
+# ---- Like & Playlist Models ----
+class LikeTrackRequest(BaseModel):
+    track_uri: str = Field(..., min_length=1, max_length=500)
+    track_name: str = Field(..., min_length=1, max_length=255)
+    artist: str = Field(..., min_length=1, max_length=255)
+    album_art_url: Optional[str] = None
+    duration_ms: int = Field(0, ge=0)
+
+
+class CreatePlaylistRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    is_private: Optional[bool] = False
+
+
+class PlaylistTrackRequest(BaseModel):
+    track_uri: str = Field(..., min_length=1, max_length=500)
+    track_name: str = Field(..., min_length=1, max_length=255)
+    artist: str = Field(..., min_length=1, max_length=255)
+    album_art_url: Optional[str] = None
+    duration_ms: int = Field(0, ge=0)
+

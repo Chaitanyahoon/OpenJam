@@ -936,6 +936,94 @@ async def import_playlist(url: str):
         raise HTTPException(status_code=400, detail="Unsupported playlist URL format (must be Spotify or YouTube)")
 
 
+@router.post("/rooms/{room_id}/queue/multiple")
+async def add_multiple_tracks_to_queue(
+    room_id: str,
+    tracks: list[PlaylistTrackRequest],
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Add multiple tracks to a room's queue. Emits socket updates to the room."""
+    # Check if room exists
+    room = db.query(Room).filter(Room.id == room_id).first()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+        
+    user_data = get_current_user_id(request, include_name=True)
+    user_id = user_data["id"] if user_data else str(uuid.uuid4())
+    display_name = user_data["display_name"] if user_data else f"Jammer-{uuid.uuid4().hex[:4].upper()}"
+
+    # Verify curated queue permissions if host
+    if room.queue_mode == "curated" and room.host_user_id != user_id:
+        raise HTTPException(status_code=403, detail="Queue is locked by host")
+
+    # Ensure a User row exists for this user if registered
+    if user_data:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            user = User(id=user_id, display_name=display_name, avatar_url=user_data.get("avatar_url"))
+            db.add(user)
+            db.commit()
+
+    # Get max position in queue
+    max_pos = db.query(QueueItem).filter(
+        QueueItem.room_id == room_id,
+        QueueItem.status != "played",
+    ).count()
+
+    added_count = 0
+    for idx, track_req in enumerate(tracks):
+        # Check duplicate
+        duplicate = db.query(QueueItem).filter(
+            QueueItem.room_id == room_id,
+            QueueItem.track_uri == track_req.track_uri,
+            QueueItem.status.in_(["pending", "playing"]),
+        ).first()
+        
+        if duplicate:
+            continue
+            
+        item = QueueItem(
+            room_id=room_id,
+            track_uri=track_req.track_uri,
+            track_name=track_req.track_name,
+            artist=track_req.artist,
+            album_art_url=track_req.album_art_url,
+            duration_ms=track_req.duration_ms,
+            added_by_user_id=user_id,
+            added_by_name=display_name,
+            position=max_pos + added_count,
+            status="pending",
+        )
+        db.add(item)
+        added_count += 1
+        
+    if added_count > 0:
+        db.commit()
+        
+    # Check if queue needs advancing
+    live_playback = room_manager.get_playback(room_id)
+    is_playing_live = live_playback and live_playback.get("is_playing", False)
+    now_playing = queue_manager.get_now_playing(db, room_id)
+    
+    if not now_playing and not is_playing_live:
+        queue_manager.advance_queue(db, room_id)
+        
+    # Get updated queue
+    queue = queue_manager.get_queue(db, room_id, None)
+    
+    # Broadcast to socket room
+    sio = getattr(request.app.state, "sio", None)
+    if sio:
+        await sio.emit("queue_updated", {"queue": queue}, room=room_id)
+        # Also run background resolution for placeholder tracks
+        from backend.sockets.queue import resolve_room_queue_background
+        asyncio.create_task(resolve_room_queue_background(room_id, sio))
+        
+    return {"message": f"Successfully queued {added_count} tracks", "added_count": added_count}
+
+
+
 @router.get("/stream/health")
 async def stream_health():
     """Diagnostic: test all extraction methods against a known video.

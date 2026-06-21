@@ -117,11 +117,26 @@ async def admin_login(request: Request):
 
 @router.get("/me")
 async def get_me(request: Request):
-    """Return current session info from cookie (no DB lookup needed)."""
+    """Return current session info from cookie and database presence check."""
     user_data = get_current_user_id(request, include_name=True)
     if not user_data:
         return JSONResponse(content={"user": None}, status_code=200)
-    return {"user": user_data}
+        
+    from backend.database import SessionLocal
+    from backend.models.user import User
+    
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_data["id"]).first()
+        if user:
+            user_dict = user.to_dict()
+            user_dict["is_registered"] = True
+            return {"user": user_dict}
+        else:
+            user_data["is_registered"] = False
+            return {"user": user_data}
+    finally:
+        db.close()
 
 
 @router.get("/config")

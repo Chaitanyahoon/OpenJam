@@ -21,6 +21,7 @@ export default function RoomClient({ roomId }) {
   const [queue, setQueue] = useState([]);
   const [history, setHistory] = useState([]);
   const [favourites, setFavourites] = useState([]);
+  const [playlists, setPlaylists] = useState([]);
   const [nowPlaying, setNowPlaying] = useState(null);
   const [playbackState, setPlaybackState] = useState({ positionMs: 0, durationMs: 0, isPlaying: false });
 
@@ -507,6 +508,45 @@ export default function RoomClient({ roomId }) {
       window.removeEventListener('resize', handleResize);
     };
   }, [roomId]);
+
+  // Load database likes & playlists if registered user
+  useEffect(() => {
+    if (me && me.is_registered) {
+      const loadDbLikes = async () => {
+        try {
+          const res = await fetch('/likes', { credentials: 'include' });
+          if (res.ok) {
+            const data = await res.json();
+            const mappedLikes = (data.likes || []).map((like) => ({
+              track_uri: like.track_uri,
+              track_name: like.track_name,
+              artist: like.artist,
+              album_art_url: like.album_art_url,
+              duration_ms: like.duration_ms,
+            }));
+            setFavourites(mappedLikes);
+          }
+        } catch (err) {
+          console.error("Failed to load likes from database:", err);
+        }
+      };
+
+      const loadDbPlaylists = async () => {
+        try {
+          const res = await fetch('/playlists', { credentials: 'include' });
+          if (res.ok) {
+            const data = await res.json();
+            setPlaylists(data.playlists || []);
+          }
+        } catch (err) {
+          console.error("Failed to load playlists from database:", err);
+        }
+      };
+
+      loadDbLikes();
+      loadDbPlaylists();
+    }
+  }, [me]);
 
   // Connection status observer
   useEffect(() => {
@@ -1179,28 +1219,72 @@ export default function RoomClient({ roomId }) {
     socket.emit('toggle_repeat', { room_id: roomId, loop: nextLoop });
   };
 
-  const handleLikeToggle = () => {
+  const handleLikeToggle = async () => {
     if (!nowPlaying) return;
     const isLiked = favourites.some((f) => f.track_uri === nowPlaying.track_uri);
-    let nextFavs;
-    if (isLiked) {
-      nextFavs = favourites.filter((f) => f.track_uri !== nowPlaying.track_uri);
-      triggerToast('Removed from favourites', 'info');
+    
+    if (me && me.is_registered) {
+      try {
+        if (isLiked) {
+          const res = await fetch(`/likes?track_uri=${encodeURIComponent(nowPlaying.track_uri)}`, { method: 'DELETE' });
+          if (res.ok) {
+            setFavourites(favourites.filter((f) => f.track_uri !== nowPlaying.track_uri));
+            triggerToast('Removed from liked songs', 'info');
+          } else {
+            triggerToast('Failed to unlike track', 'error');
+          }
+        } else {
+          const res = await fetch('/likes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              track_uri: nowPlaying.track_uri,
+              track_name: nowPlaying.track_name,
+              artist: nowPlaying.artist,
+              album_art_url: nowPlaying.album_art_url,
+              duration_ms: nowPlaying.duration_ms || playbackState.durationMs || 240000,
+            }),
+          });
+          if (res.ok) {
+            setFavourites([
+              ...favourites,
+              {
+                track_uri: nowPlaying.track_uri,
+                track_name: nowPlaying.track_name,
+                artist: nowPlaying.artist,
+                album_art_url: nowPlaying.album_art_url,
+                duration_ms: nowPlaying.duration_ms || playbackState.durationMs || 240000,
+              }
+            ]);
+            triggerToast('Added to liked songs', 'success');
+          } else {
+            triggerToast('Failed to like track', 'error');
+          }
+        }
+      } catch (err) {
+        triggerToast('Connection error', 'error');
+      }
     } else {
-      nextFavs = [
-        ...favourites,
-        {
-          track_uri: nowPlaying.track_uri,
-          track_name: nowPlaying.track_name,
-          artist: nowPlaying.artist,
-          album_art_url: nowPlaying.album_art_url,
-          duration_ms: nowPlaying.duration_ms || playbackState.durationMs || 240000,
-        },
-      ];
-      triggerToast('Added to favourites', 'success');
+      let nextFavs;
+      if (isLiked) {
+        nextFavs = favourites.filter((f) => f.track_uri !== nowPlaying.track_uri);
+        triggerToast('Removed from favourites', 'info');
+      } else {
+        nextFavs = [
+          ...favourites,
+          {
+            track_uri: nowPlaying.track_uri,
+            track_name: nowPlaying.track_name,
+            artist: nowPlaying.artist,
+            album_art_url: nowPlaying.album_art_url,
+            duration_ms: nowPlaying.duration_ms || playbackState.durationMs || 240000,
+          },
+        ];
+        triggerToast('Added to favourites', 'success');
+      }
+      setFavourites(nextFavs);
+      localStorage.setItem('openjam_favourites', JSON.stringify(nextFavs));
     }
-    setFavourites(nextFavs);
-    localStorage.setItem('openjam_favourites', JSON.stringify(nextFavs));
   };
 
   const handleSeek = (e) => {
@@ -2015,6 +2099,54 @@ export default function RoomClient({ roomId }) {
                                 <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.track_name || track.name}</span>
                                 <span style={{ fontSize: '11px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.artist}</span>
                               </div>
+                              {me && me.is_registered && playlists.length > 0 && (
+                                <select
+                                  style={{
+                                    background: 'rgba(0,0,0,0.6)',
+                                    border: '1px solid rgba(255, 159, 28, 0.2)',
+                                    color: '#fff',
+                                    fontSize: '11px',
+                                    padding: '2px 4px',
+                                    borderRadius: '6px',
+                                    outline: 'none',
+                                    cursor: 'pointer',
+                                    maxWidth: '80px'
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={async (e) => {
+                                    e.stopPropagation();
+                                    const playlistId = e.target.value;
+                                    if (!playlistId) return;
+                                    try {
+                                      const res = await fetch(`/playlists/${playlistId}/tracks`, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                          track_uri: track.uri || track.track_uri,
+                                          track_name: track.track_name || track.name,
+                                          artist: track.artist,
+                                          album_art_url: track.album_art_url || track.src,
+                                          duration_ms: track.duration_ms || 240000
+                                        })
+                                      });
+                                      if (res.ok) {
+                                        triggerToast('Added to playlist!', 'success');
+                                      } else {
+                                        triggerToast('Failed to add track', 'error');
+                                      }
+                                    } catch (err) {
+                                      triggerToast('Connection error', 'error');
+                                    }
+                                    e.target.value = '';
+                                  }}
+                                  defaultValue=""
+                                >
+                                  <option value="" disabled>+</option>
+                                  {playlists.map(p => (
+                                    <option key={p.id} value={p.id}>{p.name}</option>
+                                  ))}
+                                </select>
+                              )}
                               <Plus className="h-4 w-4" style={{ color: 'var(--amber)' }} />
                             </div>
                           ))
@@ -2170,6 +2302,51 @@ export default function RoomClient({ roomId }) {
                               >
                                 <Download size={12} />
                               </button>
+                            )}
+                            {me && me.is_registered && playlists.length > 0 && (
+                              <select
+                                style={{
+                                  background: 'rgba(0,0,0,0.4)',
+                                  border: '1px solid rgba(255, 159, 28, 0.15)',
+                                  color: 'var(--text-2)',
+                                  padding: '4px',
+                                  borderRadius: '8px',
+                                  fontSize: '11px',
+                                  cursor: 'pointer',
+                                  maxWidth: '40px'
+                                }}
+                                onChange={async (e) => {
+                                  const playlistId = e.target.value;
+                                  if (!playlistId) return;
+                                  try {
+                                    const res = await fetch(`/playlists/${playlistId}/tracks`, {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        track_uri: item.track_uri,
+                                        track_name: item.track_name,
+                                        artist: item.artist,
+                                        album_art_url: item.album_art_url,
+                                        duration_ms: item.duration_ms || 240000
+                                      })
+                                    });
+                                    if (res.ok) {
+                                      triggerToast('Added to playlist!', 'success');
+                                    } else {
+                                      triggerToast('Failed to add track', 'error');
+                                    }
+                                  } catch (err) {
+                                    triggerToast('Connection error', 'error');
+                                  }
+                                  e.target.value = '';
+                                }}
+                                defaultValue=""
+                              >
+                                <option value="" disabled>+</option>
+                                {playlists.map(p => (
+                                  <option key={p.id} value={p.id}>{p.name}</option>
+                                ))}
+                              </select>
                             )}
                             <button 
                               className={`btn-vote ${item.voted ? 'voted' : ''}`}

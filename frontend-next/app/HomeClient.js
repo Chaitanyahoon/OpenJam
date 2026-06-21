@@ -377,6 +377,13 @@ export default function HomePage() {
       { label: 'Rooms', href: '#active-rooms' }
     ];
 
+    if (me && me.is_registered) {
+      list.push({
+        label: 'My Profile',
+        href: '/profile'
+      });
+    }
+
     if (showInstallBtn) {
       list.push({
         label: 'Install App',

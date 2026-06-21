@@ -20,6 +20,9 @@ from backend.routes.auth import router as auth_router
 from backend.routes.rooms import router as rooms_router
 from backend.routes.queue import router as queue_router
 from backend.routes.admin import router as admin_router
+from backend.routes.likes import router as likes_router
+from backend.routes.playlists import router as playlists_router
+from backend.routes.profile import router as profile_router
 from backend.sockets.connection import register_connection_handlers
 from backend.sockets.chat import register_chat_handlers
 from backend.sockets.playback import register_playback_handlers
@@ -89,6 +92,9 @@ app.include_router(auth_router)
 app.include_router(rooms_router)
 app.include_router(queue_router)
 app.include_router(admin_router)
+app.include_router(likes_router)
+app.include_router(playlists_router)
+app.include_router(profile_router)
 
 register_connection_handlers(sio)
 register_chat_handlers(sio)

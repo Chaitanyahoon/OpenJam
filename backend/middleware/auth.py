@@ -69,3 +69,23 @@ def require_admin(request: Request) -> str:
     if not user_data.get("is_admin"):
         raise HTTPException(status_code=403, detail="Admin privileges required")
     return user_data["id"]
+
+
+def require_registered_user(request: Request) -> str:
+    """Enforces that the user has a valid active session AND exists in the database (i.e. is not a guest)."""
+    user_id = require_auth(request)
+    
+    from backend.database import SessionLocal
+    from backend.models.user import User
+    
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(
+                status_code=403, 
+                detail="Registered account required for this feature. Please sign in with Discord."
+            )
+        return user_id
+    finally:
+        db.close()
