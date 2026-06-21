@@ -5,9 +5,10 @@ import { useSocket } from '@/contexts/SocketContext';
 import YouTubePlayer from '@/utils/YouTubePlayer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MusicPlayer } from '@/components/ui/music-player';
-import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart, CheckCircle, AlertCircle, AlertTriangle, Info, Download, Check, Flame } from 'lucide-react';
+import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart, CheckCircle, AlertCircle, AlertTriangle, Info, Download, Check, Flame, Smile } from 'lucide-react';
 import PwaInstallPrompt from '@/components/PwaInstallPrompt';
 import { offlineDb } from '@/utils/offlineDb';
+import EmojiPicker from '@/components/EmojiPicker';
 
 export default function RoomClient({ roomId }) {
   const { socket, isConnected, reconnect } = useSocket();
@@ -55,6 +56,8 @@ export default function RoomClient({ roomId }) {
   // Modals & Panels
   const [activeDropdownTrackUri, setActiveDropdownTrackUri] = useState(null);
   const [activeQueueDropdownId, setActiveQueueDropdownId] = useState(null);
+  const [showChatEmojiPicker, setShowChatEmojiPicker] = useState(false);
+  const [showReactionEmojiPicker, setShowReactionEmojiPicker] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [showClose, setShowClose] = useState(false);
@@ -1399,6 +1402,26 @@ export default function RoomClient({ roomId }) {
     }
   };
 
+  const handleInsertChatEmoji = (emoji) => {
+    const textarea = document.getElementById('chat-input');
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const text = chatInput;
+      const before = text.substring(0, start);
+      const after = text.substring(end, text.length);
+      setChatInput(before + emoji + after);
+      
+      // Reset cursor position after React re-renders
+      setTimeout(() => {
+        textarea.focus();
+        textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+      }, 0);
+    } else {
+      setChatInput(chatInput + emoji);
+    }
+  };
+
   const handleSendChat = (e) => {
     if (e) e.preventDefault();
     if (!chatInput.trim() || !socket) return;
@@ -2730,7 +2753,7 @@ export default function RoomClient({ roomId }) {
                 </div>
 
                 {/* Reactions floating dock */}
-                <div className="reactions-bar">
+                <div className="reactions-bar" style={{ position: 'relative' }}>
                   {['🔥', '❤️', '😂', '🎵', '👏'].map((emoji) => (
                     <button 
                       key={emoji}
@@ -2740,10 +2763,87 @@ export default function RoomClient({ roomId }) {
                       {emoji}
                     </button>
                   ))}
+                  <button 
+                    type="button"
+                    className="btn-react"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowReactionEmojiPicker(!showReactionEmojiPicker);
+                      setShowChatEmojiPicker(false);
+                    }}
+                    style={{
+                      background: showReactionEmojiPicker ? 'rgba(255, 159, 28, 0.2)' : 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      color: 'var(--amber)',
+                      fontWeight: 'bold',
+                      fontSize: '14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    +
+                  </button>
+
+                  {showReactionEmojiPicker && (
+                    <>
+                      <div 
+                        style={{
+                          position: 'fixed',
+                          inset: 0,
+                          zIndex: 990,
+                          cursor: 'default'
+                        }} 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowReactionEmojiPicker(false);
+                        }}
+                      />
+                      <EmojiPicker 
+                        onSelect={(emoji) => {
+                          handleSendReaction(emoji);
+                          setShowReactionEmojiPicker(false);
+                        }}
+                        style={{
+                          position: 'absolute',
+                          bottom: '100%',
+                          right: '0',
+                          marginBottom: '10px'
+                        }}
+                      />
+                    </>
+                  )}
                 </div>
 
                 {/* Chat text input */}
-                <div className="chat-input-wrap">
+                <div className="chat-input-wrap" style={{ position: 'relative' }}>
+                  {showChatEmojiPicker && (
+                    <>
+                      <div 
+                        style={{
+                          position: 'fixed',
+                          inset: 0,
+                          zIndex: 990,
+                          cursor: 'default'
+                        }} 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowChatEmojiPicker(false);
+                        }}
+                      />
+                      <EmojiPicker 
+                        onSelect={(emoji) => {
+                          handleInsertChatEmoji(emoji);
+                        }}
+                        style={{
+                          position: 'absolute',
+                          bottom: '100%',
+                          right: '0',
+                          marginBottom: '10px'
+                        }}
+                      />
+                    </>
+                  )}
                   <div className="chat-input-main">
                     <textarea 
                       className="input-field" 
@@ -2762,6 +2862,28 @@ export default function RoomClient({ roomId }) {
                       rows="1"
                       style={{ flex: 1, resize: 'none', height: '40px', boxSizing: 'border-box' }}
                     />
+                    <button 
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowChatEmojiPicker(!showChatEmojiPicker);
+                        setShowReactionEmojiPicker(false);
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: showChatEmojiPicker ? 'var(--amber)' : 'var(--text-3)',
+                        cursor: 'pointer',
+                        padding: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'color 0.2s',
+                        outline: 'none'
+                      }}
+                    >
+                      <Smile size={18} />
+                    </button>
                     <button 
                       type="button" 
                       className="chat-send-btn" 
