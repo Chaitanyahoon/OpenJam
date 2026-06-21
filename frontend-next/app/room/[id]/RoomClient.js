@@ -5,7 +5,7 @@ import { useSocket } from '@/contexts/SocketContext';
 import YouTubePlayer from '@/utils/YouTubePlayer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MusicPlayer } from '@/components/ui/music-player';
-import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart, CheckCircle, AlertCircle, AlertTriangle, Info, Download, Check } from 'lucide-react';
+import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart, CheckCircle, AlertCircle, AlertTriangle, Info, Download, Check, Flame } from 'lucide-react';
 import PwaInstallPrompt from '@/components/PwaInstallPrompt';
 import { offlineDb } from '@/utils/offlineDb';
 
@@ -48,6 +48,7 @@ export default function RoomClient({ roomId }) {
   const [chatInput, setChatInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
+  const [recommendations, setRecommendations] = useState([]);
   const [searchFocused, setSearchFocused] = useState(false);
   const [bulkImportText, setBulkImportText] = useState('');
 
@@ -121,10 +122,24 @@ export default function RoomClient({ roomId }) {
   useEffect(() => {
     if (typeof document !== 'undefined') {
       document.body.classList.add('room-page');
-      return () => {
-        document.body.classList.remove('room-page');
-      };
     }
+    const fetchRecommendations = async () => {
+      try {
+        const res = await fetch('/search/recommendations');
+        if (res.ok) {
+          const data = await res.json();
+          setRecommendations(data.tracks || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch recommendations:', err);
+      }
+    };
+    fetchRecommendations();
+    return () => {
+      if (typeof document !== 'undefined') {
+        document.body.classList.remove('room-page');
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -2067,7 +2082,7 @@ export default function RoomClient({ roomId }) {
 
                   {/* Search suggestions autocomplete */}
                   <AnimatePresence>
-                    {searchFocused && (searchResults.length > 0 || (searchQuery.trim() === '' && favourites.length > 0)) && (
+                    {searchFocused && (searchResults.length > 0 || (searchQuery.trim() === '' && (favourites.length > 0 || recommendations.length > 0))) && (
                       <motion.div 
                         className="search-results"
                         initial={{ opacity: 0, y: -8, scale: 0.98 }}
@@ -2236,36 +2251,71 @@ export default function RoomClient({ roomId }) {
                           ))
                         ) : (
                           <>
-                            {favourites.length > 0 ? (
-                              <div style={{ padding: '8px 12px', fontSize: '11px', color: 'var(--amber)', fontWeight: 'bold', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <Heart className="h-3.5 w-3.5 fill-current" /> Favourite Tracks
-                              </div>
-                            ) : null}
-                            {favourites.map((track, idx) => (
-                              <div 
-                                key={`fav-${track.track_uri}-${idx}`} 
-                                className="search-result-item" 
-                                onClick={() => {
-                                  const payload = {
-                                    track_uri: track.track_uri,
-                                    track_name: track.track_name,
-                                    artist: track.artist,
-                                    album_art_url: track.album_art_url,
-                                    duration_ms: track.duration_ms
-                                  };
-                                  handleAddTrack(payload);
-                                }}
-                                style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', cursor: 'pointer' }}
-                              >
-                                <img decoding="async" loading="lazy" draggable="false" src={track.album_art_url || '/placeholder.svg'} alt="" style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} />
-                                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
-                                  <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.track_name}</span>
-                                  <span style={{ fontSize: '11px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.artist}</span>
+                            {favourites.length > 0 && (
+                              <>
+                                <div style={{ padding: '8px 12px', fontSize: '11px', color: 'var(--amber)', fontWeight: 'bold', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <Heart className="h-3.5 w-3.5 fill-current" /> Favourite Tracks
                                 </div>
-                                <Plus className="h-4 w-4" style={{ color: 'var(--amber)' }} />
-                              </div>
-                            ))}
-                            {favourites.length === 0 && (
+                                {favourites.map((track, idx) => (
+                                  <div 
+                                    key={`fav-${track.track_uri}-${idx}`} 
+                                    className="search-result-item" 
+                                    onClick={() => {
+                                      const payload = {
+                                        track_uri: track.track_uri,
+                                        track_name: track.track_name,
+                                        artist: track.artist,
+                                        album_art_url: track.album_art_url,
+                                        duration_ms: track.duration_ms
+                                      };
+                                      handleAddTrack(payload);
+                                    }}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', cursor: 'pointer' }}
+                                  >
+                                    <img decoding="async" loading="lazy" draggable="false" src={track.album_art_url || '/placeholder.svg'} alt="" style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} />
+                                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+                                      <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.track_name}</span>
+                                      <span style={{ fontSize: '11px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.artist}</span>
+                                    </div>
+                                    <Plus className="h-4 w-4" style={{ color: 'var(--amber)' }} />
+                                  </div>
+                                ))}
+                              </>
+                            )}
+
+                            {recommendations.length > 0 && (
+                              <>
+                                <div style={{ padding: '8px 12px', fontSize: '11px', color: 'var(--amber)', fontWeight: 'bold', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: favourites.length > 0 ? '12px' : '0' }}>
+                                  <Flame className="h-3.5 w-3.5 fill-current" /> Trending Recommendations
+                                </div>
+                                {recommendations.map((track, idx) => (
+                                  <div 
+                                    key={`reco-${track.track_uri || track.uri}-${idx}`} 
+                                    className="search-result-item" 
+                                    onClick={() => {
+                                      const payload = {
+                                        track_uri: track.track_uri || track.uri,
+                                        track_name: track.track_name || track.name,
+                                        artist: track.artist,
+                                        album_art_url: track.album_art_url,
+                                        duration_ms: track.duration_ms || 240000
+                                      };
+                                      handleAddTrack(payload);
+                                    }}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', cursor: 'pointer' }}
+                                  >
+                                    <img decoding="async" loading="lazy" src={track.album_art_url || '/placeholder.svg'} alt="" style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} />
+                                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+                                      <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.track_name || track.name}</span>
+                                      <span style={{ fontSize: '11px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.artist}</span>
+                                    </div>
+                                    <Plus className="h-4 w-4" style={{ color: 'var(--amber)' }} />
+                                  </div>
+                                ))}
+                              </>
+                            )}
+
+                            {favourites.length === 0 && recommendations.length === 0 && (
                               <div style={{ padding: '24px 16px', textAlign: 'center', fontSize: '12.5px', color: 'var(--text-3)', lineHeight: 1.5 }}>
                                 Search for tracks and tap the <Heart className="h-3 w-3 inline-block fill-current text-amber" style={{ margin: '0 2px' }} /> icon in the player to save favourites here!
                               </div>
