@@ -270,3 +270,39 @@ def test_stream_audio_status_code_retry_failover(client):
         assert response.content == b"fake-audio-bytes-2"
         assert mock_send_count == 2
         mock_report.assert_called_once_with("http://403-instance.com/stream")
+
+
+def test_add_multiple_tracks_endpoint(client, test_room, auth_headers, db_session):
+    from unittest.mock import patch, MagicMock
+    payload = [
+        {
+            "track_uri": "uri_1",
+            "track_name": "Song One",
+            "artist": "Artist One",
+            "album_art_url": "http://img1.jpg",
+            "duration_ms": 120000
+        },
+        {
+            "track_uri": "uri_2",
+            "track_name": "Song Two",
+            "artist": "Artist Two",
+            "album_art_url": "http://img2.jpg",
+            "duration_ms": 180000
+        }
+    ]
+    mock_session = MagicMock()
+    mock_session.query = db_session.query
+    mock_session.add = db_session.add
+    mock_session.commit = db_session.commit
+    mock_session.refresh = db_session.refresh
+    mock_session.close = MagicMock()
+    
+    with patch("backend.database.SessionLocal", return_value=mock_session):
+        response = client.post(
+            f"/rooms/{test_room.id}/queue/multiple",
+            json=payload,
+            headers=auth_headers
+        )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["added_count"] == 2

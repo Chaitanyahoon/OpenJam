@@ -20,6 +20,7 @@ from backend.models.queue_item import QueueItem
 from backend.models.user import User
 from backend.middleware.auth import get_current_user_id
 from backend.services.queue_manager import queue_manager
+from backend.services.room_manager import room_manager
 from backend.services.music_search import music_search_service as lastfm_service
 from backend.services.invidious import get_stream_url as get_invidious_stream_url, report_stream_failure
 from backend.schemas import QueueTrackRequest, PlaylistTrackRequest
