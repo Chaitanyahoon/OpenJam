@@ -1115,9 +1115,24 @@ export default function RoomClient({ roomId }) {
       const cleanTrack = track.replace(/\[.*?\]|\(.*?\)/g, '').trim();
       const cleanArtist = artist.replace(/\[.*?\]|\(.*?\)/g, '').trim();
       const url = `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTrack)}&artist_name=${encodeURIComponent(cleanArtist)}`;
-      const res = await fetch(url);
+      let res = await fetch(url);
+      let data = null;
       if (res.ok) {
-        const data = await res.json();
+        data = await res.json();
+      } else {
+        // Strict match failed, try fuzzy search
+        const searchUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(cleanArtist + ' ' + cleanTrack)}`;
+        const searchRes = await fetch(searchUrl);
+        if (searchRes.ok) {
+          const searchData = await searchRes.json();
+          if (Array.isArray(searchData) && searchData.length > 0) {
+            // Find the first result that has synced or plain lyrics
+            data = searchData.find(item => item.syncedLyrics || item.plainLyrics) || searchData[0];
+          }
+        }
+      }
+
+      if (data) {
         if (data.syncedLyrics) {
           const lines = data.syncedLyrics.split('\n');
           const parsed = [];
@@ -1136,6 +1151,10 @@ export default function RoomClient({ roomId }) {
             }
           }
           setLyricsText(parsed);
+        } else if (data.plainLyrics) {
+          const lines = data.plainLyrics.split('\n');
+          const parsed = lines.map(line => ({ timeMs: -1, text: line.trim() }));
+          setLyricsText(parsed.filter(p => p.text));
         } else {
           setLyricsText([]);
         }
@@ -1148,7 +1167,7 @@ export default function RoomClient({ roomId }) {
     } finally {
       setLyricsLoading(false);
     }
-  };
+  }
 
   useEffect(() => {
     if (lyricsText.length === 0) return;
@@ -2616,6 +2635,92 @@ export default function RoomClient({ roomId }) {
                     )}
                   </div>
 
+                  {/* Sidebar Now Playing Banner */}
+                  {activeQueueTab === 'queue' && nowPlaying && (
+                    <div 
+                      className="sidebar-now-playing-card"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(255, 159, 28, 0.08) 0%, rgba(217, 119, 6, 0.04) 100%)',
+                        border: '1px solid rgba(255, 159, 28, 0.2)',
+                        borderRadius: '16px',
+                        padding: '14px 16px',
+                        margin: '0 16px 16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        position: 'relative',
+                        boxShadow: '0 8px 24px rgba(255, 159, 28, 0.03)',
+                        overflow: 'hidden'
+                      }}
+                    >
+                      {/* Ambient blur image background */}
+                      <div 
+                        style={{
+                          position: 'absolute',
+                          top: 0, right: 0, bottom: 0, left: 0,
+                          backgroundImage: nowPlaying.album_art_url ? `url(${nowPlaying.album_art_url})` : 'none',
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
+                          filter: 'blur(30px) brightness(0.2) saturate(1.5)',
+                          opacity: 0.5,
+                          zIndex: 0,
+                          pointerEvents: 'none'
+                        }}
+                      />
+                      <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', width: '100%', gap: '12px' }}>
+                        {/* Artwork */}
+                        <div style={{ width: '48px', height: '48px', position: 'relative', flexShrink: 0 }}>
+                          {nowPlaying.album_art_url ? (
+                            <img 
+                              decoding="async" 
+                              loading="lazy" 
+                              draggable="false" 
+                              src={nowPlaying.album_art_url} 
+                              alt="" 
+                              style={{ width: '100%', height: '100%', borderRadius: '10px', objectFit: 'cover', display: 'block', boxShadow: '0 4px 12px rgba(0,0,0,0.4)' }}
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                const placeholder = e.target.parentElement.querySelector('.np-sidebar-art-placeholder');
+                                if (placeholder) placeholder.style.display = 'flex';
+                              }}
+                            />
+                          ) : null}
+                          <div 
+                            className="np-sidebar-art-placeholder" 
+                            style={{ 
+                              display: nowPlaying.album_art_url ? 'none' : 'flex', 
+                              width: '100%', 
+                              height: '100%', 
+                              borderRadius: '10px', 
+                              background: 'rgba(255,159,28,0.1)', 
+                              alignItems: 'center', 
+                              justifyContent: 'center',
+                              border: '1px solid rgba(255,159,28,0.2)'
+                            }}
+                          >
+                            <Music size={18} style={{ color: 'var(--amber)' }} />
+                          </div>
+                        </div>
+
+                        {/* Song Info */}
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, gap: '2px' }}>
+                          <span style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--amber)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Now Playing</span>
+                          <div style={{ fontSize: '13px', fontWeight: '700', color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '1.3' }}>{nowPlaying.track_name}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '1.3' }}>{nowPlaying.artist || 'Unknown Artist'}</div>
+                        </div>
+
+                        {/* Equalizer */}
+                        {playbackState.isPlaying && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '3px', paddingRight: '4px' }}>
+                            <div className="queue-wave" style={{ height: '12px', width: '3px', animationDelay: '0s' }}></div>
+                            <div className="queue-wave" style={{ height: '12px', width: '3px', animationDelay: '0.15s' }}></div>
+                            <div className="queue-wave" style={{ height: '12px', width: '3px', animationDelay: '0.3s' }}></div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {activeQueueTab === 'queue' ? (
                     queue.length > 0 ? (
                       queue.map((item, idx) => (
@@ -2634,11 +2739,47 @@ export default function RoomClient({ roomId }) {
                             transition: 'all 0.2s ease'
                           }}
                         >
-                          <img decoding="async" loading="lazy" draggable="false" className="q-track-art" src={item.album_art_url || '/placeholder.svg'} alt="" />
-                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                            <span className="q-track-title" style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.track_name}</span>
-                            <span className="q-track-artist" style={{ fontSize: '11px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.artist}</span>
-                            <span style={{ fontSize: '10px', color: 'var(--text-4)', marginTop: '2px' }}>added by @{item.added_by_name}</span>
+                          {/* Premium Artwork Container with onError fallback */}
+                          <div style={{ width: '46px', height: '46px', position: 'relative', flexShrink: 0 }}>
+                            {item.album_art_url ? (
+                              <img 
+                                decoding="async" 
+                                loading="lazy" 
+                                draggable="false" 
+                                className="q-track-art" 
+                                src={item.album_art_url} 
+                                alt="" 
+                                style={{ width: '100%', height: '100%', borderRadius: '10px', objectFit: 'cover', display: 'block' }}
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                  const placeholder = e.target.parentElement.querySelector('.q-track-art-placeholder');
+                                  if (placeholder) placeholder.style.display = 'flex';
+                                }}
+                              />
+                            ) : null}
+                            <div 
+                              className="q-track-art-placeholder" 
+                              style={{ 
+                                display: item.album_art_url ? 'none' : 'flex', 
+                                width: '100%', 
+                                height: '100%', 
+                                borderRadius: '10px', 
+                                background: 'rgba(255,255,255,0.05)', 
+                                alignItems: 'center', 
+                                justifyContent: 'center',
+                                border: '1px solid rgba(255,255,255,0.08)'
+                              }}
+                            >
+                              <Music size={16} style={{ color: 'rgba(255,255,255,0.4)' }} />
+                            </div>
+                          </div>
+
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, gap: '2px' }}>
+                            <div className="q-track-title" style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '1.3' }}>{item.track_name}</div>
+                            {item.artist && (
+                              <div className="q-track-artist" style={{ fontSize: '11px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '1.3' }}>{item.artist}</div>
+                            )}
+                            <div style={{ fontSize: '10px', color: 'var(--text-4)', lineHeight: '1.2' }}>added by @{item.added_by_name}</div>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                             {downloadedTracks.has(item.track_uri || item.id) ? (
@@ -2829,10 +2970,46 @@ export default function RoomClient({ roomId }) {
                             e.dataTransfer.effectAllowed = "copy";
                           }}
                         >
-                          <img decoding="async" loading="lazy" draggable="false" className="q-track-art" src={item.album_art_url || '/placeholder.svg'} alt="" />
-                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                            <span className="q-track-title" style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.track_name}</span>
-                            <span className="q-track-artist" style={{ fontSize: '11px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.artist}</span>
+                          {/* Premium Artwork Container with onError fallback */}
+                          <div style={{ width: '46px', height: '46px', position: 'relative', flexShrink: 0 }}>
+                            {item.album_art_url ? (
+                              <img 
+                                decoding="async" 
+                                loading="lazy" 
+                                draggable="false" 
+                                className="q-track-art" 
+                                src={item.album_art_url} 
+                                alt="" 
+                                style={{ width: '100%', height: '100%', borderRadius: '10px', objectFit: 'cover', display: 'block' }}
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                  const placeholder = e.target.parentElement.querySelector('.q-track-art-placeholder');
+                                  if (placeholder) placeholder.style.display = 'flex';
+                                }}
+                              />
+                            ) : null}
+                            <div 
+                              className="q-track-art-placeholder" 
+                              style={{ 
+                                display: item.album_art_url ? 'none' : 'flex', 
+                                width: '100%', 
+                                height: '100%', 
+                                borderRadius: '10px', 
+                                background: 'rgba(255,255,255,0.05)', 
+                                alignItems: 'center', 
+                                justifyContent: 'center',
+                                border: '1px solid rgba(255,255,255,0.08)'
+                              }}
+                            >
+                              <Music size={16} style={{ color: 'rgba(255,255,255,0.4)' }} />
+                            </div>
+                          </div>
+
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, gap: '2px' }}>
+                            <div className="q-track-title" style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '1.3' }}>{item.track_name}</div>
+                            {item.artist && (
+                              <div className="q-track-artist" style={{ fontSize: '11px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '1.3' }}>{item.artist}</div>
+                            )}
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             {downloadedTracks.has(item.track_uri || item.id) ? (
@@ -3096,10 +3273,45 @@ export default function RoomClient({ roomId }) {
                                     });
                                   }}
                                 >
-                                  <img decoding="async" loading="lazy" draggable="false" src={t.album_art_url || '/placeholder.svg'} alt="" style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} />
-                                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
-                                    <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.track_name}</span>
-                                    <span style={{ fontSize: '10px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.artist}</span>
+                                  {/* Premium Artwork Container with onError fallback */}
+                                  <div style={{ width: '32px', height: '32px', position: 'relative', flexShrink: 0 }}>
+                                    {t.album_art_url ? (
+                                      <img 
+                                        decoding="async" 
+                                        loading="lazy" 
+                                        draggable="false" 
+                                        src={t.album_art_url} 
+                                        alt="" 
+                                        style={{ width: '100%', height: '100%', borderRadius: '6px', objectFit: 'cover', display: 'block' }}
+                                        onError={(e) => {
+                                          e.target.style.display = 'none';
+                                          const placeholder = e.target.parentElement.querySelector('.pl-track-art-placeholder');
+                                          if (placeholder) placeholder.style.display = 'flex';
+                                        }}
+                                      />
+                                    ) : null}
+                                    <div 
+                                      className="pl-track-art-placeholder" 
+                                      style={{ 
+                                        display: t.album_art_url ? 'none' : 'flex', 
+                                        width: '100%', 
+                                        height: '100%', 
+                                        borderRadius: '6px', 
+                                        background: 'rgba(255,255,255,0.05)', 
+                                        alignItems: 'center', 
+                                        justifyContent: 'center',
+                                        border: '1px solid rgba(255,255,255,0.08)'
+                                      }}
+                                    >
+                                      <Music size={12} style={{ color: 'rgba(255,255,255,0.4)' }} />
+                                    </div>
+                                  </div>
+
+                                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, gap: '1px' }}>
+                                    <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '1.3' }}>{t.track_name}</div>
+                                    {t.artist && (
+                                      <div style={{ fontSize: '10px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '1.2' }}>{t.artist}</div>
+                                    )}
                                   </div>
                                   <Plus className="h-4 w-4" style={{ color: 'var(--amber)' }} />
                                 </div>
