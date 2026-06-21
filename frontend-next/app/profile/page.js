@@ -24,6 +24,7 @@ export default function ProfilePage() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState('');
   const [toasts, setToasts] = useState([]);
+  const [playlistToDelete, setPlaylistToDelete] = useState(null);
 
   const cursorGlowRef = useRef(null);
 
@@ -140,8 +141,7 @@ export default function ProfilePage() {
     }
   };
 
-  const handleDeletePlaylist = async (id) => {
-    if (!confirm('Are you sure you want to delete this playlist?')) return;
+  const executeDeletePlaylist = async (id) => {
     try {
       const res = await fetch(`/playlists/${id}`, { method: 'DELETE' });
       if (res.ok) {
@@ -154,6 +154,10 @@ export default function ProfilePage() {
     } catch (err) {
       addToast('Connection error', 'error');
     }
+  };
+
+  const handleDeletePlaylist = (id) => {
+    setPlaylistToDelete(id);
   };
 
   const handleUnlike = async (uri) => {
@@ -683,22 +687,89 @@ export default function ProfilePage() {
                             {like.artist}
                           </p>
                         </div>
-                        <button
-                          onClick={() => handleUnlike(like.track_uri)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: 'var(--amber, #ff9f1c)',
-                            cursor: 'pointer',
-                            padding: '10px',
-                            transition: 'transform 0.2s'
-                          }}
-                          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.15)'}
-                          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                          title="Remove from Liked"
-                        >
-                          <Heart size={18} fill="var(--amber, #ff9f1c)" />
-                        </button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          {playlists.length > 0 && (
+                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                              <select
+                                style={{
+                                  position: 'absolute',
+                                  inset: 0,
+                                  opacity: 0,
+                                  cursor: 'pointer',
+                                  width: '100%',
+                                  height: '100%',
+                                }}
+                                onChange={async (e) => {
+                                  const playlistId = e.target.value;
+                                  if (!playlistId) return;
+                                  try {
+                                    const res = await fetch(`/playlists/${playlistId}/tracks`, {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        track_uri: like.track_uri,
+                                        track_name: like.track_name,
+                                        artist: like.artist,
+                                        album_art_url: like.album_art_url,
+                                        duration_ms: like.duration_ms || 240000
+                                      })
+                                    });
+                                    if (res.ok) {
+                                      addToast('Added to playlist!', 'success');
+                                    } else {
+                                      addToast('Failed to add track', 'error');
+                                    }
+                                  } catch (err) {
+                                    addToast('Connection error', 'error');
+                                  }
+                                  e.target.value = '';
+                                }}
+                                defaultValue=""
+                              >
+                                <option value="" disabled>+</option>
+                                {playlists.map(p => (
+                                  <option key={p.id} value={p.id}>{p.name}</option>
+                                ))}
+                              </select>
+                              <button
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#888',
+                                  cursor: 'pointer',
+                                  padding: '8px',
+                                  transition: 'color 0.2s',
+                                  display: 'flex',
+                                  alignItems: 'center'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.color = 'var(--amber, #ff9f1c)'}
+                                onMouseLeave={(e) => e.currentTarget.style.color = '#888'}
+                                title="Add to Playlist"
+                              >
+                                <Plus size={16} />
+                              </button>
+                            </div>
+                          )}
+
+                          <button
+                            onClick={() => handleUnlike(like.track_uri)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--amber, #ff9f1c)',
+                              cursor: 'pointer',
+                              padding: '10px',
+                              transition: 'transform 0.2s',
+                              display: 'flex',
+                              alignItems: 'center'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.15)'}
+                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                            title="Remove from Liked"
+                          >
+                            <Heart size={18} fill="var(--amber, #ff9f1c)" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -971,6 +1042,73 @@ export default function ProfilePage() {
                 </button>
               </div>
             </form>
+          </motion.div>
+        </div>
+      )}
+      {/* DELETE CONFIRMATION MODAL */}
+      {playlistToDelete && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          background: 'rgba(0,0,0,0.85)',
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backdropFilter: 'blur(10px)',
+          padding: '20px'
+        }}>
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            style={{
+              background: '#0e0e12',
+              border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: '24px',
+              padding: '32px',
+              width: '100%',
+              maxWidth: '400px',
+              boxShadow: '0 24px 64px rgba(0,0,0,0.8)',
+              textAlign: 'center'
+            }}
+          >
+            <Trash2 size={48} color="#ff4757" style={{ marginBottom: '16px', margin: '0 auto 16px' }} />
+            <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '12px', letterSpacing: '-0.01em' }}>Delete Playlist</h3>
+            <p style={{ color: '#aaa', fontSize: '14px', lineHeight: '1.5', marginBottom: '24px' }}>
+              Are you sure you want to delete this playlist? This action cannot be undone.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
+              <button 
+                className="btn btn-ghost" 
+                onClick={() => setPlaylistToDelete(null)}
+                style={{ padding: '10px 20px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn btn-danger"
+                onClick={async () => {
+                  const id = playlistToDelete;
+                  setPlaylistToDelete(null);
+                  await executeDeletePlaylist(id);
+                }}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: '12px',
+                  background: '#ff4757',
+                  border: 'none',
+                  color: '#fff',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 8px 24px rgba(255, 71, 87, 0.25)'
+                }}
+              >
+                Delete
+              </button>
+            </div>
           </motion.div>
         </div>
       )}
