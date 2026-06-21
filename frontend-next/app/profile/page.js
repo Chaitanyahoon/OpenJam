@@ -8,6 +8,54 @@ import {
   ArrowLeft, Edit2, Check, X, Disc, ExternalLink, Play 
 } from 'lucide-react';
 
+const THEMES = {
+  amber: {
+    primary: '#ff9f1c',
+    secondary: '#ffd23f',
+    glow: 'rgba(255, 159, 28, 0.15)',
+    name: 'Warm Amber',
+    shadow: '0 8px 32px rgba(255, 170, 0, 0.25), 0 0 0 1px rgba(255, 170, 0, 0.15)',
+    hoverBg: 'linear-gradient(135deg, #ffb732, #ffe066)',
+    hoverShadow: '0 12px 40px rgba(255,170,0,0.4)',
+  },
+  cobalt: {
+    primary: '#38bdf8',
+    secondary: '#60a5fa',
+    glow: 'rgba(56, 189, 248, 0.15)',
+    name: 'Cobalt Blue',
+    shadow: '0 8px 32px rgba(56, 189, 248, 0.25), 0 0 0 1px rgba(56, 189, 248, 0.15)',
+    hoverBg: 'linear-gradient(135deg, #60d2ff, #93c5fd)',
+    hoverShadow: '0 12px 40px rgba(56, 189, 248, 0.4)',
+  },
+  rose: {
+    primary: '#f43f5e',
+    secondary: '#fb7185',
+    glow: 'rgba(244, 63, 94, 0.15)',
+    name: 'Neon Rose',
+    shadow: '0 8px 32px rgba(244, 63, 94, 0.25), 0 0 0 1px rgba(244, 63, 94, 0.15)',
+    hoverBg: 'linear-gradient(135deg, #ff5b78, #fda4af)',
+    hoverShadow: '0 12px 40px rgba(244, 63, 94, 0.4)',
+  },
+  emerald: {
+    primary: '#10b981',
+    secondary: '#34d399',
+    glow: 'rgba(16, 185, 129, 0.15)',
+    name: 'Emerald Green',
+    shadow: '0 8px 32px rgba(16, 185, 129, 0.25), 0 0 0 1px rgba(16, 185, 129, 0.15)',
+    hoverBg: 'linear-gradient(135deg, #22d3ee, #6ee7b7)',
+    hoverShadow: '0 12px 40px rgba(16, 185, 129, 0.4)',
+  },
+  violet: {
+    primary: '#8b5cf6',
+    secondary: '#a78bfa',
+    glow: 'rgba(139, 92, 246, 0.15)',
+    name: 'Electric Violet',
+    shadow: '0 8px 32px rgba(139, 92, 246, 0.25), 0 0 0 1px rgba(139, 92, 246, 0.15)',
+    hoverBg: 'linear-gradient(135deg, #a78bfa, #c084fc)',
+    hoverShadow: '0 12px 40px rgba(139, 92, 246, 0.4)',
+  },
+};
+
 export default function ProfilePage() {
   const [profile, setProfile] = useState(null);
   const [playlists, setPlaylists] = useState([]);
@@ -76,6 +124,29 @@ export default function ProfilePage() {
         addToast('Profile updated!', 'success');
       } else {
         addToast('Failed to update profile name', 'error');
+      }
+    } catch (err) {
+      addToast('Connection error', 'error');
+    }
+  };
+
+  const handleUpdateTheme = async (themeKey) => {
+    if (!profile) return;
+    try {
+      const res = await fetch('/profile/me', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          display_name: profile.display_name, 
+          profile_theme: themeKey 
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setProfile(data.user);
+        addToast('Theme updated!', 'success');
+      } else {
+        addToast('Failed to update theme', 'error');
       }
     } catch (err) {
       addToast('Connection error', 'error');
@@ -249,6 +320,8 @@ export default function ProfilePage() {
     );
   }
 
+  const activeTheme = THEMES[profile?.profile_theme] || THEMES.amber;
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -256,8 +329,26 @@ export default function ProfilePage() {
       color: '#fff',
       fontFamily: 'var(--font-sans), sans-serif',
       padding: '40px 24px',
-      position: 'relative'
+      position: 'relative',
+      '--amber': activeTheme.primary,
+      '--amber-glow': activeTheme.glow,
+      '--theme-accent': activeTheme.primary,
+      '--theme-accent-glow': activeTheme.glow
     }}>
+      <style dangerouslySetInnerHTML={{__html: `
+        :root {
+          --theme-accent: ${activeTheme.primary};
+          --theme-accent-glow: ${activeTheme.glow};
+          --amber: ${activeTheme.primary};
+          --amber-glow: ${activeTheme.glow};
+          --gold: ${activeTheme.secondary};
+          --shadow-amber: ${activeTheme.shadow};
+        }
+        .btn-primary:hover {
+          background: ${activeTheme.hoverBg} !important;
+          box-shadow: ${activeTheme.hoverShadow} !important;
+        }
+      `}} />
       {/* Toast notifications */}
       <div style={{
         position: 'fixed',
@@ -386,6 +477,30 @@ export default function ProfilePage() {
                 {profile?.discord_username && <span>Discord: @{profile.discord_username}</span>}
                 <span>Member since: {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : 'N/A'}</span>
               </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '16px' }}>
+                <span style={{ fontSize: '13px', color: '#888', fontWeight: 600 }}>Profile Theme:</span>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {Object.entries(THEMES).map(([key, val]) => (
+                    <button
+                      key={key}
+                      onClick={() => handleUpdateTheme(key)}
+                      style={{
+                        width: '20px',
+                        height: '20px',
+                        borderRadius: '50%',
+                        background: val.primary,
+                        border: profile?.profile_theme === key ? '2px solid #fff' : '2px solid transparent',
+                        boxShadow: profile?.profile_theme === key ? `0 0 10px ${val.primary}` : 'none',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        transform: profile?.profile_theme === key ? 'scale(1.2)' : 'none',
+                      }}
+                      title={val.name}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -441,7 +556,7 @@ export default function ProfilePage() {
                   borderRadius: '12px',
                   border: '1px solid',
                   borderColor: activePlaylistId === null ? 'var(--amber, #ff9f1c)' : 'transparent',
-                  background: activePlaylistId === null ? 'rgba(255, 159, 28, 0.1)' : 'rgba(255,255,255,0.02)',
+                  background: activePlaylistId === null ? activeTheme.glow : 'rgba(255,255,255,0.02)',
                   color: '#fff',
                   textAlign: 'left',
                   cursor: 'pointer',
@@ -467,7 +582,7 @@ export default function ProfilePage() {
                     borderRadius: '12px',
                     border: '1px solid',
                     borderColor: activePlaylistId === pl.id ? 'var(--amber, #ff9f1c)' : 'transparent',
-                    background: activePlaylistId === pl.id ? 'rgba(255, 159, 28, 0.1)' : 'rgba(255,255,255,0.02)',
+                    background: activePlaylistId === pl.id ? activeTheme.glow : 'rgba(255,255,255,0.02)',
                     transition: 'all 0.2s',
                     overflow: 'hidden'
                   }}

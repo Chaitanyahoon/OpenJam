@@ -160,3 +160,20 @@ def init_db():
             print("Successfully added discord_username column to users table.")
         except Exception as e:
             print(f"Failed to auto-migrate users.discord_username: {e}")
+
+    # Auto-migration: Check if 'profile_theme' exists in 'users' table, and add it if missing
+    profile_theme_exists = True
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("SELECT profile_theme FROM users LIMIT 1"))
+        except Exception:
+            profile_theme_exists = False
+
+    if not profile_theme_exists:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN profile_theme VARCHAR NOT NULL DEFAULT 'amber'"))
+            print("Successfully added profile_theme column to users table.")
+        except Exception as e:
+            print(f"Failed to auto-migrate users.profile_theme: {e}")
+

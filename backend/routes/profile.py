@@ -13,6 +13,7 @@ router = APIRouter(prefix="/profile", tags=["profile"])
 
 class UpdateProfileRequest(BaseModel):
     display_name: str = Field(..., min_length=1, max_length=50)
+    profile_theme: Optional[str] = Field("amber", pattern="^(amber|cobalt|rose|emerald|violet)$")
 
 
 @router.get("/me")
@@ -40,7 +41,7 @@ async def update_my_profile(
     update_req: UpdateProfileRequest,
     db: Session = Depends(get_db)
 ):
-    """Update user profile (display name)."""
+    """Update user profile (display name and theme)."""
     user_id = require_registered_user(request)
     
     user = db.query(User).filter(User.id == user_id).first()
@@ -48,6 +49,8 @@ async def update_my_profile(
         raise HTTPException(status_code=404, detail="User profile not found")
         
     user.display_name = update_req.display_name
+    if update_req.profile_theme:
+        user.profile_theme = update_req.profile_theme
     db.commit()
     db.refresh(user)
     

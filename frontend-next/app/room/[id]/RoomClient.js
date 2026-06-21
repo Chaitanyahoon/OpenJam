@@ -9,6 +9,54 @@ import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, 
 import PwaInstallPrompt from '@/components/PwaInstallPrompt';
 import { offlineDb } from '@/utils/offlineDb';
 
+const THEMES = {
+  amber: {
+    primary: '#ff9f1c',
+    secondary: '#ffd23f',
+    glow: 'rgba(255, 159, 28, 0.15)',
+    name: 'Warm Amber',
+    shadow: '0 8px 32px rgba(255, 170, 0, 0.25), 0 0 0 1px rgba(255, 170, 0, 0.15)',
+    hoverBg: 'linear-gradient(135deg, #ffb732, #ffe066)',
+    hoverShadow: '0 12px 40px rgba(255,170,0,0.4)',
+  },
+  cobalt: {
+    primary: '#38bdf8',
+    secondary: '#60a5fa',
+    glow: 'rgba(56, 189, 248, 0.15)',
+    name: 'Cobalt Blue',
+    shadow: '0 8px 32px rgba(56, 189, 248, 0.25), 0 0 0 1px rgba(56, 189, 248, 0.15)',
+    hoverBg: 'linear-gradient(135deg, #60d2ff, #93c5fd)',
+    hoverShadow: '0 12px 40px rgba(56, 189, 248, 0.4)',
+  },
+  rose: {
+    primary: '#f43f5e',
+    secondary: '#fb7185',
+    glow: 'rgba(244, 63, 94, 0.15)',
+    name: 'Neon Rose',
+    shadow: '0 8px 32px rgba(244, 63, 94, 0.25), 0 0 0 1px rgba(244, 63, 94, 0.15)',
+    hoverBg: 'linear-gradient(135deg, #ff5b78, #fda4af)',
+    hoverShadow: '0 12px 40px rgba(244, 63, 94, 0.4)',
+  },
+  emerald: {
+    primary: '#10b981',
+    secondary: '#34d399',
+    glow: 'rgba(16, 185, 129, 0.15)',
+    name: 'Emerald Green',
+    shadow: '0 8px 32px rgba(16, 185, 129, 0.25), 0 0 0 1px rgba(16, 185, 129, 0.15)',
+    hoverBg: 'linear-gradient(135deg, #22d3ee, #6ee7b7)',
+    hoverShadow: '0 12px 40px rgba(16, 185, 129, 0.4)',
+  },
+  violet: {
+    primary: '#8b5cf6',
+    secondary: '#a78bfa',
+    glow: 'rgba(139, 92, 246, 0.15)',
+    name: 'Electric Violet',
+    shadow: '0 8px 32px rgba(139, 92, 246, 0.25), 0 0 0 1px rgba(139, 92, 246, 0.15)',
+    hoverBg: 'linear-gradient(135deg, #a78bfa, #c084fc)',
+    hoverShadow: '0 12px 40px rgba(139, 92, 246, 0.4)',
+  },
+};
+
 export default function RoomClient({ roomId }) {
   const { socket, isConnected, reconnect } = useSocket();
   const playerRef = useRef(null);
@@ -1640,8 +1688,29 @@ export default function RoomClient({ roomId }) {
 
   const currentSidebarTab = (activeTab === 'playing' || activeTab === 'queue') ? 'queue' : activeTab;
 
+  const activeTheme = THEMES[me?.profile_theme] || THEMES.amber;
+
   return (
-    <div className="room-page-layout">
+    <div className="room-page-layout" style={{
+      '--amber': activeTheme.primary,
+      '--amber-glow': activeTheme.glow,
+      '--theme-accent': activeTheme.primary,
+      '--theme-accent-glow': activeTheme.glow
+    }}>
+      <style dangerouslySetInnerHTML={{__html: `
+        :root {
+          --theme-accent: ${activeTheme.primary};
+          --theme-accent-glow: ${activeTheme.glow};
+          --amber: ${activeTheme.primary};
+          --amber-glow: ${activeTheme.glow};
+          --gold: ${activeTheme.secondary};
+          --shadow-amber: ${activeTheme.shadow};
+        }
+        .btn-primary:hover {
+          background: ${activeTheme.hoverBg} !important;
+          box-shadow: ${activeTheme.hoverShadow} !important;
+        }
+      `}} />
       {/* Toast stack */}
       <div className="toast-stack" id="toasts" aria-live="assertive" aria-label="Notifications">
         <AnimatePresence>
