@@ -340,11 +340,13 @@ def register_connection_handlers(sio: socketio.AsyncServer):
                 "album_art_url": playback.get("album_art_url"),
                 "duration_ms": playback.get("duration_ms", 0),
             }
+            import time
             join_data["playback"] = {
                 "positionMs": playback.get("position_ms", 0),
                 "durationMs": playback.get("duration_ms", 0),
                 "isPlaying": playback.get("is_playing", False),
                 "is_buffering": playback.get("is_buffering", False),
+                "server_timestamp": int(time.time() * 1000)
             }
 
         await sio.emit("join_success", join_data, to=sid)
@@ -446,3 +448,16 @@ def register_connection_handlers(sio: socketio.AsyncServer):
     async def heartbeat(sid):
         """Client heartbeat — confirms connection is alive."""
         await sio.emit("heartbeat_ack", {"ts": int(asyncio.get_event_loop().time() * 1000)}, to=sid)
+
+    @sio.on("sync_ping")
+    async def sync_ping(sid, data):
+        """Receive ping from client containing their t0 timestamp, reply with server timestamps."""
+        import time
+        server_now = int(time.time() * 1000)
+        # Handle dict or raw float/int data
+        t0 = data.get("t0") if isinstance(data, dict) else data
+        await sio.emit("sync_pong", {
+            "t0": t0,
+            "t1": server_now,
+            "t2": server_now
+        }, to=sid)

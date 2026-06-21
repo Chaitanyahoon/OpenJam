@@ -58,6 +58,8 @@ export default function RoomClient({ roomId }) {
   const [activeQueueDropdownId, setActiveQueueDropdownId] = useState(null);
   const [showChatEmojiPicker, setShowChatEmojiPicker] = useState(false);
   const [showReactionEmojiPicker, setShowReactionEmojiPicker] = useState(false);
+  const [syncLatency, setSyncLatency] = useState(null);
+  const clockStatsRef = useRef({ offset: 0, rtt: 0, history: [] });
   const [showSettings, setShowSettings] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [showClose, setShowClose] = useState(false);
@@ -575,6 +577,25 @@ export default function RoomClient({ roomId }) {
     }
   }, [isConnected, isReady]);
 
+  // Clock synchronization loop
+  useEffect(() => {
+    if (!socket || !isConnected) return;
+    
+    // Initial burst to get quick convergence
+    syncClock();
+    const interval1 = setInterval(syncClock, 1000);
+    const timeout = setTimeout(() => clearInterval(interval1), 5000);
+    
+    // Regular keep-alive sync every 15 seconds
+    const interval15 = setInterval(syncClock, 15000);
+    
+    return () => {
+      clearInterval(interval1);
+      clearTimeout(timeout);
+      clearInterval(interval15);
+    };
+  }, [socket, isConnected]);
+
   // 2. WebSocket Listeners Setup
   useEffect(() => {
     if (!socket || !isReady) {
@@ -592,6 +613,29 @@ export default function RoomClient({ roomId }) {
     }
 
     socket.on('connect', joinRoom);
+
+    socket.on('sync_pong', (data) => {
+      if (!data) return;
+      const t3 = Date.now();
+      const t0 = data.t0;
+      const t1 = data.t1;
+      const t2 = data.t2;
+      
+      const rtt = (t3 - t0) - (t2 - t1);
+      const offset = ((t1 - t0) + (t2 - t3)) / 2;
+      
+      const newHistory = [...clockStatsRef.current.history, { rtt, offset }].slice(-10);
+      const avgOffset = newHistory.reduce((sum, item) => sum + item.offset, 0) / newHistory.length;
+      const avgRtt = newHistory.reduce((sum, item) => sum + item.rtt, 0) / newHistory.length;
+      
+      clockStatsRef.current = {
+        offset: avgOffset,
+        rtt: avgRtt,
+        history: newHistory
+      };
+      
+      setSyncLatency(Math.round(avgRtt / 2));
+    });
 
     socket.on('join_success', (data) => {
       if (data.room) setRoom(data.room);
@@ -613,12 +657,25 @@ export default function RoomClient({ roomId }) {
         const duration = data.playback?.durationMs ?? data.playback?.duration_ms ?? 0;
         const playing = data.playback?.isPlaying ?? data.playback?.is_playing ?? false;
 
+        const isHostUser = meRef.current && data.room && data.room.host_user_id === meRef.current.id;
+        let adjustedPosition = position;
+        if (!isHostUser && data.playback?.server_timestamp) {
+          const offset = clockStatsRef.current.offset || 0;
+          const latency = (Date.now() + offset) - data.playback.server_timestamp;
+          if (latency > 0 && latency < 5000) {
+            adjustedPosition = position + latency;
+            console.log(`[Sync join_success] Latency corrected: ${latency}ms (offset: ${offset}ms), adjusted from ${position} to ${adjustedPosition}`);
+          } else {
+            console.log(`[Sync join_success] Latency correction skipped. Latency: ${latency}ms (offset: ${offset}ms)`);
+          }
+        }
+
         playerRef.current.setTrack({
           track_uri: data.now_playing.track_uri,
           track_name: data.now_playing.track_name,
           artist: data.now_playing.artist,
           album_art_url: data.now_playing.album_art_url,
-          position_ms: position,
+          position_ms: adjustedPosition,
           duration_ms: duration,
           is_playing: playing && !isBuffering
         });
@@ -750,7 +807,8 @@ export default function RoomClient({ roomId }) {
         positionMs: data.position_ms,
         durationMs: data.duration_ms,
         isPlaying: data.is_playing && !isBuffering,
-        loop: data.loop || false
+        loop: data.loop || false,
+        server_timestamp: data.server_timestamp
       };
       const newNowPlaying = data.track_uri ? {
         track_uri: data.track_uri,
@@ -765,24 +823,38 @@ export default function RoomClient({ roomId }) {
       setPlaybackState(newPlayback);
       setNowPlaying(newNowPlaying);
 
+      const isHostUser = meRef.current && roomRef.current && roomRef.current.host_user_id === meRef.current.id;
+
       if (playerRef.current) {
+        let adjustedPosition = data.position_ms;
+        if (!isHostUser && data.server_timestamp) {
+          const offset = clockStatsRef.current.offset || 0;
+          const latency = (Date.now() + offset) - data.server_timestamp;
+          if (latency > 0 && latency < 5000) {
+            adjustedPosition = data.position_ms + latency;
+            console.log(`[Sync playback_sync] Latency corrected: ${latency}ms (offset: ${offset}ms), adjusted from ${data.position_ms} to ${adjustedPosition}`);
+          } else {
+            console.log(`[Sync playback_sync] Latency correction skipped. Latency: ${latency}ms (offset: ${offset}ms)`);
+          }
+        }
+
         if (data.track_uri && playerRef.current.currentVideoId !== data.track_uri) {
           playerRef.current.setTrack({
             track_uri: data.track_uri,
             track_name: data.track_name,
             artist: data.artist,
             album_art_url: data.album_art_url,
-            position_ms: data.position_ms,
+            position_ms: adjustedPosition,
             duration_ms: data.duration_ms,
             is_playing: data.is_playing && !isBuffering
           });
         } else if (!data.track_uri) {
           playerRef.current.stop();
         } else {
-          playerRef.current.syncPosition(data.position_ms, data.is_playing && !isBuffering);
+          playerRef.current.syncPosition(adjustedPosition, data.is_playing && !isBuffering);
         }
       }
-      if (!isHost) {
+      if (!isHostUser) {
         if (isBuffering) {
           streamErrorMsgRef.current = "Buffering stream…";
           setStreamErrorMsg("Buffering stream…");
@@ -844,6 +916,7 @@ export default function RoomClient({ roomId }) {
 
     return () => {
       socket.off('connect', joinRoom);
+      socket.off('sync_pong');
       socket.off('join_success');
       socket.off('join_error');
       socket.off('chat_history');
@@ -902,12 +975,25 @@ export default function RoomClient({ roomId }) {
       const duration = currentPlayback?.durationMs ?? currentPlayback?.duration_ms ?? 0;
       const playing = currentPlayback?.isPlaying ?? currentPlayback?.is_playing ?? false;
       
+      const isHostUser = meRef.current && roomRef.current && roomRef.current.host_user_id === meRef.current.id;
+      let adjustedPosition = position;
+      if (!isHostUser && currentPlayback?.server_timestamp) {
+        const offset = clockStatsRef.current.offset || 0;
+        const latency = (Date.now() + offset) - currentPlayback.server_timestamp;
+        if (latency > 0 && latency < 5000) {
+          adjustedPosition = position + latency;
+          console.log(`[Sync player init] Latency corrected: ${latency}ms (offset: ${offset}ms), adjusted from ${position} to ${adjustedPosition}`);
+        } else {
+          console.log(`[Sync player init] Latency correction skipped. Latency: ${latency}ms (offset: ${offset}ms)`);
+        }
+      }
+
       player.setTrack({
         track_uri: currentTrack.track_uri,
         track_name: currentTrack.track_name,
         artist: currentTrack.artist,
         album_art_url: currentTrack.album_art_url,
-        position_ms: position,
+        position_ms: adjustedPosition,
         duration_ms: duration,
         is_playing: playing && !isBuffering
       });
@@ -1422,6 +1508,12 @@ export default function RoomClient({ roomId }) {
     }
   };
 
+  const syncClock = () => {
+    if (socket && socket.connected) {
+      socket.emit('sync_ping', { t0: Date.now() });
+    }
+  };
+
   const handleSendChat = (e) => {
     if (e) e.preventDefault();
     if (!chatInput.trim() || !socket) return;
@@ -1786,6 +1878,13 @@ export default function RoomClient({ roomId }) {
                 <span id="bar-lc-num">{room ? room.listener_count : 0}</span>
                 <span style={{ opacity: 0.8, marginLeft: '2px' }}>listening</span>
               </div>
+
+              {syncLatency !== null && (
+                <div className="room-sync-status" title={`Clock synchronization RTT: ${syncLatency * 2}ms`}>
+                  <div className="room-sync-dot"></div>
+                  <span className="room-sync-text">⚡ Synced ({syncLatency}ms)</span>
+                </div>
+              )}
             </div>
           </div>
         </div>

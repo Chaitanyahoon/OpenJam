@@ -37,6 +37,12 @@ def _make_json_safe(data: dict) -> dict:
             safe_data[key] = [_make_json_safe(v) if isinstance(v, dict) else v for v in value]
         else:
             safe_data[key] = value
+
+    # Automatically attach server_timestamp for playback state payloads
+    if "position_ms" in safe_data:
+        import time
+        safe_data["server_timestamp"] = int(time.time() * 1000)
+
     return safe_data
 
 
