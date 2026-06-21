@@ -23,6 +23,8 @@ export default function OfflinePage() {
   const [showCreatePlaylistModal, setShowCreatePlaylistModal] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [toasts, setToasts] = useState([]);
+  const [playlistToDelete, setPlaylistToDelete] = useState(null);
+  const [trackToDelete, setTrackToDelete] = useState(null);
   
   const playerRef = useRef(null);
 
@@ -222,8 +224,11 @@ export default function OfflinePage() {
     }
   };
 
-  const handleDeletePlaylist = async (playlistId) => {
-    if (!confirm('Are you sure you want to delete this playlist?')) return;
+  const handleDeletePlaylist = (playlistId) => {
+    setPlaylistToDelete(playlistId);
+  };
+
+  const executeDeletePlaylist = async (playlistId) => {
     try {
       await offlineDb.deletePlaylist(playlistId);
       triggerToast('Playlist deleted', 'success');
@@ -236,8 +241,11 @@ export default function OfflinePage() {
     }
   };
 
-  const handleDeleteTrack = async (trackId) => {
-    if (!confirm('Delete this downloaded track from offline storage?')) return;
+  const handleDeleteTrack = (trackId) => {
+    setTrackToDelete(trackId);
+  };
+
+  const executeDeleteTrack = async (trackId) => {
     try {
       await offlineDb.deleteTrack(trackId);
       triggerToast('Track deleted from offline storage', 'success');
@@ -878,6 +886,133 @@ export default function OfflinePage() {
                 disabled={!newPlaylistName.trim()}
               >
                 Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE CONFIRMATION MODALS */}
+      {playlistToDelete && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(10, 9, 12, 0.85)',
+          backdropFilter: 'blur(16px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000
+        }} onClick={() => setPlaylistToDelete(null)}>
+          <div style={{
+            background: 'var(--bg-base, #111015)',
+            border: '1px solid rgba(255, 71, 87, 0.2)',
+            borderRadius: '24px',
+            padding: '32px',
+            width: 'calc(100% - 32px)',
+            maxWidth: '400px',
+            boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
+            position: 'relative',
+            textAlign: 'center'
+          }} onClick={(e) => e.stopPropagation()}>
+            <Trash2 size={48} color="#ff4757" style={{ marginBottom: '16px', margin: '0 auto 16px' }} />
+            <h3 style={{
+              fontFamily: 'var(--font-display), sans-serif',
+              fontSize: '20px',
+              fontWeight: 700,
+              color: '#fff',
+              marginBottom: '12px'
+            }}>Delete Playlist</h3>
+            <p style={{ color: '#aaa', fontSize: '14px', lineHeight: '1.5', marginBottom: '24px' }}>
+              Are you sure you want to delete this playlist? This action cannot be undone.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => setPlaylistToDelete(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={async () => {
+                  const id = playlistToDelete;
+                  setPlaylistToDelete(null);
+                  await executeDeletePlaylist(id);
+                }}
+                style={{
+                  background: '#ff4757',
+                  color: '#fff',
+                  border: 'none',
+                  boxShadow: '0 8px 24px rgba(255, 71, 87, 0.25)'
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {trackToDelete && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(10, 9, 12, 0.85)',
+          backdropFilter: 'blur(16px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000
+        }} onClick={() => setTrackToDelete(null)}>
+          <div style={{
+            background: 'var(--bg-base, #111015)',
+            border: '1px solid rgba(255, 71, 87, 0.2)',
+            borderRadius: '24px',
+            padding: '32px',
+            width: 'calc(100% - 32px)',
+            maxWidth: '400px',
+            boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
+            position: 'relative',
+            textAlign: 'center'
+          }} onClick={(e) => e.stopPropagation()}>
+            <Trash2 size={48} color="#ff4757" style={{ marginBottom: '16px', margin: '0 auto 16px' }} />
+            <h3 style={{
+              fontFamily: 'var(--font-display), sans-serif',
+              fontSize: '20px',
+              fontWeight: 700,
+              color: '#fff',
+              marginBottom: '12px'
+            }}>Delete Track</h3>
+            <p style={{ color: '#aaa', fontSize: '14px', lineHeight: '1.5', marginBottom: '24px' }}>
+              Delete this downloaded track from offline storage?
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => setTrackToDelete(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={async () => {
+                  const id = trackToDelete;
+                  setTrackToDelete(null);
+                  await executeDeleteTrack(id);
+                }}
+                style={{
+                  background: '#ff4757',
+                  color: '#fff',
+                  border: 'none',
+                  boxShadow: '0 8px 24px rgba(255, 71, 87, 0.25)'
+                }}
+              >
+                Delete
               </button>
             </div>
           </div>
