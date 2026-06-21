@@ -26,6 +26,18 @@ export default function ProfilePage() {
   const [toasts, setToasts] = useState([]);
   const [playlistToDelete, setPlaylistToDelete] = useState(null);
 
+  // Discovery / search states
+  const [activeTab, setActiveTab] = useState('library'); // 'library' | 'discover'
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [userSearchResults, setUserSearchResults] = useState([]);
+
+  // Playlist import states
+  const [playlistCreateMode, setPlaylistCreateMode] = useState('scratch'); // 'scratch' | 'import'
+  const [importPlaylistUrl, setImportPlaylistUrl] = useState('');
+  const [importPlaylistName, setImportPlaylistName] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+  const [activeDropdownTrackUri, setActiveDropdownTrackUri] = useState(null);
+
   const cursorGlowRef = useRef(null);
 
   // Mouse move handler for interactive background glow
@@ -83,6 +95,32 @@ export default function ProfilePage() {
     fetchProfileData();
   }, []);
 
+  useEffect(() => {
+    if (activeTab !== 'discover' || userSearchQuery.strip ? !userSearchQuery.trim() : !userSearchQuery) {
+      setUserSearchResults([]);
+      return;
+    }
+    const queryClean = userSearchQuery.trim();
+    if (queryClean.length < 2) {
+      setUserSearchResults([]);
+      return;
+    }
+
+    const delayDebounce = setTimeout(async () => {
+      try {
+        const res = await fetch(`/profile/search?q=${encodeURIComponent(queryClean)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setUserSearchResults(data.users || []);
+        }
+      } catch (err) {
+        console.error('Error searching profiles:', err);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounce);
+  }, [userSearchQuery, activeTab]);
+
   const handleUpdateName = async () => {
     if (!editedName.trim()) return;
     try {
@@ -139,6 +177,83 @@ export default function ProfilePage() {
     } catch (err) {
       addToast('Connection error', 'error');
     }
+  };
+
+  const handleImportPlaylist = async (e) => {
+    e.preventDefault();
+    if (!importPlaylistUrl.trim()) return;
+    
+    setIsImporting(true);
+    try {
+      // 1. Fetch tracks from external playlist
+      const searchRes = await fetch(`/search/playlist?url=${encodeURIComponent(importPlaylistUrl.trim())}`);
+      if (!searchRes.ok) {
+        const errData = await searchRes.json();
+        addToast(errData.detail || 'Failed to parse external playlist', 'error');
+        setIsImporting(false);
+        return;
+      }
+      const searchData = await searchRes.json();
+      const tracks = searchData.tracks || [];
+      if (tracks.length === 0) {
+        addToast('No tracks found in this playlist', 'error');
+        setIsImporting(false);
+        return;
+      }
+
+      // 2. Create local playlist
+      const defaultName = importPlaylistUrl.includes('spotify.com') ? 'Spotify Import' : 'YouTube Import';
+      const playlistName = importPlaylistName.trim() || defaultName;
+      
+      const createRes = await fetch('/playlists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: playlistName,
+          is_private: newPlaylistPrivate
+        })
+      });
+
+      if (!createRes.ok) {
+        addToast('Failed to create playlist wrapper', 'error');
+        setIsImporting(false);
+        return;
+      }
+
+      const createData = await createRes.json();
+      const newPlaylist = createData.playlist;
+
+      // 3. Bulk insert tracks into the new playlist
+      const bulkRes = await fetch(`/playlists/${newPlaylist.id}/tracks/bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tracks: tracks.map(t => ({
+            track_uri: t.uri || t.track_uri,
+            track_name: t.name || t.track_name,
+            artist: t.artist || 'Unknown Artist',
+            album_art_url: t.album_art_url || t.src || null,
+            duration_ms: t.duration_ms || 240000
+          }))
+        })
+      });
+
+      if (bulkRes.ok) {
+        // Refresh local playlist state
+        setPlaylists([newPlaylist, ...playlists]);
+        setImportPlaylistUrl('');
+        setImportPlaylistName('');
+        setShowCreateModal(false);
+        setActivePlaylistId(newPlaylist.id);
+        addToast(`Successfully imported ${tracks.length} tracks!`, 'success');
+      } else {
+        addToast('Failed to import tracks into playlist', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      addToast('Connection error during import', 'error');
+    }
+    setIsImporting(false);
   };
 
   const executeDeletePlaylist = async (id) => {
@@ -501,6 +616,52 @@ export default function ProfilePage() {
             backdropFilter: 'blur(20px)',
             boxShadow: '0 10px 30px rgba(0,0,0,0.3)'
           }}>
+            {/* Sidebar Tabs */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '16px' }}>
+              <button
+                onClick={() => setActiveTab('library')}
+                style={{
+                  flex: 1,
+                  padding: '10px 12px',
+                  borderRadius: '12px',
+                  border: 'none',
+                  background: activeTab === 'library' ? 'rgba(255, 159, 28, 0.15)' : 'transparent',
+                  color: activeTab === 'library' ? 'var(--amber, #ff9f1c)' : '#888',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Music size={14} /> Library
+              </button>
+              <button
+                onClick={() => setActiveTab('discover')}
+                style={{
+                  flex: 1,
+                  padding: '10px 12px',
+                  borderRadius: '12px',
+                  border: 'none',
+                  background: activeTab === 'discover' ? 'rgba(255, 159, 28, 0.15)' : 'transparent',
+                  color: activeTab === 'discover' ? 'var(--amber, #ff9f1c)' : '#888',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                <User size={14} /> Discover
+              </button>
+            </div>
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 style={{ fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#888' }}>
                 My Library
@@ -529,14 +690,14 @@ export default function ProfilePage() {
             {/* List */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <button
-                onClick={() => setActivePlaylistId(null)}
+                onClick={() => { setActiveTab('library'); setActivePlaylistId(null); }}
                 style={{
                   width: '100%',
                   padding: '14px 18px',
                   borderRadius: '16px',
                   border: '1px solid',
-                  borderColor: activePlaylistId === null ? 'var(--amber, #ff9f1c)' : 'rgba(255,255,255,0.03)',
-                  background: activePlaylistId === null ? 'rgba(255, 159, 28, 0.08)' : 'rgba(255,255,255,0.02)',
+                  borderColor: (activeTab === 'library' && activePlaylistId === null) ? 'var(--amber, #ff9f1c)' : 'rgba(255,255,255,0.03)',
+                  background: (activeTab === 'library' && activePlaylistId === null) ? 'rgba(255, 159, 28, 0.08)' : 'rgba(255,255,255,0.02)',
                   color: '#fff',
                   textAlign: 'left',
                   cursor: 'pointer',
@@ -547,8 +708,8 @@ export default function ProfilePage() {
                   gap: '12px',
                   transition: 'all 0.2s'
                 }}
-                onMouseEnter={(e) => { if (activePlaylistId !== null) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
-                onMouseLeave={(e) => { if (activePlaylistId !== null) e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}
+                onMouseEnter={(e) => { if (activeTab !== 'library' || activePlaylistId !== null) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+                onMouseLeave={(e) => { if (activeTab !== 'library' || activePlaylistId !== null) e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}
               >
                 <Heart size={16} color="var(--amber, #ff9f1c)" fill="var(--amber, #ff9f1c)" />
                 Liked Songs
@@ -563,16 +724,16 @@ export default function ProfilePage() {
                     alignItems: 'center',
                     borderRadius: '16px',
                     border: '1px solid',
-                    borderColor: activePlaylistId === pl.id ? 'var(--amber, #ff9f1c)' : 'rgba(255,255,255,0.03)',
-                    background: activePlaylistId === pl.id ? 'rgba(255, 159, 28, 0.08)' : 'rgba(255,255,255,0.02)',
+                    borderColor: (activeTab === 'library' && activePlaylistId === pl.id) ? 'var(--amber, #ff9f1c)' : 'rgba(255,255,255,0.03)',
+                    background: (activeTab === 'library' && activePlaylistId === pl.id) ? 'rgba(255, 159, 28, 0.08)' : 'rgba(255,255,255,0.02)',
                     transition: 'all 0.2s',
                     overflow: 'hidden'
                   }}
-                  onMouseEnter={(e) => { if (activePlaylistId !== pl.id) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
-                  onMouseLeave={(e) => { if (activePlaylistId !== pl.id) e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}
+                  onMouseEnter={(e) => { if (activeTab !== 'library' || activePlaylistId !== pl.id) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+                  onMouseLeave={(e) => { if (activeTab !== 'library' || activePlaylistId !== pl.id) e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}
                 >
                   <button
-                    onClick={() => setActivePlaylistId(pl.id)}
+                    onClick={() => { setActiveTab('library'); setActivePlaylistId(pl.id); }}
                     style={{
                       flex: 1,
                       padding: '14px 18px',
@@ -631,7 +792,95 @@ export default function ProfilePage() {
             minHeight: '500px',
             boxShadow: '0 10px 30px rgba(0,0,0,0.3)'
           }}>
-            {activePlaylistId === null ? (
+            {activeTab === 'discover' ? (
+              // DISCOVER USERS VIEW
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '28px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '16px' }}>
+                  <User size={28} color="var(--amber, #ff9f1c)" />
+                  <h3 style={{ fontSize: '24px', fontWeight: 800 }}>Discover Users</h3>
+                </div>
+
+                <div style={{ marginBottom: '24px', position: 'relative' }}>
+                  <input
+                    type="text"
+                    placeholder="Search users by display name or Discord tag..."
+                    value={userSearchQuery}
+                    onChange={(e) => setUserSearchQuery(e.target.value)}
+                    style={{
+                      width: '100%',
+                      background: 'rgba(0,0,0,0.2)',
+                      border: '1px solid rgba(255, 159, 28, 0.15)',
+                      borderRadius: '16px',
+                      padding: '14px 20px',
+                      color: '#fff',
+                      outline: 'none',
+                      fontSize: '15px',
+                      transition: 'border-color 0.2s'
+                    }}
+                    onFocus={(e) => e.target.style.borderColor = 'var(--amber)'}
+                    onBlur={(e) => e.target.style.borderColor = 'rgba(255,159,28,0.15)'}
+                  />
+                </div>
+
+                {userSearchResults.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '80px 0', color: '#555' }}>
+                    <User size={48} style={{ marginBottom: '16px', opacity: 0.15 }} />
+                    <p style={{ fontSize: '16px', fontWeight: 500 }}>{userSearchQuery.trim().length >= 2 ? "No users found" : "Search for other music lovers"}</p>
+                    <p style={{ fontSize: '13px', color: '#444', marginTop: '4px' }}>
+                      {userSearchQuery.trim().length >= 2 
+                        ? "Try adjusting your search query." 
+                        : "Type at least 2 characters to search OpenJam profiles."}
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
+                    {userSearchResults.map((user) => (
+                      <Link
+                        key={user.id}
+                        href={`/profile/${user.id}`}
+                        target="_blank"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '14px',
+                          padding: '16px',
+                          background: 'rgba(255,255,255,0.02)',
+                          border: '1px solid rgba(255,255,255,0.04)',
+                          borderRadius: '16px',
+                          textDecoration: 'none',
+                          color: '#fff',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.borderColor = 'rgba(255,159,28,0.1)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)'; }}
+                      >
+                        {user.avatar_url ? (
+                          <img
+                            src={user.avatar_url}
+                            alt={user.display_name}
+                            style={{ width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover' }}
+                          />
+                        ) : (
+                          <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <User size={20} color="#888" />
+                          </div>
+                        )}
+                        <div style={{ minWidth: 0 }}>
+                          <h4 style={{ fontWeight: 700, fontSize: '15px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {user.display_name}
+                          </h4>
+                          {user.discord_username && (
+                            <p style={{ color: '#666', fontSize: '12px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '2px' }}>
+                              @{user.discord_username}
+                            </p>
+                          )}
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : activePlaylistId === null ? (
               // LIKED SONGS VIEW
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '28px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '16px' }}>
@@ -690,64 +939,113 @@ export default function ProfilePage() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                           {playlists.length > 0 && (
                             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                              <select
-                                style={{
-                                  position: 'absolute',
-                                  inset: 0,
-                                  opacity: 0,
-                                  cursor: 'pointer',
-                                  width: '100%',
-                                  height: '100%',
-                                }}
-                                onChange={async (e) => {
-                                  const playlistId = e.target.value;
-                                  if (!playlistId) return;
-                                  try {
-                                    const res = await fetch(`/playlists/${playlistId}/tracks`, {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({
-                                        track_uri: like.track_uri,
-                                        track_name: like.track_name,
-                                        artist: like.artist,
-                                        album_art_url: like.album_art_url,
-                                        duration_ms: like.duration_ms || 240000
-                                      })
-                                    });
-                                    if (res.ok) {
-                                      addToast('Added to playlist!', 'success');
-                                    } else {
-                                      addToast('Failed to add track', 'error');
-                                    }
-                                  } catch (err) {
-                                    addToast('Connection error', 'error');
-                                  }
-                                  e.target.value = '';
-                                }}
-                                defaultValue=""
-                              >
-                                <option value="" disabled>+</option>
-                                {playlists.map(p => (
-                                  <option key={p.id} value={p.id}>{p.name}</option>
-                                ))}
-                              </select>
                               <button
+                                onClick={() => setActiveDropdownTrackUri(activeDropdownTrackUri === like.track_uri ? null : like.track_uri)}
                                 style={{
                                   background: 'none',
                                   border: 'none',
-                                  color: '#888',
+                                  color: activeDropdownTrackUri === like.track_uri ? 'var(--amber, #ff9f1c)' : '#888',
                                   cursor: 'pointer',
                                   padding: '8px',
                                   transition: 'color 0.2s',
                                   display: 'flex',
                                   alignItems: 'center'
                                 }}
-                                onMouseEnter={(e) => e.currentTarget.style.color = 'var(--amber, #ff9f1c)'}
-                                onMouseLeave={(e) => e.currentTarget.style.color = '#888'}
+                                onMouseEnter={(e) => { if (activeDropdownTrackUri !== like.track_uri) e.currentTarget.style.color = 'var(--amber, #ff9f1c)'; }}
+                                onMouseLeave={(e) => { if (activeDropdownTrackUri !== like.track_uri) e.currentTarget.style.color = '#888'; }}
                                 title="Add to Playlist"
                               >
                                 <Plus size={16} />
                               </button>
+
+                              {activeDropdownTrackUri === like.track_uri && (
+                                <>
+                                  <div 
+                                    style={{
+                                      position: 'fixed',
+                                      inset: 0,
+                                      zIndex: 990,
+                                      cursor: 'default'
+                                    }} 
+                                    onClick={() => setActiveDropdownTrackUri(null)}
+                                  />
+                                  <div 
+                                    style={{
+                                      position: 'absolute',
+                                      right: 0,
+                                      top: '100%',
+                                      background: '#0e0e12',
+                                      border: '1px solid rgba(255, 159, 28, 0.2)',
+                                      borderRadius: '12px',
+                                      padding: '8px 0',
+                                      minWidth: '160px',
+                                      zIndex: 991,
+                                      boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                                      display: 'flex',
+                                      flexDirection: 'column'
+                                    }}
+                                  >
+                                    <div style={{
+                                      fontSize: '11px',
+                                      color: '#666',
+                                      padding: '4px 12px 8px 12px',
+                                      borderBottom: '1px solid rgba(255,255,255,0.05)',
+                                      fontWeight: 600,
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.05em'
+                                    }}>Add to Playlist</div>
+                                    <div style={{ maxHeight: '150px', overflowY: 'auto', padding: '4px 0' }}>
+                                      {playlists.map(p => (
+                                        <button
+                                          key={p.id}
+                                          onClick={async () => {
+                                            setActiveDropdownTrackUri(null);
+                                            try {
+                                              const res = await fetch(`/playlists/${p.id}/tracks`, {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({
+                                                  track_uri: like.track_uri,
+                                                  track_name: like.track_name,
+                                                  artist: like.artist,
+                                                  album_art_url: like.album_art_url,
+                                                  duration_ms: like.duration_ms || 240000
+                                                })
+                                              });
+                                              if (res.ok) {
+                                                addToast('Added to playlist!', 'success');
+                                              } else {
+                                                addToast('Failed to add track', 'error');
+                                              }
+                                            } catch (err) {
+                                              addToast('Connection error', 'error');
+                                            }
+                                          }}
+                                          style={{
+                                            width: '100%',
+                                            background: 'none',
+                                            border: 'none',
+                                            color: '#fff',
+                                            textAlign: 'left',
+                                            padding: '8px 16px',
+                                            fontSize: '13px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            transition: 'background 0.2s'
+                                          }}
+                                          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 159, 28, 0.1)'}
+                                          onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                                        >
+                                          <Music size={12} color="#aaa" />
+                                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </>
+                              )}
                             </div>
                           )}
 
@@ -961,87 +1259,246 @@ export default function ProfilePage() {
             }}
           >
             <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '20px', letterSpacing: '-0.01em' }}>Create New Playlist</h3>
-            <form onSubmit={handleCreatePlaylist}>
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontSize: '13px', color: '#888', marginBottom: '8px', fontWeight: 600 }}>
-                  Playlist Name
-                </label>
-                <input
-                  type="text"
-                  value={newPlaylistName}
-                  onChange={(e) => setNewPlaylistName(e.target.value)}
-                  placeholder="e.g. Late Night Vibes"
-                  style={{
-                    width: '100%',
-                    background: 'rgba(255,255,255,0.03)',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    borderRadius: '12px',
-                    padding: '12px 16px',
-                    color: '#fff',
-                    outline: 'none',
-                    fontSize: '15px'
-                  }}
-                  autoFocus
-                  required
-                />
-              </div>
+            
+            {/* Modal Tabs */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '16px' }}>
+              <button
+                type="button"
+                onClick={() => setPlaylistCreateMode('scratch')}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  background: playlistCreateMode === 'scratch' ? 'rgba(255, 159, 28, 0.15)' : 'transparent',
+                  color: playlistCreateMode === 'scratch' ? 'var(--amber, #ff9f1c)' : '#888',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                Create New
+              </button>
+              <button
+                type="button"
+                onClick={() => setPlaylistCreateMode('import')}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  background: playlistCreateMode === 'import' ? 'rgba(255, 159, 28, 0.15)' : 'transparent',
+                  color: playlistCreateMode === 'import' ? 'var(--amber, #ff9f1c)' : '#888',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                Import Playlist
+              </button>
+            </div>
 
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                background: 'rgba(255,255,255,0.02)',
-                border: '1px solid rgba(255,255,255,0.04)',
-                padding: '12px 16px',
-                borderRadius: '12px',
-                marginBottom: '28px',
-                cursor: 'pointer'
-              }} onClick={() => setNewPlaylistPrivate(!newPlaylistPrivate)}>
-                <div>
-                  <h4 style={{ fontSize: '14px', fontWeight: 700 }}>Private Playlist</h4>
-                  <p style={{ fontSize: '12px', color: '#666', marginTop: '2px' }}>
-                    Only you can view and use this playlist.
-                  </p>
+            {playlistCreateMode === 'scratch' ? (
+              <form onSubmit={handleCreatePlaylist}>
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', color: '#888', marginBottom: '8px', fontWeight: 600 }}>
+                    Playlist Name
+                  </label>
+                  <input
+                    type="text"
+                    value={newPlaylistName}
+                    onChange={(e) => setNewPlaylistName(e.target.value)}
+                    placeholder="e.g. Late Night Vibes"
+                    style={{
+                      width: '100%',
+                      background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      borderRadius: '12px',
+                      padding: '12px 16px',
+                      color: '#fff',
+                      outline: 'none',
+                      fontSize: '15px'
+                    }}
+                    autoFocus
+                    required
+                  />
                 </div>
+
                 <div style={{
-                  width: '40px',
-                  height: '24px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  background: 'rgba(255,255,255,0.02)',
+                  border: '1px solid rgba(255,255,255,0.04)',
+                  padding: '12px 16px',
                   borderRadius: '12px',
-                  background: newPlaylistPrivate ? 'var(--amber, #ff9f1c)' : 'rgba(255,255,255,0.1)',
-                  position: 'relative',
-                  transition: 'background 0.3s'
-                }}>
+                  marginBottom: '28px',
+                  cursor: 'pointer'
+                }} onClick={() => setNewPlaylistPrivate(!newPlaylistPrivate)}>
+                  <div>
+                    <h4 style={{ fontSize: '14px', fontWeight: 700 }}>Private Playlist</h4>
+                    <p style={{ fontSize: '12px', color: '#666', marginTop: '2px' }}>
+                      Only you can view and use this playlist.
+                    </p>
+                  </div>
                   <div style={{
-                    width: '18px',
-                    height: '18px',
-                    borderRadius: '50%',
-                    background: '#fff',
-                    position: 'absolute',
-                    top: '3px',
-                    left: newPlaylistPrivate ? '19px' : '3px',
-                    transition: 'left 0.3s'
-                  }} />
+                    width: '40px',
+                    height: '24px',
+                    borderRadius: '12px',
+                    background: newPlaylistPrivate ? 'var(--amber, #ff9f1c)' : 'rgba(255,255,255,0.1)',
+                    position: 'relative',
+                    transition: 'background 0.3s'
+                  }}>
+                    <div style={{
+                      width: '18px',
+                      height: '18px',
+                      borderRadius: '50%',
+                      background: '#fff',
+                      position: 'absolute',
+                      top: '3px',
+                      left: newPlaylistPrivate ? '19px' : '3px',
+                      transition: 'left 0.3s'
+                    }} />
+                  </div>
                 </div>
-              </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-                <button 
-                  type="button" 
-                  className="btn btn-ghost" 
-                  onClick={() => { setShowCreateModal(false); setNewPlaylistName(''); }}
-                  style={{ padding: '10px 20px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  className="btn btn-primary"
-                  style={{ padding: '10px 20px', borderRadius: '12px', background: 'linear-gradient(135deg, var(--amber, #ff9f1c) 0%, var(--gold, #ffd23f) 100%)', border: 'none', color: '#000', fontWeight: 700 }}
-                >
-                  Create Playlist
-                </button>
-              </div>
-            </form>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                  <button 
+                    type="button" 
+                    className="btn btn-ghost" 
+                    onClick={() => { setShowCreateModal(false); setNewPlaylistName(''); }}
+                    style={{ padding: '10px 20px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary"
+                    style={{ padding: '10px 20px', borderRadius: '12px', background: 'linear-gradient(135deg, var(--amber, #ff9f1c) 0%, var(--gold, #ffd23f) 100%)', border: 'none', color: '#000', fontWeight: 700 }}
+                  >
+                    Create Playlist
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleImportPlaylist}>
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', color: '#888', marginBottom: '8px', fontWeight: 600 }}>
+                    Playlist URL
+                  </label>
+                  <input
+                    type="url"
+                    value={importPlaylistUrl}
+                    onChange={(e) => setImportPlaylistUrl(e.target.value)}
+                    placeholder="Spotify or YouTube playlist link..."
+                    style={{
+                      width: '100%',
+                      background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      borderRadius: '12px',
+                      padding: '12px 16px',
+                      color: '#fff',
+                      outline: 'none',
+                      fontSize: '15px'
+                    }}
+                    autoFocus
+                    required
+                  />
+                </div>
+
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', color: '#888', marginBottom: '8px', fontWeight: 600 }}>
+                    Playlist Name (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={importPlaylistName}
+                    onChange={(e) => setImportPlaylistName(e.target.value)}
+                    placeholder="Leave empty to use default name"
+                    style={{
+                      width: '100%',
+                      background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      borderRadius: '12px',
+                      padding: '12px 16px',
+                      color: '#fff',
+                      outline: 'none',
+                      fontSize: '15px'
+                    }}
+                  />
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  background: 'rgba(255,255,255,0.02)',
+                  border: '1px solid rgba(255,255,255,0.04)',
+                  padding: '12px 16px',
+                  borderRadius: '12px',
+                  marginBottom: '28px',
+                  cursor: 'pointer'
+                }} onClick={() => setNewPlaylistPrivate(!newPlaylistPrivate)}>
+                  <div>
+                    <h4 style={{ fontSize: '14px', fontWeight: 700 }}>Private Playlist</h4>
+                    <p style={{ fontSize: '12px', color: '#666', marginTop: '2px' }}>
+                      Only you can view and use this playlist.
+                    </p>
+                  </div>
+                  <div style={{
+                    width: '40px',
+                    height: '24px',
+                    borderRadius: '12px',
+                    background: newPlaylistPrivate ? 'var(--amber, #ff9f1c)' : 'rgba(255,255,255,0.1)',
+                    position: 'relative',
+                    transition: 'background 0.3s'
+                  }}>
+                    <div style={{
+                      width: '18px',
+                      height: '18px',
+                      borderRadius: '50%',
+                      background: '#fff',
+                      position: 'absolute',
+                      top: '3px',
+                      left: newPlaylistPrivate ? '19px' : '3px',
+                      transition: 'left 0.3s'
+                    }} />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                  <button 
+                    type="button" 
+                    className="btn btn-ghost" 
+                    onClick={() => { setShowCreateModal(false); setImportPlaylistUrl(''); setImportPlaylistName(''); }}
+                    style={{ padding: '10px 20px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}
+                    disabled={isImporting}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary"
+                    style={{ 
+                      padding: '10px 20px', 
+                      borderRadius: '12px', 
+                      background: 'linear-gradient(135deg, var(--amber, #ff9f1c) 0%, var(--gold, #ffd23f) 100%)', 
+                      border: 'none', 
+                      color: '#000', 
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                    disabled={isImporting}
+                  >
+                    {isImporting ? 'Importing...' : 'Import'}
+                  </button>
+                </div>
+              </form>
+            )}
           </motion.div>
         </div>
       )}

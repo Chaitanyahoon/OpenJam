@@ -52,6 +52,8 @@ export default function RoomClient({ roomId }) {
   const [bulkImportText, setBulkImportText] = useState('');
 
   // Modals & Panels
+  const [activeDropdownTrackUri, setActiveDropdownTrackUri] = useState(null);
+  const [activeQueueDropdownId, setActiveQueueDropdownId] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [showClose, setShowClose] = useState(false);
@@ -2109,52 +2111,125 @@ export default function RoomClient({ roomId }) {
                                 <span style={{ fontSize: '11px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.artist}</span>
                               </div>
                               {me && me.is_registered && playlists.length > 0 && (
-                                <select
-                                  style={{
-                                    background: 'rgba(0,0,0,0.6)',
-                                    border: '1px solid rgba(255, 159, 28, 0.2)',
-                                    color: '#fff',
-                                    fontSize: '11px',
-                                    padding: '2px 4px',
-                                    borderRadius: '6px',
-                                    outline: 'none',
-                                    cursor: 'pointer',
-                                    maxWidth: '80px'
-                                  }}
+                                <div 
+                                  style={{ position: 'relative', display: 'flex', alignItems: 'center' }}
                                   onClick={(e) => e.stopPropagation()}
-                                  onChange={async (e) => {
-                                    e.stopPropagation();
-                                    const playlistId = e.target.value;
-                                    if (!playlistId) return;
-                                    try {
-                                      const res = await fetch(`/playlists/${playlistId}/tracks`, {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({
-                                          track_uri: track.uri || track.track_uri,
-                                          track_name: track.track_name || track.name,
-                                          artist: track.artist,
-                                          album_art_url: track.album_art_url || track.src,
-                                          duration_ms: track.duration_ms || 240000
-                                        })
-                                      });
-                                      if (res.ok) {
-                                        triggerToast('Added to playlist!', 'success');
-                                      } else {
-                                        triggerToast('Failed to add track', 'error');
-                                      }
-                                    } catch (err) {
-                                      triggerToast('Connection error', 'error');
-                                    }
-                                    e.target.value = '';
-                                  }}
-                                  defaultValue=""
                                 >
-                                  <option value="" disabled>+</option>
-                                  {playlists.map(p => (
-                                    <option key={p.id} value={p.id}>{p.name}</option>
-                                  ))}
-                                </select>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const trackUri = track.uri || track.track_uri;
+                                      setActiveDropdownTrackUri(activeDropdownTrackUri === trackUri ? null : trackUri);
+                                    }}
+                                    style={{
+                                      background: 'rgba(0,0,0,0.6)',
+                                      border: '1px solid rgba(255, 159, 28, 0.2)',
+                                      color: activeDropdownTrackUri === (track.uri || track.track_uri) ? 'var(--amber)' : '#fff',
+                                      fontSize: '11px',
+                                      padding: '4px 8px',
+                                      borderRadius: '6px',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      gap: '4px'
+                                    }}
+                                  >
+                                    Playlist +
+                                  </button>
+
+                                  {activeDropdownTrackUri === (track.uri || track.track_uri) && (
+                                    <>
+                                      <div 
+                                        style={{
+                                          position: 'fixed',
+                                          inset: 0,
+                                          zIndex: 990,
+                                          cursor: 'default'
+                                        }} 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setActiveDropdownTrackUri(null);
+                                        }}
+                                      />
+                                      <div 
+                                        style={{
+                                          position: 'absolute',
+                                          right: 0,
+                                          top: '100%',
+                                          background: '#0e0e12',
+                                          border: '1px solid rgba(255, 159, 28, 0.2)',
+                                          borderRadius: '12px',
+                                          padding: '8px 0',
+                                          minWidth: '160px',
+                                          zIndex: 991,
+                                          boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                                          display: 'flex',
+                                          flexDirection: 'column'
+                                        }}
+                                      >
+                                        <div style={{
+                                          fontSize: '11px',
+                                          color: '#666',
+                                          padding: '4px 12px 8px 12px',
+                                          borderBottom: '1px solid rgba(255,255,255,0.05)',
+                                          fontWeight: 600,
+                                          textTransform: 'uppercase',
+                                          letterSpacing: '0.05em'
+                                        }}>Add to Playlist</div>
+                                        <div style={{ maxHeight: '150px', overflowY: 'auto', padding: '4px 0' }}>
+                                          {playlists.map(p => (
+                                            <button
+                                              key={p.id}
+                                              onClick={async (e) => {
+                                                e.stopPropagation();
+                                                setActiveDropdownTrackUri(null);
+                                                try {
+                                                  const res = await fetch(`/playlists/${p.id}/tracks`, {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({
+                                                      track_uri: track.uri || track.track_uri,
+                                                      track_name: track.track_name || track.name,
+                                                      artist: track.artist,
+                                                      album_art_url: track.album_art_url || track.src,
+                                                      duration_ms: track.duration_ms || 240000
+                                                    })
+                                                  });
+                                                  if (res.ok) {
+                                                    triggerToast('Added to playlist!', 'success');
+                                                  } else {
+                                                    triggerToast('Failed to add track', 'error');
+                                                  }
+                                                } catch (err) {
+                                                  triggerToast('Connection error', 'error');
+                                                }
+                                              }}
+                                              style={{
+                                                width: '100%',
+                                                background: 'none',
+                                                border: 'none',
+                                                color: '#fff',
+                                                textAlign: 'left',
+                                                padding: '8px 16px',
+                                                fontSize: '13px',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '8px',
+                                                transition: 'background 0.2s'
+                                              }}
+                                              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 159, 28, 0.1)'}
+                                              onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                                            >
+                                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
                               )}
                               <Plus className="h-4 w-4" style={{ color: 'var(--amber)' }} />
                             </div>
@@ -2313,49 +2388,124 @@ export default function RoomClient({ roomId }) {
                               </button>
                             )}
                             {me && me.is_registered && playlists.length > 0 && (
-                              <select
-                                style={{
-                                  background: 'rgba(0,0,0,0.4)',
-                                  border: '1px solid rgba(255, 159, 28, 0.15)',
-                                  color: 'var(--text-2)',
-                                  padding: '4px',
-                                  borderRadius: '8px',
-                                  fontSize: '11px',
-                                  cursor: 'pointer',
-                                  maxWidth: '40px'
-                                }}
-                                onChange={async (e) => {
-                                  const playlistId = e.target.value;
-                                  if (!playlistId) return;
-                                  try {
-                                    const res = await fetch(`/playlists/${playlistId}/tracks`, {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({
-                                        track_uri: item.track_uri,
-                                        track_name: item.track_name,
-                                        artist: item.artist,
-                                        album_art_url: item.album_art_url,
-                                        duration_ms: item.duration_ms || 240000
-                                      })
-                                    });
-                                    if (res.ok) {
-                                      triggerToast('Added to playlist!', 'success');
-                                    } else {
-                                      triggerToast('Failed to add track', 'error');
-                                    }
-                                  } catch (err) {
-                                    triggerToast('Connection error', 'error');
-                                  }
-                                  e.target.value = '';
-                                }}
-                                defaultValue=""
+                              <div 
+                                style={{ position: 'relative', display: 'flex', alignItems: 'center' }}
+                                onClick={(e) => e.stopPropagation()}
                               >
-                                <option value="" disabled>+</option>
-                                {playlists.map(p => (
-                                  <option key={p.id} value={p.id}>{p.name}</option>
-                                ))}
-                              </select>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveQueueDropdownId(activeQueueDropdownId === item.id ? null : item.id);
+                                  }}
+                                  style={{
+                                    background: 'rgba(0,0,0,0.6)',
+                                    border: '1px solid rgba(255, 159, 28, 0.2)',
+                                    color: activeQueueDropdownId === item.id ? 'var(--amber)' : '#fff',
+                                    fontSize: '11px',
+                                    padding: '4px 8px',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '4px'
+                                  }}
+                                >
+                                  Playlist +
+                                </button>
+
+                                {activeQueueDropdownId === item.id && (
+                                  <>
+                                    <div 
+                                      style={{
+                                        position: 'fixed',
+                                        inset: 0,
+                                        zIndex: 990,
+                                        cursor: 'default'
+                                      }} 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActiveQueueDropdownId(null);
+                                      }}
+                                    />
+                                    <div 
+                                      style={{
+                                        position: 'absolute',
+                                        right: 0,
+                                        top: '100%',
+                                        background: '#0e0e12',
+                                        border: '1px solid rgba(255, 159, 28, 0.2)',
+                                        borderRadius: '12px',
+                                        padding: '8px 0',
+                                        minWidth: '160px',
+                                        zIndex: 991,
+                                        boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                                        display: 'flex',
+                                        flexDirection: 'column'
+                                      }}
+                                    >
+                                      <div style={{
+                                        fontSize: '11px',
+                                        color: '#666',
+                                        padding: '4px 12px 8px 12px',
+                                        borderBottom: '1px solid rgba(255,255,255,0.05)',
+                                        fontWeight: 600,
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.05em'
+                                      }}>Add to Playlist</div>
+                                      <div style={{ maxHeight: '150px', overflowY: 'auto', padding: '4px 0' }}>
+                                        {playlists.map(p => (
+                                          <button
+                                            key={p.id}
+                                            onClick={async (e) => {
+                                              e.stopPropagation();
+                                              setActiveQueueDropdownId(null);
+                                              try {
+                                                const res = await fetch(`/playlists/${p.id}/tracks`, {
+                                                  method: 'POST',
+                                                  headers: { 'Content-Type': 'application/json' },
+                                                  body: JSON.stringify({
+                                                    track_uri: item.track_uri,
+                                                    track_name: item.track_name,
+                                                    artist: item.artist,
+                                                    album_art_url: item.album_art_url,
+                                                    duration_ms: item.duration_ms || 240000
+                                                  })
+                                                });
+                                                if (res.ok) {
+                                                  triggerToast('Added to playlist!', 'success');
+                                                } else {
+                                                  triggerToast('Failed to add track', 'error');
+                                                }
+                                              } catch (err) {
+                                                triggerToast('Connection error', 'error');
+                                              }
+                                            }}
+                                            style={{
+                                              width: '100%',
+                                              textAlign: 'left',
+                                              background: 'none',
+                                              border: 'none',
+                                              color: 'var(--text-1)',
+                                              padding: '8px 12px',
+                                              fontSize: '12px',
+                                              cursor: 'pointer',
+                                              transition: 'background 0.2s',
+                                              overflow: 'hidden',
+                                              textOverflow: 'ellipsis',
+                                              whiteSpace: 'nowrap'
+                                            }}
+                                            onMouseEnter={(e) => e.target.style.background = 'rgba(255, 159, 28, 0.1)'}
+                                            onMouseLeave={(e) => e.target.style.background = 'none'}
+                                          >
+                                            {p.name}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
                             )}
                             <button 
                               className={`btn-vote ${item.voted ? 'voted' : ''}`}

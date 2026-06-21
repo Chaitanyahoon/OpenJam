@@ -151,3 +151,7 @@ class PlaylistTrackRequest(BaseModel):
     album_art_url: Optional[str] = None
     duration_ms: int = Field(0, ge=0)
 
+
+class BulkTracksRequest(BaseModel):
+    tracks: list[PlaylistTrackRequest]
+

@@ -25,6 +25,7 @@ export default function OfflinePage() {
   const [toasts, setToasts] = useState([]);
   const [playlistToDelete, setPlaylistToDelete] = useState(null);
   const [trackToDelete, setTrackToDelete] = useState(null);
+  const [activeDropdownTrackId, setActiveDropdownTrackId] = useState(null);
   
   const playerRef = useRef(null);
 
@@ -607,30 +608,107 @@ export default function OfflinePage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {/* Add to Playlist select */}
                         {playlists.length > 0 && (
-                          <select
-                            style={{
-                              background: '#151419',
-                              border: '1px solid rgba(255, 159, 28, 0.15)',
-                              color: 'var(--text-2)',
-                              padding: '6px 12px',
-                              borderRadius: '12px',
-                              fontSize: '12px',
-                              cursor: 'pointer',
-                              maxWidth: '120px'
-                            }}
-                            onChange={(e) => {
-                              if (e.target.value) {
-                                handleAddTrackToPlaylist(track.id, e.target.value);
-                                e.target.value = '';
-                              }
-                            }}
-                            defaultValue=""
+                          <div 
+                            style={{ position: 'relative', display: 'flex', alignItems: 'center' }}
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            <option value="" disabled>Add to playlist...</option>
-                            {playlists.map(p => (
-                              <option key={p.id} value={p.id}>{p.name}</option>
-                            ))}
-                          </select>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveDropdownTrackId(activeDropdownTrackId === track.id ? null : track.id);
+                              }}
+                              style={{
+                                background: 'rgba(0,0,0,0.6)',
+                                border: '1px solid rgba(255, 159, 28, 0.2)',
+                                color: activeDropdownTrackId === track.id ? 'var(--amber)' : 'var(--text-2)',
+                                fontSize: '12px',
+                                padding: '6px 12px',
+                                borderRadius: '12px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              Playlist +
+                            </button>
+
+                            {activeDropdownTrackId === track.id && (
+                              <>
+                                <div 
+                                  style={{
+                                    position: 'fixed',
+                                    inset: 0,
+                                    zIndex: 990,
+                                    cursor: 'default'
+                                  }} 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveDropdownTrackId(null);
+                                  }}
+                                />
+                                <div 
+                                  style={{
+                                    position: 'absolute',
+                                    right: 0,
+                                    top: '100%',
+                                    background: '#0e0e12',
+                                    border: '1px solid rgba(255, 159, 28, 0.2)',
+                                    borderRadius: '12px',
+                                    padding: '8px 0',
+                                    minWidth: '160px',
+                                    zIndex: 991,
+                                    boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                                    display: 'flex',
+                                    flexDirection: 'column'
+                                  }}
+                                >
+                                  <div style={{
+                                    fontSize: '11px',
+                                    color: '#666',
+                                    padding: '4px 12px 8px 12px',
+                                    borderBottom: '1px solid rgba(255,255,255,0.05)',
+                                    fontWeight: 600,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.05em'
+                                  }}>Add to Playlist</div>
+                                  <div style={{ maxHeight: '150px', overflowY: 'auto', padding: '4px 0' }}>
+                                    {playlists.map(p => (
+                                      <button
+                                        key={p.id}
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setActiveDropdownTrackId(null);
+                                          handleAddTrackToPlaylist(track.id, p.id);
+                                        }}
+                                        style={{
+                                          width: '100%',
+                                          textAlign: 'left',
+                                          background: 'none',
+                                          border: 'none',
+                                          color: 'var(--text-1)',
+                                          padding: '8px 12px',
+                                          fontSize: '12px',
+                                          cursor: 'pointer',
+                                          transition: 'background 0.2s',
+                                          overflow: 'hidden',
+                                          textOverflow: 'ellipsis',
+                                          whiteSpace: 'nowrap'
+                                        }}
+                                        onMouseEnter={(e) => e.target.style.background = 'rgba(255, 159, 28, 0.1)'}
+                                        onMouseLeave={(e) => e.target.style.background = 'none'}
+                                      >
+                                        {p.name}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              </>
+                            )}
+                          </div>
                         )}
 
                         {activePlaylistId && (

@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session, selectinload
 from backend.database import get_db
 from backend.models.playlist import Playlist, PlaylistTrack
 from backend.middleware.auth import require_registered_user, get_current_user_id
-from backend.schemas import CreatePlaylistRequest, PlaylistTrackRequest
+from backend.schemas import CreatePlaylistRequest, PlaylistTrackRequest, BulkTracksRequest
 
 router = APIRouter(prefix="/playlists", tags=["playlists"])
 
@@ -67,6 +67,47 @@ async def delete_playlist(playlist_id: str, request: Request, db: Session = Depe
     db.delete(playlist)
     db.commit()
     return {"message": "Playlist deleted successfully"}
+
+
+@router.post("/{playlist_id}/tracks/bulk")
+async def add_multiple_tracks_to_playlist(
+    playlist_id: str,
+    bulk_req: BulkTracksRequest,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Add multiple tracks to a playlist in bulk."""
+    user_id = require_registered_user(request)
+    playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
+    
+    if not playlist:
+        raise HTTPException(status_code=404, detail="Playlist not found")
+        
+    if playlist.creator_id != user_id:
+        raise HTTPException(status_code=403, detail="You do not own this playlist")
+        
+    current_count = db.query(PlaylistTrack).filter(PlaylistTrack.playlist_id == playlist_id).count()
+    
+    added_tracks = []
+    for idx, track_req in enumerate(bulk_req.tracks):
+        track = PlaylistTrack(
+            playlist_id=playlist_id,
+            track_uri=track_req.track_uri,
+            track_name=track_req.track_name,
+            artist=track_req.artist,
+            album_art_url=track_req.album_art_url,
+            duration_ms=track_req.duration_ms,
+            position=current_count + idx
+        )
+        db.add(track)
+        added_tracks.append(track)
+        
+    db.commit()
+    
+    return {
+        "message": f"Successfully added {len(added_tracks)} tracks to playlist",
+        "count": len(added_tracks)
+    }
 
 
 @router.post("/{playlist_id}/tracks")

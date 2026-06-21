@@ -57,6 +57,30 @@ async def update_my_profile(
     return {"message": "Profile updated successfully", "user": user.to_dict()}
 
 
+@router.get("/search")
+async def search_profiles(q: str, db: Session = Depends(get_db)):
+    """Search registered users by display name or Discord username."""
+    if not q or len(q.strip()) < 2:
+        return {"users": []}
+    query_str = f"%{q.strip()}%"
+    users = db.query(User).filter(
+        (User.display_name.ilike(query_str)) | 
+        (User.discord_username.ilike(query_str))
+    ).limit(10).all()
+    
+    return {
+        "users": [
+            {
+                "id": u.id,
+                "display_name": u.display_name,
+                "avatar_url": u.avatar_url,
+                "discord_username": u.discord_username,
+                "created_at": u.created_at.isoformat() if u.created_at else None
+            } for u in users
+        ]
+    }
+
+
 @router.get("/{user_id}")
 async def get_public_profile(user_id: str, db: Session = Depends(get_db)):
     """Retrieve public profile info and public playlists of another user."""
