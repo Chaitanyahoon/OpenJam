@@ -1,10 +1,12 @@
-"""Auth middleware — anonymous session-based identification."""
+"""Auth middleware — anonymous session-based identification and database-backed checks."""
 
-from fastapi import Request, HTTPException
-from itsdangerous import URLSafeSerializer
+from fastapi import Request, HTTPException, Depends
+from sqlalchemy.orm import Session
+from backend.database import get_db
+from itsdangerous import URLSafeTimedSerializer
 from backend.config import settings
 
-serializer = URLSafeSerializer(settings.SECRET_KEY)
+serializer = URLSafeTimedSerializer(settings.SECRET_KEY)
 
 
 def create_session_token(user_id: str, display_name: str = "", is_admin: bool = False, avatar_url: str = None) -> str:
@@ -15,7 +17,7 @@ def get_user_id_from_token(token: str) -> str | None:
     try:
         if token in settings.REVOKED_TOKENS:
             return None
-        data = serializer.loads(token)
+        data = serializer.loads(token, max_age=86400 * 30)  # 30-day token lifetime
         return data.get("user_id")
     except Exception:
         return None
@@ -33,7 +35,7 @@ def get_current_user_id(request: Request, include_name: bool = False):
     if token in settings.REVOKED_TOKENS:
         return None
     try:
-        data = serializer.loads(token)
+        data = serializer.loads(token, max_age=86400 * 30)  # 30-day token lifetime
     except Exception:
         return None
 
@@ -62,13 +64,18 @@ def require_auth(request: Request) -> str:
     return user_id
 
 
-def require_admin(request: Request) -> str:
-    user_data = get_current_user_id(request, include_name=True)
-    if not user_data:
+def require_admin(request: Request, db: Session = Depends(get_db)) -> str:
+    """Enforces that the user has admin privileges based on the database user record."""
+    user_id = get_current_user_id(request)
+    if not user_id:
         raise HTTPException(status_code=401, detail="Authentication required")
-    if not user_data.get("is_admin"):
+        
+    from backend.models.user import User
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user or not user.is_admin:
         raise HTTPException(status_code=403, detail="Admin privileges required")
-    return user_data["id"]
+    return user_id
 
 
 def require_registered_user(request: Request) -> str:

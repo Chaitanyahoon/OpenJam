@@ -142,6 +142,7 @@ class LikeTrackRequest(BaseModel):
 class CreatePlaylistRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     is_private: Optional[bool] = False
+    import_url: Optional[str] = None
 
 
 class PlaylistTrackRequest(BaseModel):

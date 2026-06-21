@@ -7,7 +7,7 @@ def test_get_me_authenticated(client, auth_headers, test_user):
     data = response.json()
     assert data["user"]["id"] == test_user.id
     assert data["user"]["display_name"] == test_user.display_name
-    assert data["user"]["avatar_url"] is None
+    assert data["user"]["avatar_url"] == test_user.avatar_url
 
 
 def test_get_me_unauthenticated(client):
@@ -78,4 +78,21 @@ def test_admin_get_rooms_success(client):
     assert response.status_code == 200
     data = response.json()
     assert "rooms" in data
+
+
+def test_admin_trigger_healthcheck_success(client):
+    """Test manual triggering of background healthcheck as admin."""
+    # Login
+    login_resp = client.post("/auth/admin-login", json={"password": "openjam-admin-123"})
+    assert login_resp.status_code == 200
+    
+    session_cookie = login_resp.cookies.get("session_token")
+    client.cookies.set("session_token", session_cookie)
+    
+    # POST to trigger
+    response = client.post("/admin/healthcheck/resolve")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
+    assert "Background healthcheck task started" in data["message"]
 

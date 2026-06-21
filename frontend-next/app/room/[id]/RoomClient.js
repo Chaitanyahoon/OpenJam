@@ -5,7 +5,7 @@ import { useSocket } from '@/contexts/SocketContext';
 import YouTubePlayer from '@/utils/YouTubePlayer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MusicPlayer } from '@/components/ui/music-player';
-import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart, CheckCircle, AlertCircle, AlertTriangle, Info, Download, Check, Flame, Smile } from 'lucide-react';
+import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart, CheckCircle, AlertCircle, AlertTriangle, Info, Download, Check, Flame, Smile, Save, RefreshCw } from 'lucide-react';
 import PwaInstallPrompt from '@/components/PwaInstallPrompt';
 import { offlineDb } from '@/utils/offlineDb';
 import EmojiPicker from '@/components/EmojiPicker';
@@ -1433,6 +1433,66 @@ export default function RoomClient({ roomId }) {
     setSkipVotes((prev) => ({ ...prev, voted: true }));
   };
 
+  const handleExportQueue = async () => {
+    if (!queue || queue.length === 0) {
+      triggerToast("Queue is empty, nothing to export!", "error");
+      return;
+    }
+
+    const defaultName = `Room Queue - ${new Date().toLocaleDateString()}`;
+    const playlistName = window.prompt("Enter a name for the exported playlist:", defaultName);
+    if (playlistName === null) {
+      return; // Cancelled
+    }
+
+    const finalName = playlistName.trim() || defaultName;
+
+    try {
+      const createRes = await fetch('/playlists', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: finalName,
+          is_private: false,
+        }),
+      });
+
+      if (!createRes.ok) {
+        throw new Error(`Failed to create playlist: ${createRes.statusText}`);
+      }
+
+      const createData = await createRes.json();
+      const playlistId = createData.playlist.id;
+
+      const tracks = queue.map(item => ({
+        track_uri: item.track_uri || item.uri,
+        track_name: item.track_name || item.name || 'Unknown Track',
+        artist: item.artist || 'Unknown Artist',
+        album_art_url: item.album_art_url || item.artwork || '',
+        duration_ms: item.duration_ms || item.duration || 0,
+      }));
+
+      const bulkRes = await fetch(`/playlists/${playlistId}/tracks/bulk`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ tracks }),
+      });
+
+      if (!bulkRes.ok) {
+        throw new Error(`Failed to add tracks: ${bulkRes.statusText}`);
+      }
+
+      triggerToast(`Successfully exported ${tracks.length} tracks to playlist "${finalName}"!`, "success");
+    } catch (error) {
+      console.error('[Export Queue] Error:', error);
+      triggerToast("Failed to export queue. Are you logged in?", "error");
+    }
+  };
+
   const handleVoteQueueTrack = (itemId) => {
     if (!socket) return;
     socket.emit('vote_track', { room_id: roomId, queue_item_id: itemId });
@@ -2334,7 +2394,8 @@ export default function RoomClient({ roomId }) {
                                                       artist: track.artist,
                                                       album_art_url: track.album_art_url || track.src,
                                                       duration_ms: track.duration_ms || 240000
-                                                    })
+                                                    }),
+                                                    credentials: 'include'
                                                   });
                                                   if (res.ok) {
                                                     triggerToast('Added to playlist!', 'success');
@@ -2523,6 +2584,36 @@ export default function RoomClient({ roomId }) {
                         </button>
                       )}
                     </div>
+                    {me && me.is_registered && queue.length > 0 && (
+                      <button
+                        className="btn-export-queue"
+                        onClick={handleExportQueue}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontSize: '12px',
+                          padding: '6px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid rgba(212, 175, 55, 0.3)',
+                          background: 'rgba(212, 175, 55, 0.05)',
+                          color: 'var(--brass)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(212, 175, 55, 0.12)';
+                          e.currentTarget.style.boxShadow = '0 0 8px var(--brass-glow)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'rgba(212, 175, 55, 0.05)';
+                          e.currentTarget.style.boxShadow = 'none';
+                        }}
+                      >
+                        <Save size={14} />
+                        Export Queue
+                      </button>
+                    )}
                   </div>
 
                   {activeQueueTab === 'queue' ? (
@@ -2816,7 +2907,7 @@ export default function RoomClient({ roomId }) {
                                 onClick={async () => {
                                   setIsLoadingPlaylist(true);
                                   try {
-                                    const res = await fetch(`/playlists/${pl.id}`);
+                                    const res = await fetch(`/playlists/${pl.id}`, { credentials: 'include' });
                                     if (res.ok) {
                                       const data = await res.json();
                                       setActiveRoomPlaylist(data.playlist);
@@ -2841,7 +2932,7 @@ export default function RoomClient({ roomId }) {
                                     e.stopPropagation();
                                     triggerToast('Adding playlist tracks to queue...', 'info');
                                     try {
-                                      const resPl = await fetch(`/playlists/${pl.id}`);
+                                      const resPl = await fetch(`/playlists/${pl.id}`, { credentials: 'include' });
                                       if (!resPl.ok) {
                                         triggerToast('Failed to fetch playlist tracks', 'error');
                                         return;
@@ -2945,7 +3036,8 @@ export default function RoomClient({ roomId }) {
                                       artist: t.artist,
                                       album_art_url: t.album_art_url,
                                       duration_ms: t.duration_ms
-                                    })))
+                                    }))),
+                                    credentials: 'include'
                                   });
                                   if (resQueue.ok) {
                                     triggerToast(`Added ${tracks.length} tracks to queue!`, 'success');
@@ -3263,7 +3355,15 @@ export default function RoomClient({ roomId }) {
                 {listeners.map((user, idx) => {
                   const uid = user.user_id || user.id || `user-${idx}`;
                   return (
-                    <div key={uid} className="member-item">
+                    <div 
+                      key={uid} 
+                      className={`member-item ${user.is_registered ? 'is-registered' : ''}`}
+                      onClick={() => {
+                        if (user.is_registered) {
+                          window.open(`/profile/${uid}`, '_blank');
+                        }
+                      }}
+                    >
                       {user.avatar_url ? (
                         <img decoding="async" loading="lazy" className="avatar avatar-sm" src={user.avatar_url} alt="" style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }} />
                       ) : (

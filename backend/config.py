@@ -29,6 +29,7 @@ class Settings:
 
     # Security
     SECRET_KEY: str = os.getenv("SECRET_KEY", "change-me-in-production")
+    ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "openjam-admin-123")
 
     # CORS configuration
     ALLOWED_ORIGINS: list = os.getenv(
@@ -63,10 +64,11 @@ class Settings:
             for origin in local_origins:
                 if origin not in self.ALLOWED_ORIGINS:
                     self.ALLOWED_ORIGINS.append(origin)
-        if self.ENVIRONMENT == "production" and (
-            not self.SECRET_KEY or self.SECRET_KEY == "change-me-in-production"
-        ):
-            raise RuntimeError("SECRET_KEY must be set to a secure value in production")
+        if self.ENVIRONMENT == "production":
+            if not self.SECRET_KEY or self.SECRET_KEY == "change-me-in-production":
+                raise RuntimeError("SECRET_KEY must be set to a secure value in production")
+            if not self.ADMIN_PASSWORD or self.ADMIN_PASSWORD == "openjam-admin-123":
+                raise RuntimeError("ADMIN_PASSWORD must be set to a secure custom value in production")
 
     # Token revocation set (in production, use Redis)
     REVOKED_TOKENS: set = set()

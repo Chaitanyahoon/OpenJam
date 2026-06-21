@@ -11,7 +11,7 @@ class RoomManager:
     def __init__(self):
         self.store = RedisStore()
 
-    def join_room(self, room_id: str, user_id: str, sid: str, display_name: str, avatar_url: str = None, is_premium: bool = False) -> tuple:
+    def join_room(self, room_id: str, user_id: str, sid: str, display_name: str, avatar_url: str = None, is_premium: bool = False, is_registered: bool = False) -> tuple:
         """Join a room. Returns (error_or_none, was_new_user_bool)."""
         now = time.time()
         
@@ -78,6 +78,7 @@ class RoomManager:
             "sid": sid,
             "display_name": display_name,
             "avatar_url": avatar_url,
+            "is_registered": is_registered,
         }
         self.store.set_room(room_id, room)
         self.store.set_sid(sid, {"user_id": user_id, "room_id": room_id})
@@ -165,7 +166,12 @@ class RoomManager:
         if not room:
             return []
         return [
-            {"user_id": uid, "display_name": info["display_name"], "avatar_url": info["avatar_url"]}
+            {
+                "user_id": uid,
+                "display_name": info["display_name"],
+                "avatar_url": info["avatar_url"],
+                "is_registered": info.get("is_registered", False)
+            }
             for uid, info in room["users"].items()
         ]
 

@@ -184,3 +184,58 @@ async def remove_track_from_playlist(
         
     db.commit()
     return {"message": "Track removed from playlist and positions re-ordered"}
+
+
+@router.post("/{playlist_id}/sync")
+async def sync_playlist(
+    playlist_id: str,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Sync an imported playlist by fetching its external tracks and updating the local copy."""
+    user_id = require_registered_user(request)
+    playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
+    
+    if not playlist:
+        raise HTTPException(status_code=404, detail="Playlist not found")
+        
+    if playlist.creator_id != user_id:
+        raise HTTPException(status_code=403, detail="You do not own this playlist")
+        
+    if not playlist.import_url:
+        raise HTTPException(status_code=400, detail="This playlist was not imported from an external source")
+
+    from backend.routes.queue import import_playlist
+    
+    # Fetch tracks using import_playlist
+    res = await import_playlist(playlist.import_url)
+    external_tracks = res.get("tracks", [])
+    
+    # Delete all current tracks
+    db.query(PlaylistTrack).filter(PlaylistTrack.playlist_id == playlist_id).delete()
+    
+    # Add new tracks
+    for idx, t in enumerate(external_tracks):
+        track_uri = t.get("track_uri") or t.get("uri")
+        track_name = t.get("track_name") or t.get("name") or "Unknown Track"
+        artist = t.get("artist") or "Unknown Artist"
+        album_art_url = t.get("album_art_url") or ""
+        duration_ms = t.get("duration_ms") or 0
+        
+        new_track = PlaylistTrack(
+            playlist_id=playlist_id,
+            track_uri=track_uri,
+            track_name=track_name,
+            artist=artist,
+            album_art_url=album_art_url,
+            duration_ms=duration_ms,
+            position=idx
+        )
+        db.add(new_track)
+        
+    db.commit()
+    return {
+        "message": f"Successfully synced playlist. {len(external_tracks)} tracks updated.",
+        "playlist": playlist.to_dict(include_tracks=True)
+    }
+

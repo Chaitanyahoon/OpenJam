@@ -177,9 +177,9 @@ async def test_connection_db_profile_sync(db_session, test_user):
     db_session.commit()
     
     # Signed session token mock
-    from itsdangerous import URLSafeSerializer
+    from itsdangerous import URLSafeTimedSerializer
     from backend.config import settings
-    token = URLSafeSerializer(settings.SECRET_KEY).dumps({
+    token = URLSafeTimedSerializer(settings.SECRET_KEY).dumps({
         "user_id": test_user.id,
         "display_name": "Old-Name",
         "avatar_url": "https://old.com/avatar.png"
@@ -258,7 +258,7 @@ async def test_add_multiple_to_queue(db_session, test_user, test_room):
             await add_multiple_handler("sid-user", {"tracks": tracks})
             
             # Verify tracks were inserted
-            items = db_session.query(QueueItem).filter(QueueItem.room_id == test_room.id).all()
+            items = db_session.query(QueueItem).filter(QueueItem.room_id == test_room.id).order_by(QueueItem.position.asc()).all()
             assert len(items) == 2
             assert items[0].track_name == "Bulk Song 1"
             assert items[1].track_name == "Bulk Song 2"

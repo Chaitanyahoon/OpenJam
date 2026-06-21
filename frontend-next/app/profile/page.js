@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   User, Music, Heart, Plus, Trash2, Globe, Lock, Share2, 
   ArrowLeft, Edit2, Check, X, Disc, ExternalLink, Play, LogOut,
-  ListMusic, FolderHeart
+  ListMusic, FolderHeart, RefreshCw
 } from 'lucide-react';
 
 export default function ProfilePage() {
@@ -25,6 +25,7 @@ export default function ProfilePage() {
   const [editedName, setEditedName] = useState('');
   const [toasts, setToasts] = useState([]);
   const [playlistToDelete, setPlaylistToDelete] = useState(null);
+  const [syncingPlaylistId, setSyncingPlaylistId] = useState(null);
 
   // Discovery / search states
   const [activeTab, setActiveTab] = useState('library'); // 'library' | 'discover'
@@ -96,7 +97,7 @@ export default function ProfilePage() {
   }, []);
 
   useEffect(() => {
-    if (activeTab !== 'discover' || userSearchQuery.strip ? !userSearchQuery.trim() : !userSearchQuery) {
+    if (activeTab !== 'discover' || !userSearchQuery.trim()) {
       setUserSearchResults([]);
       return;
     }
@@ -210,7 +211,8 @@ export default function ProfilePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: playlistName,
-          is_private: newPlaylistPrivate
+          is_private: newPlaylistPrivate,
+          import_url: importPlaylistUrl
         })
       });
 
@@ -258,7 +260,7 @@ export default function ProfilePage() {
 
   const executeDeletePlaylist = async (id) => {
     try {
-      const res = await fetch(`/playlists/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/playlists/${id}`, { method: 'DELETE', credentials: 'include' });
       if (res.ok) {
         setPlaylists(playlists.filter((p) => p.id !== id));
         if (activePlaylistId === id) setActivePlaylistId(null);
@@ -289,6 +291,31 @@ export default function ProfilePage() {
     }
   };
 
+  const handleSyncPlaylist = async (id) => {
+    setSyncingPlaylistId(id);
+    addToast('Syncing playlist...', 'info');
+    try {
+      const res = await fetch(`/playlists/${id}/sync`, { method: 'POST', credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setActivePlaylistData(data.playlist);
+        const profileRes = await fetch('/profile/me', { credentials: 'include' });
+        if (profileRes.ok) {
+          const profileData = await profileRes.json();
+          setPlaylists(profileData.playlists || []);
+        }
+        addToast(data.message || 'Playlist synced successfully!', 'success');
+      } else {
+        const err = await res.json();
+        addToast(err.detail || 'Failed to sync playlist', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      addToast('Connection error during sync', 'error');
+    }
+    setSyncingPlaylistId(null);
+  };
+
   const [activePlaylistData, setActivePlaylistData] = useState(null);
   const [loadingPlaylist, setLoadingPlaylist] = useState(false);
 
@@ -300,7 +327,7 @@ export default function ProfilePage() {
     const loadPlaylist = async () => {
       setLoadingPlaylist(true);
       try {
-        const res = await fetch(`/playlists/${activePlaylistId}`);
+        const res = await fetch(`/playlists/${activePlaylistId}`, { credentials: 'include' });
         if (res.ok) {
           const data = await res.json();
           setActivePlaylistData(data.playlist);
@@ -318,7 +345,7 @@ export default function ProfilePage() {
   const handleRemoveTrack = async (trackId) => {
     if (!activePlaylistId || !activePlaylistData) return;
     try {
-      const res = await fetch(`/playlists/${activePlaylistId}/tracks/${trackId}`, { method: 'DELETE' });
+      const res = await fetch(`/playlists/${activePlaylistId}/tracks/${trackId}`, { method: 'DELETE', credentials: 'include' });
       if (res.ok) {
         setActivePlaylistData({
           ...activePlaylistData,
@@ -762,6 +789,36 @@ export default function ProfilePage() {
                       <Globe size={12} color="#666" style={{ marginLeft: '6px' }} />
                     )}
                   </button>
+                  {pl.import_url && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSyncPlaylist(pl.id);
+                      }}
+                      disabled={syncingPlaylistId === pl.id}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: syncingPlaylistId === pl.id ? 'var(--amber, #ff9f1c)' : '#555',
+                        padding: '14px 8px',
+                        cursor: syncingPlaylistId === pl.id ? 'default' : 'pointer',
+                        transition: 'color 0.2s',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                      onMouseEnter={(e) => { if (syncingPlaylistId !== pl.id) e.currentTarget.style.color = 'var(--amber, #ff9f1c)'; }}
+                      onMouseLeave={(e) => { if (syncingPlaylistId !== pl.id) e.currentTarget.style.color = '#555'; }}
+                      title="Sync external playlist"
+                    >
+                      <motion.div
+                        animate={syncingPlaylistId === pl.id ? { rotate: 360 } : {}}
+                        transition={syncingPlaylistId === pl.id ? { repeat: Infinity, duration: 1.2, ease: 'linear' } : {}}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        <RefreshCw size={14} />
+                      </motion.div>
+                    </button>
+                  )}
                   <button 
                     onClick={() => handleDeletePlaylist(pl.id)}
                     style={{
@@ -1126,6 +1183,33 @@ export default function ProfilePage() {
                             }}
                           >
                             <Share2 size={14} /> Share Link
+                          </button>
+                        )}
+                        {activePlaylistData.import_url && (
+                          <button
+                            onClick={() => handleSyncPlaylist(activePlaylistData.id)}
+                            disabled={syncingPlaylistId === activePlaylistData.id}
+                            className="btn btn-ghost"
+                            style={{
+                              padding: '8px 18px',
+                              fontSize: '13px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              borderRadius: '20px',
+                              background: 'rgba(255,255,255,0.02)',
+                              border: '1px solid rgba(255,255,255,0.08)',
+                              cursor: syncingPlaylistId === activePlaylistData.id ? 'default' : 'pointer'
+                            }}
+                          >
+                            <motion.div
+                              animate={syncingPlaylistId === activePlaylistData.id ? { rotate: 360 } : {}}
+                              transition={syncingPlaylistId === activePlaylistData.id ? { repeat: Infinity, duration: 1.2, ease: 'linear' } : {}}
+                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            >
+                              <RefreshCw size={14} />
+                            </motion.div>
+                            {syncingPlaylistId === activePlaylistData.id ? 'Syncing...' : 'Sync Playlist'}
                           </button>
                         )}
                         <button

@@ -1,13 +1,50 @@
-"""Admin routes for moderation and room management."""
+"""Admin routes for moderation and system management."""
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session, selectinload
 from backend.database import get_db
 from backend.models.room import Room
+from backend.models.user import User
+from backend.models.playlist import Playlist
+from backend.models.like import UserLike
+from backend.models.chat_message import ChatMessage
+from backend.models.vote import Vote
 from backend.middleware.auth import require_admin
 from backend.services.room_manager import room_manager
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+@router.get("/stats")
+async def get_system_stats(
+    db: Session = Depends(get_db),
+    admin_id: str = Depends(require_admin)
+):
+    """Retrieve quick system metrics and database counts."""
+    try:
+        user_count = db.query(User).count()
+        playlist_count = db.query(Playlist).count()
+        
+        rooms = db.query(Room).filter(Room.is_active == True).all()
+        redis_rooms = room_manager.store.get_all_rooms()
+        
+        listener_count = 0
+        for r in rooms:
+            if r.id in redis_rooms:
+                room_data = redis_rooms[r.id]
+                if room_data and "users" in room_data:
+                    listener_count += len(room_data.get("users", {}) or {})
+                    
+        return {
+            "stats": {
+                "total_users": user_count,
+                "total_playlists": playlist_count,
+                "active_rooms": len(rooms),
+                "online_listeners": listener_count
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load stats: {str(e)}")
+
 
 @router.get("/rooms")
 async def get_all_rooms(
@@ -36,9 +73,7 @@ async def get_all_rooms(
             
         return {"rooms": result}
     except Exception as e:
-        import traceback
-        tb = traceback.format_exc()
-        return {"error": f"Internal server error: {str(e)}", "traceback": tb}
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/rooms")
@@ -60,14 +95,12 @@ async def force_delete_all_rooms(
         room.is_active = False
         room_id = room.id
         
-        # Emit room_closed socket event to notify other room members instantly
         if sio:
             await sio.emit("room_closed", {
                 "room_id": room_id,
                 "reason": "Room has been closed by administration",
             }, room=room_id)
 
-        # Force-clean state
         stop_sync_loop(room_id)
         cancel_room_close(room_id)
         room_manager.force_close_room(room_id)
@@ -91,7 +124,6 @@ async def force_delete_room(
     room.is_active = False
     db.commit()
     
-    # Emit room_closed socket event to notify other room members instantly
     sio = getattr(request.app.state, "sio", None)
     if sio:
         await sio.emit("room_closed", {
@@ -99,7 +131,6 @@ async def force_delete_room(
             "reason": "Room has been closed by administration",
         }, room=room_id)
 
-    # Force-clean in-memory room state to prevent orphaned sync loops and stale data
     from backend.sockets.playback import stop_sync_loop
     from backend.services.room_closer import cancel_room_close
     stop_sync_loop(room_id)
@@ -107,3 +138,141 @@ async def force_delete_room(
     room_manager.force_close_room(room_id)
     
     return {"success": True, "message": f"Room {room_id} has been force-closed and deleted."}
+
+
+@router.get("/users")
+async def get_all_users(
+    db: Session = Depends(get_db),
+    admin_id: str = Depends(require_admin)
+):
+    """Retrieve list of all users registered in the system."""
+    try:
+        users = db.query(User).order_by(User.created_at.desc()).all()
+        return {"users": [user.to_dict() for user in users]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/users/{user_id}/premium")
+async def toggle_user_premium(
+    user_id: str,
+    db: Session = Depends(get_db),
+    admin_id: str = Depends(require_admin)
+):
+    """Toggle premium status for a user."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.is_premium = not user.is_premium
+    db.commit()
+    return {"success": True, "user": user.to_dict()}
+
+
+@router.put("/users/{user_id}/admin")
+async def toggle_user_admin(
+    user_id: str,
+    db: Session = Depends(get_db),
+    admin_id: str = Depends(require_admin)
+):
+    """Toggle administrator status for a user."""
+    if user_id == admin_id:
+        raise HTTPException(status_code=400, detail="Cannot revoke your own admin rights.")
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.is_admin = not user.is_admin
+    db.commit()
+    return {"success": True, "user": user.to_dict()}
+
+
+@router.delete("/users/{user_id}")
+async def delete_user(
+    user_id: str,
+    db: Session = Depends(get_db),
+    admin_id: str = Depends(require_admin)
+):
+    """Permanently delete user account and clean up all their related data."""
+    if user_id == admin_id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own admin account.")
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    # Cascade clean room state first
+    user_rooms = db.query(Room).filter(Room.host_user_id == user_id).all()
+    for room in user_rooms:
+        room.is_active = False
+        room_manager.force_close_room(room.id)
+        db.delete(room)
+        
+    # Clean likes, chats, votes, playlists
+    db.query(UserLike).filter(UserLike.user_id == user_id).delete()
+    db.query(ChatMessage).filter(ChatMessage.user_id == user_id).delete()
+    db.query(Vote).filter(Vote.user_id == user_id).delete()
+    db.query(Playlist).filter(Playlist.creator_id == user_id).delete()
+    
+    db.delete(user)
+    db.commit()
+    return {"success": True, "message": f"User {user.display_name} and all their data deleted successfully."}
+
+
+@router.get("/playlists")
+async def get_all_playlists(
+    db: Session = Depends(get_db),
+    admin_id: str = Depends(require_admin)
+):
+    """Get all playlists in the system with track count."""
+    try:
+        playlists = db.query(Playlist).options(
+            selectinload(Playlist.creator),
+            selectinload(Playlist.tracks)
+        ).order_by(Playlist.created_at.desc()).all()
+        
+        result = []
+        for pl in playlists:
+            result.append({
+                "id": pl.id,
+                "name": pl.name,
+                "creator_name": pl.creator.display_name if pl.creator else "Unknown",
+                "is_private": pl.is_private,
+                "track_count": len(pl.tracks),
+                "created_at": pl.created_at.isoformat() if pl.created_at else None
+            })
+        return {"playlists": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/playlists/{playlist_id}")
+async def delete_playlist_by_admin(
+    playlist_id: str,
+    db: Session = Depends(get_db),
+    admin_id: str = Depends(require_admin)
+):
+    """Delete a user playlist."""
+    playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
+    if not playlist:
+        raise HTTPException(status_code=404, detail="Playlist not found")
+    db.delete(playlist)
+    db.commit()
+    return {"success": True, "message": "Playlist deleted successfully"}
+
+
+@router.get("/logs")
+async def get_auth_diagnostics_logs(
+    admin_id: str = Depends(require_admin)
+):
+    """Secure endpoint to fetch dynamic authentication diagnostics logs."""
+    from backend.routes.auth import auth_logs
+    return {"logs": auth_logs}
+
+
+@router.post("/healthcheck/resolve")
+async def trigger_invidious_healthcheck(
+    admin_id: str = Depends(require_admin)
+):
+    """Manually trigger background health check on Invidious/Piped instances."""
+    from backend.services.invidious import _health_check_instances_bg
+    import asyncio
+    asyncio.create_task(_health_check_instances_bg())
+    return {"success": True, "message": "Background healthcheck task started."}

@@ -5,9 +5,11 @@ import uuid
 import logging
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Depends
 from fastapi.responses import JSONResponse, RedirectResponse
 import httpx
+from sqlalchemy.orm import Session
+from backend.database import get_db
 
 from backend.middleware.auth import create_session_token, get_current_user_id, revoke_token
 from backend.config import settings
@@ -75,7 +77,7 @@ async def join(request: Request):
 
 
 @router.post("/admin-login")
-async def admin_login(request: Request):
+async def admin_login(request: Request, db: Session = Depends(get_db)):
     try:
         body = await request.json()
     except Exception:
@@ -94,13 +96,28 @@ async def admin_login(request: Request):
         user_id = user_data["id"]
         display_name = user_data["display_name"]
     else:
-        user_id = str(uuid.uuid4())
-        display_name = "Admin"
+        user_id = "admin-root"
+        display_name = "System Admin"
+        
+    # Query database and set/create user with is_admin=True
+    from backend.models.user import User
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        user = User(
+            id=user_id,
+            display_name=display_name,
+            is_admin=True
+        )
+        db.add(user)
+    else:
+        user.is_admin = True
+    db.commit()
+    db.refresh(user)
         
     token = create_session_token(user_id, display_name=display_name, is_admin=True)
     
     response = JSONResponse(content={
-        "user": {"id": user_id, "display_name": display_name, "avatar_url": None, "is_admin": True}
+        "user": user.to_dict()
     })
     is_prod = settings.ENVIRONMENT == "production"
     response.set_cookie(
@@ -111,32 +128,27 @@ async def admin_login(request: Request):
         secure=is_prod,
         max_age=86400 * 7,
     )
-    logger.info(f"Admin session created/upgraded for user: {user_id}")
+    logger.info(f"Admin session created/upgraded in DB for user: {user_id}")
     return response
 
 
 @router.get("/me")
-async def get_me(request: Request):
+async def get_me(request: Request, db: Session = Depends(get_db)):
     """Return current session info from cookie and database presence check."""
     user_data = get_current_user_id(request, include_name=True)
     if not user_data:
         return JSONResponse(content={"user": None}, status_code=200)
         
-    from backend.database import SessionLocal
     from backend.models.user import User
     
-    db = SessionLocal()
-    try:
-        user = db.query(User).filter(User.id == user_data["id"]).first()
-        if user:
-            user_dict = user.to_dict()
-            user_dict["is_registered"] = True
-            return {"user": user_dict}
-        else:
-            user_data["is_registered"] = False
-            return {"user": user_data}
-    finally:
-        db.close()
+    user = db.query(User).filter(User.id == user_data["id"]).first()
+    if user:
+        user_dict = user.to_dict()
+        user_dict["is_registered"] = True
+        return {"user": user_dict}
+    else:
+        user_data["is_registered"] = False
+        return {"user": user_data}
 
 
 @router.get("/config")
@@ -154,12 +166,6 @@ async def logout(request: Request):
     response = JSONResponse(content={"message": "Logged out"})
     response.delete_cookie("session_token")
     return response
-
-
-@router.get("/logs")
-async def get_auth_logs():
-    """Endpoint to fetch dynamic authentication diagnostics logs."""
-    return {"logs": auth_logs}
 
 
 

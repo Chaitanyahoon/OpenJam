@@ -55,10 +55,10 @@ def register_connection_handlers(sio: socketio.AsyncServer):
         user_id = None
         avatar_url = None
         if token:
-            from itsdangerous import URLSafeSerializer
+            from itsdangerous import URLSafeTimedSerializer
             from backend.config import settings
             try:
-                data = URLSafeSerializer(settings.SECRET_KEY).loads(token)
+                data = URLSafeTimedSerializer(settings.SECRET_KEY).loads(token, max_age=86400 * 30)
                 user_id = data.get("user_id")
                 display_name = data.get("display_name")
                 avatar_url = data.get("avatar_url")
@@ -273,19 +273,23 @@ def register_connection_handlers(sio: socketio.AsyncServer):
             room_manager.leave_room(sid)
             await sio.leave_room(sid, old_info["room_id"])
 
-        # Check premium status for capacity limit
-        is_premium = False
-        def _get_user_premium(user_id):
+        # Check premium and registration status
+        def _get_user_status(user_id):
             db = SessionLocal()
             try:
                 from backend.models.user import User
                 user = db.query(User).filter(User.id == user_id).first()
-                return user.is_premium if user else False
+                if user:
+                    return user.is_premium, (user.discord_id is not None)
+                return False, False
             finally:
                 db.close()
-        is_premium = await asyncio.to_thread(_get_user_premium, user_id)
+        is_premium, is_registered = await asyncio.to_thread(_get_user_status, user_id)
 
-        error, was_new = room_manager.join_room(room_id, user_id, sid, display_name, avatar_url, is_premium=is_premium)
+        error, was_new = room_manager.join_room(
+            room_id, user_id, sid, display_name, avatar_url,
+            is_premium=is_premium, is_registered=is_registered
+        )
         if error:
             await sio.emit("join_error", {"message": error}, to=sid)
             return
@@ -449,7 +453,7 @@ def register_connection_handlers(sio: socketio.AsyncServer):
         """Client heartbeat — confirms connection is alive."""
         await sio.emit("heartbeat_ack", {"ts": int(asyncio.get_event_loop().time() * 1000)}, to=sid)
 
-    @sio.on("sync_ping")
+    @sio.event
     async def sync_ping(sid, data):
         """Receive ping from client containing their t0 timestamp, reply with server timestamps."""
         import time

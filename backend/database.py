@@ -177,3 +177,19 @@ def init_db():
         except Exception as e:
             print(f"Failed to auto-migrate users.profile_theme: {e}")
 
+    # Auto-migration: Check if 'import_url' exists in 'playlists' table, and add it if missing
+    import_url_exists = True
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("SELECT import_url FROM playlists LIMIT 1"))
+        except Exception:
+            import_url_exists = False
+
+    if not import_url_exists:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE playlists ADD COLUMN import_url VARCHAR NULL"))
+            print("Successfully added import_url column to playlists table.")
+        except Exception as e:
+            print(f"Failed to auto-migrate playlists.import_url: {e}")
+
