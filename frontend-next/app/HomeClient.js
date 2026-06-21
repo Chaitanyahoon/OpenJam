@@ -377,13 +377,6 @@ export default function HomePage() {
       { label: 'Rooms', href: '#active-rooms' }
     ];
 
-    if (me && me.is_registered) {
-      list.push({
-        label: 'My Profile',
-        href: '/profile'
-      });
-    }
-
     if (showInstallBtn) {
       list.push({
         label: 'Install App',
@@ -434,22 +427,46 @@ export default function HomePage() {
         </span>
       );
 
-      const userLabelHover = (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#ef4444' }}>
-          <span>Logout ⎋</span>
-        </span>
-      );
+      if (me.is_registered) {
+        const userLabelHover = (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--amber)' }}>
+            <span>My Profile 👤</span>
+          </span>
+        );
 
-      list.push({
-        label: userLabel,
-        labelHover: userLabelHover,
-        href: '#leave',
-        ariaLabel: `Leave session for ${me.display_name}`,
-        onClick: (e) => {
-          e.preventDefault();
-          setShowLeaveModal(true);
-        }
-      });
+        list.push({
+          label: userLabel,
+          labelHover: userLabelHover,
+          href: '/profile',
+          ariaLabel: `View profile of ${me.display_name}`
+        });
+
+        list.push({
+          label: 'Logout ⎋',
+          href: '#logout',
+          onClick: (e) => {
+            e.preventDefault();
+            setShowLeaveModal(true);
+          }
+        });
+      } else {
+        const userLabelHover = (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#ef4444' }}>
+            <span>Logout ⎋</span>
+          </span>
+        );
+
+        list.push({
+          label: userLabel,
+          labelHover: userLabelHover,
+          href: '#leave',
+          ariaLabel: `Leave session for ${me.display_name}`,
+          onClick: (e) => {
+            e.preventDefault();
+            setShowLeaveModal(true);
+          }
+        });
+      }
 
       list.push({
         label: 'Create Jam',

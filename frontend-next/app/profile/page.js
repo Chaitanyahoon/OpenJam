@@ -153,6 +153,16 @@ export default function ProfilePage() {
     }
   };
 
+  const handleLogout = async () => {
+    localStorage.removeItem('openjam_display_name');
+    localStorage.removeItem('openjam_avatar_url');
+    document.cookie = "session_token=; Max-Age=0; path=/;";
+    try {
+      await fetch('/auth/logout', { method: 'POST', credentials: 'include' });
+    } catch (e) {}
+    window.location.href = '/';
+  };
+
   const handleCreatePlaylist = async (e) => {
     e.preventDefault();
     if (!newPlaylistName.trim()) return;
@@ -507,10 +517,7 @@ export default function ProfilePage() {
           <div style={{ display: 'flex', gap: '12px' }}>
             <button 
               className="btn btn-ghost" 
-              onClick={() => {
-                document.cookie = 'session_token=; Max-Age=0; path=/;';
-                window.location.href = '/';
-              }}
+              onClick={handleLogout}
               style={{ padding: '8px 16px', fontSize: '14px' }}
             >
               Sign Out

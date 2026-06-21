@@ -1849,16 +1849,25 @@ export default function RoomClient({ roomId }) {
 
           {/* User profile */}
           <div className="navbar-right" style={{ display: me ? 'flex' : 'none' }}>
-            <div className="navbar-user" style={{ cursor: 'pointer' }} title="Click to change avatar">
-              {me?.avatar_url ? (
-                <img decoding="async" loading="lazy" className="avatar avatar-sm" src={me.avatar_url} alt="" style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} />
-              ) : (
+            {me?.is_registered ? (
+              <a href="/profile" target="_blank" rel="noopener noreferrer" className="navbar-user" style={{ cursor: 'pointer', textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center' }} title="View Profile Settings (Opens in new tab)">
+                {me?.avatar_url ? (
+                  <img decoding="async" loading="lazy" className="avatar avatar-sm" src={me.avatar_url} alt="" style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} />
+                ) : (
+                  <div className="avatar avatar-sm" style={{ backgroundColor: nameColor(me?.display_name || '?'), width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold' }}>
+                    {initials(me?.display_name || '?')}
+                  </div>
+                )}
+                <span className="navbar-username" style={{ marginLeft: '8px', fontSize: '13px', fontWeight: 600 }}>{me?.display_name}</span>
+              </a>
+            ) : (
+              <div className="navbar-user" style={{ cursor: 'default' }} title="Temporary Guest Session">
                 <div className="avatar avatar-sm" style={{ backgroundColor: nameColor(me?.display_name || '?'), width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold' }}>
                   {initials(me?.display_name || '?')}
                 </div>
-              )}
-              <span className="navbar-username" style={{ marginLeft: '8px', fontSize: '13px', fontWeight: 600 }}>{me?.display_name}</span>
-            </div>
+                <span className="navbar-username" style={{ marginLeft: '8px', fontSize: '13px', fontWeight: 600 }}>{me?.display_name} (Guest)</span>
+              </div>
+            )}
           </div>
         </div>
       </header>
