@@ -1,5 +1,6 @@
 import React, { Suspense } from 'react';
 import RoomPageClient from './RoomPageClient';
+import { RoomSkeleton } from '@/components/SkeletonLoaders';
 
 export function generateStaticParams() {
   return [{ id: 'loading' }];
@@ -97,19 +98,7 @@ export async function generateMetadata({ params }) {
 
 export default function RoomPage() {
   return (
-    <Suspense fallback={
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '100vh',
-        background: '#08080a',
-        color: '#fff',
-        fontFamily: 'var(--font-ui), sans-serif'
-      }}>
-        Loading Jam Room...
-      </div>
-    }>
+    <Suspense fallback={<RoomSkeleton />}>
       <RoomPageClient />
     </Suspense>
   );

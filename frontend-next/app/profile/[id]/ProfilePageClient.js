@@ -8,6 +8,7 @@ import {
   User, Music, ArrowLeft, Disc, Share2, 
   ExternalLink, Globe, Lock, BarChart2, Heart
 } from 'lucide-react';
+import { ProfileSkeleton } from '@/components/SkeletonLoaders';
 
 export default function ProfilePageClient() {
   const params = useParams();
@@ -100,24 +101,7 @@ export default function ProfilePageClient() {
   };
 
   if (loading) {
-    return (
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: '#08080a',
-        color: '#fff',
-        fontFamily: 'sans-serif'
-      }}>
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ repeat: Infinity, duration: 1.5, ease: 'linear' }}
-        >
-          <Disc size={48} color="var(--amber, #ff9f1c)" />
-        </motion.div>
-      </div>
-    );
+    return <ProfileSkeleton />;
   }
 
   if (error) {

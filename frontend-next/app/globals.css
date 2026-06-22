@@ -10484,4 +10484,17 @@ div:hover > .play-hover-btn,
   box-shadow: 0 0 12px rgba(255, 71, 87, 0.1) !important;
 }
 
+/* ---- Skeleton Loader Custom Responsive Layouts ---- */
+@media (max-width: 1024px) {
+  .room-sidebar-skeleton {
+    flex: 1 1 100% !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .profile-sidebar-skeleton {
+    flex: 1 1 100% !important;
+  }
+}
+
 

@@ -8,6 +8,7 @@ import {
   ArrowLeft, Edit2, Check, X, Disc, ExternalLink, Play, LogOut,
   ListMusic, FolderHeart, RefreshCw, BarChart2
 } from 'lucide-react';
+import { ProfileSkeleton } from '@/components/SkeletonLoaders';
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState(null);
@@ -400,24 +401,7 @@ export default function ProfilePage() {
   };
 
   if (loading) {
-    return (
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: '#08080a',
-        color: '#fff',
-        fontFamily: 'sans-serif'
-      }}>
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ repeat: Infinity, duration: 1.5, ease: 'linear' }}
-        >
-          <Disc size={48} color="var(--amber, #ff9f1c)" />
-        </motion.div>
-      </div>
-    );
+    return <ProfileSkeleton />;
   }
 
   if (error === 'Authentication required') {

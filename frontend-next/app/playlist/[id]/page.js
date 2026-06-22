@@ -1,5 +1,6 @@
 import React, { Suspense } from 'react';
 import PlaylistPageClient from './PlaylistPageClient';
+import { PlaylistSkeleton } from '@/components/SkeletonLoaders';
 
 export function generateStaticParams() {
   return [{ id: 'loading' }];
@@ -13,19 +14,7 @@ export const metadata = {
 
 export default function PlaylistPage() {
   return (
-    <Suspense fallback={
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '100vh',
-        background: '#08080a',
-        color: '#fff',
-        fontFamily: 'sans-serif'
-      }}>
-        Loading Playlist...
-      </div>
-    }>
+    <Suspense fallback={<PlaylistSkeleton />}>
       <PlaylistPageClient />
     </Suspense>
   );
