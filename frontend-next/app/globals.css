@@ -10497,4 +10497,100 @@ div:hover > .play-hover-btn,
   }
 }
 
+/* ---- Profile Page Hover & Interactive Classes ---- */
+.profile-edit-name-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: none;
+  color: #aaa;
+  padding: 6px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.profile-edit-name-btn:hover {
+  color: var(--amber, #ff9f1c) !important;
+  background: rgba(255, 159, 28, 0.1) !important;
+}
+
+.profile-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #888;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.profile-back-link:hover {
+  color: #fff !important;
+}
+
+.profile-sidebar-item {
+  transition: all 0.2s ease;
+}
+.profile-sidebar-item:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.profile-sync-btn {
+  transition: color 0.2s ease;
+}
+.profile-sync-btn:hover:not(.syncing) {
+  color: var(--amber, #ff9f1c) !important;
+}
+
+.profile-delete-btn {
+  transition: color 0.2s ease;
+}
+.profile-delete-btn:hover {
+  color: #ff4757 !important;
+}
+
+.profile-card-hover {
+  transition: all 0.2s ease;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.profile-card-hover:hover {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 159, 28, 0.15) !important;
+}
+
+.profile-btn-stats-refresh {
+  transition: all 0.2s ease;
+}
+.profile-btn-stats-refresh:hover:not(.loading) {
+  background: rgba(255, 159, 28, 0.2) !important;
+}
+
+.profile-track-dropdown-trigger {
+  transition: color 0.2s ease;
+}
+.profile-track-dropdown-trigger:hover:not(.active) {
+  color: var(--amber, #ff9f1c) !important;
+}
+
+.profile-dropdown-item {
+  transition: background 0.2s ease;
+}
+.profile-dropdown-item:hover {
+  background: rgba(255, 159, 28, 0.1) !important;
+}
+
+.profile-back-to-library {
+  transition: transform 0.2s ease;
+}
+.profile-back-to-library:hover {
+  transform: scale(1.15) !important;
+}
+
+.profile-playlist-track-card {
+  transition: all 0.2s ease;
+}
+.profile-playlist-track-card:hover {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.06) !important;
+}
+
 
