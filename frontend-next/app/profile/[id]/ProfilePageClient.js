@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { 
   User, Music, ArrowLeft, Disc, Share2, 
-  ExternalLink, Globe, Lock
+  ExternalLink, Globe, Lock, BarChart2, Heart
 } from 'lucide-react';
 
 export default function ProfilePageClient() {
@@ -15,7 +15,9 @@ export default function ProfilePageClient() {
 
   const [profile, setProfile] = useState(null);
   const [playlists, setPlaylists] = useState([]);
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [toasts, setToasts] = useState([]);
 
@@ -52,6 +54,7 @@ export default function ProfilePageClient() {
 
     const fetchPublicProfile = async () => {
       try {
+        // Fetch profile
         const res = await fetch(`/profile/${userId}`);
         if (!res.ok) {
           if (res.status === 404) {
@@ -66,6 +69,20 @@ export default function ProfilePageClient() {
         setProfile(data.user);
         setPlaylists(data.playlists || []);
         setLoading(false);
+
+        // Fetch stats
+        setStatsLoading(true);
+        try {
+          const statsRes = await fetch(`/profile/${userId}/stats`);
+          if (statsRes.ok) {
+            const statsData = await statsRes.json();
+            setStats(statsData.stats);
+          }
+        } catch (e) {
+          console.warn('Could not load public profile stats:', e);
+        } finally {
+          setStatsLoading(false);
+        }
       } catch (err) {
         console.error(err);
         setError('Connection error');
@@ -241,6 +258,121 @@ export default function ProfilePageClient() {
             </div>
           </div>
         </div>
+
+        {/* Musical Stats */}
+        {stats && (
+          <div className="glass-card" style={{
+            padding: '32px',
+            borderRadius: '24px',
+            border: '1px solid rgba(255,255,255,0.04)',
+            background: 'linear-gradient(135deg, rgba(20, 20, 28, 0.4) 0%, rgba(10, 10, 14, 0.6) 100%)',
+            backdropFilter: 'blur(20px)',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+            marginBottom: '40px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '28px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '16px' }}>
+              <BarChart2 size={24} color="var(--amber, #ff9f1c)" />
+              <h3 style={{ fontSize: '22px', fontWeight: 800 }}>Musical Footprint</h3>
+            </div>
+
+            {/* Counters */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '32px' }}>
+              <div style={{ padding: '16px', borderRadius: '16px', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.02)' }}>
+                <div style={{ color: '#555', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Listening Time</div>
+                <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--amber)', marginTop: '6px' }}>
+                  {stats.listening_time_mins > 60 
+                    ? `${Math.floor(stats.listening_time_mins / 60)}h ${stats.listening_time_mins % 60}m` 
+                    : `${stats.listening_time_mins}m`}
+                </div>
+              </div>
+
+              <div style={{ padding: '16px', borderRadius: '16px', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.02)' }}>
+                <div style={{ color: '#555', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Songs Shared</div>
+                <div style={{ fontSize: '24px', fontWeight: 800, color: '#fff', marginTop: '6px' }}>{stats.total_queued}</div>
+              </div>
+
+              <div style={{ padding: '16px', borderRadius: '16px', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.02)' }}>
+                <div style={{ color: '#555', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Saved Songs</div>
+                <div style={{ fontSize: '24px', fontWeight: 800, color: '#ff4757', marginTop: '6px' }}>{stats.total_likes}</div>
+              </div>
+
+              <div style={{ padding: '16px', borderRadius: '16px', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.02)' }}>
+                <div style={{ color: '#555', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Interactions</div>
+                <div style={{ fontSize: '24px', fontWeight: 800, color: '#ffd23f', marginTop: '6px' }}>{stats.total_chats + stats.total_votes}</div>
+              </div>
+            </div>
+
+            {/* Top Charts */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
+              
+              {/* Top Tracks */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <h4 style={{ fontSize: '14px', fontWeight: 800, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Top Songs</h4>
+                {stats.top_tracks.length === 0 ? (
+                  <div style={{ color: '#444', fontSize: '13px', padding: '10px 0' }}>No history.</div>
+                ) : (
+                  stats.top_tracks.map((track, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 10px', background: 'rgba(255,255,255,0.01)', borderRadius: '10px' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--amber)', width: '16px', textAlign: 'center' }}>{i + 1}</div>
+                      {track.album_art_url ? (
+                        <img src={track.album_art_url} alt="" style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} />
+                      ) : (
+                        <div style={{ width: '32px', height: '32px', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Music size={12} color="#888" /></div>
+                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '13px', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{track.track_name}</div>
+                        <div style={{ fontSize: '11px', color: '#555', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{track.artist}</div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Top Artists */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <h4 style={{ fontSize: '14px', fontWeight: 800, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Top Artists</h4>
+                {stats.top_artists.length === 0 ? (
+                  <div style={{ color: '#444', fontSize: '13px', padding: '10px 0' }}>No artist data.</div>
+                ) : (
+                  stats.top_artists.map((art, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 10px', background: 'rgba(255,255,255,0.01)', borderRadius: '10px', height: '44px' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--amber)', width: '16px', textAlign: 'center' }}>{i + 1}</div>
+                      <span style={{ fontSize: '13px', fontWeight: 700, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{art.artist}</span>
+                      <span style={{ fontSize: '11px', color: '#666', background: 'rgba(255,255,255,0.03)', padding: '2px 6px', borderRadius: '6px' }}>{art.count}x</span>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Top Genres */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <h4 style={{ fontSize: '14px', fontWeight: 800, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Top Genres</h4>
+                {stats.top_genres.length === 0 ? (
+                  <div style={{ color: '#444', fontSize: '13px', padding: '10px 0' }}>No genre data.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {stats.top_genres.map((g, i) => {
+                      const maxVal = stats.top_genres[0]?.count || 1;
+                      const pct = Math.max(10, Math.floor((g.count / maxVal) * 100));
+                      return (
+                        <div key={i}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>
+                            <span style={{ textTransform: 'capitalize' }}>{g.genre}</span>
+                            <span style={{ color: '#555' }}>{g.count} shared</span>
+                          </div>
+                          <div style={{ height: '6px', width: '100%', background: 'rgba(255,255,255,0.03)', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${pct}%`, borderRadius: '3px', background: 'linear-gradient(90deg, var(--amber) 0%, var(--gold) 100%)' }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+            </div>
+          </div>
+        )}
 
         {/* Public Playlists */}
         <div className="glass-card" style={{

@@ -102,3 +102,140 @@ async def get_public_profile(user_id: str, db: Session = Depends(get_db)):
         },
         "playlists": [p.to_dict() for p in playlists]
     }
+
+
+def get_user_stats_internal(db: Session, user_id: str):
+    from sqlalchemy import func, desc
+    from backend.models.queue_item import QueueItem
+    from backend.models.like import UserLike
+    from backend.models.playlist import Playlist
+    from backend.models.chat_message import ChatMessage
+    from backend.models.vote import Vote
+    from backend.models.room import Room
+    import json
+
+    # 1. Base counts
+    total_queued = db.query(QueueItem).filter(QueueItem.added_by_user_id == user_id).count()
+    total_likes = db.query(UserLike).filter(UserLike.user_id == user_id).count()
+    total_playlists = db.query(Playlist).filter(Playlist.creator_id == user_id).count()
+    total_chats = db.query(ChatMessage).filter(ChatMessage.user_id == user_id).count()
+    total_votes = db.query(Vote).filter(Vote.user_id == user_id).count()
+
+    # 2. Total listening time (for songs added by this user that reached status='played')
+    total_duration_ms = db.query(
+        func.sum(QueueItem.duration_ms)
+    ).filter(
+        QueueItem.added_by_user_id == user_id,
+        QueueItem.status == "played"
+    ).scalar() or 0
+    listening_time_mins = int(total_duration_ms // 60000)
+
+    # 3. Top 5 tracks queued
+    top_tracks_query = db.query(
+        QueueItem.track_name,
+        QueueItem.artist,
+        QueueItem.album_art_url,
+        func.count(QueueItem.id).label('cnt')
+    ).filter(
+        QueueItem.added_by_user_id == user_id
+    ).group_by(
+        QueueItem.track_name,
+        QueueItem.artist,
+        QueueItem.album_art_url
+    ).order_by(
+        desc('cnt')
+    ).limit(5).all()
+
+    top_tracks = [
+        {
+            "track_name": row[0],
+            "artist": row[1],
+            "album_art_url": row[2],
+            "count": row[3]
+        }
+        for row in top_tracks_query
+    ]
+
+    # 4. Top 5 artists queued
+    top_artists_query = db.query(
+        QueueItem.artist,
+        func.count(QueueItem.id).label('cnt')
+    ).filter(
+        QueueItem.added_by_user_id == user_id
+    ).group_by(
+        QueueItem.artist
+    ).order_by(
+        desc('cnt')
+    ).limit(5).all()
+
+    top_artists = [
+        {
+            "artist": row[0],
+            "count": row[1]
+        }
+        for row in top_artists_query
+    ]
+
+    # 5. Top genres (based on room tags where the user has queued songs)
+    rooms_genres = db.query(
+        Room.genre_tags,
+        func.count(QueueItem.id)
+    ).join(
+        QueueItem, Room.id == QueueItem.room_id
+    ).filter(
+        QueueItem.added_by_user_id == user_id
+    ).group_by(
+        Room.genre_tags
+    ).all()
+
+    genre_counts = {}
+    for raw_tags, count in rooms_genres:
+        if not raw_tags:
+            continue
+        try:
+            tags = json.loads(raw_tags)
+            if isinstance(tags, list):
+                for tag in tags:
+                    tag_clean = tag.strip().lower()
+                    if tag_clean:
+                        genre_counts[tag_clean] = genre_counts.get(tag_clean, 0) + count
+        except Exception:
+            pass
+
+    sorted_genres = sorted(genre_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+    top_genres = [
+        {
+            "genre": g,
+            "count": c
+        }
+        for g, c in sorted_genres
+    ]
+
+    return {
+        "stats": {
+            "total_queued": total_queued,
+            "total_likes": total_likes,
+            "total_playlists": total_playlists,
+            "total_chats": total_chats,
+            "total_votes": total_votes,
+            "listening_time_mins": listening_time_mins,
+            "top_tracks": top_tracks,
+            "top_artists": top_artists,
+            "top_genres": top_genres
+        }
+    }
+
+
+@router.get("/me/stats")
+async def get_my_stats(db: Session = Depends(get_db), user_id: str = Depends(require_registered_user)):
+    """Retrieve listening statistics and engagement metrics for the authenticated user."""
+    return get_user_stats_internal(db, user_id)
+
+
+@router.get("/{user_id}/stats")
+async def get_public_user_stats(user_id: str, db: Session = Depends(get_db)):
+    """Retrieve public stats metrics for a specific user ID."""
+    user = db.query(User).filter(User.id == user_id, User.discord_id.isnot(None)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return get_user_stats_internal(db, user_id)
