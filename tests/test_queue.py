@@ -297,7 +297,7 @@ def test_add_multiple_tracks_endpoint(client, test_room, auth_headers, db_sessio
     mock_session.refresh = db_session.refresh
     mock_session.close = MagicMock()
     
-    with patch("backend.database.SessionLocal", return_value=mock_session):
+    with patch("backend.sockets.queue.SessionLocal", return_value=mock_session):
         response = client.post(
             f"/rooms/{test_room.id}/queue/multiple",
             json=payload,

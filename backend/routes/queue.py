@@ -743,94 +743,81 @@ async def add_multiple_tracks_to_queue(
     room_id: str,
     tracks: list[PlaylistTrackRequest],
     request: Request,
-    db: Session = Depends(get_db)
 ):
     """Add multiple tracks to a room's queue. Emits socket updates to the room."""
-    # Check if room exists
-    room = db.query(Room).filter(Room.id == room_id).first()
-    if not room:
-        raise HTTPException(status_code=404, detail="Room not found")
-        
     user_data = get_current_user_id(request, include_name=True)
     user_id = user_data["id"] if user_data else str(uuid.uuid4())
     display_name = user_data["display_name"] if user_data else f"Jammer-{uuid.uuid4().hex[:4].upper()}"
 
-    # Verify curated queue permissions if host
-    if room.queue_mode == "curated" and room.host_user_id != user_id:
-        raise HTTPException(status_code=403, detail="Queue is locked by host")
+    # Map PlaylistTrackRequest list to dict list for the helper
+    track_list = []
+    for t in tracks:
+        track_list.append({
+            "uri": t.track_uri,
+            "name": t.track_name,
+            "artist": t.artist,
+            "album_art_url": t.album_art_url,
+            "duration_ms": t.duration_ms
+        })
 
-    # Ensure a User row exists for this user if registered
-    if user_data:
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            user = User(id=user_id, display_name=display_name, avatar_url=user_data.get("avatar_url"))
-            db.add(user)
-            db.commit()
-
-    # Get max position in queue
-    max_pos = db.query(QueueItem).filter(
-        QueueItem.room_id == room_id,
-        QueueItem.status != "played",
-    ).count()
-
-    added_count = 0
-    for idx, track_req in enumerate(tracks):
-        # Check duplicate
-        duplicate = db.query(QueueItem).filter(
-            QueueItem.room_id == room_id,
-            QueueItem.track_uri == track_req.track_uri,
-            QueueItem.status.in_(["pending", "playing"]),
-        ).first()
-        
-        if duplicate:
-            continue
-            
-        item = QueueItem(
-            room_id=room_id,
-            track_uri=track_req.track_uri,
-            track_name=track_req.track_name,
-            artist=track_req.artist,
-            album_art_url=track_req.album_art_url,
-            duration_ms=track_req.duration_ms,
-            added_by_user_id=user_id,
-            added_by_name=display_name,
-            position=max_pos + added_count,
-            status="pending",
+    from backend.sockets.queue import _db_add_multiple_to_queue
+    try:
+        queue, next_item = await asyncio.to_thread(
+            _db_add_multiple_to_queue,
+            room_id,
+            track_list,
+            user_id,
+            display_name
         )
-        db.add(item)
-        added_count += 1
-        
-    if added_count > 0:
-        db.commit()
-        
-    # Check if queue needs advancing
-    live_playback = room_manager.get_playback(room_id)
-    is_playing_live = live_playback and live_playback.get("is_playing", False)
-    now_playing = queue_manager.get_now_playing(db, room_id)
-    
-    if not now_playing and not is_playing_live:
-        def _db_advance(room_id):
-            from backend.database import SessionLocal
-            db_thread = SessionLocal()
-            try:
-                queue_manager.advance_queue(db_thread, room_id)
-            finally:
-                db_thread.close()
-        await asyncio.to_thread(_db_advance, room_id)
-        db.expire_all()
-        
-    # Get updated queue
-    queue = queue_manager.get_queue(db, room_id, None)
-    
+    except ValueError as e:
+        error_msg = str(e)
+        if error_msg == "Room not found":
+            raise HTTPException(status_code=404, detail=error_msg)
+        elif error_msg == "Queue is locked by host":
+            raise HTTPException(status_code=403, detail=error_msg)
+        else:
+            raise HTTPException(status_code=400, detail=error_msg)
+
     # Broadcast to socket room
     sio = getattr(request.app.state, "sio", None)
     if sio:
+        # Auto-play: if a first track was found, update playback and emit track_changed
+        if next_item:
+            logger.info(f"Auto-playing next_item for room={room_id}: {next_item.get('track_name')} ({next_item.get('track_uri')})")
+            track_uri = next_item.get("track_uri", "")
+            if track_uri and len(track_uri) == 11:
+                asyncio.create_task(pre_resolve_url(track_uri))
+            
+            room_manager.update_playback(
+                room_id=room_id,
+                track_uri=next_item["track_uri"],
+                track_name=next_item["track_name"],
+                artist=next_item["artist"],
+                album_art_url=next_item.get("album_art_url", ""),
+                position_ms=0,
+                duration_ms=next_item.get("duration_ms", 0),
+                is_playing=True,
+            )
+            from backend.sockets.playback import ensure_sync_loop
+            ensure_sync_loop(room_id, sio)
+            await sio.emit("track_changed", next_item, room=room_id)
+            
+            # Re-fetch queue after auto-advance (no blocking — already in thread)
+            from backend.sockets.queue import _db_get_queue_after_next
+            try:
+                queue = await asyncio.to_thread(_db_get_queue_after_next, room_id)
+            except Exception:
+                pass  # use the queue we already have
+
         await sio.emit("queue_updated", {"queue": queue}, room=room_id)
-        # Also run background resolution for placeholder tracks
+        
+        # Pre-resolve the next track in queue in background
+        from backend.sockets.playback import pre_resolve_next_track_background
+        asyncio.create_task(pre_resolve_next_track_background(room_id, queue, sio))
         from backend.sockets.queue import resolve_room_queue_background
         asyncio.create_task(resolve_room_queue_background(room_id, sio))
-        
-    return {"message": f"Successfully queued {added_count} tracks", "added_count": added_count}
+
+    return {"message": f"Successfully queued {len(track_list)} tracks", "added_count": len(track_list)}
 
 
 

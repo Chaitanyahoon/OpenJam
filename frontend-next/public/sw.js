@@ -139,7 +139,10 @@ self.addEventListener('fetch', (event) => {
     '/queue',
     '/admin',
     '/ping',
-    '/health'
+    '/health',
+    '/playlists',
+    '/likes',
+    '/profile'
   ];
 
   // Only bypass for same-origin API paths
