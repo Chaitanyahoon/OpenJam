@@ -132,7 +132,7 @@ async def download_and_cache_track(video_id: str) -> str | None:
                 with open(temp_path, "wb") as f:
                     async for chunk in r.aiter_bytes(chunk_size=65536):
                         f.write(chunk)
-                        await asyncio.sleep(0.2)
+                        await asyncio.sleep(0)
             finally:
                 await r.aclose()
 
@@ -510,9 +510,9 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
                             break
                     except Exception:
                         pass
-            await asyncio.wait_for(_race(), timeout=6.0)
+            await asyncio.wait_for(_race(), timeout=12.0)
         except asyncio.TimeoutError:
-            logger.warning(f"Stream extraction race timed out after 6.0s for {video_id}")
+            logger.warning(f"Stream extraction race timed out after 12.0s for {video_id}")
         finally:
             # Cancel any remaining tasks to free up network/CPU resources
             for task in tasks:
@@ -565,13 +565,6 @@ async def pre_resolve_url(video_id: str):
 async def stream_audio(video_id: str, request: Request, low: bool = False, nocache: bool = False):
     if not _is_valid_video_id(video_id):
         raise HTTPException(status_code=400, detail="Invalid video ID")
-
-    # Check if a download is in progress, if so wait for it
-    download_lock = await get_download_lock(video_id)
-    if download_lock.locked():
-        logger.info(f"Waiting for in-flight download of {video_id} to finish...")
-        async with download_lock:
-            pass  # wait for completion
 
     # Check if high-quality or low-quality is already cached locally
     for vid_id in [video_id, f"{video_id}_low"]:
