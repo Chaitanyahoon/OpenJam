@@ -7,7 +7,7 @@ class Vote(Base):
     __tablename__ = "votes"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    queue_item_id = Column(String, ForeignKey("queue_items.id"), nullable=False, index=True)
+    queue_item_id = Column(String, ForeignKey("queue_items.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
 
     __table_args__ = (

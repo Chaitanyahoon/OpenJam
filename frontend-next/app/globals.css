@@ -868,7 +868,7 @@ input[type=range]::-moz-range-track {
   border-color: var(--amber);
   box-shadow: 0 0 16px var(--amber-glow);
 }
-.chat-message.self .chat-msg-text { color: var(--bg-base); }
+.chat-message.self .chat-msg-text { color: var(--text-1); }
 @keyframes chat-slide-in {
   from { opacity: 0; transform: translateX(-20px) scale(0.95); }
   to { opacity: 1; transform: translateX(0) scale(1); }
@@ -8033,6 +8033,30 @@ body:not(.room-page) .navbar:hover {
   transform: scale(0.92);
 }
 
+.floating-emoji {
+  animation: floatUp 2.8s cubic-bezier(0.25, 1, 0.50, 1) forwards;
+  will-change: transform, opacity;
+}
+
+@keyframes floatUp {
+  0% {
+    transform: translateY(0) scale(0.6) rotate(0deg);
+    opacity: 1;
+  }
+  30% {
+    transform: translateY(-40vh) translateX(calc(var(--sway-offset) * 0.4)) scale(1.4) rotate(calc(var(--final-rotation) * 0.4));
+    opacity: 1;
+  }
+  60% {
+    transform: translateY(-70vh) translateX(calc(var(--sway-offset) * 0.7)) scale(1.2) rotate(calc(var(--final-rotation) * 0.7));
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(-95vh) translateX(var(--sway-offset)) scale(1.2) rotate(var(--final-rotation));
+    opacity: 0;
+  }
+}
+
 /* ── Typing Indicators ── */
 
 .typing-indicator {
@@ -9925,6 +9949,7 @@ body:not(.room-page) .navbar:hover {
   outline: none !important;
 }
 
+
 .unified-header .btn-secondary {
   background: rgba(255, 255, 255, 0.03) !important;
   color: var(--text-2) !important;
@@ -10079,66 +10104,7 @@ body:not(.room-page) .navbar:hover {
     0 6px 16px rgba(255, 159, 28, 0.4),
     0 0 10px rgba(255, 159, 28, 0.2) !important;
 }
-
-/* Responsive Overrides for Unified Header */
-@media (max-width: 900px) {
-  .unified-header {
-    padding: 0 16px !important;
-  }
-  .room-bar-tags {
-    display: none !important;
-  }
-}
-
 @media (max-width: 640px) {
-  .unified-header {
-    height: calc(60px + env(safe-area-inset-top, 0px)) !important;
-    padding: env(safe-area-inset-top, 0px) 10px 0 !important;
-  }
-  .header-left,
-  .header-right {
-    gap: 8px !important;
-  }
-  .header-actions {
-    gap: 6px !important;
-  }
-  .unified-header .header-separator,
-  .unified-header .room-sub-meta,
-  .unified-header .header-user-separator,
-  .unified-header .navbar-username,
-  .unified-header .room-bar-link,
-  .unified-header .navbar-logo {
-    display: none !important;
-  }
-  .room-bar-name {
-    font-size: 14px !important;
-    max-width: 110px !important;
-  }
-  .room-bar-btn-label,
-  .room-bar-close-label {
-    display: none !important;
-  }
-  .unified-header .room-bar-invite-btn,
-  .unified-header .room-bar-close-btn,
-  .unified-header .room-bar-icon-btn {
-    width: 34px !important;
-    height: 34px !important;
-    padding: 0 !important;
-  }
-  .unified-header .room-bar-invite-btn svg,
-  .unified-header .room-bar-close-btn svg,
-  .unified-header .room-bar-icon-btn svg {
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-  }
-  .navbar-user {
-    padding: 3px !important;
-  }
-  .navbar-user .avatar {
-    width: 26px !important;
-    height: 26px !important;
-  }
-  
   .hero {
     padding: 80px 16px 40px !important;
     min-height: auto !important;
@@ -10591,6 +10557,110 @@ div:hover > .play-hover-btn,
 .profile-playlist-track-card:hover {
   background: rgba(255, 255, 255, 0.04) !important;
   border-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Responsive Overrides for Unified Header */
+@media (max-width: 1024px) {
+  .unified-header {
+    padding: 0 16px !important;
+  }
+  .header-left,
+  .header-right {
+    gap: 12px !important;
+  }
+  .room-bar-btn-label,
+  .room-bar-close-label {
+    display: none !important;
+  }
+  .unified-header .room-bar-invite-btn,
+  .unified-header .room-bar-close-btn {
+    width: 38px !important;
+    height: 38px !important;
+    padding: 0 !important;
+  }
+  .unified-header .room-bar-invite-btn svg,
+  .unified-header .room-bar-close-btn svg {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+  .room-bar-name {
+    max-width: 200px !important;
+  }
+}
+
+@media (max-width: 850px) {
+  .room-sync-status {
+    display: none !important;
+  }
+  .room-bar-host span {
+    display: none !important;
+  }
+  .navbar-username {
+    display: none !important;
+  }
+  .navbar-user {
+    padding: 4px !important;
+  }
+  .room-bar-name {
+    max-width: 160px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .unified-header .navbar-logo {
+    display: none !important;
+  }
+  .unified-header .header-separator {
+    display: none !important;
+  }
+  .header-left,
+  .header-right {
+    gap: 8px !important;
+  }
+  .room-bar-name {
+    max-width: 140px !important;
+  }
+  .sidebar-now-playing-card {
+    display: none !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .unified-header {
+    height: calc(60px + env(safe-area-inset-top, 0px)) !important;
+    padding: env(safe-area-inset-top, 0px) 10px 0 !important;
+  }
+  .header-actions {
+    gap: 6px !important;
+  }
+  .unified-header .room-sub-meta,
+  .unified-header .header-user-separator {
+    display: none !important;
+  }
+  .room-bar-name {
+    font-size: 14px !important;
+    max-width: 110px !important;
+  }
+  .unified-header .room-bar-invite-btn,
+  .unified-header .room-bar-close-btn,
+  .unified-header .room-bar-icon-btn {
+    width: 34px !important;
+    height: 34px !important;
+    padding: 0 !important;
+  }
+  .unified-header .room-bar-invite-btn svg,
+  .unified-header .room-bar-close-btn svg,
+  .unified-header .room-bar-icon-btn svg {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+  .navbar-user {
+    padding: 3px !important;
+  }
+  .navbar-user .avatar {
+    width: 26px !important;
+    height: 26px !important;
+  }
 }
 
 

@@ -356,11 +356,16 @@ def register_playback_handlers(sio: socketio.AsyncServer):
 
     @sio.event
     async def playback_update(sid, data):
-        """Any jam member can update playback state (democratic control)."""
+        """Host-only: update playback state for the room."""
         info = room_manager.get_user_by_sid(sid)
         if not info:
             return
         room_id = info["room_id"]
+
+        # Verify host permissions before allowing playback controls
+        if not room_manager.is_host(room_id, sid):
+            logger.warning(f"Non-host sid {sid} tried to update playback state in room {room_id}")
+            return
 
         room_manager.update_playback(
             room_id=room_id,
@@ -404,11 +409,16 @@ def register_playback_handlers(sio: socketio.AsyncServer):
 
     @sio.event
     async def next_track(sid, data):
-        """Any jam member can skip to the next track. Guarded by per-room lock."""
+        """Host-only: skip to the next track. Guarded by per-room lock."""
         info = room_manager.get_user_by_sid(sid)
         if not info:
             return
         room_id = info["room_id"]
+
+        # Verify host permissions before allowing direct skips
+        if not room_manager.is_host(room_id, sid):
+            logger.warning(f"Non-host sid {sid} tried to skip directly in room {room_id}")
+            return
 
         lock = _get_advance_lock(room_id)
         async with lock:

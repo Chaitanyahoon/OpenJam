@@ -2,10 +2,6 @@
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000').replace(/\/$/, '');
 
 const nextConfig = {
-  cacheComponents: true,
-  experimental: {
-    instantNavigationDevToolsToggle: true,
-  },
   async rewrites() {
     return [
       {

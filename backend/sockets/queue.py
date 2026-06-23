@@ -505,7 +505,7 @@ def register_queue_handlers(sio: socketio.AsyncServer):
 
     @sio.event
     async def reorder_queue(sid, data):
-        """Host-only: reorder the pending tracks in the queue."""
+        """Reorder the pending tracks in the queue."""
         session = await sio.get_session(sid)
         if not session:
             return
@@ -514,11 +514,6 @@ def register_queue_handlers(sio: socketio.AsyncServer):
         if not info:
             return
         room_id = info["room_id"]
-
-        # Only host can reorder tracks
-        if not room_manager.is_host(room_id, sid):
-            await sio.emit("queue_error", {"message": "Only the host can reorder tracks"}, to=sid)
-            return
 
         ordered_ids = data.get("ordered_ids")  # list of queue item IDs in new order
         if not ordered_ids:
@@ -709,10 +704,6 @@ def register_queue_handlers(sio: socketio.AsyncServer):
         if not info:
             return
         room_id = info["room_id"]
-
-        if not room_manager.is_host(room_id, sid):
-            await sio.emit("queue_error", {"message": "Only the host can play a track instantly"}, to=sid)
-            return
 
         user_id = session.get("user_id") or f"guest_{sid}"
         display_name = session.get("display_name", "Jammer")

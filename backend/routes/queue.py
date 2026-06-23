@@ -12,7 +12,6 @@ from pathlib import Path
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import StreamingResponse, FileResponse
 import httpx
-import yt_dlp
 from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.models.room import Room
@@ -22,7 +21,10 @@ from backend.middleware.auth import get_current_user_id
 from backend.services.queue_manager import queue_manager
 from backend.services.room_manager import room_manager
 from backend.services.music_search import music_search_service as lastfm_service
-from backend.services.invidious import get_stream_url as get_invidious_stream_url, report_stream_failure
+
+def report_stream_failure(stream_url: str):
+    """No-op failover reporting for deprecated extractors."""
+    pass
 from backend.schemas import QueueTrackRequest, PlaylistTrackRequest
 from backend.routes.rooms import check_room_access
 from backend.services.redis_store import RedisStore
@@ -41,6 +43,10 @@ _downloading_locks_lock = asyncio.Lock()
 
 async def get_download_lock(video_id: str):
     async with _downloading_locks_lock:
+        if len(_downloading_locks) > 200:
+            to_remove = [k for k, l in _downloading_locks.items() if not l.locked()]
+            for k in to_remove:
+                del _downloading_locks[k]
         if video_id not in _downloading_locks:
             _downloading_locks[video_id] = asyncio.Lock()
         return _downloading_locks[video_id]
@@ -51,6 +57,10 @@ _resolving_locks_lock = asyncio.Lock()
 
 async def get_resolve_lock(video_id: str):
     async with _resolving_locks_lock:
+        if len(_resolving_locks) > 200:
+            to_remove = [k for k, l in _resolving_locks.items() if not l.locked()]
+            for k in to_remove:
+                del _resolving_locks[k]
         if video_id not in _resolving_locks:
             _resolving_locks[video_id] = asyncio.Lock()
         return _resolving_locks[video_id]
@@ -202,6 +212,16 @@ async def add_to_queue(
     if not track_data.get("uri") or not track_data.get("name"):
         raise HTTPException(status_code=400, detail="Track URI and Name are required")
 
+    # Prevent duplicate additions
+    if uri:
+        duplicate = db.query(QueueItem).filter(
+            QueueItem.room_id == room_id,
+            QueueItem.track_uri == uri,
+            QueueItem.status.in_(["pending", "playing"]),
+        ).first()
+        if duplicate:
+            raise HTTPException(status_code=409, detail="This track is already in the queue")
+
     item = queue_manager.add_track(db, room_id, track_data, user_id, user_name)
 
     # Pre-resolve stream URL in background so playback starts instantly
@@ -351,73 +371,27 @@ def _prune_url_cache():
             del _url_cache[k]
 
 
-# ── Cookie support for yt-dlp ───────────────────────────────────────
-_cookie_path: str | None = None
+# Removed yt-dlp cookie helper and sync extractor
 
-def _get_cookie_path() -> str | None:
-    """Write YOUTUBE_COOKIES env var to a temp file and return its path."""
-    global _cookie_path
-    if _cookie_path:
-        import os as _os
-        if _os.path.exists(_cookie_path):
-            return _cookie_path
-    
-    import os as _os
-    cookie_str = _os.getenv("YOUTUBE_COOKIES", "").strip()
-    if not cookie_str:
-        return None
-    
+
+async def _is_url_valid(url: str) -> bool:
+    """Validate a cached stream URL with a fast HEAD request to check if it's still alive."""
+    if not url:
+        return False
     try:
-        import tempfile
-        # Replace literal \n with actual newlines
-        cookie_content = cookie_str.replace("\\n", "\n")
-        fd, path = tempfile.mkstemp(suffix=".txt", prefix="ytcookies_")
-        with _os.fdopen(fd, "w") as f:
-            f.write(cookie_content)
-        _cookie_path = path
-        logger.info(f"YouTube cookies written to {path}")
-        return path
+        client = _get_stream_client()
+        # Fast HEAD request with a 1.0s timeout to check signature/status
+        r = await client.request("HEAD", url, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }, timeout=1.0)
+        # Any success or redirect status means the URL is still functional
+        if r.status_code in (200, 206, 301, 302):
+            return True
+        logger.warning(f"Cached stream URL returned status code {r.status_code} in validation probe")
+        return False
     except Exception as e:
-        logger.warning(f"Failed to write YouTube cookies: {e}")
-        return None
-
-
-def _extract_ytdlp_sync(video_id: str, low: bool = False) -> str | None:
-    ydl_opts = {
-        "format": "worstaudio/bestaudio/best" if low else "bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best",
-        "quiet": True,
-        "no_warnings": True,
-        "skip_download": True,
-        "geo_bypass": True,
-        "extractor_retries": 3,
-        "socket_timeout": 12,
-        "source_address": "0.0.0.0",
-        "nocheckcertificate": True,
-        # Use multiple clients to bypass individual player blocks
-        "extractor_args": {"youtube": {"player_client": ["android", "ios", "mweb", "web"]}},
-    }
-
-    # Cookie support for bypassing bot detection
-    cookie_file = _get_cookie_path()
-    if cookie_file:
-        ydl_opts["cookiefile"] = cookie_file
-
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
-            url = info.get("url")
-            if not url and info.get("formats"):
-                # Fallback: pick the best audio format manually
-                audio_fmts = [f for f in info["formats"] if f.get("acodec") != "none" and f.get("url")]
-                if audio_fmts:
-                    audio_fmts.sort(key=lambda f: f.get("abr") or f.get("tbr") or 0, reverse=not low)
-                    url = audio_fmts[0]["url"]
-            if url:
-                logger.info(f"yt-dlp resolved stream URL for {video_id}")
-            return url
-    except Exception as e:
-        logger.error(f"yt-dlp failed for {video_id} (low={low}): {e}")
-        return None
+        logger.warning(f"Probe validation failed for cached stream URL: {e}")
+        return False
 
 
 async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
@@ -435,16 +409,28 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
     if cache_key in _url_cache:
         url, expiry = _url_cache[cache_key]
         if time.time() < expiry:
-            return url
-        del _url_cache[cache_key]
+            if await _is_url_valid(url):
+                return url
+            logger.info(f"Evicting invalid memory-cached stream URL for {cache_key}")
+            del _url_cache[cache_key]
+            if redis_store.client:
+                try:
+                    redis_store.client.delete(f"openjam:url:{cache_key}")
+                except Exception:
+                    pass
+        else:
+            del _url_cache[cache_key]
 
     if redis_store.client:
         try:
             cached_url = redis_store.client.get(f"openjam:url:{cache_key}")
             if cached_url:
-                _url_cache[cache_key] = (cached_url, time.time() + _URL_CACHE_TTL)
-                logger.info(f"Resolved stream URL for {cache_key} from Redis cache")
-                return cached_url
+                if await _is_url_valid(cached_url):
+                    _url_cache[cache_key] = (cached_url, time.time() + _URL_CACHE_TTL)
+                    logger.info(f"Resolved stream URL for {cache_key} from Redis cache")
+                    return cached_url
+                logger.info(f"Evicting invalid Redis-cached stream URL for {cache_key}")
+                redis_store.client.delete(f"openjam:url:{cache_key}")
         except Exception as e:
             logger.warning(f"Failed to retrieve stream URL from Redis for {cache_key}: {e}")
 
@@ -455,69 +441,40 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
         if cache_key in _url_cache:
             url, expiry = _url_cache[cache_key]
             if time.time() < expiry:
-                return url
-            del _url_cache[cache_key]
+                if await _is_url_valid(url):
+                    return url
+                logger.info(f"Evicting invalid memory-cached stream URL (inside lock) for {cache_key}")
+                del _url_cache[cache_key]
+                if redis_store.client:
+                    try:
+                        redis_store.client.delete(f"openjam:url:{cache_key}")
+                    except Exception:
+                        pass
+            else:
+                del _url_cache[cache_key]
 
         if redis_store.client:
             try:
                 cached_url = redis_store.client.get(f"openjam:url:{cache_key}")
                 if cached_url:
-                    _url_cache[cache_key] = (cached_url, time.time() + _URL_CACHE_TTL)
-                    logger.info(f"Resolved stream URL for {cache_key} from Redis cache (inside lock)")
-                    return cached_url
+                    if await _is_url_valid(cached_url):
+                        _url_cache[cache_key] = (cached_url, time.time() + _URL_CACHE_TTL)
+                        logger.info(f"Resolved stream URL for {cache_key} from Redis cache (inside lock)")
+                        return cached_url
+                    logger.info(f"Evicting invalid Redis-cached stream URL (inside lock) for {cache_key}")
+                    redis_store.client.delete(f"openjam:url:{cache_key}")
             except Exception:
                 pass
 
-        async def _try_cobalt() -> str | None:
-            try:
-                from backend.services.cobalt import get_cobalt_stream_url
-                return await get_cobalt_stream_url(video_id)
-            except Exception as e:
-                logger.warning(f"Cobalt failed for {video_id}: {e}")
-                return None
-
-        async def _try_invidious() -> str | None:
-            try:
-                return await get_invidious_stream_url(video_id)
-            except Exception as e:
-                logger.warning(f"Invidious failed for {video_id}: {e}")
-                return None
-
-        async def _try_ytdlp() -> str | None:
-            try:
-                return await asyncio.to_thread(_extract_ytdlp_sync, video_id, low)
-            except Exception as e:
-                logger.warning(f"yt-dlp failed for {video_id}: {e}")
-                return None
-
-        logger.info(f"Initiating concurrent stream extraction race (Cobalt, Invidious, yt-dlp) for {video_id}")
-        
-        tasks = [
-            asyncio.create_task(_try_cobalt()),
-            asyncio.create_task(_try_invidious()),
-            asyncio.create_task(_try_ytdlp())
-        ]
-        
+        logger.info(f"Resolving stream URL using Cobalt for {video_id}")
         url = None
         try:
-            async def _race():
-                nonlocal url
-                for future in asyncio.as_completed(tasks):
-                    try:
-                        res = await future
-                        if res:
-                            url = res
-                            break
-                    except Exception:
-                        pass
-            await asyncio.wait_for(_race(), timeout=12.0)
+            from backend.services.cobalt import get_cobalt_stream_url
+            url = await asyncio.wait_for(get_cobalt_stream_url(video_id), timeout=12.0)
         except asyncio.TimeoutError:
-            logger.warning(f"Stream extraction race timed out after 12.0s for {video_id}")
-        finally:
-            # Cancel any remaining tasks to free up network/CPU resources
-            for task in tasks:
-                if not task.done():
-                    task.cancel()
+            logger.warning(f"Cobalt resolution timed out after 12.0s for {video_id}")
+        except Exception as e:
+            logger.warning(f"Cobalt failed for {video_id}: {e}")
 
         if url:
             _prune_url_cache()
@@ -816,32 +773,24 @@ async def add_multiple_tracks_to_queue(
 
 @router.get("/stream/health")
 async def stream_health():
-    """Diagnostic: test all extraction methods against a known video.
+    """Diagnostic: test Cobalt extraction method against a known video.
     
-    Use this to check which methods are working on your deployment.
+    Use this to check if Cobalt is working on your deployment.
     """
     test_id = "dQw4w9WgXcQ"  # Rick Astley — always available on YouTube
     results = {}
 
-    # Test yt-dlp
-    try:
-        url = await asyncio.to_thread(_extract_ytdlp_sync, test_id)
-        results["ytdlp"] = {
-            "status": "ok" if url else "no_url",
-            "url_preview": (url[:80] + "...") if url else None,
-        }
-    except Exception as e:
-        results["ytdlp"] = {"status": "error", "error": str(e)[:200]}
+    # Test yt-dlp (Deprecated)
+    results["ytdlp"] = {
+        "status": "deprecated",
+        "error": "yt-dlp is deprecated. Using Cobalt exclusively."
+    }
 
-    # Test Invidious/Piped
-    try:
-        url = await get_invidious_stream_url(test_id)
-        results["invidious_piped"] = {
-            "status": "ok" if url else "no_url",
-            "url_preview": (url[:80] + "...") if url else None,
-        }
-    except Exception as e:
-        results["invidious_piped"] = {"status": "error", "error": str(e)[:200]}
+    # Test Invidious/Piped (Deprecated)
+    results["invidious_piped"] = {
+        "status": "deprecated",
+        "error": "Invidious is deprecated. Using Cobalt exclusively."
+    }
 
     # Test Cobalt
     try:
@@ -860,11 +809,8 @@ async def stream_health():
         "working_methods": working,
         "total_working": len(working),
         "recommendation": (
-            "All methods working!" if len(working) == 3
-            else f"{len(working)}/3 methods working. " + (
-                "Consider adding YOUTUBE_COOKIES or COBALT_API_URL env vars."
-                if len(working) < 2 else "Acceptable reliability."
-            )
+            "Cobalt is working properly!" if len(working) == 1
+            else "Cobalt resolution failed. Consider adding COBALT_API_URL env var."
         ),
     }
 

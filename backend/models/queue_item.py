@@ -11,7 +11,7 @@ class QueueItem(Base):
     )
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    room_id = Column(String, ForeignKey("rooms.id"), nullable=False, index=True)
+    room_id = Column(String, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False, index=True)
     track_uri = Column(String, nullable=False)
     track_name = Column(String, nullable=False)
     artist = Column(String, nullable=False)

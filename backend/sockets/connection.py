@@ -392,6 +392,10 @@ def register_connection_handlers(sio: socketio.AsyncServer):
             return
 
         new_name = (data.get("name") or "").strip()
+        import re
+        new_name = re.sub(r'<[^>]+>', '', new_name).strip()
+        new_name = re.sub(r'\s+', ' ', new_name)
+
         if not new_name or len(new_name) > 30:
             await sio.emit("error", {"message": "Name must be 1–30 characters"}, to=sid)
             return
@@ -419,13 +423,23 @@ def register_connection_handlers(sio: socketio.AsyncServer):
             return
 
         new_name = (data.get("display_name") or "").strip()
+        import re
+        if new_name:
+            new_name = re.sub(r'<[^>]+>', '', new_name).strip()
+            new_name = re.sub(r'\s+', ' ', new_name)
+
         avatar_url = data.get("avatar_url")
 
         if new_name and 0 < len(new_name) <= 30:
             session["display_name"] = new_name
         
         if avatar_url:
-            session["avatar_url"] = avatar_url
+            from urllib.parse import urlparse
+            parsed = urlparse(avatar_url)
+            if parsed.scheme in ('http', 'https') and parsed.netloc:
+                session["avatar_url"] = avatar_url
+            else:
+                logger.warning(f"Rejected invalid avatar URL from {sid}: {avatar_url!r}")
 
         await sio.save_session(sid, session)
 

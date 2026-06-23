@@ -150,12 +150,18 @@ class MusicSearchService:
         video_id = await asyncio.to_thread(self._resolve_via_ytmusic, q)
         if video_id:
             self._resolve_cache[q] = video_id
+            if len(self._resolve_cache) > 500:
+                first_key = next(iter(self._resolve_cache))
+                self._resolve_cache.pop(first_key, None)
             return video_id
 
         # Method 2: YouTube HTML search fallback
         video_id = await self._resolve_via_youtube_scrape(q)
         if video_id:
             self._resolve_cache[q] = video_id
+            if len(self._resolve_cache) > 500:
+                first_key = next(iter(self._resolve_cache))
+                self._resolve_cache.pop(first_key, None)
             return video_id
 
         logger.warning(f"All resolve methods failed for query: '{q}'")

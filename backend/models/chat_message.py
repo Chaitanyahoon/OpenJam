@@ -11,7 +11,7 @@ class ChatMessage(Base):
     )
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    room_id = Column(String, ForeignKey("rooms.id"), nullable=False, index=True)
+    room_id = Column(String, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     user_name = Column(String, default="")
     user_avatar = Column(String, nullable=True)

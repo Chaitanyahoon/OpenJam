@@ -546,7 +546,14 @@ export default function HomePage() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      const token = params.get('token');
+      let token = params.get('token');
+      
+      // Fallback/Prefer hash fragment for enhanced security
+      const hash = window.location.hash;
+      if (!token && hash.startsWith('#token=')) {
+        token = hash.substring(7);
+      }
+
       if (token) {
         const maxAge = 86400 * 30; // 30 days
         const isSecure = window.location.protocol === 'https:';
@@ -556,7 +563,7 @@ export default function HomePage() {
           reconnect(token);
         }
 
-        // Clean the token query parameter from URL
+        // Clean the token parameter from URL
         const newUrl = window.location.pathname;
         window.history.replaceState({}, '', newUrl);
       }

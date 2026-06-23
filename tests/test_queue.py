@@ -25,6 +25,25 @@ def test_add_to_queue_authenticated(client, test_room, auth_headers):
     assert data["item"]["artist"] == "Example Artist"
 
 
+def test_add_to_queue_duplicate_rejected(client, test_room, auth_headers):
+    # First addition
+    resp1 = client.post(
+        f"/rooms/{test_room.id}/queue",
+        json=_track_payload(),
+        headers=auth_headers,
+    )
+    assert resp1.status_code == 200
+
+    # Duplicate addition
+    resp2 = client.post(
+        f"/rooms/{test_room.id}/queue",
+        json=_track_payload(),
+        headers=auth_headers,
+    )
+    assert resp2.status_code == 409
+    assert resp2.json()["detail"] == "This track is already in the queue"
+
+
 def test_add_to_queue_validation(client, test_room, auth_headers):
     response = client.post(
         f"/rooms/{test_room.id}/queue",

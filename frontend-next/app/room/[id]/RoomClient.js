@@ -78,11 +78,11 @@ export default function RoomClient({ roomId }) {
   const [lyricsActiveIdx, setLyricsActiveIdx] = useState(-1);
   const [streamErrorMsg, setStreamErrorMsg] = useState(null);
   const [skipVotes, setSkipVotes] = useState({ votes: 0, required: 0, voted: false });
-  const [floatingReactions, setFloatingReactions] = useState([]);
   const [isReady, setIsReady] = useState(false);
   const [draggedIdx, setDraggedIdx] = useState(null);
   const [dragOverIdx, setDragOverIdx] = useState(null);
   const [isDraggingOverNP, setIsDraggingOverNP] = useState(false);
+  const [isDraggingOverSidebarNP, setIsDraggingOverSidebarNP] = useState(false);
   const [isDraggingOverQueue, setIsDraggingOverQueue] = useState(false);
 
 
@@ -92,6 +92,8 @@ export default function RoomClient({ roomId }) {
   const lastReactionId = useRef(0);
   const isOverSuggestions = useRef(false);
   const isDraggingSuggestion = useRef(false);
+  const reactionContainerRef = useRef(null);
+  const lastReactionSentRef = useRef(0);
 
   useEffect(() => {
     nowPlayingRef.current = nowPlaying;
@@ -215,108 +217,6 @@ export default function RoomClient({ roomId }) {
     }
   };
 
-  const [downloadingTracks, setDownloadingTracks] = useState({});
-  const [downloadedTracks, setDownloadedTracks] = useState(new Set());
-
-  // Load downloaded tracks on mount
-  useEffect(() => {
-    offlineDb.getAllTracks().then((tracks) => {
-      const ids = new Set(tracks.map(t => t.id));
-      setDownloadedTracks(ids);
-    }).catch(err => {
-      console.error('Failed to load local downloads:', err);
-    });
-  }, []);
-
-  const handleDownloadTrack = async (track) => {
-    const trackId = track.track_uri || track.id || track.uri;
-    if (!trackId) return;
-
-    if (downloadedTracks.has(trackId)) {
-      triggerToast("Track already downloaded!", "info");
-      return;
-    }
-
-    setDownloadingTracks(prev => ({ ...prev, [trackId]: 0 }));
-    triggerToast(`Downloading "${track.track_name || 'Track'}"…`, "info");
-
-    try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || '';
-      let cleanBackendUrl = '';
-      
-      const isLocalHost = typeof window !== 'undefined' && (
-        window.location.hostname === 'localhost' ||
-        window.location.hostname === '127.0.0.1' ||
-        window.location.hostname.startsWith('192.168.') ||
-        window.location.hostname.startsWith('10.') ||
-        /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(window.location.hostname)
-      );
-
-      if (isLocalHost) {
-        cleanBackendUrl = `http://${window.location.hostname}:8000`;
-      } else {
-        cleanBackendUrl = backendUrl !== 'undefined' && backendUrl !== 'null' && backendUrl.trim() !== ''
-          ? backendUrl.replace(/\/$/, '')
-          : 'https://api.openjam.fun';
-      }
-
-      const response = await fetch(`${cleanBackendUrl}/stream/${trackId}`);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch stream: ${response.status}`);
-      }
-
-      const contentLength = response.headers.get('content-length');
-      const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
-      
-      const reader = response.body.getReader();
-      let receivedBytes = 0;
-      const chunks = [];
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        chunks.push(value);
-        receivedBytes += value.length;
-
-        if (totalBytes > 0) {
-          const progress = Math.round((receivedBytes / totalBytes) * 100);
-          setDownloadingTracks(prev => ({ ...prev, [trackId]: progress }));
-        }
-      }
-
-      const blob = new Blob(chunks, { type: response.headers.get('content-type') || 'audio/webm' });
-
-      await offlineDb.saveTrack({
-        id: trackId,
-        track_name: track.track_name || track.name || 'Unknown Track',
-        artist: track.artist || 'Unknown Artist',
-        album_art_url: track.album_art_url || track.artwork || '/static/img/logo.png',
-        duration_ms: track.duration_ms || track.duration || 0,
-        blob: blob,
-        playCount: 0,
-        liked: 0,
-        downloadedAt: Date.now()
-      });
-
-      setDownloadedTracks(prev => {
-        const next = new Set(prev);
-        next.add(trackId);
-        return next;
-      });
-
-      triggerToast(`Downloaded "${track.track_name || 'Track'}" successfully!`, "success");
-    } catch (e) {
-      console.error('[Download] Failed:', e);
-      triggerToast("Download failed. Please try again.", "error");
-    } finally {
-      setDownloadingTracks(prev => {
-        const next = { ...prev };
-        delete next[trackId];
-        return next;
-      });
-    }
-  };
 
   // Notification helper
   const triggerToast = (text, type = 'info') => {
@@ -747,13 +647,32 @@ export default function RoomClient({ roomId }) {
 
     socket.on('reaction', (data) => {
       const id = ++lastReactionId.current;
-      setFloatingReactions((prev) => [
-        ...prev,
-        { id, emoji: data.emoji, x: Math.random() * 60 + 20, y: 100 }
-      ]);
-      setTimeout(() => {
-        setFloatingReactions((prev) => prev.filter((r) => r.id !== id));
-      }, 2500);
+      
+      if (reactionContainerRef.current) {
+        const el = document.createElement('div');
+        el.className = 'floating-emoji';
+        el.textContent = data.emoji;
+        
+        const x = Math.random() * 60 + 20;
+        const swayDirection = Math.random() > 0.5 ? 1 : -1;
+        const swayOffset = Math.random() * 8 + 4;
+        const finalRotation = Math.random() * 90 - 45;
+        
+        el.style.position = 'absolute';
+        el.style.left = `${x}vw`;
+        el.style.bottom = '-50px';
+        el.style.pointerEvents = 'none';
+        el.style.fontSize = '32px';
+        el.style.zIndex = '1000';
+        el.style.setProperty('--sway-offset', `${swayDirection * swayOffset}vw`);
+        el.style.setProperty('--final-rotation', `${finalRotation}deg`);
+        
+        reactionContainerRef.current.appendChild(el);
+        
+        setTimeout(() => {
+          el.remove();
+        }, 3000);
+      }
 
       // Append reaction system message to chat messages list
       setChatMsgs((prev) => [
@@ -1558,6 +1477,9 @@ export default function RoomClient({ roomId }) {
 
   const handleSendReaction = (emoji) => {
     if (!socket) return;
+    const now = Date.now();
+    if (now - lastReactionSentRef.current < 500) return;
+    lastReactionSentRef.current = now;
     socket.emit('send_reaction', { room_id: roomId, emoji });
   };
 
@@ -1713,7 +1635,6 @@ export default function RoomClient({ roomId }) {
   };
 
   const handleDragStart = (e, index) => {
-    if (!isHost) return;
     
     // Defer state update so browser can establish the native drag operation before React re-renders the DOM
     setTimeout(() => {
@@ -1737,7 +1658,6 @@ export default function RoomClient({ roomId }) {
   };
 
   const handleDragOver = (e, index) => {
-    if (!isHost) return;
     e.preventDefault();
     if (draggedIdx === index) return;
     setDragOverIdx(index);
@@ -1749,7 +1669,6 @@ export default function RoomClient({ roomId }) {
   };
 
   const handleDrop = (e, index) => {
-    if (!isHost) return;
     e.preventDefault();
     if (draggedIdx === null || draggedIdx === index) return;
 
@@ -1904,35 +1823,7 @@ export default function RoomClient({ roomId }) {
       <div className={`room-ambient ${nowPlaying?.album_art_url ? 'active' : ''}`} id="room-ambient" style={ambientBackgroundStyle}></div>
 
       {/* Floating Reactions Render */}
-      <div className="reaction-container" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 1000 }}>
-        {floatingReactions.map((r) => {
-          const swayDirection = Math.random() > 0.5 ? 1 : -1;
-          const swayOffset = Math.random() * 8 + 4;
-          const finalRotation = Math.random() * 90 - 45;
-          return (
-            <motion.div
-              key={r.id}
-              initial={{ opacity: 1, y: '80vh', x: `${r.x}vw`, scale: 0.6, rotate: 0 }}
-              animate={{ 
-                opacity: [1, 1, 0.8, 0], 
-                y: '15vh', 
-                x: [
-                  `${r.x}vw`, 
-                  `${r.x + swayDirection * (swayOffset / 2)}vw`, 
-                  `${r.x - swayDirection * (swayOffset / 4)}vw`,
-                  `${r.x + swayDirection * (swayOffset)}vw`
-                ],
-                scale: [0.6, 1.4, 1.2],
-                rotate: [0, finalRotation / 2, -finalRotation / 2, finalRotation]
-              }}
-              transition={{ duration: 2.8, ease: 'easeOut' }}
-              style={{ position: 'absolute', fontSize: '32px' }}
-            >
-              {r.emoji}
-            </motion.div>
-          );
-        })}
-      </div>
+      <div ref={reactionContainerRef} className="reaction-container" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 1000 }} />
 
       {/* ══ UNIFIED PREMIUM HEADER ═════════════════════════════════ */}
       <header className="unified-header">
@@ -1985,14 +1876,6 @@ export default function RoomClient({ roomId }) {
         </div>
 
         <div className="header-right">
-          {/* Genre tags */}
-          <div className="room-bar-tags">
-            <span className="room-bar-tag">{room?.queue_mode === 'curated' ? 'DJ Only' : 'Open Party'}</span>
-            {(room?.genre_tags || []).slice(0, 2).map((tag) => (
-              <span key={tag} className="room-bar-tag">{tag}</span>
-            ))}
-          </div>
-
           <div className="header-actions">
             <button className="btn btn-secondary room-bar-icon-btn" onClick={() => setShowSettings(true)} title="Room Settings">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
@@ -2001,7 +1884,6 @@ export default function RoomClient({ roomId }) {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>
               <span className="room-bar-btn-label" style={{ marginLeft: '4px' }}>Invite</span>
             </button>
-            <a href="/" className="btn btn-ghost room-bar-link" title="Back to all rooms">← All Rooms</a>
             {isHost && (
               <button className="btn btn-danger room-bar-close-btn" onClick={() => setShowClose(true)} title="Close this room">
                 <X className="h-4 w-4" />
@@ -2097,20 +1979,18 @@ export default function RoomClient({ roomId }) {
           id="panel-left" 
           style={{ position: 'relative' }}
           onDragEnter={(e) => {
-            if (isHost) {
-              e.preventDefault();
-              setIsDraggingOverNP(true);
-            }
+            e.preventDefault();
+            setIsDraggingOverNP(true);
           }}
           onDragOver={(e) => {
-            if (isHost) e.preventDefault();
+            e.preventDefault();
           }}
           onDragLeave={() => {
             setIsDraggingOverNP(false);
           }}
           onDrop={(e) => {
             setIsDraggingOverNP(false);
-            if (!isHost || !socket) return;
+            if (!socket) return;
             e.preventDefault();
             try {
               const dataStr = e.dataTransfer.getData("text/plain");
@@ -2190,7 +2070,7 @@ export default function RoomClient({ roomId }) {
                 Drop to Play Instantly
               </span>
               <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>
-                Only the host can change live music
+                Drop to override live playback
               </span>
             </div>
           )}
@@ -2440,8 +2320,8 @@ export default function RoomClient({ roomId }) {
                                         style={{
                                           position: 'absolute',
                                           right: 0,
-                                          bottom: '100%',
-                                          marginBottom: '4px',
+                                          top: '100%',
+                                          marginTop: '4px',
                                           background: '#0e0e12',
                                           border: '1px solid rgba(255, 159, 28, 0.2)',
                                           borderRadius: '12px',
@@ -2669,137 +2549,21 @@ export default function RoomClient({ roomId }) {
                         </button>
                       )}
                     </div>
-                    {me && me.is_registered && queue.length > 0 && (
-                      <button
-                        className="btn-export-queue"
-                        onClick={handleExportQueue}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          fontSize: '12px',
-                          padding: '6px 12px',
-                          borderRadius: '8px',
-                          border: '1px solid rgba(212, 175, 55, 0.3)',
-                          background: 'rgba(212, 175, 55, 0.05)',
-                          color: 'var(--brass)',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s ease',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = 'rgba(212, 175, 55, 0.12)';
-                          e.currentTarget.style.boxShadow = '0 0 8px var(--brass-glow)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = 'rgba(212, 175, 55, 0.05)';
-                          e.currentTarget.style.boxShadow = 'none';
-                        }}
-                      >
-                        <Save size={14} />
-                        Export Queue
-                      </button>
-                    )}
                   </div>
-
-                  {/* Sidebar Now Playing Banner */}
-                  {activeQueueTab === 'queue' && nowPlaying && (
-                    <div 
-                      className="sidebar-now-playing-card"
-                      style={{
-                        background: 'linear-gradient(135deg, rgba(255, 159, 28, 0.08) 0%, rgba(217, 119, 6, 0.04) 100%)',
-                        border: '1px solid rgba(255, 159, 28, 0.2)',
-                        borderRadius: '16px',
-                        padding: '14px 16px',
-                        margin: '0 16px 16px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        position: 'relative',
-                        boxShadow: '0 8px 24px rgba(255, 159, 28, 0.03)',
-                        overflow: 'hidden'
-                      }}
-                    >
-                      {/* Ambient blur image background */}
-                      <div 
-                        style={{
-                          position: 'absolute',
-                          top: 0, right: 0, bottom: 0, left: 0,
-                          backgroundImage: nowPlaying.album_art_url ? `url(${nowPlaying.album_art_url})` : 'none',
-                          backgroundSize: 'cover',
-                          backgroundPosition: 'center',
-                          filter: 'blur(30px) brightness(0.2) saturate(1.5)',
-                          opacity: 0.5,
-                          zIndex: 0,
-                          pointerEvents: 'none'
-                        }}
-                      />
-                      <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', width: '100%', gap: '12px' }}>
-                        {/* Artwork */}
-                        <div style={{ width: '48px', height: '48px', position: 'relative', flexShrink: 0 }}>
-                          {nowPlaying.album_art_url ? (
-                            <img 
-                              decoding="async" 
-                              loading="lazy" 
-                              draggable="false" 
-                              src={nowPlaying.album_art_url} 
-                              alt="" 
-                              style={{ width: '100%', height: '100%', borderRadius: '10px', objectFit: 'cover', display: 'block', boxShadow: '0 4px 12px rgba(0,0,0,0.4)' }}
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                                const placeholder = e.target.parentElement.querySelector('.np-sidebar-art-placeholder');
-                                if (placeholder) placeholder.style.display = 'flex';
-                              }}
-                            />
-                          ) : null}
-                          <div 
-                            className="np-sidebar-art-placeholder" 
-                            style={{ 
-                              display: nowPlaying.album_art_url ? 'none' : 'flex', 
-                              width: '100%', 
-                              height: '100%', 
-                              borderRadius: '10px', 
-                              background: 'rgba(255,159,28,0.1)', 
-                              alignItems: 'center', 
-                              justifyContent: 'center',
-                              border: '1px solid rgba(255,159,28,0.2)'
-                            }}
-                          >
-                            <Music size={18} style={{ color: 'var(--amber)' }} />
-                          </div>
-                        </div>
-
-                        {/* Song Info */}
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, gap: '2px' }}>
-                          <span style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--amber)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Now Playing</span>
-                          <div style={{ fontSize: '13px', fontWeight: '700', color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '1.3' }}>{nowPlaying.track_name}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '1.3' }}>{nowPlaying.artist || 'Unknown Artist'}</div>
-                        </div>
-
-                        {/* Equalizer */}
-                        {playbackState.isPlaying && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '3px', paddingRight: '4px' }}>
-                            <div className="queue-wave" style={{ height: '12px', width: '3px', animationDelay: '0s' }}></div>
-                            <div className="queue-wave" style={{ height: '12px', width: '3px', animationDelay: '0.15s' }}></div>
-                            <div className="queue-wave" style={{ height: '12px', width: '3px', animationDelay: '0.3s' }}></div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
 
                   {activeQueueTab === 'queue' ? (
                     queue.length > 0 ? (
                       queue.map((item, idx) => (
                         <div 
                           key={item.id} 
-                          className="queue-item"
-                          draggable={isHost}
+                          className={`queue-item ${item.status === 'playing' ? 'playing' : ''}`}
+                          draggable={item.status !== 'playing'}
                           onDragStart={(e) => handleDragStart(e, idx)}
                           onDragOver={(e) => handleDragOver(e, idx)}
                           onDragEnd={handleDragEnd}
                           onDrop={(e) => handleDrop(e, idx)}
                           style={{
-                            cursor: isHost ? 'grab' : 'default',
+                            cursor: item.status !== 'playing' ? 'grab' : 'default',
                             borderTop: dragOverIdx === idx ? '2.5px solid var(--theme-accent, #ff9f1c)' : 'none',
                             opacity: draggedIdx === idx ? 0.4 : 1,
                             transition: 'all 0.2s ease'
@@ -2841,6 +2605,11 @@ export default function RoomClient({ roomId }) {
                           </div>
 
                           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, gap: '2px' }}>
+                            {item.status === 'playing' && (
+                              <span style={{ fontSize: '9px', fontWeight: 'bold', color: 'var(--amber)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '2px' }}>
+                                Now Playing
+                              </span>
+                            )}
                             <div className="q-track-title" style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '1.3' }}>{item.track_name}</div>
                             {item.artist && (
                               <div className="q-track-artist" style={{ fontSize: '11px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '1.3' }}>{item.artist}</div>
@@ -2848,160 +2617,143 @@ export default function RoomClient({ roomId }) {
                             <div style={{ fontSize: '10px', color: 'var(--text-4)', lineHeight: '1.2' }}>added by @{item.added_by_name}</div>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                            {downloadedTracks.has(item.track_uri || item.id) ? (
-                              <button className="btn-vote" disabled title="Downloaded" style={{ background: 'rgba(74, 222, 128, 0.1)', color: '#4ade80', cursor: 'default' }}>
-                                <Check size={12} />
-                              </button>
-                            ) : downloadingTracks[item.track_uri || item.id] !== undefined ? (
-                              <button className="btn-vote" disabled style={{ color: 'var(--amber)' }}>
-                                {downloadingTracks[item.track_uri || item.id]}%
-                              </button>
+                            {item.status === 'playing' ? (
+                              playbackState.isPlaying && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '3px', paddingRight: '6px' }}>
+                                  <div className="queue-wave" style={{ height: '12px', width: '3px', animationDelay: '0s' }}></div>
+                                  <div className="queue-wave" style={{ height: '12px', width: '3px', animationDelay: '0.15s' }}></div>
+                                  <div className="queue-wave" style={{ height: '12px', width: '3px', animationDelay: '0.3s' }}></div>
+                                </div>
+                              )
                             ) : (
-                              <button 
-                                className="btn-vote" 
-                                onClick={() => handleDownloadTrack({
-                                  track_uri: item.track_uri || item.id,
-                                  track_name: item.track_name,
-                                  artist: item.artist,
-                                  album_art_url: item.album_art_url,
-                                  duration_ms: item.duration_ms
-                                })} 
-                                title="Download Track"
-                              >
-                                <Download size={12} />
-                              </button>
-                            )}
-                            {me && me.is_registered && playlists.length > 0 && (
-                              <div 
-                                style={{ position: 'relative', display: 'flex', alignItems: 'center' }}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setActiveQueueDropdownId(activeQueueDropdownId === item.id ? null : item.id);
-                                  }}
-                                  style={{
-                                    background: 'rgba(0,0,0,0.6)',
-                                    border: '1px solid rgba(255, 159, 28, 0.2)',
-                                    color: activeQueueDropdownId === item.id ? 'var(--amber)' : '#fff',
-                                    fontSize: '11px',
-                                    padding: '4px 8px',
-                                    borderRadius: '6px',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '4px'
-                                  }}
-                                >
-                                  Playlist +
-                                </button>
-
-                                {activeQueueDropdownId === item.id && (
-                                  <>
-                                    <div 
-                                      style={{
-                                        position: 'fixed',
-                                        inset: 0,
-                                        zIndex: 990,
-                                        cursor: 'default'
-                                      }} 
+                              <>
+                                {me && me.is_registered && playlists.length > 0 && (
+                                  <div 
+                                    style={{ position: 'relative', display: 'flex', alignItems: 'center' }}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        setActiveQueueDropdownId(null);
+                                        setActiveQueueDropdownId(activeQueueDropdownId === item.id ? null : item.id);
                                       }}
-                                    />
-                                    <div 
                                       style={{
-                                        position: 'absolute',
-                                        right: 0,
-                                        bottom: '100%',
-                                        marginBottom: '4px',
-                                        background: '#0e0e12',
+                                        background: 'rgba(0,0,0,0.6)',
                                         border: '1px solid rgba(255, 159, 28, 0.2)',
-                                        borderRadius: '12px',
-                                        padding: '8px 0',
-                                        minWidth: '160px',
-                                        zIndex: 991,
-                                        boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                                        color: activeQueueDropdownId === item.id ? 'var(--amber)' : '#fff',
+                                        fontSize: '11px',
+                                        padding: '4px 8px',
+                                        borderRadius: '6px',
+                                        cursor: 'pointer',
                                         display: 'flex',
-                                        flexDirection: 'column'
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '4px'
                                       }}
                                     >
-                                      <div style={{
-                                        fontSize: '11px',
-                                        color: '#666',
-                                        padding: '4px 12px 8px 12px',
-                                        borderBottom: '1px solid rgba(255,255,255,0.05)',
-                                        fontWeight: 600,
-                                        textTransform: 'uppercase',
-                                        letterSpacing: '0.05em'
-                                      }}>Add to Playlist</div>
-                                      <div style={{ maxHeight: '150px', overflowY: 'auto', padding: '4px 0' }}>
-                                        {playlists.map(p => (
-                                          <button
-                                            key={p.id}
-                                            onClick={async (e) => {
-                                              e.stopPropagation();
-                                              setActiveQueueDropdownId(null);
-                                              try {
-                                                const res = await fetch(`/playlists/${p.id}/tracks`, {
-                                                  method: 'POST',
-                                                  headers: { 'Content-Type': 'application/json' },
-                                                  body: JSON.stringify({
-                                                    track_uri: item.track_uri,
-                                                    track_name: item.track_name,
-                                                    artist: item.artist,
-                                                    album_art_url: item.album_art_url,
-                                                    duration_ms: item.duration_ms || 240000
-                                                  })
-                                                });
-                                                if (res.ok) {
-                                                  triggerToast('Added to playlist!', 'success');
-                                                } else {
-                                                  triggerToast('Failed to add track', 'error');
-                                                }
-                                              } catch (err) {
-                                                triggerToast('Connection error', 'error');
-                                              }
-                                            }}
-                                            style={{
-                                              width: '100%',
-                                              textAlign: 'left',
-                                              background: 'none',
-                                              border: 'none',
-                                              color: 'var(--text-1)',
-                                              padding: '8px 12px',
-                                              fontSize: '12px',
-                                              cursor: 'pointer',
-                                              transition: 'background 0.2s',
-                                              overflow: 'hidden',
-                                              textOverflow: 'ellipsis',
-                                              whiteSpace: 'nowrap'
-                                            }}
-                                            onMouseEnter={(e) => e.target.style.background = 'rgba(255, 159, 28, 0.1)'}
-                                            onMouseLeave={(e) => e.target.style.background = 'none'}
-                                          >
-                                            {p.name}
-                                          </button>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  </>
+                                      Playlist +
+                                    </button>
+
+                                    {activeQueueDropdownId === item.id && (
+                                      <>
+                                        <div 
+                                          style={{
+                                            position: 'fixed',
+                                            inset: 0,
+                                            zIndex: 990,
+                                            cursor: 'default'
+                                          }} 
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveQueueDropdownId(null);
+                                          }}
+                                        />
+                                        <div 
+                                          style={{
+                                            position: 'absolute',
+                                            right: 0,
+                                            top: '100%',
+                                            marginTop: '4px',
+                                            background: '#0e0e12',
+                                            border: '1px solid rgba(255, 159, 28, 0.2)',
+                                            borderRadius: '12px',
+                                            padding: '8px 0',
+                                            minWidth: '160px',
+                                            zIndex: 991,
+                                            boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                                            display: 'flex',
+                                            flexDirection: 'column'
+                                          }}
+                                        >
+                                          <div style={{
+                                            fontSize: '11px',
+                                            color: '#666',
+                                            padding: '4px 12px 8px 12px',
+                                            borderBottom: '1px solid rgba(255,255,255,0.05)',
+                                            fontWeight: 600,
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.05em'
+                                          }}>Add to Playlist</div>
+                                          <div style={{ maxHeight: '150px', overflowY: 'auto', padding: '4px 0' }}>
+                                            {playlists.map(p => (
+                                              <button
+                                                key={p.id}
+                                                onClick={async (e) => {
+                                                  e.stopPropagation();
+                                                  setActiveQueueDropdownId(null);
+                                                  try {
+                                                    const res = await fetch(`/playlists/${p.id}/tracks`, {
+                                                      method: 'POST',
+                                                      headers: { 'Content-Type': 'application/json' },
+                                                      body: JSON.stringify({
+                                                        track_uri: item.track_uri,
+                                                        track_name: item.track_name,
+                                                        artist: item.artist,
+                                                        album_art_url: item.album_art_url,
+                                                        duration_ms: item.duration_ms || 240000
+                                                      })
+                                                    });
+                                                    if (res.ok) {
+                                                      triggerToast('Added to playlist!', 'success');
+                                                    } else {
+                                                      triggerToast('Failed to add track', 'error');
+                                                    }
+                                                  } catch (err) {
+                                                    triggerToast('Connection error', 'error');
+                                                  }
+                                                }}
+                                                style={{
+                                                  width: '100%',
+                                                  textAlign: 'left',
+                                                  background: 'none',
+                                                  border: 'none',
+                                                  color: 'var(--text-1)',
+                                                  padding: '8px 12px',
+                                                  fontSize: '12px',
+                                                  cursor: 'pointer',
+                                                  transition: 'background 0.2s',
+                                                  overflow: 'hidden',
+                                                  textOverflow: 'ellipsis',
+                                                  whiteSpace: 'nowrap'
+                                                }}
+                                                onMouseEnter={(e) => e.target.style.background = 'rgba(255, 159, 28, 0.1)'}
+                                                onMouseLeave={(e) => e.target.style.background = 'none'}
+                                              >
+                                                {p.name}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
                                 )}
-                              </div>
-                            )}
-                            <button 
-                              className={`btn-vote ${item.voted ? 'voted' : ''}`}
-                              onClick={() => handleVoteQueueTrack(item.id)}
-                            >
-                              ▲ {item.votes}
-                            </button>
-                            {(isHost || (me && item.added_by_user_id === me.id)) && (
-                              <button className="btn-remove" onClick={() => handleRemoveQueueTrack(item.id)}>
-                                ✕
-                              </button>
+                                {(isHost || (me && item.added_by_user_id === me.id)) && (
+                                  <button className="btn-remove" onClick={() => handleRemoveQueueTrack(item.id)}>
+                                    ✕
+                                  </button>
+                                )}
+                              </>
                             )}
                           </div>
                         </div>
@@ -3078,30 +2830,7 @@ export default function RoomClient({ roomId }) {
                             )}
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            {downloadedTracks.has(item.track_uri || item.id) ? (
-                              <button className="btn btn-secondary" disabled title="Downloaded" style={{ background: 'rgba(74, 222, 128, 0.1)', color: '#4ade80', padding: '6px 8px', borderRadius: '8px' }}>
-                                <Check size={12} />
-                              </button>
-                            ) : downloadingTracks[item.track_uri || item.id] !== undefined ? (
-                              <button className="btn btn-secondary" disabled style={{ fontSize: '11px', padding: '6px 8px', borderRadius: '8px', color: 'var(--amber)' }}>
-                                {downloadingTracks[item.track_uri || item.id]}%
-                              </button>
-                            ) : (
-                              <button 
-                                className="btn btn-secondary" 
-                                onClick={() => handleDownloadTrack({
-                                  track_uri: item.track_uri || item.id,
-                                  track_name: item.track_name || item.title,
-                                  artist: item.artist,
-                                  album_art_url: item.album_art_url || item.artwork,
-                                  duration_ms: item.duration_ms || item.duration
-                                })} 
-                                title="Download Track"
-                                style={{ padding: '6px 8px', borderRadius: '8px' }}
-                              >
-                                <Download size={12} />
-                              </button>
-                            )}
+
                             <button 
                               className="btn btn-secondary" 
                               onClick={() => handleAddTrack(item)} 
@@ -3453,8 +3182,11 @@ export default function RoomClient({ roomId }) {
                           )}
                           <div className="chat-msg-body">
                             <div className="chat-msg-bubble">
-                              <div className="chat-msg-header">
+                              <div className="chat-msg-header" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 <span className="chat-msg-name">{msg.user_name}</span>
+                                {room && room.host_user_id === msg.user_id && (
+                                  <span className="badge-host">Host</span>
+                                )}
                               </div>
                               <div className="chat-msg-text">{msg.content}</div>
                             </div>
@@ -3643,11 +3375,37 @@ export default function RoomClient({ roomId }) {
                       }}
                     >
                       {user.avatar_url ? (
-                        <img decoding="async" loading="lazy" className="avatar avatar-sm" src={user.avatar_url} alt="" style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }} />
+                        <img 
+                          decoding="async" 
+                          loading="lazy" 
+                          className="avatar avatar-sm" 
+                          src={user.avatar_url} 
+                          alt="" 
+                          style={{ 
+                            width: '24px', 
+                            height: '24px', 
+                            borderRadius: '50%', 
+                            objectFit: 'cover',
+                            border: room && room.host_user_id === uid ? '1.5px solid var(--amber, #ff9f1c)' : 'none',
+                            boxShadow: room && room.host_user_id === uid ? '0 0 6px rgba(255, 159, 28, 0.4)' : 'none'
+                          }} 
+                        />
                       ) : (
                         <div 
                           className="avatar avatar-sm"
-                          style={{ backgroundColor: nameColor(user.display_name), width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 'bold' }}
+                          style={{ 
+                            backgroundColor: nameColor(user.display_name), 
+                            width: '24px', 
+                            height: '24px', 
+                            borderRadius: '50%', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center', 
+                            fontSize: '11px', 
+                            fontWeight: 'bold',
+                            border: room && room.host_user_id === uid ? '1.5px solid var(--amber, #ff9f1c)' : 'none',
+                            boxShadow: room && room.host_user_id === uid ? '0 0 6px rgba(255, 159, 28, 0.4)' : 'none'
+                          }}
                         >
                           {initials(user.display_name)}
                         </div>

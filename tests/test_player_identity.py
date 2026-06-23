@@ -469,3 +469,57 @@ async def test_lazy_resolution_logic(db_session, test_user, test_room):
         db_session.close = original_close
 
 
+@pytest.mark.asyncio
+async def test_playback_host_only_enforcement(test_user, test_room):
+    """Test that playback_update and next_track socket events reject non-host invocations."""
+    sio = MagicMock()
+    events = {}
+    sio.event = lambda fn: events.update({fn.__name__: fn}) or fn
+    sio.get_session = AsyncMock(return_value={"user_id": test_user.id})
+    sio.emit = AsyncMock()
+
+    register_playback_handlers(sio)
+    update_handler = events["playback_update"]
+    next_handler = events["next_track"]
+
+    # Join host and non-host listener
+    room_manager.join_room(test_room.id, test_user.id, "sid-host", test_user.display_name)
+    room_manager.set_host(test_room.id, "sid-host")
+    room_manager.join_room(test_room.id, "listener-id", "sid-listener", "Listener Name")
+
+    # 1. Non-host attempts playback_update
+    room_manager.update_playback(
+        room_id=test_room.id,
+        track_uri="vid1",
+        track_name="Song 1",
+        artist="Artist 1",
+        album_art_url="https://example.com/art.jpg",
+        position_ms=0,
+        duration_ms=10000,
+        is_playing=True,
+    )
+    sio.emit.reset_mock()
+    
+    # Try calling playback_update as listener (non-host)
+    await update_handler("sid-listener", {"is_playing": False})
+    
+    # Verify playback in room_manager is still True (unchanged by listener)
+    assert room_manager.get_playback(test_room.id)["is_playing"] is True
+    sio.emit.assert_not_called()
+
+    # 2. Host calls playback_update
+    await update_handler("sid-host", {"is_playing": False})
+    assert room_manager.get_playback(test_room.id)["is_playing"] is False
+    sio.emit.assert_called_once()
+
+    # 3. Non-host attempts next_track
+    sio.emit.reset_mock()
+    with patch("backend.sockets.playback._do_advance", new_callable=AsyncMock) as mock_advance:
+        await next_handler("sid-listener", {})
+        mock_advance.assert_not_called()
+
+    # Cleanup
+    room_manager.leave_room("sid-host")
+    room_manager.leave_room("sid-listener")
+
+

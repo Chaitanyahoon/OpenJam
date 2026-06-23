@@ -83,6 +83,8 @@ def register_chat_handlers(sio: socketio.AsyncServer):
             return
 
         content = (data.get("message") or data.get("content") or "").strip()
+        import re
+        content = re.sub(r'<[^>]+>', '', content).strip()
         if not content or len(content) > 500:
             return
 
@@ -139,7 +141,7 @@ def register_chat_handlers(sio: socketio.AsyncServer):
 
         room_id = data.get("room_id")
         emoji = data.get("emoji")
-        if not room_id or not emoji:
+        if not room_id or not emoji or len(str(emoji)) > 12:
             return
 
         # Verify active room membership
