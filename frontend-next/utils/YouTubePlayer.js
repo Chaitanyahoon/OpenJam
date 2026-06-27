@@ -86,12 +86,12 @@ export default class YouTubePlayer {
   _setupAudioListeners(audioElement, name) {
     audioElement.addEventListener('loadstart', () => {
       if (audioElement !== this.activePlayer) return;
-      if (!audioElement.src || !audioElement.src.includes('/stream/')) return;
+      if (!audioElement.src || audioElement.src.startsWith('data:')) return;
       this._showLoadIndicator();
     });
     audioElement.addEventListener('play', () => {
       if (audioElement !== this.activePlayer) return;
-      if (!audioElement.src || !audioElement.src.includes('/stream/')) return;
+      if (!audioElement.src || audioElement.src.startsWith('data:')) return;
       this._onStateChange('play');
       this._hideLoadIndicator();
       
@@ -102,24 +102,24 @@ export default class YouTubePlayer {
     });
     audioElement.addEventListener('pause', () => {
       if (audioElement !== this.activePlayer) return;
-      if (!audioElement.src || !audioElement.src.includes('/stream/')) return;
+      if (!audioElement.src || audioElement.src.startsWith('data:')) return;
       this._onStateChange('pause');
     });
     audioElement.addEventListener('ended', () => {
       if (audioElement !== this.activePlayer) return;
-      if (!audioElement.src || !audioElement.src.includes('/stream/')) return;
+      if (!audioElement.src || audioElement.src.startsWith('data:')) return;
       this._onStateChange('ended');
     });
     audioElement.addEventListener('canplay', () => {
       if (audioElement !== this.activePlayer) return;
-      if (!audioElement.src || !audioElement.src.includes('/stream/')) return;
+      if (!audioElement.src || audioElement.src.startsWith('data:')) return;
       if (this._stallTimer) { clearTimeout(this._stallTimer); this._stallTimer = null; }
       this._hideLoadIndicator();
     });
 
     audioElement.addEventListener('error', () => {
       if (audioElement !== this.activePlayer) return;
-      if (!audioElement.src || !audioElement.src.includes('/stream/')) return;
+      if (!audioElement.src || audioElement.src.startsWith('data:')) return;
       const err = audioElement.error;
       console.error(`HTML5 Audio Error details (${name}):`, err ? { code: err.code, message: err.message } : "No details");
       console.error(`HTML5 Audio Player State (${name}):`, {
@@ -132,7 +132,7 @@ export default class YouTubePlayer {
 
     audioElement.addEventListener('stalled', () => {
       if (audioElement !== this.activePlayer) return;
-      if (!audioElement.src || !audioElement.src.includes('/stream/')) return;
+      if (!audioElement.src || audioElement.src.startsWith('data:')) return;
       if (this._stallTimer) clearTimeout(this._stallTimer);
       this._showLoadIndicator();
       this._stallTimer = setTimeout(() => {
@@ -145,7 +145,7 @@ export default class YouTubePlayer {
 
     audioElement.addEventListener('waiting', () => {
       if (audioElement !== this.activePlayer) return;
-      if (!audioElement.src || !audioElement.src.includes('/stream/')) return;
+      if (!audioElement.src || audioElement.src.startsWith('data:')) return;
       if (this._stallTimer) clearTimeout(this._stallTimer);
       this._showLoadIndicator();
       this._stallTimer = setTimeout(() => {
@@ -159,7 +159,7 @@ export default class YouTubePlayer {
 
   _handleAudioError(source, audioElement) {
     if (audioElement !== this.activePlayer) return;
-    if (!audioElement.src || !audioElement.src.includes('/stream/')) return;
+    if (!audioElement.src || audioElement.src.startsWith('data:')) return;
     this._hideLoadIndicator();
     console.error(`Audio stream error from ${source}, fail count:`, this._streamFailCount);
     this._streamFailCount++;
@@ -637,7 +637,7 @@ export default class YouTubePlayer {
 
       if (this._loadTimeout) clearTimeout(this._loadTimeout);
       this._loadTimeout = setTimeout(() => {
-        if (this.player.readyState === 0 && this.player.src.includes('/stream/')) {
+        if (this.player.readyState === 0 && this.player.src && !this.player.src.startsWith('data:')) {
           console.warn('Stream load timeout after 12s');
           this.player.dispatchEvent(new Event('error'));
         }
