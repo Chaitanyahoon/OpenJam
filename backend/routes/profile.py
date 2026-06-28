@@ -89,6 +89,9 @@ async def search_profiles(q: str, db: Session = Depends(get_db)):
                 "display_name": u.display_name,
                 "avatar_url": u.avatar_url,
                 "discord_username": u.discord_username,
+                "profile_theme": u.profile_theme or "amber",
+                "banner_url": u.banner_url,
+                "bio": u.bio,
                 "created_at": u.created_at.isoformat() if u.created_at else None
             } for u in users
         ]

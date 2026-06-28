@@ -288,6 +288,7 @@ export default function ProfilePageClient() {
           onFollowClick={handleFollow}
           onUnfollowClick={handleUnfollow}
           onOpenSocialModal={() => setSocialModalOpen(true)}
+          addToast={addToast}
         />
 
         {/* Social Listing Modal */}

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   User, Edit2, Check, X, LogOut, Disc, 
-  Heart, ListMusic, Globe, Calendar, KeyRound, Sparkles, PlusCircle, Users, Move, Trash2
+  Heart, ListMusic, Globe, Calendar, KeyRound, Sparkles, PlusCircle, Users, Move, Trash2, Share2
 } from 'lucide-react';
 
 const THEME_COLORS = {
@@ -68,7 +68,8 @@ export default function ProfileHero({
   social = { followers_count: 0, following_count: 0, is_following: false },
   onFollowClick,
   onUnfollowClick,
-  onOpenSocialModal
+  onOpenSocialModal,
+  addToast
 }) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(profile?.display_name || '');
@@ -389,7 +390,7 @@ export default function ProfileHero({
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <input
                         type="text"
-                        placeholder="Paste an image URL..."
+                        placeholder="Paste an image or GIF URL..."
                         value={customBannerUrl}
                         onChange={(e) => setCustomBannerUrl(e.target.value)}
                         style={{
@@ -424,9 +425,13 @@ export default function ProfileHero({
                         Apply
                       </button>
                     </div>
-                    {isUrlInvalid && (
+                    {isUrlInvalid ? (
                       <div style={{ color: '#ff4757', fontSize: '10px', marginTop: '6px', fontWeight: 600 }}>
                         Enter a valid direct image URL (e.g. .png, .jpg, .gif, or from Pinterest/Discord).
+                      </div>
+                    ) : (
+                      <div style={{ color: '#555', fontSize: '10px', marginTop: '6px', lineHeight: 1.3 }}>
+                        Supports direct image links (.png, .jpg, .gif, .webp) and animated GIFs.
                       </div>
                     )}
                   </div>
@@ -617,6 +622,44 @@ export default function ProfileHero({
 
           {/* Right Action buttons */}
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <button
+              onClick={() => {
+                const link = `${window.location.origin}/profile/${profile?.id}`;
+                navigator.clipboard.writeText(link);
+                if (addToast) {
+                  addToast('Profile link copied to clipboard!', 'success');
+                } else {
+                  alert('Profile link copied to clipboard!');
+                }
+              }}
+              style={{
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.06)',
+                color: '#fff',
+                padding: '10px 18px',
+                borderRadius: '30px',
+                fontSize: '14px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'background 0.2s, border-color 0.2s',
+                alignSelf: 'center'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
+              }}
+            >
+              <Share2 size={14} />
+              Share
+            </button>
+
             {!isOwnProfile && onFollowClick && onUnfollowClick && (
               <button
                 onClick={social.is_following ? onUnfollowClick : onFollowClick}

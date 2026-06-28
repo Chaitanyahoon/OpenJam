@@ -559,7 +559,9 @@ export default function ProfileClient() {
           onFollowClick={null}
           onUnfollowClick={null}
           onOpenSocialModal={() => setSocialModalOpen(true)}
+          addToast={addToast}
         />
+
 
         {/* Grid Area */}
         <div className="profile-dashboard-grid">

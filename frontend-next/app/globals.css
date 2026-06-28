@@ -10595,6 +10595,18 @@ div:hover > .play-hover-btn,
   animation: gradient-flow 15s ease infinite;
 }
 
+.profile-hero-banner::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 100px;
+  background: linear-gradient(to bottom, transparent, rgba(14, 14, 18, 0.85));
+  pointer-events: none;
+  z-index: 1;
+}
+
 @keyframes gradient-flow {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
@@ -10655,13 +10667,20 @@ div:hover > .play-hover-btn,
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.06);
-  padding: 6px 12px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.05);
+  padding: 6px 14px;
   border-radius: 20px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #ccc;
+  font-size: 12px;
+  font-weight: 600;
+  color: #bbb;
+  transition: background 0.2s, border-color 0.2s;
+  backdrop-filter: blur(8px);
+}
+
+.profile-hero-badge:hover {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.1);
 }
 
 .profile-theme-selector {
