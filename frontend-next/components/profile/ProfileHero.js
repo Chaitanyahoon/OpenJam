@@ -35,16 +35,26 @@ const BANNER_GRADIENTS = {
 const isValidImageUrl = (url) => {
   if (!url) return false;
   const u = url.trim().toLowerCase();
-  return (
-    u.startsWith('http://') || 
-    u.startsWith('https://')
-  ) && (
-    /\.(jpeg|jpg|gif|png|webp|svg|bmp)(?:\?.*)?$/i.test(u) ||
-    u.includes('f.pinimg.com') ||
-    u.includes('media.discordapp.net') ||
-    u.includes('cdn.discordapp.com') ||
-    u.includes('images.unsplash.com')
-  );
+  
+  if (!u.startsWith('http://') && !u.startsWith('https://')) {
+    return false;
+  }
+  
+  const hasImageHost = 
+    u.includes('pinimg.com') ||
+    u.includes('discordapp') ||
+    u.includes('unsplash.com') ||
+    u.includes('githubusercontent') ||
+    u.includes('imgur.com') ||
+    u.includes('postimages.org') ||
+    u.includes('imgbb.com') ||
+    u.includes('cloudinary.com') ||
+    u.includes('giphy.com') ||
+    u.includes('tenor.com');
+
+  const hasImageExtension = /\.(jpeg|jpg|gif|png|webp|svg|bmp)(?:\?.*)?$/i.test(u);
+  
+  return hasImageHost || hasImageExtension;
 };
 
 export default function ProfileHero({
@@ -239,7 +249,7 @@ export default function ProfileHero({
               <X size={18} style={{ cursor: 'pointer', color: '#666', transition: 'color 0.2s' }} onClick={() => setShowSettings(false)} onMouseEnter={(e) => e.currentTarget.style.color = '#fff'} onMouseLeave={(e) => e.currentTarget.style.color = '#666'} />
             </div>
 
-            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px', maxHeight: '420px', overflowY: 'auto' }}>
+            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px', maxHeight: '75vh', overflowY: 'auto' }}>
               {/* Theme selection */}
               <div>
                 <div style={{ fontSize: '11px', color: '#888', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Theme Accent</div>
