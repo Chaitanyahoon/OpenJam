@@ -164,8 +164,8 @@ export default function ProfileHero({
     if (!isCropperDragging) return;
     const clientY = e.clientY || (e.touches && e.touches[0].clientY) || 0;
     const deltaY = clientY - cropperDragStartY;
-    // Viewport height is 88px. Drag vertically.
-    const percentDiff = (deltaY / 88) * 100;
+    // Viewport height is 100px. Drag vertically.
+    const percentDiff = (deltaY / 100) * 100;
     let newPercent = Math.round(cropperDragStartPercent - percentDiff);
     newPercent = Math.max(0, Math.min(100, newPercent));
     setTempPosition(newPercent);
@@ -211,9 +211,12 @@ export default function ProfileHero({
       <div 
         className="profile-hero-banner" 
         style={{ 
-          background: profile?.banner_url ? `url(${profile.banner_url})` : bannerBackground,
+          backgroundImage: profile?.banner_url ? `url(${profile.banner_url})` : 'none',
+          background: !profile?.banner_url ? bannerBackground : 'none',
+          backgroundColor: '#18191c',
           backgroundSize: profile?.banner_url ? (bannerScale || 'cover') : 'cover',
-          backgroundPosition: `center ${bannerPosition}`
+          backgroundPosition: `center ${bannerPosition}`,
+          backgroundRepeat: 'no-repeat'
         }}
       >
         {isOwnProfile && (
@@ -514,10 +517,12 @@ export default function ProfileHero({
               <div
                 style={{
                   width: '440px',
-                  height: '88px',
+                  height: '100px',
                   backgroundImage: `url(${customBannerUrl})`,
                   backgroundSize: `${tempScale}%`,
                   backgroundPosition: `center ${tempPosition}%`,
+                  backgroundRepeat: 'no-repeat',
+                  backgroundColor: '#18191c',
                   cursor: isCropperDragging ? 'grabbing' : 'grab',
                   borderRadius: '4px',
                   zIndex: 5
