@@ -10975,3 +10975,32 @@ div:hover > .play-hover-btn,
 }
 
 
+/* Drag to reposition banner styles */
+.profile-banner-reposition-mode {
+  cursor: grab !important;
+  user-select: none !important;
+}
+.profile-banner-reposition-mode:active {
+  cursor: grabbing !important;
+}
+.profile-banner-reposition-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(2px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  z-index: 12;
+  gap: 10px;
+  pointer-events: none; /* Let drag pass through to banner */
+}
+.profile-banner-reposition-actions {
+  display: flex;
+  gap: 8px;
+  pointer-events: auto; /* Enable clicks on Save/Cancel buttons */
+}
+
+

@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   User, Edit2, Check, X, LogOut, Disc, 
-  Heart, ListMusic, Globe, Calendar, KeyRound, Sparkles, PlusCircle, Users
+  Heart, ListMusic, Globe, Calendar, KeyRound, Sparkles, PlusCircle, Users, Move
 } from 'lucide-react';
 
 const THEME_COLORS = {
@@ -53,6 +53,13 @@ export default function ProfileHero({
   const [customBannerUrl, setCustomBannerUrl] = useState(profile?.banner_url || '');
   const [bannerPosition, setBannerPosition] = useState(profile?.banner_position || '50%');
 
+  // Interactive drag-to-reposition states
+  const [isRepositioning, setIsRepositioning] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStartY, setDragStartY] = useState(0);
+  const [dragStartPercent, setDragStartPercent] = useState(50);
+  const [originalPosition, setOriginalPosition] = useState('50%');
+
   const theme = profile?.profile_theme || 'amber';
   const bannerPreset = profile?.banner_color || 'default';
   
@@ -86,14 +93,45 @@ export default function ProfileHero({
     await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: theme, banner_color: 'custom', banner_url: customBannerUrl.trim() || null, banner_position: bannerPosition });
   };
 
-  const handlePositionSliderChange = (e) => {
-    const val = `${e.target.value}%`;
-    setBannerPosition(val);
+  const handleDragStart = (e) => {
+    if (!isRepositioning) return;
+    // Prevent default browser image dragging ghost outline behavior
+    if (e.cancelable) e.preventDefault();
+    setIsDragging(true);
+    const clientY = e.clientY || (e.touches && e.touches[0].clientY) || 0;
+    setDragStartY(clientY);
+    setDragStartPercent(parseInt(bannerPosition) || 50);
   };
 
-  const handlePositionSliderRelease = async () => {
-    // Commit the position to the DB on release (mouseUp / touchEnd)
-    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: theme, banner_color: 'custom', banner_url: customBannerUrl.trim() || null, banner_position: bannerPosition });
+  const handleDragMove = (e) => {
+    if (!isRepositioning || !isDragging) return;
+    const clientY = e.clientY || (e.touches && e.touches[0].clientY) || 0;
+    const deltaY = clientY - dragStartY;
+    // Container height is 200px. Slide image Vertically.
+    const percentDiff = (deltaY / 200) * 100;
+    let newPercent = Math.round(dragStartPercent - percentDiff);
+    newPercent = Math.max(0, Math.min(100, newPercent));
+    setBannerPosition(`${newPercent}%`);
+  };
+
+  const handleDragEnd = () => {
+    setIsDragging(false);
+  };
+
+  const handleStartRepositioning = () => {
+    setOriginalPosition(bannerPosition);
+    setIsRepositioning(true);
+    setShowSettings(false);
+  };
+
+  const handleSaveReposition = async () => {
+    setIsRepositioning(false);
+    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: theme, banner_color: bannerPreset, banner_url: customBannerUrl.trim() || null, banner_position: bannerPosition });
+  };
+
+  const handleCancelReposition = () => {
+    setBannerPosition(originalPosition);
+    setIsRepositioning(false);
   };
 
   const formattedDate = profile?.created_at
@@ -104,14 +142,21 @@ export default function ProfileHero({
     <div className="profile-hero">
       {/* Banner */}
       <div 
-        className="profile-hero-banner" 
+        className={`profile-hero-banner ${isRepositioning ? 'profile-banner-reposition-mode' : ''}`}
         style={{ 
           background: profile?.banner_url ? `url(${profile.banner_url})` : bannerBackground,
           backgroundSize: 'cover',
           backgroundPosition: `center ${bannerPosition}`
         }}
+        onMouseDown={handleDragStart}
+        onMouseMove={handleDragMove}
+        onMouseUp={handleDragEnd}
+        onMouseLeave={handleDragEnd}
+        onTouchStart={handleDragStart}
+        onTouchMove={handleDragMove}
+        onTouchEnd={handleDragEnd}
       >
-        {isOwnProfile && (
+        {isOwnProfile && !isRepositioning && (
           <button
             onClick={() => setShowSettings(!showSettings)}
             style={{
@@ -136,6 +181,55 @@ export default function ProfileHero({
             <Sparkles size={13} style={{ color: 'var(--theme-accent, #ff9f1c)' }} />
             Customize Profile
           </button>
+        )}
+
+        {isRepositioning && (
+          <div className="profile-banner-reposition-overlay">
+            <span style={{ fontSize: '13px', fontWeight: 800, textShadow: '0 2px 8px rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Move size={14} style={{ color: 'var(--theme-accent, #ff9f1c)' }} />
+              Drag image vertically to adjust position
+            </span>
+            <div className="profile-banner-reposition-actions">
+              <button
+                onClick={handleSaveReposition}
+                style={{
+                  background: 'var(--theme-accent, #ff9f1c)',
+                  border: 'none',
+                  color: '#000',
+                  padding: '6px 16px',
+                  borderRadius: '20px',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              >
+                Save
+              </button>
+              <button
+                onClick={handleCancelReposition}
+                style={{
+                  background: 'rgba(0,0,0,0.6)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  color: '#fff',
+                  padding: '6px 16px',
+                  borderRadius: '20px',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         )}
       </div>
 
@@ -254,35 +348,40 @@ export default function ProfileHero({
             </div>
           </div>
 
-          {/* Banner Repositioning Slider */}
+          {/* Banner Repositioning Button */}
           {(profile?.banner_url || customBannerUrl.trim()) && (
             <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '14px' }}>
-              <div style={{ fontSize: '11px', color: '#555', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', justifyContent: 'space-between' }}>
-                <span>Vertical Alignment</span>
-                <span style={{ color: 'var(--theme-accent, #ff9f1c)', fontWeight: 800 }}>{bannerPosition}</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontSize: '9px', color: '#444', fontWeight: 700 }}>TOP</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={parseInt(bannerPosition)}
-                  onChange={handlePositionSliderChange}
-                  onMouseUp={handlePositionSliderRelease}
-                  onTouchEnd={handlePositionSliderRelease}
-                  style={{
-                    flex: 1,
-                    accentColor: 'var(--theme-accent, #ff9f1c)',
-                    cursor: 'pointer',
-                    background: 'rgba(255,255,255,0.1)',
-                    height: '4px',
-                    borderRadius: '2px',
-                    outline: 'none'
-                  }}
-                />
-                <span style={{ fontSize: '9px', color: '#444', fontWeight: 700 }}>BOTTOM</span>
-              </div>
+              <div style={{ fontSize: '11px', color: '#555', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Banner Alignment</div>
+              <button
+                onClick={handleStartRepositioning}
+                style={{
+                  width: '100%',
+                  background: 'rgba(255,255,255,0.02)',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  color: '#fff',
+                  padding: '8px 12px',
+                  borderRadius: '10px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                  e.currentTarget.style.borderColor = 'var(--theme-accent, #ff9f1c)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
+                }}
+              >
+                <Move size={13} style={{ color: 'var(--theme-accent, #ff9f1c)' }} />
+                Reposition Image
+              </button>
             </div>
           )}
         </motion.div>
