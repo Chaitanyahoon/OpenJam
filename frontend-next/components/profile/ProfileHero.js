@@ -51,6 +51,7 @@ export default function ProfileHero({
   const [editedBio, setEditedBio] = useState(profile?.bio || '');
   const [showSettings, setShowSettings] = useState(false);
   const [customBannerUrl, setCustomBannerUrl] = useState(profile?.banner_url || '');
+  const [bannerPosition, setBannerPosition] = useState(profile?.banner_position || '50%');
 
   const theme = profile?.profile_theme || 'amber';
   const bannerPreset = profile?.banner_color || 'default';
@@ -62,26 +63,37 @@ export default function ProfileHero({
 
   const handleSaveName = async () => {
     if (!editedName.trim()) return;
-    await onUpdateProfile({ display_name: editedName.trim(), bio: editedBio, profile_theme: theme, banner_color: bannerPreset, banner_url: customBannerUrl || null });
+    await onUpdateProfile({ display_name: editedName.trim(), bio: editedBio, profile_theme: theme, banner_color: bannerPreset, banner_url: customBannerUrl || null, banner_position: bannerPosition });
     setIsEditingName(false);
   };
 
   const handleSaveBio = async () => {
-    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: theme, banner_color: bannerPreset, banner_url: customBannerUrl || null });
+    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: theme, banner_color: bannerPreset, banner_url: customBannerUrl || null, banner_position: bannerPosition });
     setIsEditingBio(false);
   };
 
   const handleThemeChange = async (newTheme) => {
-    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: newTheme, banner_color: bannerPreset, banner_url: customBannerUrl || null });
+    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: newTheme, banner_color: bannerPreset, banner_url: customBannerUrl || null, banner_position: bannerPosition });
   };
 
   const handleBannerPresetChange = async (preset) => {
     setCustomBannerUrl('');
-    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: theme, banner_color: preset, banner_url: null });
+    setBannerPosition('50%');
+    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: theme, banner_color: preset, banner_url: null, banner_position: '50%' });
   };
 
   const handleCustomBannerSave = async () => {
-    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: theme, banner_color: 'custom', banner_url: customBannerUrl.trim() || null });
+    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: theme, banner_color: 'custom', banner_url: customBannerUrl.trim() || null, banner_position: bannerPosition });
+  };
+
+  const handlePositionSliderChange = (e) => {
+    const val = `${e.target.value}%`;
+    setBannerPosition(val);
+  };
+
+  const handlePositionSliderRelease = async () => {
+    // Commit the position to the DB on release (mouseUp / touchEnd)
+    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: theme, banner_color: 'custom', banner_url: customBannerUrl.trim() || null, banner_position: bannerPosition });
   };
 
   const formattedDate = profile?.created_at
@@ -96,7 +108,7 @@ export default function ProfileHero({
         style={{ 
           background: profile?.banner_url ? `url(${profile.banner_url})` : bannerBackground,
           backgroundSize: 'cover',
-          backgroundPosition: 'center'
+          backgroundPosition: `center ${bannerPosition}`
         }}
       >
         {isOwnProfile && (
@@ -137,24 +149,27 @@ export default function ProfileHero({
             position: 'absolute',
             top: '55px',
             right: '16px',
-            background: 'rgba(15, 15, 22, 0.98)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            borderRadius: '16px',
-            padding: '16px',
-            width: '290px',
-            backdropFilter: 'blur(20px)',
+            background: 'rgba(10, 10, 15, 0.98)',
+            border: `1px solid ${THEME_COLORS[theme]?.color}55`, // Subtle theme accent border with alpha transparency
+            borderRadius: '20px',
+            padding: '20px',
+            width: '300px',
+            backdropFilter: 'blur(25px)',
             zIndex: 15,
-            boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
+            boxShadow: '0 20px 40px rgba(0,0,0,0.6), 0 0 15px rgba(255,255,255,0.02)'
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <span style={{ fontSize: '13px', fontWeight: 700, color: '#aaa' }}>Customization Panel</span>
-            <X size={16} style={{ cursor: 'pointer', color: '#888' }} onClick={() => setShowSettings(false)} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '10px' }}>
+            <span style={{ fontSize: '14px', fontWeight: 800, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Sparkles size={14} style={{ color: 'var(--theme-accent, #ff9f1c)' }} />
+              Customize Profile
+            </span>
+            <X size={16} style={{ cursor: 'pointer', color: '#666', transition: 'color 0.2s' }} onClick={() => setShowSettings(false)} onMouseEnter={(e) => e.currentTarget.style.color = '#fff'} onMouseLeave={(e) => e.currentTarget.style.color = '#666'} />
           </div>
 
           {/* Theme selection */}
-          <div style={{ marginBottom: '14px' }}>
-            <div style={{ fontSize: '12px', color: '#666', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase' }}>Theme Accent</div>
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ fontSize: '11px', color: '#555', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Theme Accent</div>
             <div className="profile-theme-selector">
               {Object.entries(THEME_COLORS).map(([key, value]) => (
                 <div
@@ -169,8 +184,8 @@ export default function ProfileHero({
           </div>
 
           {/* Banner selection presets */}
-          <div style={{ marginBottom: '14px' }}>
-            <div style={{ fontSize: '12px', color: '#666', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase' }}>Banner Presets</div>
+          <div style={{ marginBottom: '16px', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '14px' }}>
+            <div style={{ fontSize: '11px', color: '#555', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Banner Presets</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
               {Object.entries(BANNER_GRADIENTS).map(([key, value]) => (
                 <button
@@ -179,7 +194,7 @@ export default function ProfileHero({
                   style={{
                     background: (bannerPreset === key && !customBannerUrl) ? 'rgba(255, 159, 28, 0.1)' : 'rgba(255,255,255,0.02)',
                     border: (bannerPreset === key && !customBannerUrl) ? '1px solid var(--theme-accent, #ff9f1c)' : '1px solid rgba(255,255,255,0.05)',
-                    color: (bannerPreset === key && !customBannerUrl) ? 'var(--theme-accent, #ff9f1c)' : '#aaa',
+                    color: (bannerPreset === key && !customBannerUrl) ? 'var(--theme-accent, #ff9f1c)' : '#888',
                     padding: '6px 8px',
                     borderRadius: '8px',
                     fontSize: '11px',
@@ -188,7 +203,8 @@ export default function ProfileHero({
                     textAlign: 'left',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
-                    textOverflow: 'ellipsis'
+                    textOverflow: 'ellipsis',
+                    transition: 'all 0.2s'
                   }}
                 >
                   {value.name}
@@ -198,8 +214,8 @@ export default function ProfileHero({
           </div>
 
           {/* Custom Banner Image URL */}
-          <div>
-            <div style={{ fontSize: '12px', color: '#666', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase' }}>Custom Banner Image URL</div>
+          <div style={{ marginBottom: '16px', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '14px' }}>
+            <div style={{ fontSize: '11px', color: '#555', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Custom Image Banner</div>
             <div style={{ display: 'flex', gap: '6px' }}>
               <input
                 type="text"
@@ -237,6 +253,38 @@ export default function ProfileHero({
               Tip: Copy the <strong>direct image address</strong> (e.g. right-click image &rarr; <em>Copy Image Address/Link</em>). Webpage links (like Pinterest pins or standard website URLs) will not work.
             </div>
           </div>
+
+          {/* Banner Repositioning Slider */}
+          {(profile?.banner_url || customBannerUrl.trim()) && (
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '14px' }}>
+              <div style={{ fontSize: '11px', color: '#555', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', justifyContent: 'space-between' }}>
+                <span>Vertical Alignment</span>
+                <span style={{ color: 'var(--theme-accent, #ff9f1c)', fontWeight: 800 }}>{bannerPosition}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '9px', color: '#444', fontWeight: 700 }}>TOP</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={parseInt(bannerPosition)}
+                  onChange={handlePositionSliderChange}
+                  onMouseUp={handlePositionSliderRelease}
+                  onTouchEnd={handlePositionSliderRelease}
+                  style={{
+                    flex: 1,
+                    accentColor: 'var(--theme-accent, #ff9f1c)',
+                    cursor: 'pointer',
+                    background: 'rgba(255,255,255,0.1)',
+                    height: '4px',
+                    borderRadius: '2px',
+                    outline: 'none'
+                  }}
+                />
+                <span style={{ fontSize: '9px', color: '#444', fontWeight: 700 }}>BOTTOM</span>
+              </div>
+            </div>
+          )}
         </motion.div>
       )}
 

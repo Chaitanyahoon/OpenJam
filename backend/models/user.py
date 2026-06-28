@@ -21,6 +21,7 @@ class User(Base):
     bio = Column(String, nullable=True)
     banner_color = Column(String, default="default", nullable=False)
     banner_url = Column(String, nullable=True)
+    banner_position = Column(String, default="50%", nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     def to_dict(self):
@@ -36,6 +37,7 @@ class User(Base):
             "bio": self.bio,
             "banner_color": self.banner_color,
             "banner_url": self.banner_url,
+            "banner_position": self.banner_position,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 

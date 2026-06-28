@@ -17,6 +17,7 @@ class UpdateProfileRequest(BaseModel):
     bio: Optional[str] = Field(None, max_length=200)
     banner_color: Optional[str] = Field("default", max_length=50)
     banner_url: Optional[str] = Field(None, max_length=1000)
+    banner_position: Optional[str] = Field("50%", max_length=10)
 
 
 @router.get("/me")
@@ -43,7 +44,7 @@ async def update_my_profile(
     db: Session = Depends(get_db),
     user_id: str = Depends(require_registered_user)
 ):
-    """Update user profile (display name, theme, bio, banner color, and banner URL)."""
+    """Update user profile (display name, theme, bio, banner color, banner URL, and vertical position)."""
     
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -58,6 +59,8 @@ async def update_my_profile(
         user.banner_color = update_req.banner_color
     if update_req.banner_url is not None:
         user.banner_url = update_req.banner_url
+    if update_req.banner_position is not None:
+        user.banner_position = update_req.banner_position
     db.commit()
     db.refresh(user)
     
@@ -112,6 +115,7 @@ async def get_public_profile(user_id: str, db: Session = Depends(get_db)):
             "bio": user.bio,
             "banner_color": user.banner_color,
             "banner_url": user.banner_url,
+            "banner_position": user.banner_position,
             "created_at": user.created_at.isoformat() if user.created_at else None,
         },
         "playlists": [p.to_dict() for p in playlists]

@@ -143,6 +143,22 @@ def init_db():
         except Exception as e:
             print(f"Failed to auto-migrate users.banner_url: {e}")
 
+    # Check for banner_position in users
+    banner_position_exists = True
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("SELECT banner_position FROM users LIMIT 1"))
+        except Exception:
+            banner_position_exists = False
+
+    if not banner_position_exists:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN banner_position VARCHAR NOT NULL DEFAULT '50%'"))
+            print("Successfully added banner_position column to users table.")
+        except Exception as e:
+            print(f"Failed to auto-migrate users.banner_position: {e}")
+
     # Auto-migration: Check if 'password_hash' and 'is_private' columns exist in 'rooms' table, and add them if missing
     password_hash_exists = True
     is_private_exists = True
