@@ -11004,4 +11004,105 @@ div:hover > .play-hover-btn,
   pointer-events: auto; /* Enable clicks on Save/Cancel buttons */
 }
 
+/* Centered Customize & Crop Modal styling */
+.profile-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(15px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  padding: 20px;
+}
+
+/* Discord-Style Image Editor Modal */
+.image-editor-container {
+  width: 100%;
+  max-width: 520px;
+  background: #18191c;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.image-editor-header {
+  padding: 16px 20px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.image-editor-viewport-wrapper {
+  position: relative;
+  width: 100%;
+  height: 300px;
+  background: #090a0c;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The horizontal rectangular crop overlay viewport */
+.image-editor-crop-viewport {
+  position: absolute;
+  width: 440px;
+  height: 88px; /* 5:1 ratio matching banner dimensions */
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6); /* Dim the area outside viewport */
+  z-index: 10;
+  pointer-events: none; /* Let clicks pass through to drag the image */
+  border-radius: 4px;
+}
+
+.image-editor-preview-image {
+  position: absolute;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.image-editor-preview-image:active {
+  cursor: grabbing;
+}
+
+.image-editor-controls {
+  padding: 20px;
+  background: #2f3136;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.image-editor-zoom-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.image-editor-zoom-slider {
+  flex: 1;
+  accent-color: #5865F2;
+  cursor: pointer;
+  background: #4f545c;
+  height: 4px;
+  border-radius: 2px;
+  outline: none;
+}
+
+.image-editor-footer {
+  padding: 16px 20px;
+  background: #2f3136;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 

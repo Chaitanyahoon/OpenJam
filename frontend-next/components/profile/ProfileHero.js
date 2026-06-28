@@ -52,13 +52,15 @@ export default function ProfileHero({
   const [showSettings, setShowSettings] = useState(false);
   const [customBannerUrl, setCustomBannerUrl] = useState(profile?.banner_url || '');
   const [bannerPosition, setBannerPosition] = useState(profile?.banner_position || '50%');
+  const [bannerScale, setBannerScale] = useState(profile?.banner_scale || '100%');
 
-  // Interactive drag-to-reposition states
-  const [isRepositioning, setIsRepositioning] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStartY, setDragStartY] = useState(0);
-  const [dragStartPercent, setDragStartPercent] = useState(50);
-  const [originalPosition, setOriginalPosition] = useState('50%');
+  // Discord-style Cropper Modal states
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [tempPosition, setTempPosition] = useState(50); // 0 to 100
+  const [tempScale, setTempScale] = useState(100);       // 100 to 300
+  const [isCropperDragging, setIsCropperDragging] = useState(false);
+  const [cropperDragStartY, setCropperDragStartY] = useState(0);
+  const [cropperDragStartPercent, setCropperDragStartPercent] = useState(50);
 
   const theme = profile?.profile_theme || 'amber';
   const bannerPreset = profile?.banner_color || 'default';
@@ -69,6 +71,7 @@ export default function ProfileHero({
     setEditedBio(profile?.bio || '');
     setCustomBannerUrl(profile?.banner_url || '');
     setBannerPosition(profile?.banner_position || '50%');
+    setBannerScale(profile?.banner_scale || '100%');
   }, [profile]);
   
   // Choose banner style: custom URL or preset gradient
@@ -78,68 +81,84 @@ export default function ProfileHero({
 
   const handleSaveName = async () => {
     if (!editedName.trim()) return;
-    await onUpdateProfile({ display_name: editedName.trim(), bio: editedBio, profile_theme: theme, banner_color: bannerPreset, banner_url: customBannerUrl || null, banner_position: bannerPosition });
+    await onUpdateProfile({ display_name: editedName.trim(), bio: editedBio, profile_theme: theme, banner_color: bannerPreset, banner_url: customBannerUrl || null, banner_position: bannerPosition, banner_scale: bannerScale });
     setIsEditingName(false);
   };
 
   const handleSaveBio = async () => {
-    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: theme, banner_color: bannerPreset, banner_url: customBannerUrl || null, banner_position: bannerPosition });
+    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: theme, banner_color: bannerPreset, banner_url: customBannerUrl || null, banner_position: bannerPosition, banner_scale: bannerScale });
     setIsEditingBio(false);
   };
 
   const handleThemeChange = async (newTheme) => {
-    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: newTheme, banner_color: bannerPreset, banner_url: customBannerUrl || null, banner_position: bannerPosition });
+    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: newTheme, banner_color: bannerPreset, banner_url: customBannerUrl || null, banner_position: bannerPosition, banner_scale: bannerScale });
   };
 
   const handleBannerPresetChange = async (preset) => {
     setCustomBannerUrl('');
     setBannerPosition('50%');
-    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: theme, banner_color: preset, banner_url: null, banner_position: '50%' });
+    setBannerScale('100%');
+    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: theme, banner_color: preset, banner_url: null, banner_position: '50%', banner_scale: '100%' });
   };
 
   const handleCustomBannerSave = async () => {
-    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: theme, banner_color: 'custom', banner_url: customBannerUrl.trim() || null, banner_position: bannerPosition });
-  };
-
-  const handleDragStart = (e) => {
-    if (!isRepositioning) return;
-    // Prevent default browser image dragging ghost outline behavior
-    if (e.cancelable) e.preventDefault();
-    setIsDragging(true);
-    const clientY = e.clientY || (e.touches && e.touches[0].clientY) || 0;
-    setDragStartY(clientY);
-    setDragStartPercent(parseInt(bannerPosition) || 50);
-  };
-
-  const handleDragMove = (e) => {
-    if (!isRepositioning || !isDragging) return;
-    const clientY = e.clientY || (e.touches && e.touches[0].clientY) || 0;
-    const deltaY = clientY - dragStartY;
-    // Container height is 200px. Slide image Vertically.
-    const percentDiff = (deltaY / 200) * 100;
-    let newPercent = Math.round(dragStartPercent - percentDiff);
-    newPercent = Math.max(0, Math.min(100, newPercent));
-    setBannerPosition(`${newPercent}%`);
-  };
-
-  const handleDragEnd = () => {
-    setIsDragging(false);
-  };
-
-  const handleStartRepositioning = () => {
-    setOriginalPosition(bannerPosition);
-    setIsRepositioning(true);
+    // Save Custom Banner URL and automatically open the Cropper Editor Modal
+    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: theme, banner_color: 'custom', banner_url: customBannerUrl.trim() || null, banner_position: '50%', banner_scale: '100%' });
+    setTempPosition(50);
+    setTempScale(100);
+    setShowCropModal(true);
     setShowSettings(false);
   };
 
-  const handleSaveReposition = async () => {
-    setIsRepositioning(false);
-    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: theme, banner_color: bannerPreset, banner_url: customBannerUrl.trim() || null, banner_position: bannerPosition });
+  // Cropper drag-to-pan handlers
+  const handleCropperDragStart = (e) => {
+    e.preventDefault();
+    setIsCropperDragging(true);
+    const clientY = e.clientY || (e.touches && e.touches[0].clientY) || 0;
+    setDragStartY(clientY); // We can reuse dragStartY or create a local variable
+    setDragStartY(clientY);
+    setCropperDragStartPercent(tempPosition);
   };
 
-  const handleCancelReposition = () => {
-    setBannerPosition(originalPosition);
-    setIsRepositioning(false);
+  const handleCropperDragMove = (e) => {
+    if (!isCropperDragging) return;
+    const clientY = e.clientY || (e.touches && e.touches[0].clientY) || 0;
+    const deltaY = clientY - dragStartY;
+    // Viewport height is 88px. Drag vertically.
+    const percentDiff = (deltaY / 88) * 100;
+    let newPercent = Math.round(cropperDragStartPercent - percentDiff);
+    newPercent = Math.max(0, Math.min(100, newPercent));
+    setTempPosition(newPercent);
+  };
+
+  const handleCropperDragEnd = () => {
+    setIsCropperDragging(false);
+  };
+
+  const handleCropperReset = () => {
+    setTempPosition(50);
+    setTempScale(100);
+  };
+
+  const handleCropperCancel = () => {
+    setShowCropModal(false);
+    setShowSettings(true);
+  };
+
+  const handleCropperApply = async () => {
+    setShowCropModal(false);
+    setBannerPosition(`${tempPosition}%`);
+    setBannerScale(`${tempScale}%`);
+    await onUpdateProfile({
+      display_name: editedName,
+      bio: editedBio,
+      profile_theme: theme,
+      banner_color: 'custom',
+      banner_url: customBannerUrl.trim() || null,
+      banner_position: `${tempPosition}%`,
+      banner_scale: `${tempScale}%`
+    });
+    setShowSettings(true);
   };
 
   const formattedDate = profile?.created_at
@@ -150,23 +169,16 @@ export default function ProfileHero({
     <div className="profile-hero">
       {/* Banner */}
       <div 
-        className={`profile-hero-banner ${isRepositioning ? 'profile-banner-reposition-mode' : ''}`}
+        className="profile-hero-banner" 
         style={{ 
           background: profile?.banner_url ? `url(${profile.banner_url})` : bannerBackground,
-          backgroundSize: 'cover',
+          backgroundSize: profile?.banner_url ? (bannerScale || 'cover') : 'cover',
           backgroundPosition: `center ${bannerPosition}`
         }}
-        onMouseDown={handleDragStart}
-        onMouseMove={handleDragMove}
-        onMouseUp={handleDragEnd}
-        onMouseLeave={handleDragEnd}
-        onTouchStart={handleDragStart}
-        onTouchMove={handleDragMove}
-        onTouchEnd={handleDragEnd}
       >
-        {isOwnProfile && !isRepositioning && (
+        {isOwnProfile && (
           <button
-            onClick={() => setShowSettings(!showSettings)}
+            onClick={() => setShowSettings(true)}
             style={{
               position: 'absolute',
               top: '16px',
@@ -190,209 +202,287 @@ export default function ProfileHero({
             Customize Profile
           </button>
         )}
-
-        {isRepositioning && (
-          <div className="profile-banner-reposition-overlay">
-            <span style={{ fontSize: '13px', fontWeight: 800, textShadow: '0 2px 8px rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Move size={14} style={{ color: 'var(--theme-accent, #ff9f1c)' }} />
-              Drag image vertically to adjust position
-            </span>
-            <div className="profile-banner-reposition-actions">
-              <button
-                onClick={handleSaveReposition}
-                style={{
-                  background: 'var(--theme-accent, #ff9f1c)',
-                  border: 'none',
-                  color: '#000',
-                  padding: '6px 16px',
-                  borderRadius: '20px',
-                  fontSize: '11px',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
-                  transition: 'all 0.2s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-              >
-                Save
-              </button>
-              <button
-                onClick={handleCancelReposition}
-                style={{
-                  background: 'rgba(0,0,0,0.6)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  color: '#fff',
-                  padding: '6px 16px',
-                  borderRadius: '20px',
-                  fontSize: '11px',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
-                  transition: 'all 0.2s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Hero Settings overlay */}
+      {/* Centered Customize Profile Modal */}
       {isOwnProfile && showSettings && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          style={{
-            position: 'absolute',
-            top: '55px',
-            right: '16px',
-            background: 'rgba(10, 10, 15, 0.98)',
-            border: `1px solid ${THEME_COLORS[theme]?.color}55`, // Subtle theme accent border with alpha transparency
-            borderRadius: '20px',
-            padding: '20px',
-            width: '300px',
-            backdropFilter: 'blur(25px)',
-            zIndex: 100,
-            boxShadow: '0 20px 40px rgba(0,0,0,0.6), 0 0 15px rgba(255,255,255,0.02)'
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '10px' }}>
-            <span style={{ fontSize: '14px', fontWeight: 800, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Sparkles size={14} style={{ color: 'var(--theme-accent, #ff9f1c)' }} />
-              Customize Profile
-            </span>
-            <X size={16} style={{ cursor: 'pointer', color: '#666', transition: 'color 0.2s' }} onClick={() => setShowSettings(false)} onMouseEnter={(e) => e.currentTarget.style.color = '#fff'} onMouseLeave={(e) => e.currentTarget.style.color = '#666'} />
-          </div>
-
-          {/* Theme selection */}
-          <div style={{ marginBottom: '16px' }}>
-            <div style={{ fontSize: '11px', color: '#555', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Theme Accent</div>
-            <div className="profile-theme-selector">
-              {Object.entries(THEME_COLORS).map(([key, value]) => (
-                <div
-                  key={key}
-                  className={`profile-theme-dot ${theme === key ? 'active' : ''}`}
-                  style={{ backgroundColor: value.color, color: value.color }}
-                  title={value.name}
-                  onClick={() => handleThemeChange(key)}
-                />
-              ))}
+        <div className="profile-modal-backdrop" onClick={() => setShowSettings(false)}>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="image-editor-container"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              border: `1px solid ${THEME_COLORS[theme]?.color}55`,
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              <span style={{ fontSize: '15px', fontWeight: 800, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Sparkles size={16} style={{ color: 'var(--theme-accent, #ff9f1c)' }} />
+                Customize Profile
+              </span>
+              <X size={18} style={{ cursor: 'pointer', color: '#666', transition: 'color 0.2s' }} onClick={() => setShowSettings(false)} onMouseEnter={(e) => e.currentTarget.style.color = '#fff'} onMouseLeave={(e) => e.currentTarget.style.color = '#666'} />
             </div>
-          </div>
 
-          {/* Banner selection presets */}
-          <div style={{ marginBottom: '16px', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '14px' }}>
-            <div style={{ fontSize: '11px', color: '#555', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Banner Presets</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-              {Object.entries(BANNER_GRADIENTS).map(([key, value]) => (
-                <button
-                  key={key}
-                  onClick={() => handleBannerPresetChange(key)}
-                  style={{
-                    background: (bannerPreset === key && !customBannerUrl) ? 'rgba(255, 159, 28, 0.1)' : 'rgba(255,255,255,0.02)',
-                    border: (bannerPreset === key && !customBannerUrl) ? '1px solid var(--theme-accent, #ff9f1c)' : '1px solid rgba(255,255,255,0.05)',
-                    color: (bannerPreset === key && !customBannerUrl) ? 'var(--theme-accent, #ff9f1c)' : '#888',
-                    padding: '6px 8px',
-                    borderRadius: '8px',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  {value.name}
-                </button>
-              ))}
+            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px', maxHeight: '420px', overflowY: 'auto' }}>
+              {/* Theme selection */}
+              <div>
+                <div style={{ fontSize: '11px', color: '#888', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Theme Accent</div>
+                <div className="profile-theme-selector">
+                  {Object.entries(THEME_COLORS).map(([key, value]) => (
+                    <div
+                      key={key}
+                      className={`profile-theme-dot ${theme === key ? 'active' : ''}`}
+                      style={{ backgroundColor: value.color, color: value.color }}
+                      title={value.name}
+                      onClick={() => handleThemeChange(key)}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Banner selection presets */}
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '16px' }}>
+                <div style={{ fontSize: '11px', color: '#888', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Banner Presets</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  {Object.entries(BANNER_GRADIENTS).map(([key, value]) => (
+                    <button
+                      key={key}
+                      onClick={() => handleBannerPresetChange(key)}
+                      style={{
+                        background: (bannerPreset === key && !customBannerUrl) ? 'rgba(255, 159, 28, 0.1)' : 'rgba(255,255,255,0.02)',
+                        border: (bannerPreset === key && !customBannerUrl) ? '1px solid var(--theme-accent, #ff9f1c)' : '1px solid rgba(255,255,255,0.05)',
+                        color: (bannerPreset === key && !customBannerUrl) ? 'var(--theme-accent, #ff9f1c)' : '#888',
+                        padding: '8px 10px',
+                        borderRadius: '8px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      {value.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Custom Banner Image URL */}
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '16px' }}>
+                <div style={{ fontSize: '11px', color: '#888', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Custom Image Banner</div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    placeholder="https://example.com/banner.png"
+                    value={customBannerUrl}
+                    onChange={(e) => setCustomBannerUrl(e.target.value)}
+                    style={{
+                      flex: 1,
+                      background: 'rgba(0,0,0,0.3)',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      color: '#fff',
+                      fontSize: '12px',
+                      outline: 'none'
+                    }}
+                  />
+                  <button
+                    onClick={handleCustomBannerSave}
+                    style={{
+                      background: 'var(--theme-accent, #ff9f1c)',
+                      border: 'none',
+                      color: '#000',
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Apply URL
+                  </button>
+                </div>
+                <div style={{ fontSize: '10px', color: '#555', marginTop: '6px', lineHeight: 1.3 }}>
+                  Tip: Copy the <strong>direct image address</strong> (e.g. right-click image &rarr; <em>Copy Image Address/Link</em>). Webpage links (like Pinterest pins or standard website URLs) will not work.
+                </div>
+              </div>
+
+              {/* Banner Alignment Button */}
+              {profile?.banner_url && (
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '16px' }}>
+                  <div style={{ fontSize: '11px', color: '#888', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Banner Alignment</div>
+                  <button
+                    onClick={() => {
+                      setTempPosition(parseInt(bannerPosition) || 50);
+                      setTempScale(parseInt(bannerScale) || 100);
+                      setShowCropModal(true);
+                      setShowSettings(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      background: 'rgba(255,255,255,0.02)',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                      color: '#fff',
+                      padding: '10px 14px',
+                      borderRadius: '10px',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                      e.currentTarget.style.borderColor = 'var(--theme-accent, #ff9f1c)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
+                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
+                    }}
+                  >
+                    <Move size={13} style={{ color: 'var(--theme-accent, #ff9f1c)' }} />
+                    Adjust Image (Crop & Zoom)
+                  </button>
+                </div>
+              )}
             </div>
-          </div>
 
-          {/* Custom Banner Image URL */}
-          <div style={{ marginBottom: '16px', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '14px' }}>
-            <div style={{ fontSize: '11px', color: '#555', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Custom Image Banner</div>
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <input
-                type="text"
-                placeholder="https://example.com/banner.png"
-                value={customBannerUrl}
-                onChange={(e) => setCustomBannerUrl(e.target.value)}
-                style={{
-                  flex: 1,
-                  background: 'rgba(0,0,0,0.3)',
-                  border: '1px solid rgba(255,255,255,0.06)',
-                  borderRadius: '8px',
-                  padding: '6px 10px',
-                  color: '#fff',
-                  fontSize: '11px',
-                  outline: 'none'
-                }}
-              />
+            <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'flex-end', background: '#111116' }}>
               <button
-                onClick={handleCustomBannerSave}
+                onClick={() => setShowSettings(false)}
                 style={{
                   background: 'var(--theme-accent, #ff9f1c)',
                   border: 'none',
                   color: '#000',
-                  padding: '6px 10px',
-                  borderRadius: '8px',
-                  fontSize: '11px',
-                  fontWeight: 700,
+                  padding: '8px 24px',
+                  borderRadius: '20px',
+                  fontSize: '12px',
+                  fontWeight: 800,
                   cursor: 'pointer'
                 }}
               >
-                Apply
+                Done
               </button>
             </div>
-            <div style={{ fontSize: '10px', color: '#555', marginTop: '6px', lineHeight: 1.3 }}>
-              Tip: Copy the <strong>direct image address</strong> (e.g. right-click image &rarr; <em>Copy Image Address/Link</em>). Webpage links (like Pinterest pins or standard website URLs) will not work.
-            </div>
-          </div>
+          </motion.div>
+        </div>
+      )}
 
-          {/* Banner Repositioning Button */}
-          {(profile?.banner_url || customBannerUrl.trim()) && (
-            <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '14px' }}>
-              <div style={{ fontSize: '11px', color: '#555', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Banner Alignment</div>
-              <button
-                onClick={handleStartRepositioning}
+      {/* Centered Discord-Style Edit Image Modal */}
+      {isOwnProfile && showCropModal && (
+        <div className="profile-modal-backdrop">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="image-editor-container"
+          >
+            <div className="image-editor-header">
+              Edit Image
+            </div>
+
+            <div className="image-editor-viewport-wrapper">
+              {/* Crop Box Frame Overlay */}
+              <div className="image-editor-crop-viewport" />
+              
+              {/* Draggable preview background */}
+              <div
                 style={{
-                  width: '100%',
-                  background: 'rgba(255,255,255,0.02)',
-                  border: '1px solid rgba(255,255,255,0.06)',
-                  color: '#fff',
-                  padding: '8px 12px',
-                  borderRadius: '10px',
-                  fontSize: '12px',
-                  fontWeight: 700,
+                  width: '440px',
+                  height: '88px',
+                  backgroundImage: `url(${customBannerUrl})`,
+                  backgroundSize: `${tempScale}%`,
+                  backgroundPosition: `center ${tempPosition}%`,
+                  cursor: isCropperDragging ? 'grabbing' : 'grab',
+                  borderRadius: '4px',
+                  zIndex: 5
+                }}
+                onMouseDown={handleCropperDragStart}
+                onMouseMove={handleCropperDragMove}
+                onMouseUp={handleCropperDragEnd}
+                onMouseLeave={handleCropperDragEnd}
+                onTouchStart={handleCropperDragStart}
+                onTouchMove={handleCropperDragMove}
+                onTouchEnd={handleCropperDragEnd}
+              />
+            </div>
+
+            <div className="image-editor-controls">
+              <div className="image-editor-zoom-bar">
+                <span style={{ fontSize: '12px', color: '#888' }}>Zoom</span>
+                <input
+                  type="range"
+                  min="100"
+                  max="300"
+                  value={tempScale}
+                  onChange={(e) => setTempScale(parseInt(e.target.value))}
+                  className="image-editor-zoom-slider"
+                />
+                <span style={{ fontSize: '11px', color: 'var(--theme-accent, #ff9f1c)', fontWeight: 800, minWidth: '32px' }}>
+                  {tempScale}%
+                </span>
+              </div>
+            </div>
+
+            <div className="image-editor-footer">
+              <button
+                onClick={handleCropperReset}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#aaa',
                   cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  transition: 'all 0.2s'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
-                  e.currentTarget.style.borderColor = 'var(--theme-accent, #ff9f1c)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
-                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  textDecoration: 'underline'
                 }}
               >
-                <Move size={13} style={{ color: 'var(--theme-accent, #ff9f1c)' }} />
-                Reposition Image
+                Reset
               </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={handleCropperCancel}
+                  style={{
+                    background: '#4f545c',
+                    border: 'none',
+                    color: '#fff',
+                    padding: '8px 18px',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCropperApply}
+                  style={{
+                    background: '#5865F2',
+                    border: 'none',
+                    color: '#fff',
+                    padding: '8px 18px',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Apply
+                </button>
+              </div>
             </div>
-          )}
-        </motion.div>
+          </motion.div>
+        </div>
       )}
 
       {/* Body Info (Avatar, Name, Bio, Stats, Actions Layout Reworked) */}
