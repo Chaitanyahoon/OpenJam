@@ -94,8 +94,7 @@ export default function ProfileHero({
       <div 
         className="profile-hero-banner" 
         style={{ 
-          backgroundImage: profile?.banner_url ? bannerBackground : 'none',
-          background: !profile?.banner_url ? bannerBackground : 'none',
+          background: profile?.banner_url ? `url(${profile.banner_url})` : bannerBackground,
           backgroundSize: 'cover',
           backgroundPosition: 'center'
         }}

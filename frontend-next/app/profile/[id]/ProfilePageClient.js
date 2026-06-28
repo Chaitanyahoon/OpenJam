@@ -295,11 +295,9 @@ export default function ProfilePageClient() {
           <SocialListModal 
             isOpen={socialModalOpen}
             onClose={() => setSocialModalOpen(false)}
-            title={`${profile?.display_name}'s Social Connections`}
-            users={[
-              ...socialStats.followers.map(u => ({ ...u, display_name: `${u.display_name} (Follower)` })),
-              ...socialStats.following.map(u => ({ ...u, display_name: `${u.display_name} (Following)` }))
-            ]}
+            followers={socialStats.followers || []}
+            following={socialStats.following || []}
+            onUnfollow={null}
           />
         )}
 

@@ -3,7 +3,7 @@
 import React from 'react';
 import { 
   BarChart2, Clock, Music, MessageSquare, ThumbsUp, RefreshCw, 
-  Disc, Award, Play
+  Disc, Award, Play, Globe
 } from 'lucide-react';
 
 export default function ProfileStats({
@@ -86,8 +86,8 @@ export default function ProfileStats({
         )}
       </div>
 
-      {/* Metrics Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '32px' }}>
+      {/* Primary Music Footprint Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
         <div className="profile-stat-card">
           <Clock size={20} style={{ color: 'var(--theme-accent, #ff9f1c)', marginBottom: '12px' }} />
           <div style={{ color: '#666', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Listening Time</div>
@@ -107,20 +107,43 @@ export default function ProfileStats({
         </div>
 
         <div className="profile-stat-card">
-          <MessageSquare size={20} style={{ color: '#ec4899', marginBottom: '12px' }} />
-          <div style={{ color: '#666', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Chats Sent</div>
+          <ThumbsUp size={20} style={{ color: '#ec4899', marginBottom: '12px' }} />
+          <div style={{ color: '#666', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Likes Received</div>
           <div style={{ fontSize: '28px', fontWeight: 800, color: '#fff', marginTop: '4px' }}>
-            {stats.total_chats}
+            {stats.total_likes}
           </div>
         </div>
+      </div>
 
-        <div className="profile-stat-card">
-          <ThumbsUp size={20} style={{ color: '#10b981', marginBottom: '12px' }} />
-          <div style={{ color: '#666', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Votes Cast</div>
-          <div style={{ fontSize: '28px', fontWeight: 800, color: '#fff', marginTop: '4px' }}>
-            {stats.total_votes}
-          </div>
-        </div>
+      {/* Secondary Engagement Bar */}
+      <div style={{ 
+        display: 'flex', 
+        gap: '24px', 
+        background: 'rgba(255,255,255,0.01)', 
+        border: '1px solid rgba(255,255,255,0.03)', 
+        borderRadius: '16px', 
+        padding: '12px 24px', 
+        marginBottom: '32px',
+        fontSize: '12px',
+        color: '#888',
+        alignItems: 'center',
+        flexWrap: 'wrap'
+      }}>
+        <span style={{ fontWeight: 700, textTransform: 'uppercase', fontSize: '10px', color: '#555', letterSpacing: '0.05em' }}>Activity Engagement:</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <MessageSquare size={13} style={{ color: '#8b5cf6' }} />
+          <strong>{stats.total_chats}</strong> chat messages sent
+        </span>
+        <span style={{ color: '#333' }}>|</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <ThumbsUp size={13} style={{ color: '#10b981' }} />
+          <strong>{stats.total_votes}</strong> skip votes cast
+        </span>
+        <span style={{ color: '#333' }}>|</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Globe size={13} style={{ color: '#3b82f6' }} />
+          <strong>{stats.rooms_hosted || 0}</strong> rooms hosted
+        </span>
       </div>
 
       {/* Grid for charts & lists */}

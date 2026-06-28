@@ -641,11 +641,26 @@ export default function ProfileClient() {
         <SocialListModal 
           isOpen={socialModalOpen}
           onClose={() => setSocialModalOpen(false)}
-          title="Social Connections"
-          users={[
-            ...socialStats.followers.map(u => ({ ...u, display_name: `${u.display_name} (Follower)` })),
-            ...socialStats.following.map(u => ({ ...u, display_name: `${u.display_name} (Following)` }))
-          ]}
+          followers={socialStats.followers || []}
+          following={socialStats.following || []}
+          onUnfollow={async (unfollowedUserId) => {
+            try {
+              const res = await fetch(`/profile/${unfollowedUserId}/follow`, { method: 'DELETE' });
+              if (res.ok) {
+                addToast('Unfollowed user', 'success');
+                // Refresh social status
+                const socialRes = await fetch(`/profile/${profile.id}/social`);
+                if (socialRes.ok) {
+                  const socialData = await socialRes.json();
+                  setSocialStats(socialData);
+                }
+              } else {
+                addToast('Failed to unfollow user', 'error');
+              }
+            } catch (err) {
+              addToast('Connection error', 'error');
+            }
+          }}
         />
       )}
 
