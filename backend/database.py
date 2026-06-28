@@ -57,11 +57,13 @@ def init_db():
     from backend.models import User, Room, QueueItem, ChatMessage, Vote, UserLike, Playlist, PlaylistTrack  # noqa: F401
     Base.metadata.create_all(bind=engine)
     
-    # Auto-migration: Check if 'is_admin', 'is_premium', 'stripe_customer_id' columns exist in 'users' table, and add them if missing
+    # Auto-migration: Check if 'is_admin', 'is_premium', 'stripe_customer_id', 'bio', 'banner_color' columns exist in 'users' table, and add them if missing
     from sqlalchemy import text
     is_admin_exists = True
     is_premium_exists = True
     stripe_customer_id_exists = True
+    bio_exists = True
+    banner_color_exists = True
     
     with engine.connect() as conn:
         try:
@@ -76,6 +78,14 @@ def init_db():
             conn.execute(text("SELECT stripe_customer_id FROM users LIMIT 1"))
         except Exception:
             stripe_customer_id_exists = False
+        try:
+            conn.execute(text("SELECT bio FROM users LIMIT 1"))
+        except Exception:
+            bio_exists = False
+        try:
+            conn.execute(text("SELECT banner_color FROM users LIMIT 1"))
+        except Exception:
+            banner_color_exists = False
         
     if not is_admin_exists:
         try:
@@ -100,6 +110,22 @@ def init_db():
             print("Successfully added stripe_customer_id column to users table.")
         except Exception as e:
             print(f"Failed to auto-migrate users.stripe_customer_id: {e}")
+
+    if not bio_exists:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN bio VARCHAR"))
+            print("Successfully added bio column to users table.")
+        except Exception as e:
+            print(f"Failed to auto-migrate users.bio: {e}")
+
+    if not banner_color_exists:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN banner_color VARCHAR NOT NULL DEFAULT 'default'"))
+            print("Successfully added banner_color column to users table.")
+        except Exception as e:
+            print(f"Failed to auto-migrate users.banner_color: {e}")
 
     # Auto-migration: Check if 'password_hash' and 'is_private' columns exist in 'rooms' table, and add them if missing
     password_hash_exists = True

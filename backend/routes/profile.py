@@ -14,6 +14,8 @@ router = APIRouter(prefix="/profile", tags=["profile"])
 class UpdateProfileRequest(BaseModel):
     display_name: str = Field(..., min_length=1, max_length=50)
     profile_theme: Optional[str] = Field("amber", pattern="^(amber|cobalt|rose|emerald|violet)$")
+    bio: Optional[str] = Field(None, max_length=200)
+    banner_color: Optional[str] = Field("default", max_length=50)
 
 
 @router.get("/me")
@@ -40,7 +42,7 @@ async def update_my_profile(
     db: Session = Depends(get_db),
     user_id: str = Depends(require_registered_user)
 ):
-    """Update user profile (display name and theme)."""
+    """Update user profile (display name, theme, bio, and banner color)."""
     
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -49,6 +51,10 @@ async def update_my_profile(
     user.display_name = update_req.display_name
     if update_req.profile_theme:
         user.profile_theme = update_req.profile_theme
+    if update_req.bio is not None:
+        user.bio = update_req.bio
+    if update_req.banner_color:
+        user.banner_color = update_req.banner_color
     db.commit()
     db.refresh(user)
     
@@ -98,6 +104,10 @@ async def get_public_profile(user_id: str, db: Session = Depends(get_db)):
             "id": user.id,
             "display_name": user.display_name,
             "avatar_url": user.avatar_url,
+            "discord_username": user.discord_username,
+            "profile_theme": user.profile_theme,
+            "bio": user.bio,
+            "banner_color": user.banner_color,
             "created_at": user.created_at.isoformat() if user.created_at else None,
         },
         "playlists": [p.to_dict() for p in playlists]
@@ -211,6 +221,26 @@ def get_user_stats_internal(db: Session, user_id: str):
         for g, c in sorted_genres
     ]
 
+    # 6. Additional info: rooms hosted and recently played
+    rooms_hosted = db.query(Room).filter(Room.host_user_id == user_id).count()
+
+    recent_query = db.query(QueueItem).filter(
+        QueueItem.added_by_user_id == user_id,
+        QueueItem.status == "played"
+    ).order_by(QueueItem.created_at.desc()).limit(10).all()
+    
+    recently_played = [
+        {
+            "id": r.id,
+            "track_name": r.track_name,
+            "artist": r.artist,
+            "album_art_url": r.album_art_url,
+            "duration_ms": r.duration_ms,
+            "played_at": r.created_at.isoformat() if r.created_at else None
+        }
+        for r in recent_query
+    ]
+
     return {
         "stats": {
             "total_queued": total_queued,
@@ -219,6 +249,8 @@ def get_user_stats_internal(db: Session, user_id: str):
             "total_chats": total_chats,
             "total_votes": total_votes,
             "listening_time_mins": listening_time_mins,
+            "rooms_hosted": rooms_hosted,
+            "recently_played": recently_played,
             "top_tracks": top_tracks,
             "top_artists": top_artists,
             "top_genres": top_genres

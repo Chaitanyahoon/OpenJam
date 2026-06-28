@@ -18,6 +18,8 @@ class User(Base):
     discord_id = Column(String, unique=True, nullable=True, index=True)
     discord_username = Column(String, nullable=True)
     profile_theme = Column(String, default="amber", nullable=False)
+    bio = Column(String, nullable=True)
+    banner_color = Column(String, default="default", nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     def to_dict(self):
@@ -30,6 +32,8 @@ class User(Base):
             "discord_id": self.discord_id,
             "discord_username": self.discord_username,
             "profile_theme": self.profile_theme,
+            "bio": self.bio,
+            "banner_color": self.banner_color,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
