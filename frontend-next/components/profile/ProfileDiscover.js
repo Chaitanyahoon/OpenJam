@@ -49,7 +49,6 @@ export default function ProfileDiscover({
             <Link
               key={user.id}
               href={`/profile/${user.id}`}
-              target="_blank"
               className="profile-card-hover"
               style={{
                 display: 'flex',

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   User, Edit2, Check, X, LogOut, Disc, 
@@ -62,6 +62,14 @@ export default function ProfileHero({
 
   const theme = profile?.profile_theme || 'amber';
   const bannerPreset = profile?.banner_color || 'default';
+
+  // Sync local customization states when profile prop changes
+  useEffect(() => {
+    setEditedName(profile?.display_name || '');
+    setEditedBio(profile?.bio || '');
+    setCustomBannerUrl(profile?.banner_url || '');
+    setBannerPosition(profile?.banner_position || '50%');
+  }, [profile]);
   
   // Choose banner style: custom URL or preset gradient
   const bannerBackground = profile?.banner_url 

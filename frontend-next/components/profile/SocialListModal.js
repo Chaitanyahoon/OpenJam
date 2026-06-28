@@ -124,7 +124,6 @@ export default function SocialListModal({
                 {/* User Info Link */}
                 <Link
                   href={`/profile/${usr.id}`}
-                  target="_blank"
                   onClick={onClose}
                   style={{
                     display: 'flex',
