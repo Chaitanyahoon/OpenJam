@@ -249,7 +249,7 @@ export default function ProfileHero({
             padding: '20px',
             width: '300px',
             backdropFilter: 'blur(25px)',
-            zIndex: 15,
+            zIndex: 100,
             boxShadow: '0 20px 40px rgba(0,0,0,0.6), 0 0 15px rgba(255,255,255,0.02)'
           }}
         >

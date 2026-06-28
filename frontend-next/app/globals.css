@@ -10577,7 +10577,7 @@ div:hover > .play-hover-btn,
 .profile-hero {
   position: relative;
   border-radius: 24px;
-  overflow: hidden;
+  overflow: visible; /* Let customization overlays float outside parent boundary */
   border: 1px solid rgba(255, 255, 255, 0.05);
   background: linear-gradient(135deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.01) 100%);
   backdrop-filter: blur(30px);
@@ -10589,6 +10589,7 @@ div:hover > .play-hover-btn,
   height: 200px;
   width: 100%;
   position: relative;
+  border-radius: 24px 24px 0 0; /* Keep top corners rounded since parent overflow is visible */
   background-size: cover;
   background-position: center;
   animation: gradient-flow 15s ease infinite;
