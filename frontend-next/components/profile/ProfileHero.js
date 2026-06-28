@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   User, Edit2, Check, X, LogOut, Disc, 
-  Heart, ListMusic, Globe, Calendar, KeyRound, Sparkles, PlusCircle, Users, Move
+  Heart, ListMusic, Globe, Calendar, KeyRound, Sparkles, PlusCircle, Users, Move, Trash2
 } from 'lucide-react';
 
 const THEME_COLORS = {
@@ -135,6 +135,21 @@ export default function ProfileHero({
     setShowSettings(false);
   };
 
+  const handleRemoveBanner = async () => {
+    setCustomBannerUrl('');
+    setBannerPosition('50%');
+    setBannerScale('100%');
+    await onUpdateProfile({
+      display_name: editedName,
+      bio: editedBio,
+      profile_theme: theme,
+      banner_color: 'default',
+      banner_url: null,
+      banner_position: '50%',
+      banner_scale: '100%'
+    });
+  };
+
   // Cropper drag-to-pan handlers
   const handleCropperDragStart = (e) => {
     e.preventDefault();
@@ -250,29 +265,76 @@ export default function ProfileHero({
             </div>
 
             <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px', maxHeight: '75vh', overflowY: 'auto' }}>
-              {/* Theme selection */}
+              {/* Banner Live Preview */}
               <div>
-                <div style={{ fontSize: '11px', color: '#888', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Theme Accent</div>
-                <div className="profile-theme-selector">
-                  {Object.entries(THEME_COLORS).map(([key, value]) => (
-                    <div
-                      key={key}
-                      className={`profile-theme-dot ${theme === key ? 'active' : ''}`}
-                      style={{ backgroundColor: value.color, color: value.color }}
-                      title={value.name}
-                      onClick={() => handleThemeChange(key)}
+                <div style={{ fontSize: '11px', color: '#888', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Banner Preview</div>
+                <div style={{ 
+                  position: 'relative', 
+                  width: '100%', 
+                  height: '110px', 
+                  borderRadius: '12px', 
+                  overflow: 'hidden', 
+                  background: 'linear-gradient(135deg, #141318 0%, #1e1b4b 100%)',
+                  border: '1px solid rgba(255,255,255,0.06)'
+                }}>
+                  {/* Banner image background wrapper */}
+                  {(customBannerUrl || profile?.banner_url) ? (
+                    <div style={{
+                      position: 'absolute',
+                      inset: 0,
+                      backgroundImage: `url(${customBannerUrl.trim() || profile?.banner_url})`,
+                      backgroundSize: bannerScale || 'cover',
+                      backgroundPosition: `center ${bannerPosition || '50%'}`,
+                      backgroundRepeat: 'no-repeat',
+                      transition: 'all 0.15s ease-out'
+                    }} />
+                  ) : (
+                    <div style={{
+                      position: 'absolute',
+                      inset: 0,
+                      background: BANNER_GRADIENTS.default.style(theme)
+                    }} />
+                  )}
+                  {/* Overlay vignette */}
+                  <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'linear-gradient(to bottom, rgba(0,0,0,0) 40%, rgba(0,0,0,0.65) 100%)'
+                  }} />
+                  {/* Overlapping Avatar Info */}
+                  <div style={{
+                    position: 'absolute',
+                    bottom: '12px',
+                    left: '16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}>
+                    <img 
+                      src={profile?.avatar_url || "/default-avatar.png"} 
+                      alt="" 
+                      style={{ 
+                        width: '42px', 
+                        height: '42px', 
+                        borderRadius: '50%', 
+                        border: '2.5px solid #18191c',
+                        background: '#18191c'
+                      }} 
                     />
-                  ))}
+                    <div style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 800, color: '#fff' }}>{profile?.display_name}</div>
+                      <div style={{ fontSize: '10px', color: '#ccc', opacity: 0.8 }}>@{profile?.discord_username || 'user'}</div>
+                    </div>
+                  </div>
                 </div>
               </div>
-
 
               {/* Custom Banner Image URL */}
               {(() => {
                 const isUrlInvalid = customBannerUrl.trim().length > 0 && !isValidImageUrl(customBannerUrl);
                 return (
                   <div style={{ borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '16px' }}>
-                    <div style={{ fontSize: '11px', color: '#888', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Custom Image Banner</div>
+                    <div style={{ fontSize: '11px', color: '#888', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Banner Image URL</div>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <input
                         type="text"
@@ -291,19 +353,19 @@ export default function ProfileHero({
                         }}
                       />
                       <button
-                        disabled={isUrlInvalid}
+                        disabled={isUrlInvalid || !customBannerUrl.trim()}
                         onClick={handleCustomBannerSave}
                         className="profile-preset-btn"
                         style={{
-                          background: isUrlInvalid ? 'rgba(255,255,255,0.02)' : 'var(--theme-accent, #ff9f1c)',
+                          background: (isUrlInvalid || !customBannerUrl.trim()) ? 'rgba(255,255,255,0.02)' : 'var(--theme-accent, #ff9f1c)',
                           border: 'none',
-                          color: isUrlInvalid ? '#555' : '#000',
+                          color: (isUrlInvalid || !customBannerUrl.trim()) ? '#555' : '#000',
                           padding: '8px 16px',
                           borderRadius: '8px',
                           fontSize: '11px',
                           fontWeight: 800,
-                          cursor: isUrlInvalid ? 'not-allowed' : 'pointer',
-                          opacity: isUrlInvalid ? 0.5 : 1
+                          cursor: (isUrlInvalid || !customBannerUrl.trim()) ? 'not-allowed' : 'pointer',
+                          opacity: (isUrlInvalid || !customBannerUrl.trim()) ? 0.5 : 1
                         }}
                       >
                         Apply URL
@@ -322,10 +384,9 @@ export default function ProfileHero({
                 );
               })()}
 
-              {/* Banner Alignment Button */}
-              {profile?.banner_url && (
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '16px' }}>
-                  <div style={{ fontSize: '11px', color: '#888', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Banner Alignment</div>
+              {/* Banner Adjustment Controls */}
+              {(profile?.banner_url || customBannerUrl.trim()) && (
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '16px', display: 'flex', gap: '8px' }}>
                   <button
                     onClick={() => {
                       setTempPosition(parseInt(bannerPosition) || 50);
@@ -335,7 +396,7 @@ export default function ProfileHero({
                     }}
                     className="profile-preset-btn"
                     style={{
-                      width: '100%',
+                      flex: 1,
                       background: 'rgba(255,255,255,0.02)',
                       border: '1px solid rgba(255,255,255,0.06)',
                       color: '#fff',
@@ -351,7 +412,29 @@ export default function ProfileHero({
                     }}
                   >
                     <Move size={13} style={{ color: 'var(--theme-accent, #ff9f1c)' }} />
-                    Adjust Image (Crop & Zoom)
+                    Adjust Alignment (Crop & Zoom)
+                  </button>
+                  
+                  <button
+                    onClick={handleRemoveBanner}
+                    className="profile-preset-btn"
+                    style={{
+                      background: 'rgba(255,71,87,0.05)',
+                      border: '1px solid rgba(255,71,87,0.15)',
+                      color: '#ff4757',
+                      padding: '10px 14px',
+                      borderRadius: '10px',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <Trash2 size={13} />
+                    Remove Banner
                   </button>
                 </div>
               )}
