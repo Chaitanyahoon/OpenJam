@@ -54,7 +54,7 @@ def get_db():
 
 
 def init_db():
-    from backend.models import User, Room, QueueItem, ChatMessage, Vote, UserLike, Playlist, PlaylistTrack  # noqa: F401
+    from backend.models import User, Room, QueueItem, ChatMessage, Vote, UserLike, Playlist, PlaylistTrack, Follow  # noqa: F401
     Base.metadata.create_all(bind=engine)
     
     # Auto-migration: Check if 'is_admin', 'is_premium', 'stripe_customer_id', 'bio', 'banner_color' columns exist in 'users' table, and add them if missing
@@ -126,6 +126,22 @@ def init_db():
             print("Successfully added banner_color column to users table.")
         except Exception as e:
             print(f"Failed to auto-migrate users.banner_color: {e}")
+
+    # Check for banner_url in users
+    banner_url_exists = True
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("SELECT banner_url FROM users LIMIT 1"))
+        except Exception:
+            banner_url_exists = False
+
+    if not banner_url_exists:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN banner_url VARCHAR NULL"))
+            print("Successfully added banner_url column to users table.")
+        except Exception as e:
+            print(f"Failed to auto-migrate users.banner_url: {e}")
 
     # Auto-migration: Check if 'password_hash' and 'is_private' columns exist in 'rooms' table, and add them if missing
     password_hash_exists = True

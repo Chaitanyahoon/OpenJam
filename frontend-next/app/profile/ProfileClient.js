@@ -14,6 +14,7 @@ import ProfileLikes from '@/components/profile/ProfileLikes';
 import ProfilePlaylistDetail from '@/components/profile/ProfilePlaylistDetail';
 import ProfileDiscover from '@/components/profile/ProfileDiscover';
 import CreatePlaylistModal from '@/components/profile/CreatePlaylistModal';
+import SocialListModal from '@/components/profile/SocialListModal';
 
 export default function ProfileClient() {
   // Core data states
@@ -67,6 +68,10 @@ export default function ProfileClient() {
     };
   }, []);
 
+  // Social stats state
+  const [socialStats, setSocialStats] = useState({ followers_count: 0, following_count: 0, followers: [], following: [] });
+  const [socialModalOpen, setSocialModalOpen] = useState(false);
+
   // Fetch initial profile data
   const fetchProfileData = async () => {
     try {
@@ -85,6 +90,17 @@ export default function ProfileClient() {
       setPlaylists(data.playlists || []);
       setLikes(data.likes || []);
       setLoading(false);
+
+      // Fetch social details for own profile
+      try {
+        const socialRes = await fetch(`/profile/${data.user.id}/social`);
+        if (socialRes.ok) {
+          const socialData = await socialRes.json();
+          setSocialStats(socialData);
+        }
+      } catch (err) {
+        console.warn('Failed to load social stats:', err);
+      }
     } catch (err) {
       console.error(err);
       setError('Connection error');
@@ -539,6 +555,10 @@ export default function ProfileClient() {
           playlistsCount={playlists.length}
           likesCount={likes.length}
           roomsHostedCount={stats?.rooms_hosted || 0}
+          social={socialStats}
+          onFollowClick={null}
+          onUnfollowClick={null}
+          onOpenSocialModal={() => setSocialModalOpen(true)}
         />
 
         {/* Grid Area */}
@@ -615,6 +635,19 @@ export default function ProfileClient() {
         onImportPlaylist={handleImportPlaylist}
         isImporting={isImporting}
       />
+
+      {/* Social Listing Modal */}
+      {socialModalOpen && (
+        <SocialListModal 
+          isOpen={socialModalOpen}
+          onClose={() => setSocialModalOpen(false)}
+          title="Social Connections"
+          users={[
+            ...socialStats.followers.map(u => ({ ...u, display_name: `${u.display_name} (Follower)` })),
+            ...socialStats.following.map(u => ({ ...u, display_name: `${u.display_name} (Following)` }))
+          ]}
+        />
+      )}
 
       {/* Confirmation Modal for Playlist Delete */}
       <AnimatePresence>

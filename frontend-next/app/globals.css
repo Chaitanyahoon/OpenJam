@@ -10586,10 +10586,11 @@ div:hover > .play-hover-btn,
 }
 
 .profile-hero-banner {
-  height: 160px;
+  height: 200px;
   width: 100%;
   position: relative;
-  background-size: 200% 200%;
+  background-size: cover;
+  background-position: center;
   animation: gradient-flow 15s ease infinite;
 }
 
@@ -10601,24 +10602,35 @@ div:hover > .play-hover-btn,
 
 .profile-hero-body {
   padding: 0 32px 32px 32px;
-  margin-top: -50px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  position: relative;
+  z-index: 2;
+  margin-top: 0px;
+}
+
+.profile-hero-top-row {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 24px;
+  width: 100%;
+  margin-top: -60px;
+  gap: 20px;
   flex-wrap: wrap;
-  position: relative;
-  z-index: 2;
 }
 
 .profile-hero-avatar-wrapper {
   position: relative;
-  width: 110px;
-  height: 110px;
+  width: 120px;
+  height: 120px;
   border-radius: 50%;
   background: #0e0e12;
   padding: 4px;
   box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
 }
 
 .profile-hero-avatar {

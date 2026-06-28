@@ -20,6 +20,7 @@ class User(Base):
     profile_theme = Column(String, default="amber", nullable=False)
     bio = Column(String, nullable=True)
     banner_color = Column(String, default="default", nullable=False)
+    banner_url = Column(String, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     def to_dict(self):
@@ -34,6 +35,7 @@ class User(Base):
             "profile_theme": self.profile_theme,
             "bio": self.bio,
             "banner_color": self.banner_color,
+            "banner_url": self.banner_url,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 

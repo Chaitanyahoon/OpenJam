@@ -16,6 +16,7 @@ class UpdateProfileRequest(BaseModel):
     profile_theme: Optional[str] = Field("amber", pattern="^(amber|cobalt|rose|emerald|violet)$")
     bio: Optional[str] = Field(None, max_length=200)
     banner_color: Optional[str] = Field("default", max_length=50)
+    banner_url: Optional[str] = Field(None, max_length=1000)
 
 
 @router.get("/me")
@@ -42,7 +43,7 @@ async def update_my_profile(
     db: Session = Depends(get_db),
     user_id: str = Depends(require_registered_user)
 ):
-    """Update user profile (display name, theme, bio, and banner color)."""
+    """Update user profile (display name, theme, bio, banner color, and banner URL)."""
     
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -55,6 +56,8 @@ async def update_my_profile(
         user.bio = update_req.bio
     if update_req.banner_color:
         user.banner_color = update_req.banner_color
+    if update_req.banner_url is not None:
+        user.banner_url = update_req.banner_url
     db.commit()
     db.refresh(user)
     
@@ -108,9 +111,83 @@ async def get_public_profile(user_id: str, db: Session = Depends(get_db)):
             "profile_theme": user.profile_theme,
             "bio": user.bio,
             "banner_color": user.banner_color,
+            "banner_url": user.banner_url,
             "created_at": user.created_at.isoformat() if user.created_at else None,
         },
         "playlists": [p.to_dict() for p in playlists]
+    }
+
+
+@router.post("/{user_id}/follow")
+async def follow_user(user_id: str, db: Session = Depends(get_db), current_user_id: str = Depends(require_registered_user)):
+    """Follow a user."""
+    from backend.models.follow import Follow
+    if current_user_id == user_id:
+        raise HTTPException(status_code=400, detail="You cannot follow yourself")
+    
+    target_user = db.query(User).filter(User.id == user_id, User.discord_id.isnot(None)).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    existing_follow = db.query(Follow).filter(Follow.follower_id == current_user_id, Follow.followed_id == user_id).first()
+    if existing_follow:
+        return {"message": "Already following this user"}
+
+    new_follow = Follow(follower_id=current_user_id, followed_id=user_id)
+    db.add(new_follow)
+    db.commit()
+    return {"message": "Successfully followed user"}
+
+
+@router.delete("/{user_id}/follow")
+async def unfollow_user(user_id: str, db: Session = Depends(get_db), current_user_id: str = Depends(require_registered_user)):
+    """Unfollow a user."""
+    from backend.models.follow import Follow
+    follow = db.query(Follow).filter(Follow.follower_id == current_user_id, Follow.followed_id == user_id).first()
+    if not follow:
+        return {"message": "Not following this user"}
+
+    db.delete(follow)
+    db.commit()
+    return {"message": "Successfully unfollowed user"}
+
+
+@router.get("/{user_id}/social")
+async def get_user_social_details(user_id: str, db: Session = Depends(get_db), current_user_id: Optional[str] = Depends(get_current_user_id)):
+    """Get followers and following details for a profile."""
+    from backend.models.follow import Follow
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    followers_count = db.query(Follow).filter(Follow.followed_id == user_id).count()
+    following_count = db.query(Follow).filter(Follow.follower_id == user_id).count()
+    
+    is_following = False
+    if current_user_id:
+        is_following = db.query(Follow).filter(Follow.follower_id == current_user_id, Follow.followed_id == user_id).count() > 0
+
+    # Fetch simple details of followers
+    followers_query = db.query(User).join(Follow, Follow.follower_id == User.id).filter(Follow.followed_id == user_id).limit(50).all()
+    following_query = db.query(User).join(Follow, Follow.followed_id == User.id).filter(Follow.follower_id == user_id).limit(50).all()
+
+    return {
+        "followers_count": followers_count,
+        "following_count": following_count,
+        "is_following": is_following,
+        "followers": [{
+            "id": u.id,
+            "display_name": u.display_name,
+            "avatar_url": u.avatar_url,
+            "discord_username": u.discord_username
+        } for u in followers_query],
+        "following": [{
+            "id": u.id,
+            "display_name": u.display_name,
+            "avatar_url": u.avatar_url,
+            "discord_username": u.discord_username
+        } for u in following_query]
     }
 
 

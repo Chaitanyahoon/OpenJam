@@ -9,6 +9,7 @@ import { ProfileSkeleton } from '@/components/SkeletonLoaders';
 
 import ProfileHero from '@/components/profile/ProfileHero';
 import ProfileStats from '@/components/profile/ProfileStats';
+import SocialListModal from '@/components/profile/SocialListModal';
 
 export default function ProfilePageClient() {
   const params = useParams();
@@ -50,6 +51,9 @@ export default function ProfilePageClient() {
     }, 3000);
   };
 
+  const [socialStats, setSocialStats] = useState({ followers_count: 0, following_count: 0, is_following: false, followers: [], following: [] });
+  const [socialModalOpen, setSocialModalOpen] = useState(false);
+
   useEffect(() => {
     if (!userId) return;
 
@@ -83,6 +87,17 @@ export default function ProfilePageClient() {
         } finally {
           setStatsLoading(false);
         }
+
+        // Fetch social relationships
+        try {
+          const socialRes = await fetch(`/profile/${userId}/social`);
+          if (socialRes.ok) {
+            const socialData = await socialRes.json();
+            setSocialStats(socialData);
+          }
+        } catch (err) {
+          console.warn('Failed to load public social data:', err);
+        }
       } catch (err) {
         console.error(err);
         setError('Connection error');
@@ -92,6 +107,45 @@ export default function ProfilePageClient() {
 
     fetchPublicProfile();
   }, [userId]);
+
+  const handleFollow = async () => {
+    try {
+      const res = await fetch(`/profile/${userId}/follow`, { method: 'POST' });
+      if (res.ok) {
+        addToast('Following user!', 'success');
+        // Refresh social status
+        const socialRes = await fetch(`/profile/${userId}/social`);
+        if (socialRes.ok) {
+          const socialData = await socialRes.json();
+          setSocialStats(socialData);
+        }
+      } else {
+        const err = await res.json();
+        addToast(err.detail || 'Failed to follow user', 'error');
+      }
+    } catch (err) {
+      addToast('Connection error', 'error');
+    }
+  };
+
+  const handleUnfollow = async () => {
+    try {
+      const res = await fetch(`/profile/${userId}/follow`, { method: 'DELETE' });
+      if (res.ok) {
+        addToast('Unfollowed user', 'success');
+        // Refresh social status
+        const socialRes = await fetch(`/profile/${userId}/social`);
+        if (socialRes.ok) {
+          const socialData = await socialRes.json();
+          setSocialStats(socialData);
+        }
+      } else {
+        addToast('Failed to unfollow user', 'error');
+      }
+    } catch (err) {
+      addToast('Connection error', 'error');
+    }
+  };
 
   const handleCopyPlaylistLink = (id) => {
     const link = `${window.location.origin}/playlist/${id}`;
@@ -230,7 +284,24 @@ export default function ProfilePageClient() {
           playlistsCount={playlists.length}
           likesCount={stats?.total_likes || 0}
           roomsHostedCount={stats?.rooms_hosted || 0}
+          social={socialStats}
+          onFollowClick={handleFollow}
+          onUnfollowClick={handleUnfollow}
+          onOpenSocialModal={() => setSocialModalOpen(true)}
         />
+
+        {/* Social Listing Modal */}
+        {socialModalOpen && (
+          <SocialListModal 
+            isOpen={socialModalOpen}
+            onClose={() => setSocialModalOpen(false)}
+            title={`${profile?.display_name}'s Social Connections`}
+            users={[
+              ...socialStats.followers.map(u => ({ ...u, display_name: `${u.display_name} (Follower)` })),
+              ...socialStats.following.map(u => ({ ...u, display_name: `${u.display_name} (Following)` }))
+            ]}
+          />
+        )}
 
         {/* Stats Section */}
         {stats && (
