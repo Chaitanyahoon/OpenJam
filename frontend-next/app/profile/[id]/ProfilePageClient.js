@@ -59,7 +59,7 @@ export default function ProfilePageClient() {
 
     const fetchPublicProfile = async () => {
       try {
-        const res = await fetch(`/profile/${userId}`);
+        const res = await fetch(`/api/profile/${userId}`);
         if (!res.ok) {
           if (res.status === 404) {
             setError('User profile not found');
@@ -77,7 +77,7 @@ export default function ProfilePageClient() {
         // Fetch public stats
         setStatsLoading(true);
         try {
-          const statsRes = await fetch(`/profile/${userId}/stats`);
+          const statsRes = await fetch(`/api/profile/${userId}/stats`);
           if (statsRes.ok) {
             const statsData = await statsRes.json();
             setStats(statsData.stats);
@@ -90,7 +90,7 @@ export default function ProfilePageClient() {
 
         // Fetch social relationships
         try {
-          const socialRes = await fetch(`/profile/${userId}/social`);
+          const socialRes = await fetch(`/api/profile/${userId}/social`);
           if (socialRes.ok) {
             const socialData = await socialRes.json();
             setSocialStats(socialData);
@@ -110,11 +110,11 @@ export default function ProfilePageClient() {
 
   const handleFollow = async () => {
     try {
-      const res = await fetch(`/profile/${userId}/follow`, { method: 'POST' });
+      const res = await fetch(`/api/profile/${userId}/follow`, { method: 'POST' });
       if (res.ok) {
         addToast('Following user!', 'success');
         // Refresh social status
-        const socialRes = await fetch(`/profile/${userId}/social`);
+        const socialRes = await fetch(`/api/profile/${userId}/social`);
         if (socialRes.ok) {
           const socialData = await socialRes.json();
           setSocialStats(socialData);
@@ -130,11 +130,11 @@ export default function ProfilePageClient() {
 
   const handleUnfollow = async () => {
     try {
-      const res = await fetch(`/profile/${userId}/follow`, { method: 'DELETE' });
+      const res = await fetch(`/api/profile/${userId}/follow`, { method: 'DELETE' });
       if (res.ok) {
         addToast('Unfollowed user', 'success');
         // Refresh social status
-        const socialRes = await fetch(`/profile/${userId}/social`);
+        const socialRes = await fetch(`/api/profile/${userId}/social`);
         if (socialRes.ok) {
           const socialData = await socialRes.json();
           setSocialStats(socialData);

@@ -75,7 +75,7 @@ export default function ProfileClient() {
   // Fetch initial profile data
   const fetchProfileData = async () => {
     try {
-      const res = await fetch('/profile/me', { credentials: 'include' });
+      const res = await fetch('/api/profile/me', { credentials: 'include' });
       if (!res.ok) {
         if (res.status === 401 || res.status === 403) {
           setError('Authentication required');
@@ -93,7 +93,7 @@ export default function ProfileClient() {
 
       // Fetch social details for own profile
       try {
-        const socialRes = await fetch(`/profile/${data.user.id}/social`);
+        const socialRes = await fetch(`/api/profile/${data.user.id}/social`);
         if (socialRes.ok) {
           const socialData = await socialRes.json();
           setSocialStats(socialData);
@@ -116,7 +116,7 @@ export default function ProfileClient() {
   const fetchStats = async () => {
     setStatsLoading(true);
     try {
-      const res = await fetch('/profile/me/stats', { credentials: 'include' });
+      const res = await fetch('/api/profile/me/stats', { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         setStats(data.stats);
@@ -151,7 +151,7 @@ export default function ProfileClient() {
 
     const delayDebounce = setTimeout(async () => {
       try {
-        const res = await fetch(`/profile/search?q=${encodeURIComponent(queryClean)}`);
+        const res = await fetch(`/api/profile/search?q=${encodeURIComponent(queryClean)}`);
         if (res.ok) {
           const data = await res.json();
           setUserSearchResults(data.users || []);
@@ -200,7 +200,7 @@ export default function ProfileClient() {
   // Profile actions
   const handleUpdateProfile = async (updatedFields) => {
     try {
-      const res = await fetch('/profile/me', {
+      const res = await fetch('/api/profile/me', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedFields),
@@ -328,7 +328,7 @@ export default function ProfileClient() {
       if (res.ok) {
         const data = await res.json();
         setActivePlaylistData(data.playlist);
-        const profileRes = await fetch('/profile/me', { credentials: 'include' });
+        const profileRes = await fetch('/api/profile/me', { credentials: 'include' });
         if (profileRes.ok) {
           const profileData = await profileRes.json();
           setPlaylists(profileData.playlists || []);
@@ -645,11 +645,11 @@ export default function ProfileClient() {
           following={socialStats.following || []}
           onUnfollow={async (unfollowedUserId) => {
             try {
-              const res = await fetch(`/profile/${unfollowedUserId}/follow`, { method: 'DELETE' });
+              const res = await fetch(`/api/profile/${unfollowedUserId}/follow`, { method: 'DELETE' });
               if (res.ok) {
                 addToast('Unfollowed user', 'success');
                 // Refresh social status
-                const socialRes = await fetch(`/profile/${profile.id}/social`);
+                const socialRes = await fetch(`/api/profile/${profile.id}/social`);
                 if (socialRes.ok) {
                   const socialData = await socialRes.json();
                   setSocialStats(socialData);
