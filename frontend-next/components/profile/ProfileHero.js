@@ -266,35 +266,6 @@ export default function ProfileHero({
                 </div>
               </div>
 
-              {/* Banner selection presets */}
-              <div style={{ borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '16px' }}>
-                <div style={{ fontSize: '11px', color: '#888', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Banner Presets</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                  {Object.entries(BANNER_GRADIENTS).map(([key, value]) => (
-                    <button
-                      key={key}
-                      onClick={() => handleBannerPresetChange(key)}
-                      className="profile-preset-btn"
-                      style={{
-                        background: (bannerPreset === key && !customBannerUrl) ? 'rgba(255, 159, 28, 0.1)' : 'rgba(255,255,255,0.02)',
-                        border: (bannerPreset === key && !customBannerUrl) ? '1px solid var(--theme-accent, #ff9f1c)' : '1px solid rgba(255,255,255,0.05)',
-                        color: (bannerPreset === key && !customBannerUrl) ? 'var(--theme-accent, #ff9f1c)' : '#888',
-                        padding: '8px 10px',
-                        borderRadius: '8px',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis'
-                      }}
-                    >
-                      {value.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
 
               {/* Custom Banner Image URL */}
               {(() => {
