@@ -32,6 +32,21 @@ const BANNER_GRADIENTS = {
   sunset: { name: 'Sunset Glow', style: () => 'linear-gradient(135deg, #7c2d12 0%, #ea580c 50%, #eab308 100%)' }
 };
 
+const isValidImageUrl = (url) => {
+  if (!url) return false;
+  const u = url.trim().toLowerCase();
+  return (
+    u.startsWith('http://') || 
+    u.startsWith('https://')
+  ) && (
+    /\.(jpeg|jpg|gif|png|webp|svg|bmp)(?:\?.*)?$/i.test(u) ||
+    u.includes('f.pinimg.com') ||
+    u.includes('media.discordapp.net') ||
+    u.includes('cdn.discordapp.com') ||
+    u.includes('images.unsplash.com')
+  );
+};
+
 export default function ProfileHero({
   profile,
   isOwnProfile,
@@ -249,6 +264,7 @@ export default function ProfileHero({
                     <button
                       key={key}
                       onClick={() => handleBannerPresetChange(key)}
+                      className="profile-preset-btn"
                       style={{
                         background: (bannerPreset === key && !customBannerUrl) ? 'rgba(255, 159, 28, 0.1)' : 'rgba(255,255,255,0.02)',
                         border: (bannerPreset === key && !customBannerUrl) ? '1px solid var(--theme-accent, #ff9f1c)' : '1px solid rgba(255,255,255,0.05)',
@@ -261,8 +277,7 @@ export default function ProfileHero({
                         textAlign: 'left',
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        transition: 'all 0.2s'
+                        textOverflow: 'ellipsis'
                       }}
                     >
                       {value.name}
@@ -272,45 +287,59 @@ export default function ProfileHero({
               </div>
 
               {/* Custom Banner Image URL */}
-              <div style={{ borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '16px' }}>
-                <div style={{ fontSize: '11px', color: '#888', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Custom Image Banner</div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <input
-                    type="text"
-                    placeholder="https://example.com/banner.png"
-                    value={customBannerUrl}
-                    onChange={(e) => setCustomBannerUrl(e.target.value)}
-                    style={{
-                      flex: 1,
-                      background: 'rgba(0,0,0,0.3)',
-                      border: '1px solid rgba(255,255,255,0.06)',
-                      borderRadius: '8px',
-                      padding: '8px 12px',
-                      color: '#fff',
-                      fontSize: '12px',
-                      outline: 'none'
-                    }}
-                  />
-                  <button
-                    onClick={handleCustomBannerSave}
-                    style={{
-                      background: 'var(--theme-accent, #ff9f1c)',
-                      border: 'none',
-                      color: '#000',
-                      padding: '8px 16px',
-                      borderRadius: '8px',
-                      fontSize: '11px',
-                      fontWeight: 800,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Apply URL
-                  </button>
-                </div>
-                <div style={{ fontSize: '10px', color: '#555', marginTop: '6px', lineHeight: 1.3 }}>
-                  Tip: Copy the <strong>direct image address</strong> (e.g. right-click image &rarr; <em>Copy Image Address/Link</em>). Webpage links (like Pinterest pins or standard website URLs) will not work.
-                </div>
-              </div>
+              {(() => {
+                const isUrlInvalid = customBannerUrl.trim().length > 0 && !isValidImageUrl(customBannerUrl);
+                return (
+                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '16px' }}>
+                    <div style={{ fontSize: '11px', color: '#888', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Custom Image Banner</div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="text"
+                        placeholder="https://example.com/banner.png"
+                        value={customBannerUrl}
+                        onChange={(e) => setCustomBannerUrl(e.target.value)}
+                        style={{
+                          flex: 1,
+                          background: 'rgba(0,0,0,0.3)',
+                          border: isUrlInvalid ? '1px solid #ff4757' : '1px solid rgba(255,255,255,0.06)',
+                          borderRadius: '8px',
+                          padding: '8px 12px',
+                          color: '#fff',
+                          fontSize: '12px',
+                          outline: 'none'
+                        }}
+                      />
+                      <button
+                        disabled={isUrlInvalid}
+                        onClick={handleCustomBannerSave}
+                        className="profile-preset-btn"
+                        style={{
+                          background: isUrlInvalid ? 'rgba(255,255,255,0.02)' : 'var(--theme-accent, #ff9f1c)',
+                          border: 'none',
+                          color: isUrlInvalid ? '#555' : '#000',
+                          padding: '8px 16px',
+                          borderRadius: '8px',
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          cursor: isUrlInvalid ? 'not-allowed' : 'pointer',
+                          opacity: isUrlInvalid ? 0.5 : 1
+                        }}
+                      >
+                        Apply URL
+                      </button>
+                    </div>
+                    {isUrlInvalid ? (
+                      <div style={{ color: '#ff4757', fontSize: '10px', marginTop: '6px', fontWeight: 600 }}>
+                        Please enter a valid direct image URL (e.g., ending with .png, .jpg, .gif, or from Pinterest/Discord).
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '10px', color: '#555', marginTop: '6px', lineHeight: 1.3 }}>
+                        Tip: Copy the <strong>direct image address</strong> (e.g. right-click image &rarr; <em>Copy Image Address/Link</em>). Webpage links (like Pinterest pins or standard website URLs) will not work.
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Banner Alignment Button */}
               {profile?.banner_url && (
@@ -323,6 +352,7 @@ export default function ProfileHero({
                       setShowCropModal(true);
                       setShowSettings(false);
                     }}
+                    className="profile-preset-btn"
                     style={{
                       width: '100%',
                       background: 'rgba(255,255,255,0.02)',
@@ -336,16 +366,7 @@ export default function ProfileHero({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '6px',
-                      transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
-                      e.currentTarget.style.borderColor = 'var(--theme-accent, #ff9f1c)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
-                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
+                      gap: '6px'
                     }}
                   >
                     <Move size={13} style={{ color: 'var(--theme-accent, #ff9f1c)' }} />
@@ -358,8 +379,8 @@ export default function ProfileHero({
             <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'flex-end', background: '#111116' }}>
               <button
                 onClick={() => setShowSettings(false)}
+                className="profile-btn-done"
                 style={{
-                  background: 'var(--theme-accent, #ff9f1c)',
                   border: 'none',
                   color: '#000',
                   padding: '8px 24px',
@@ -450,8 +471,8 @@ export default function ProfileHero({
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
                   onClick={handleCropperCancel}
+                  className="image-editor-btn-cancel"
                   style={{
-                    background: '#4f545c',
                     border: 'none',
                     color: '#fff',
                     padding: '8px 18px',
@@ -465,8 +486,8 @@ export default function ProfileHero({
                 </button>
                 <button
                   onClick={handleCropperApply}
+                  className="image-editor-btn-apply"
                   style={{
-                    background: '#5865F2',
                     border: 'none',
                     color: '#fff',
                     padding: '8px 18px',
@@ -545,27 +566,33 @@ export default function ProfileHero({
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             {isEditingName ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <input
-                  type="text"
-                  value={editedName}
-                  onChange={(e) => setEditedName(e.target.value)}
-                  style={{
-                    background: 'rgba(0,0,0,0.4)',
-                    border: '1px solid var(--theme-accent, #ff9f1c)',
-                    color: '#fff',
-                    fontSize: '24px',
-                    fontWeight: 800,
-                    borderRadius: '8px',
-                    padding: '4px 12px',
-                    outline: 'none',
-                    maxWidth: '220px'
-                  }}
-                  autoFocus
-                />
-                <button onClick={handleSaveName} style={{ background: 'none', border: 'none', color: '#2ed573', cursor: 'pointer' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <input
+                    type="text"
+                    value={editedName}
+                    onChange={(e) => setEditedName(e.target.value)}
+                    maxLength={50}
+                    style={{
+                      background: 'rgba(0,0,0,0.4)',
+                      border: '1px solid var(--theme-accent, #ff9f1c)',
+                      color: '#fff',
+                      fontSize: '24px',
+                      fontWeight: 800,
+                      borderRadius: '8px',
+                      padding: '4px 12px',
+                      outline: 'none',
+                      maxWidth: '220px'
+                    }}
+                    autoFocus
+                  />
+                  <span style={{ fontSize: '10px', color: '#555', alignSelf: 'flex-end', fontWeight: 600, marginRight: '4px' }}>
+                    {editedName.length}/50
+                  </span>
+                </div>
+                <button onClick={handleSaveName} style={{ background: 'none', border: 'none', color: '#2ed573', cursor: 'pointer', alignSelf: 'center' }}>
                   <Check size={20} />
                 </button>
-                <button onClick={() => { setIsEditingName(false); setEditedName(profile?.display_name || ''); }} style={{ background: 'none', border: 'none', color: '#ff4757', cursor: 'pointer' }}>
+                <button onClick={() => { setIsEditingName(false); setEditedName(profile?.display_name || ''); }} style={{ background: 'none', border: 'none', color: '#ff4757', cursor: 'pointer', alignSelf: 'center' }}>
                   <X size={20} />
                 </button>
               </div>
@@ -601,33 +628,38 @@ export default function ProfileHero({
           {/* Bio text */}
           <div style={{ marginTop: '8px', maxWidth: '650px' }}>
             {isEditingBio ? (
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', width: '100%' }}>
-                <textarea
-                  value={editedBio}
-                  onChange={(e) => setEditedBio(e.target.value)}
-                  placeholder="Tell us about your music taste..."
-                  maxLength={200}
-                  style={{
-                    background: 'rgba(0,0,0,0.4)',
-                    border: '1px solid var(--theme-accent, #ff9f1c)',
-                    color: '#fff',
-                    fontSize: '13px',
-                    borderRadius: '8px',
-                    padding: '8px 12px',
-                    outline: 'none',
-                    flex: 1,
-                    height: '60px',
-                    resize: 'none'
-                  }}
-                />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <button onClick={handleSaveBio} style={{ background: 'none', border: 'none', color: '#2ed573', cursor: 'pointer' }}>
-                    <Check size={18} />
-                  </button>
-                  <button onClick={() => { setIsEditingBio(false); setEditedBio(profile?.bio || ''); }} style={{ background: 'none', border: 'none', color: '#ff4757', cursor: 'pointer' }}>
-                    <X size={18} />
-                  </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', width: '100%' }}>
+                  <textarea
+                    value={editedBio}
+                    onChange={(e) => setEditedBio(e.target.value)}
+                    placeholder="Tell us about your music taste..."
+                    maxLength={200}
+                    style={{
+                      background: 'rgba(0,0,0,0.4)',
+                      border: '1px solid var(--theme-accent, #ff9f1c)',
+                      color: '#fff',
+                      fontSize: '13px',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      outline: 'none',
+                      flex: 1,
+                      height: '60px',
+                      resize: 'none'
+                    }}
+                  />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <button onClick={handleSaveBio} style={{ background: 'none', border: 'none', color: '#2ed573', cursor: 'pointer' }}>
+                      <Check size={18} />
+                    </button>
+                    <button onClick={() => { setIsEditingBio(false); setEditedBio(profile?.bio || ''); }} style={{ background: 'none', border: 'none', color: '#ff4757', cursor: 'pointer' }}>
+                      <X size={18} />
+                    </button>
+                  </div>
                 </div>
+                <span style={{ fontSize: '10px', color: '#555', alignSelf: 'flex-start', marginLeft: '4px', fontWeight: 600 }}>
+                  {editedBio.length}/200
+                </span>
               </div>
             ) : (
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>

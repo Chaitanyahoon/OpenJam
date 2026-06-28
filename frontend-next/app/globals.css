@@ -11105,4 +11105,54 @@ div:hover > .play-hover-btn,
   justify-content: space-between;
 }
 
+/* Micro-animations and hover effects */
+.profile-theme-dot {
+  transition: all 0.2s ease-in-out !important;
+  cursor: pointer;
+}
+.profile-theme-dot:hover {
+  transform: scale(1.22);
+  box-shadow: 0 0 12px currentColor;
+}
+.profile-theme-dot.active {
+  transform: scale(1.1);
+  box-shadow: 0 0 8px currentColor;
+}
+
+/* Preset buttons animations */
+.profile-preset-btn {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+.profile-preset-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 159, 28, 0.15);
+  border-color: var(--theme-accent, #ff9f1c) !important;
+  color: #fff !important;
+}
+.profile-preset-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* Modal action buttons animations */
+.image-editor-btn-cancel, .image-editor-btn-apply, .profile-btn-done {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+.image-editor-btn-cancel:hover {
+  background: #68727f !important;
+  transform: translateY(-1px);
+}
+.image-editor-btn-apply:hover {
+  background: #677bc4 !important;
+  box-shadow: 0 4px 15px rgba(88, 101, 242, 0.4);
+  transform: translateY(-1px);
+}
+.profile-btn-done:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(255, 159, 28, 0.35);
+  background: #ffa82e !important;
+}
+.image-editor-btn-cancel:active, .image-editor-btn-apply:active, .profile-btn-done:active {
+  transform: translateY(0);
+}
+
 
