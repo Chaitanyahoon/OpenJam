@@ -138,7 +138,7 @@ export default function PlaylistClient() {
     }
   };
 
-  const handlePlayPreview = (track) => {
+  const handlePlayPreview = async (track) => {
     if (activePreview?.id === track.id) {
       if (isPlayingPreview) {
         audioRef.current.pause();
@@ -153,8 +153,25 @@ export default function PlaylistClient() {
     setActivePreview(track);
     setIsPlayingPreview(true);
 
+    let videoId = track.track_uri;
+
+    // Check if the track_uri is a valid 11-character YouTube video ID
+    const isVideoId = /^[a-zA-Z0-9_-]{11}$/.test(videoId);
+    if (!isVideoId) {
+      try {
+        const resolveRes = await fetch(`/search/resolve?q=${encodeURIComponent(videoId)}`);
+        if (resolveRes.ok) {
+          const resolveData = await resolveRes.json();
+          if (resolveData.video_id) {
+            videoId = resolveData.video_id;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to resolve track URI:", err);
+      }
+    }
+
     // Stream URL from our backend stream proxy
-    const videoId = track.track_uri;
     const streamUrl = `/stream/${videoId}`;
 
     if (audioRef.current) {
