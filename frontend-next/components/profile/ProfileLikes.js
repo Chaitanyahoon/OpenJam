@@ -66,7 +66,11 @@ export default function ProfileLikes({
                 fontSize: '13px',
                 fontWeight: 600,
                 outline: 'none',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                appearance: 'none',
+                WebkitAppearance: 'none',
+                MozAppearance: 'none',
+                paddingRight: '2px'
               }}
             >
               <option value="date" style={{ background: '#0e0e12', color: '#fff' }}>Recently Added</option>

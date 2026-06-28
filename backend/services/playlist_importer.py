@@ -71,15 +71,25 @@ async def import_playlist(url: str):
                                 if title:
                                     artist = artist.replace("\xa0", " ").strip()
                                     title = title.strip()
+                                    
+                                    # Extract cover art URL
+                                    album_art = None
+                                    cover_art = track.get("coverArt", {})
+                                    if isinstance(cover_art, dict) and cover_art.get("sources"):
+                                        album_art = cover_art["sources"][0].get("url")
+                                    if not album_art:
+                                        album_art = track.get("coverArtUrl") or track.get("thumbnailUrl")
+
                                     tracks.append({
                                         "name": title,
                                         "artist": artist,
                                         "uri": f"{title} {artist} official audio",
-                                        "duration_ms": track.get("duration", 0)
+                                        "duration_ms": track.get("duration", 0),
+                                        "album_art_url": album_art
                                     })
                 except Exception as parse_err:
                     logger.error(f"Error parsing Spotify embed __NEXT_DATA__: {parse_err}")
-
+ 
             # ── Tier 2: Anonymous token + Web API fallback ──
             if not tracks and embed_had_404:
                 logger.info(f"Spotify embed returned 404 for {playlist_id}, trying anonymous API fallback")
@@ -93,7 +103,7 @@ async def import_playlist(url: str):
                         api_url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
                         api_params = {
                             "limit": 100,
-                            "fields": "items(track(name,artists(name),duration_ms)),total,next"
+                            "fields": "items(track(name,artists(name),duration_ms,album(images))),total,next"
                         }
                         api_r = await client.get(
                             api_url,
@@ -106,11 +116,16 @@ async def import_playlist(url: str):
                                 t = item.get("track")
                                 if t and t.get("name"):
                                     artists = ", ".join(a["name"] for a in t.get("artists", []))
+                                    album_art = None
+                                    album = t.get("album", {})
+                                    if album and "images" in album and album["images"]:
+                                        album_art = album["images"][0].get("url")
                                     tracks.append({
                                         "name": t["name"],
                                         "artist": artists,
                                         "uri": f"{t['name']} {artists} official audio",
-                                        "duration_ms": t.get("duration_ms", 0)
+                                        "duration_ms": t.get("duration_ms", 0),
+                                        "album_art_url": album_art
                                     })
                         else:
                             logger.warning(f"Spotify API fallback returned {api_r.status_code} for {playlist_id}")
@@ -202,13 +217,14 @@ async def import_playlist(url: str):
                         else:
                             name = p1
                             artist = p0
-                    
                     video_id = entry.get("id")
                     uri = video_id if (video_id and len(video_id) == 11) else title
+                    thumbnail = entry.get("thumbnail") or (f"https://img.youtube.com/vi/{video_id}/0.jpg" if (video_id and len(video_id) == 11) else None)
                     extracted.append({
                         "name": name,
                         "artist": artist,
                         "uri": uri,
+                        "album_art_url": thumbnail
                     })
                 return extracted
 
