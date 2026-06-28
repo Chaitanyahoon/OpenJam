@@ -10586,7 +10586,7 @@ div:hover > .play-hover-btn,
 }
 
 .profile-hero-banner {
-  height: 200px;
+  height: 260px;
   width: 100%;
   position: relative;
   border-radius: 24px 24px 0 0; /* Keep top corners rounded since parent overflow is visible */
@@ -11053,7 +11053,7 @@ div:hover > .play-hover-btn,
 .image-editor-crop-viewport {
   position: absolute;
   width: 440px;
-  height: 88px; /* 5:1 ratio matching banner dimensions */
+  height: 100px; /* ~4.4:1 ratio matching taller banner dimensions */
   border: 2px solid #fff;
   box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6); /* Dim the area outside viewport */
   z-index: 10;

@@ -247,212 +247,239 @@ export default function ProfileHero({
       {isOwnProfile && showSettings && (
         <div className="profile-modal-backdrop" onClick={() => setShowSettings(false)}>
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
             className="image-editor-container"
             onClick={(e) => e.stopPropagation()}
             style={{
-              border: `1px solid ${THEME_COLORS[theme]?.color}55`,
+              border: `1px solid ${THEME_COLORS[theme]?.color}22`,
+              maxWidth: '480px',
+              background: '#131316',
+              overflow: 'hidden',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              <span style={{ fontSize: '15px', fontWeight: 800, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Sparkles size={16} style={{ color: 'var(--theme-accent, #ff9f1c)' }} />
-                Customize Profile
-              </span>
-              <X size={18} style={{ cursor: 'pointer', color: '#666', transition: 'color 0.2s' }} onClick={() => setShowSettings(false)} onMouseEnter={(e) => e.currentTarget.style.color = '#fff'} onMouseLeave={(e) => e.currentTarget.style.color = '#666'} />
-            </div>
-
-            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px', maxHeight: '75vh', overflowY: 'auto' }}>
-              {/* Banner Live Preview */}
-              <div>
-                <div style={{ fontSize: '11px', color: '#888', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Banner Preview</div>
-                <div style={{ 
-                  position: 'relative', 
-                  width: '100%', 
-                  height: '110px', 
-                  borderRadius: '12px', 
-                  overflow: 'hidden', 
-                  background: 'linear-gradient(135deg, #141318 0%, #1e1b4b 100%)',
-                  border: '1px solid rgba(255,255,255,0.06)'
-                }}>
-                  {/* Banner image background wrapper */}
-                  {(customBannerUrl || profile?.banner_url) ? (
-                    <div style={{
-                      position: 'absolute',
-                      inset: 0,
-                      backgroundImage: `url(${customBannerUrl.trim() || profile?.banner_url})`,
-                      backgroundSize: bannerScale || 'cover',
-                      backgroundPosition: `center ${bannerPosition || '50%'}`,
-                      backgroundRepeat: 'no-repeat',
-                      transition: 'all 0.15s ease-out'
-                    }} />
-                  ) : (
-                    <div style={{
-                      position: 'absolute',
-                      inset: 0,
-                      background: BANNER_GRADIENTS.default.style(theme)
-                    }} />
-                  )}
-                  {/* Overlay vignette */}
-                  <div style={{
-                    position: 'absolute',
-                    inset: 0,
-                    background: 'linear-gradient(to bottom, rgba(0,0,0,0) 40%, rgba(0,0,0,0.65) 100%)'
-                  }} />
-                  {/* Overlapping Avatar Info */}
-                  <div style={{
-                    position: 'absolute',
-                    bottom: '12px',
-                    left: '16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px'
-                  }}>
-                    <img 
-                      src={profile?.avatar_url || "/default-avatar.png"} 
-                      alt="" 
-                      style={{ 
-                        width: '42px', 
-                        height: '42px', 
-                        borderRadius: '50%', 
-                        border: '2.5px solid #18191c',
-                        background: '#18191c'
-                      }} 
-                    />
-                    <div style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
-                      <div style={{ fontSize: '13px', fontWeight: 800, color: '#fff' }}>{profile?.display_name}</div>
-                      <div style={{ fontSize: '10px', color: '#ccc', opacity: 0.8 }}>@{profile?.discord_username || 'user'}</div>
-                    </div>
-                  </div>
+            {/* Full-bleed Banner Preview (no padding, no label) */}
+            <div style={{ 
+              position: 'relative', 
+              width: '100%', 
+              height: '140px', 
+              overflow: 'hidden',
+              cursor: profile?.banner_url ? 'pointer' : 'default',
+              flexShrink: 0
+            }}
+              onClick={() => {
+                if (profile?.banner_url) {
+                  setTempPosition(parseInt(bannerPosition) || 50);
+                  setTempScale(parseInt(bannerScale) || 100);
+                  setShowCropModal(true);
+                  setShowSettings(false);
+                }
+              }}
+            >
+              {/* Banner image or gradient */}
+              {(customBannerUrl || profile?.banner_url) ? (
+                <div style={{
+                  position: 'absolute',
+                  inset: 0,
+                  backgroundImage: `url(${customBannerUrl.trim() || profile?.banner_url})`,
+                  backgroundSize: bannerScale || 'cover',
+                  backgroundPosition: `center ${bannerPosition || '50%'}`,
+                  backgroundRepeat: 'no-repeat',
+                  transition: 'all 0.2s ease-out'
+                }} />
+              ) : (
+                <div style={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: BANNER_GRADIENTS.default.style(theme)
+                }} />
+              )}
+              {/* Bottom vignette */}
+              <div style={{
+                position: 'absolute',
+                inset: 0,
+                background: 'linear-gradient(to bottom, rgba(19,19,22,0) 50%, rgba(19,19,22,0.95) 100%)'
+              }} />
+              {/* Close button on top right */}
+              <div 
+                onClick={(e) => { e.stopPropagation(); setShowSettings(false); }}
+                style={{
+                  position: 'absolute',
+                  top: '12px',
+                  right: '12px',
+                  width: '30px',
+                  height: '30px',
+                  borderRadius: '50%',
+                  background: 'rgba(0,0,0,0.55)',
+                  backdropFilter: 'blur(8px)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s',
+                  border: '1px solid rgba(255,255,255,0.08)'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.8)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.55)'}
+              >
+                <X size={14} style={{ color: '#ccc' }} />
+              </div>
+              {/* Avatar + Name overlapping bottom of banner */}
+              <div style={{
+                position: 'absolute',
+                bottom: '12px',
+                left: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px'
+              }}>
+                <img 
+                  src={profile?.avatar_url || "/default-avatar.png"} 
+                  alt="" 
+                  style={{ 
+                    width: '48px', 
+                    height: '48px', 
+                    borderRadius: '50%', 
+                    border: '3px solid #131316',
+                    background: '#131316',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.4)'
+                  }} 
+                />
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: '#fff', textShadow: '0 1px 6px rgba(0,0,0,0.8)' }}>{profile?.display_name}</div>
+                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)', textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>@{profile?.discord_username || 'user'}</div>
                 </div>
               </div>
+              {/* Click-to-edit hint for banner */}
+              {profile?.banner_url && (
+                <div style={{
+                  position: 'absolute',
+                  top: '12px',
+                  left: '12px',
+                  background: 'rgba(0,0,0,0.5)',
+                  backdropFilter: 'blur(8px)',
+                  borderRadius: '8px',
+                  padding: '4px 10px',
+                  fontSize: '10px',
+                  color: 'rgba(255,255,255,0.6)',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  pointerEvents: 'none'
+                }}>
+                  <Move size={10} />
+                  Click to adjust
+                </div>
+              )}
+            </div>
 
-              {/* Custom Banner Image URL */}
+            {/* Body Content */}
+            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+
+              {/* Banner URL Input */}
               {(() => {
                 const isUrlInvalid = customBannerUrl.trim().length > 0 && !isValidImageUrl(customBannerUrl);
                 return (
-                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '16px' }}>
-                    <div style={{ fontSize: '11px', color: '#888', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Banner Image URL</div>
+                  <div>
+                    <div style={{ fontSize: '11px', color: '#666', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Banner Image</div>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <input
                         type="text"
-                        placeholder="https://example.com/banner.png"
+                        placeholder="Paste an image URL..."
                         value={customBannerUrl}
                         onChange={(e) => setCustomBannerUrl(e.target.value)}
                         style={{
                           flex: 1,
-                          background: 'rgba(0,0,0,0.3)',
-                          border: isUrlInvalid ? '1px solid #ff4757' : '1px solid rgba(255,255,255,0.06)',
-                          borderRadius: '8px',
-                          padding: '8px 12px',
+                          background: 'rgba(255,255,255,0.03)',
+                          border: isUrlInvalid ? '1px solid rgba(255,71,87,0.5)' : '1px solid rgba(255,255,255,0.06)',
+                          borderRadius: '10px',
+                          padding: '10px 14px',
                           color: '#fff',
-                          fontSize: '12px',
-                          outline: 'none'
+                          fontSize: '13px',
+                          outline: 'none',
+                          transition: 'border-color 0.2s'
                         }}
                       />
                       <button
                         disabled={isUrlInvalid || !customBannerUrl.trim()}
                         onClick={handleCustomBannerSave}
-                        className="profile-preset-btn"
                         style={{
-                          background: (isUrlInvalid || !customBannerUrl.trim()) ? 'rgba(255,255,255,0.02)' : 'var(--theme-accent, #ff9f1c)',
+                          background: (isUrlInvalid || !customBannerUrl.trim()) ? 'rgba(255,255,255,0.03)' : 'var(--theme-accent, #ff9f1c)',
                           border: 'none',
-                          color: (isUrlInvalid || !customBannerUrl.trim()) ? '#555' : '#000',
-                          padding: '8px 16px',
-                          borderRadius: '8px',
-                          fontSize: '11px',
+                          color: (isUrlInvalid || !customBannerUrl.trim()) ? '#444' : '#000',
+                          padding: '10px 18px',
+                          borderRadius: '10px',
+                          fontSize: '12px',
                           fontWeight: 800,
                           cursor: (isUrlInvalid || !customBannerUrl.trim()) ? 'not-allowed' : 'pointer',
-                          opacity: (isUrlInvalid || !customBannerUrl.trim()) ? 0.5 : 1
+                          opacity: (isUrlInvalid || !customBannerUrl.trim()) ? 0.5 : 1,
+                          transition: 'all 0.2s',
+                          whiteSpace: 'nowrap'
                         }}
                       >
-                        Apply URL
+                        Apply
                       </button>
                     </div>
-                    {isUrlInvalid ? (
+                    {isUrlInvalid && (
                       <div style={{ color: '#ff4757', fontSize: '10px', marginTop: '6px', fontWeight: 600 }}>
-                        Please enter a valid direct image URL (e.g., ending with .png, .jpg, .gif, or from Pinterest/Discord).
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: '10px', color: '#555', marginTop: '6px', lineHeight: 1.3 }}>
-                        Tip: Copy the <strong>direct image address</strong> (e.g. right-click image &rarr; <em>Copy Image Address/Link</em>). Webpage links (like Pinterest pins or standard website URLs) will not work.
+                        Enter a valid direct image URL (e.g. .png, .jpg, .gif, or from Pinterest/Discord).
                       </div>
                     )}
                   </div>
                 );
               })()}
 
-              {/* Banner Adjustment Controls */}
+              {/* Remove Banner - only if banner exists */}
               {(profile?.banner_url || customBannerUrl.trim()) && (
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '16px', display: 'flex', gap: '8px' }}>
-                  <button
-                    onClick={() => {
-                      setTempPosition(parseInt(bannerPosition) || 50);
-                      setTempScale(parseInt(bannerScale) || 100);
-                      setShowCropModal(true);
-                      setShowSettings(false);
-                    }}
-                    className="profile-preset-btn"
-                    style={{
-                      flex: 1,
-                      background: 'rgba(255,255,255,0.02)',
-                      border: '1px solid rgba(255,255,255,0.06)',
-                      color: '#fff',
-                      padding: '10px 14px',
-                      borderRadius: '10px',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px'
-                    }}
-                  >
-                    <Move size={13} style={{ color: 'var(--theme-accent, #ff9f1c)' }} />
-                    Adjust Alignment (Crop & Zoom)
-                  </button>
-                  
-                  <button
-                    onClick={handleRemoveBanner}
-                    className="profile-preset-btn"
-                    style={{
-                      background: 'rgba(255,71,87,0.05)',
-                      border: '1px solid rgba(255,71,87,0.15)',
-                      color: '#ff4757',
-                      padding: '10px 14px',
-                      borderRadius: '10px',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px'
-                    }}
-                  >
-                    <Trash2 size={13} />
-                    Remove Banner
-                  </button>
-                </div>
+                <button
+                  onClick={handleRemoveBanner}
+                  style={{
+                    background: 'none',
+                    border: '1px solid rgba(255,71,87,0.12)',
+                    color: '#ff4757',
+                    padding: '8px 0',
+                    borderRadius: '10px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s',
+                    width: '100%'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,71,87,0.08)'; e.currentTarget.style.borderColor = 'rgba(255,71,87,0.25)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.borderColor = 'rgba(255,71,87,0.12)'; }}
+                >
+                  <Trash2 size={13} />
+                  Remove Banner
+                </button>
               )}
             </div>
 
-            <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'flex-end', background: '#111116' }}>
+            {/* Footer */}
+            <div style={{ padding: '14px 24px', borderTop: '1px solid rgba(255,255,255,0.04)', display: 'flex', justifyContent: 'flex-end' }}>
               <button
                 onClick={() => setShowSettings(false)}
-                className="profile-btn-done"
                 style={{
+                  background: 'var(--theme-accent, #ff9f1c)',
                   border: 'none',
                   color: '#000',
-                  padding: '8px 24px',
+                  padding: '8px 28px',
                   borderRadius: '20px',
                   fontSize: '12px',
                   fontWeight: 800,
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  transition: 'transform 0.15s, box-shadow 0.15s',
+                  boxShadow: '0 2px 12px rgba(255,159,28,0.2)'
                 }}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.03)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(255,159,28,0.35)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(255,159,28,0.2)'; }}
               >
                 Done
               </button>
