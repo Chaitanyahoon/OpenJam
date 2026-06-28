@@ -115,15 +115,14 @@ export default function ProfileHero({
     e.preventDefault();
     setIsCropperDragging(true);
     const clientY = e.clientY || (e.touches && e.touches[0].clientY) || 0;
-    setDragStartY(clientY); // We can reuse dragStartY or create a local variable
-    setDragStartY(clientY);
+    setCropperDragStartY(clientY);
     setCropperDragStartPercent(tempPosition);
   };
 
   const handleCropperDragMove = (e) => {
     if (!isCropperDragging) return;
     const clientY = e.clientY || (e.touches && e.touches[0].clientY) || 0;
-    const deltaY = clientY - dragStartY;
+    const deltaY = clientY - cropperDragStartY;
     // Viewport height is 88px. Drag vertically.
     const percentDiff = (deltaY / 88) * 100;
     let newPercent = Math.round(cropperDragStartPercent - percentDiff);
