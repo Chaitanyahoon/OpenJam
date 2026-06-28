@@ -233,6 +233,9 @@ export default function ProfileHero({
                 Apply
               </button>
             </div>
+            <div style={{ fontSize: '10px', color: '#555', marginTop: '6px', lineHeight: 1.3 }}>
+              Tip: Copy the <strong>direct image address</strong> (e.g. right-click image &rarr; <em>Copy Image Address/Link</em>). Webpage links (like Pinterest pins or standard website URLs) will not work.
+            </div>
           </div>
         </motion.div>
       )}
