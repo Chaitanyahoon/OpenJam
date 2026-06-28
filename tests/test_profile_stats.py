@@ -34,10 +34,10 @@ def test_get_my_stats_authenticated_empty(client, auth_headers, test_user):
     assert len(stats["top_genres"]) == 0
 
 
-def test_get_public_stats_not_found(client):
+def test_get_public_stats_not_found(client, auth_headers):
     """Test public stats with a non-existent user ID."""
-    response = client.get("/profile/non-existent-user-id/stats")
-    assert response.status_code == 404
+    response = client.get("/profile/non-existent-user-id/stats", headers=auth_headers)
+    assert response.status_code == 403
 
 
 def test_get_profile_stats_with_data(client, auth_headers, test_user, test_room, db_session):
@@ -104,7 +104,11 @@ def test_get_profile_stats_with_data(client, auth_headers, test_user, test_room,
     assert stats["top_artists"][0]["artist"] == "Artist Y"
 
     # Query statistics (public stats)
-    pub_response = client.get(f"/profile/{test_user.id}/stats")
+    pub_response = client.get(f"/profile/{test_user.id}/stats", headers=auth_headers)
     assert pub_response.status_code == 200
     pub_data = pub_response.json()
     assert pub_data["stats"]["total_queued"] == 2
+
+    # Query statistics without headers (unauthenticated)
+    unauth_response = client.get(f"/profile/{test_user.id}/stats")
+    assert unauth_response.status_code == 401

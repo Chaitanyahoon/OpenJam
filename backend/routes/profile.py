@@ -353,8 +353,14 @@ async def get_my_stats(db: Session = Depends(get_db), user_id: str = Depends(req
 
 
 @router.get("/{user_id}/stats")
-async def get_public_user_stats(user_id: str, db: Session = Depends(get_db)):
-    """Retrieve public stats metrics for a specific user ID."""
+async def get_public_user_stats(
+    user_id: str, 
+    db: Session = Depends(get_db), 
+    current_user_id: str = Depends(require_registered_user)
+):
+    """Retrieve public stats metrics for a specific user ID, restricted to the owner."""
+    if current_user_id != user_id:
+        raise HTTPException(status_code=403, detail="Stats are private to the owner")
     user = db.query(User).filter(User.id == user_id, User.discord_id.isnot(None)).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")

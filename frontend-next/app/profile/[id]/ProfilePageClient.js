@@ -74,20 +74,6 @@ export default function ProfilePageClient() {
         setPlaylists(data.playlists || []);
         setLoading(false);
 
-        // Fetch public stats
-        setStatsLoading(true);
-        try {
-          const statsRes = await fetch(`/api/profile/${userId}/stats`);
-          if (statsRes.ok) {
-            const statsData = await statsRes.json();
-            setStats(statsData.stats);
-          }
-        } catch (e) {
-          console.warn('Could not load public profile stats:', e);
-        } finally {
-          setStatsLoading(false);
-        }
-
         // Fetch social relationships
         try {
           const socialRes = await fetch(`/api/profile/${userId}/social`);
@@ -302,25 +288,7 @@ export default function ProfilePageClient() {
           />
         )}
 
-        {/* Stats Section */}
-        {stats && (
-          <div className="glass-card" style={{
-            padding: '32px',
-            borderRadius: '24px',
-            border: '1px solid rgba(255,255,255,0.04)',
-            background: 'linear-gradient(135deg, rgba(20, 20, 28, 0.4) 0%, rgba(10, 10, 14, 0.6) 100%)',
-            backdropFilter: 'blur(20px)',
-            boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
-            marginBottom: '40px'
-          }}>
-            <ProfileStats 
-              stats={stats}
-              loading={statsLoading}
-              onRefresh={null}
-              isOwnProfile={false}
-            />
-          </div>
-        )}
+
 
         {/* Public Playlists */}
         <div className="glass-card" style={{
