@@ -59,7 +59,7 @@ export default function ProfilePageClient() {
 
     const fetchPublicProfile = async () => {
       try {
-        const res = await fetch(`/api/profile/${userId}`);
+        const res = await fetch(`/api/profile/${userId}?t=${Date.now()}`, { cache: 'no-store' });
         if (!res.ok) {
           if (res.status === 404) {
             setError('User profile not found');
@@ -76,7 +76,7 @@ export default function ProfilePageClient() {
 
         // Fetch social relationships
         try {
-          const socialRes = await fetch(`/api/profile/${userId}/social`);
+          const socialRes = await fetch(`/api/profile/${userId}/social?t=${Date.now()}`, { cache: 'no-store' });
           if (socialRes.ok) {
             const socialData = await socialRes.json();
             setSocialStats(socialData);
@@ -100,7 +100,7 @@ export default function ProfilePageClient() {
       if (res.ok) {
         addToast('Following user!', 'success');
         // Refresh social status
-        const socialRes = await fetch(`/api/profile/${userId}/social`);
+        const socialRes = await fetch(`/api/profile/${userId}/social?t=${Date.now()}`, { cache: 'no-store' });
         if (socialRes.ok) {
           const socialData = await socialRes.json();
           setSocialStats(socialData);
@@ -120,7 +120,7 @@ export default function ProfilePageClient() {
       if (res.ok) {
         addToast('Unfollowed user', 'success');
         // Refresh social status
-        const socialRes = await fetch(`/api/profile/${userId}/social`);
+        const socialRes = await fetch(`/api/profile/${userId}/social?t=${Date.now()}`, { cache: 'no-store' });
         if (socialRes.ok) {
           const socialData = await socialRes.json();
           setSocialStats(socialData);

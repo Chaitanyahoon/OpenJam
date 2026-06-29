@@ -75,7 +75,7 @@ export default function ProfileClient() {
   // Fetch initial profile data
   const fetchProfileData = async () => {
     try {
-      const res = await fetch('/api/profile/me', { credentials: 'include' });
+      const res = await fetch(`/api/profile/me?t=${Date.now()}`, { credentials: 'include', cache: 'no-store' });
       if (!res.ok) {
         if (res.status === 401 || res.status === 403) {
           setError('Authentication required');
@@ -93,7 +93,7 @@ export default function ProfileClient() {
 
       // Fetch social details for own profile
       try {
-        const socialRes = await fetch(`/api/profile/${data.user.id}/social`);
+        const socialRes = await fetch(`/api/profile/${data.user.id}/social?t=${Date.now()}`, { cache: 'no-store' });
         if (socialRes.ok) {
           const socialData = await socialRes.json();
           setSocialStats(socialData);
@@ -116,7 +116,7 @@ export default function ProfileClient() {
   const fetchStats = async () => {
     setStatsLoading(true);
     try {
-      const res = await fetch('/api/profile/me/stats', { credentials: 'include' });
+      const res = await fetch(`/api/profile/me/stats?t=${Date.now()}`, { credentials: 'include', cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         setStats(data.stats);
