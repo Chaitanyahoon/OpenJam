@@ -97,16 +97,95 @@ class MusicSearchService:
             })
 
         logger.debug(f"iTunes search '{query}' → {len(tracks)} results")
-        self._search_cache[cache_key] = tracks
+        
+        # Fallback to YouTube Music if iTunes search returned no results or very few results
+        if len(tracks) < 2:
+            logger.info(f"iTunes results sparse ({len(tracks)}). Falling back to YouTube Music for query '{query}'")
+            ytm_tracks = await asyncio.to_thread(self._search_via_ytmusic, query, limit)
+            if ytm_tracks:
+                # Merge lists, avoiding duplicates by (name, artist)
+                seen = {f"{t['name'].lower()}_{t['artist'].lower()}" for t in tracks}
+                for t in ytm_tracks:
+                    key = f"{t['name'].lower()}_{t['artist'].lower()}"
+                    if key not in seen:
+                        tracks.append(t)
+                        seen.add(key)
+                logger.debug(f"Merged YouTube Music results → total {len(tracks)} tracks")
+
+        self._search_cache[cache_key] = tracks[:limit]
         if len(self._search_cache) > 200:
             first_key = next(iter(self._search_cache))
             self._search_cache.pop(first_key, None)
-        return tracks
+        return tracks[:limit]
+
+    def _search_via_ytmusic(self, query: str, limit: int = 10) -> list:
+        """Search YouTube Music as a fallback when iTunes returns no results."""
+        try:
+            ytm = self._get_ytmusic()
+            if not ytm:
+                return []
+            
+            # Try searching with filter='songs' first for best results
+            results = []
+            try:
+                results = ytm.search(query, filter="songs", limit=limit)
+            except Exception as e:
+                logger.warning(f"YTMusic filtered search failed: {e}")
+                
+            # If no results, do a general search
+            if not results:
+                try:
+                    results = ytm.search(query, limit=limit)
+                except Exception as e:
+                    logger.warning(f"YTMusic general search failed: {e}")
+                    return []
+                    
+            tracks = []
+            for r in results[:limit]:
+                # We need videoId to resolve it
+                video_id = r.get("videoId")
+                if not video_id:
+                    continue
+                    
+                name = r.get("title", "Unknown Track")
+                
+                # Artists
+                artists_list = r.get("artists", [])
+                artist = "Unknown Artist"
+                if artists_list:
+                    if isinstance(artists_list, list):
+                        artist = ", ".join([a.get("name", "") for a in artists_list if a.get("name")])
+                    elif isinstance(artists_list, str):
+                        artist = artists_list
+                        
+                # Thumbnails
+                thumbnails = r.get("thumbnails", [])
+                artwork = None
+                if thumbnails:
+                    artwork = thumbnails[-1].get("url")
+                    
+                # Duration
+                duration_seconds = r.get("duration_seconds")
+                duration_ms = (duration_seconds * 1000) if duration_seconds else 0
+                
+                tracks.append({
+                    "uri": video_id,  # Set directly to video_id
+                    "name": name,
+                    "artist": artist,
+                    "album_art_url": artwork or None,
+                    "duration_ms": duration_ms,
+                })
+                
+            return tracks
+        except Exception as e:
+            logger.error(f"YTMusic search failed for query '{query}': {e}")
+            return []
 
     async def resolve_youtube(self, query: str) -> str | None:
         """Resolve a YouTube video ID from a search query asynchronously.
         
         Strategy:
+        0. Check if query is already a raw video ID or YouTube URL
         1. Check memory cache (fast, 0ms)
         2. If query is a Spotify track link, scrape metadata first
         3. Try ytmusicapi (best quality, music-specific)
@@ -116,6 +195,16 @@ class MusicSearchService:
             return None
 
         q = query.strip()
+
+        # 0. Check if query is already a direct 11-character YouTube video ID
+        if re.match(r"^[a-zA-Z0-9_-]{11}$", q):
+            return q
+
+        # 0b. Check if query is a YouTube link
+        if "youtube.com" in q or "youtu.be" in q or "music.youtube" in q:
+            video_id_match = re.search(r"(?:v=|\/vi\/|youtu\.be\/|\/embed\/|\/shorts\/|\/watch\?v=|&v=)([a-zA-Z0-9_-]{11})", q)
+            if video_id_match:
+                return video_id_match.group(1)
 
         # Check if query is a Spotify track link
         if "spotify.com/track/" in q:
