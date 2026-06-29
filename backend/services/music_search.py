@@ -44,7 +44,7 @@ class MusicSearchService:
         return self._ytmusic
 
     async def search_tracks(self, query: str, limit: int = 10) -> list:
-        """Search iTunes for tracks asynchronously. Returns list compatible with existing data shape."""
+        """Search tracks asynchronously using iTunes API and YouTube Music."""
         if not query or not query.strip():
             return []
 
@@ -54,68 +54,70 @@ class MusicSearchService:
             logger.debug(f"Search results for '{query}' retrieved from cache")
             return self._search_cache[cache_key]
 
-        params = urllib.parse.urlencode({
-            "term": query.strip(),
-            "media": "music",
-            "entity": "song",
-            "limit": min(limit, 25),
-        })
-
-        try:
-            url = f"{ITUNES_API}?{params}"
-            async with httpx.AsyncClient(timeout=8.0) as client:
-                resp = await client.get(url, headers={"User-Agent": "OpenJam/1.0"})
-                resp.raise_for_status()
-                data = resp.json()
-        except Exception as e:
-            logger.error(f"iTunes API error for query '{query}': {e}")
-            return []
-
-        results = data.get("results", [])
-        tracks = []
-        for item in results[:limit]:
-            if item.get("kind") != "song":
-                continue
-
-            name = item.get("trackName", "Unknown")
-            artist = item.get("artistName", "Unknown")
-
-            # iTunes gives 100x100 artwork — bump to 600x600 for quality
-            artwork = (item.get("artworkUrl100") or "").replace("100x100bb", "600x600bb")
-
-            duration_ms = item.get("trackTimeMillis") or 0
-
-            # uri = YouTube search query string — resolved server-side to video ID
-            youtube_query = f"{name} {artist} official audio"
-
-            tracks.append({
-                "uri": youtube_query,
-                "name": name,
-                "artist": artist,
-                "album_art_url": artwork or None,
-                "duration_ms": duration_ms,
+        async def _search_itunes():
+            params = urllib.parse.urlencode({
+                "term": query.strip(),
+                "media": "music",
+                "entity": "song",
+                "limit": min(limit, 15),
             })
+            try:
+                url = f"{ITUNES_API}?{params}"
+                async with httpx.AsyncClient(timeout=6.0) as client:
+                    resp = await client.get(url, headers={"User-Agent": "OpenJam/1.0"})
+                    resp.raise_for_status()
+                    data = resp.json()
+                results = data.get("results", [])
+                tracks = []
+                for item in results:
+                    if item.get("kind") != "song":
+                        continue
+                    name = item.get("trackName", "Unknown")
+                    artist = item.get("artistName", "Unknown")
+                    artwork = (item.get("artworkUrl100") or "").replace("100x100bb", "600x600bb")
+                    duration_ms = item.get("trackTimeMillis") or 0
+                    youtube_query = f"{name} {artist} official audio"
+                    tracks.append({
+                        "uri": youtube_query,
+                        "name": name,
+                        "artist": artist,
+                        "album_art_url": artwork or None,
+                        "duration_ms": duration_ms,
+                    })
+                return tracks
+            except Exception as e:
+                logger.warning(f"iTunes search failed: {e}")
+                return []
 
-        logger.debug(f"iTunes search '{query}' → {len(tracks)} results")
-        
-        # Fallback to YouTube Music if iTunes search returned no results or very few results
-        if len(tracks) < 2:
-            logger.info(f"iTunes results sparse ({len(tracks)}). Falling back to YouTube Music for query '{query}'")
-            ytm_tracks = await asyncio.to_thread(self._search_via_ytmusic, query, limit)
-            if ytm_tracks:
-                # Merge lists, avoiding duplicates by (name, artist)
-                seen = {f"{t['name'].lower()}_{t['artist'].lower()}" for t in tracks}
-                for t in ytm_tracks:
-                    key = f"{t['name'].lower()}_{t['artist'].lower()}"
-                    if key not in seen:
-                        tracks.append(t)
-                        seen.add(key)
-                logger.debug(f"Merged YouTube Music results → total {len(tracks)} tracks")
+        # Run both searches in parallel for maximum speed
+        itunes_task = _search_itunes()
+        ytmusic_task = asyncio.to_thread(self._search_via_ytmusic, query, limit)
+
+        itunes_tracks, ytm_tracks = await asyncio.gather(itunes_task, ytmusic_task)
+
+        # Merge results, prioritizing iTunes (official tracks) first, then YTMusic (remixes/covers/etc.)
+        tracks = []
+        seen = set()
+
+        for t in itunes_tracks:
+            key = f"{t['name'].lower()}_{t['artist'].lower()}"
+            if key not in seen:
+                tracks.append(t)
+                seen.add(key)
+
+        for t in ytm_tracks:
+            key = f"{t['name'].lower()}_{t['artist'].lower()}"
+            if key not in seen:
+                tracks.append(t)
+                seen.add(key)
+
+        logger.debug(f"Combined search '{query}' → {len(tracks)} results")
 
         self._search_cache[cache_key] = tracks[:limit]
         if len(self._search_cache) > 200:
             first_key = next(iter(self._search_cache))
             self._search_cache.pop(first_key, None)
+
         return tracks[:limit]
 
     def _search_via_ytmusic(self, query: str, limit: int = 10) -> list:
