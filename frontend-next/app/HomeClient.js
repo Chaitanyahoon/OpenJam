@@ -1609,7 +1609,7 @@ export default function HomePage() {
           <Link href="/terms" className="footer-link">Terms of Service</Link>
         </div>
         <p className="footer-copy">
-          &copy; {currentYear} OpenJam. Created by <span style={{ color: '#fff', fontWeight: 600 }}>Chaitanya (@chaitanyahoon)</span>. All rights reserved.
+          &copy; {currentYear} OpenJam. Created by <a href="https://discord.com/users/964173378896400425" target="_blank" rel="noopener noreferrer" style={{ color: '#fff', fontWeight: 600, textDecoration: 'none', transition: 'color 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.color = 'var(--theme-accent, #ff9f1c)'} onMouseLeave={(e) => e.currentTarget.style.color = '#fff'}>Chaitanya</a>. All rights reserved.
         </p>
       </footer>
 
