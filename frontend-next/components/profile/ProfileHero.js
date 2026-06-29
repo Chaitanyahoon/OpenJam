@@ -17,19 +17,13 @@ const THEME_COLORS = {
 
 const BANNER_GRADIENTS = {
   default: { name: 'Theme Match', style: (theme) => {
-    switch (theme) {
-      case 'cobalt': return 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #1d4ed8 100%)';
-      case 'rose': return 'linear-gradient(135deg, #581c87 0%, #ec4899 50%, #be185d 100%)';
-      case 'emerald': return 'linear-gradient(135deg, #064e3b 0%, #10b981 50%, #047857 100%)';
-      case 'violet': return 'linear-gradient(135deg, #2e1065 0%, #8b5cf6 50%, #6d28d9 100%)';
-      case 'amber':
-      default: return 'linear-gradient(135deg, #78350f 0%, #ff9f1c 50%, #d97706 100%)';
-    }
+    const accent = THEME_COLORS[theme]?.color || '#ff9f1c';
+    return `radial-gradient(circle at 20% 30%, ${accent}33 0%, transparent 60%), radial-gradient(circle at 80% 80%, #141318 0%, #08080a 100%), linear-gradient(135deg, ${accent}55 0%, #08080a 100%)`;
   }},
-  vinyl: { name: 'Retro Vinyl', style: () => 'radial-gradient(circle, #22222b 20%, #111116 80%)' },
-  synth: { name: 'Synthwave Neon', style: () => 'linear-gradient(180deg, #db2777 0%, #4c1d95 60%, #1e1b4b 100%)' },
-  cosmic: { name: 'Cosmic Nebula', style: () => 'linear-gradient(135deg, #0f172a 0%, #581c87 50%, #db2777 100%)' },
-  sunset: { name: 'Sunset Glow', style: () => 'linear-gradient(135deg, #7c2d12 0%, #ea580c 50%, #eab308 100%)' }
+  vinyl: { name: 'Retro Vinyl', style: () => 'linear-gradient(135deg, #09090b 0%, #16161c 50%, #030305 100%)' },
+  synth: { name: 'Synthwave Neon', style: () => 'radial-gradient(circle at 20% 20%, rgba(219, 39, 119, 0.4) 0%, transparent 60%), radial-gradient(circle at 80% 80%, rgba(76, 29, 149, 0.5) 0%, transparent 60%), linear-gradient(135deg, #0c081e 0%, #03010a 100%)' },
+  cosmic: { name: 'Cosmic Nebula', style: () => 'radial-gradient(circle at 30% 30%, rgba(139, 92, 246, 0.35) 0%, transparent 50%), radial-gradient(circle at 80% 70%, rgba(236, 72, 153, 0.3) 0%, transparent 50%), linear-gradient(135deg, #090514 0%, #020105 100%)' },
+  sunset: { name: 'Sunset Glow', style: () => 'radial-gradient(circle at 10% 20%, rgba(234, 88, 12, 0.4) 0%, transparent 50%), radial-gradient(circle at 90% 80%, rgba(234, 179, 8, 0.25) 0%, transparent 50%), linear-gradient(135deg, #180803 0%, #030100 100%)' }
 };
 
 const isValidImageUrl = (url) => {
@@ -124,6 +118,15 @@ export default function ProfileHero({
       setCustomBannerUrl(profile?.banner_url || '');
     }
   }, [showSettings, profile]);
+
+  // Automatically switch preview to custom image when a valid URL is typed/pasted
+  useEffect(() => {
+    const url = customBannerUrl.trim();
+    if (url && isValidImageUrl(url)) {
+      setPreviewBannerPreset('custom');
+      setPreviewBannerUrl(url);
+    }
+  }, [customBannerUrl]);
 
   // Debounced username checker
   useEffect(() => {

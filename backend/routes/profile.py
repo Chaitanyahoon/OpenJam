@@ -25,7 +25,8 @@ class UpdateProfileRequest(BaseModel):
 
 def resolve_user_id(identifier: str, db: Session) -> str:
     """Resolve a user identifier (UUID or @username/username) to their actual user ID (UUID)."""
-    identifier_clean = identifier.strip()
+    import urllib.parse
+    identifier_clean = urllib.parse.unquote(identifier.strip())
     # Check if identifier is already a valid UUID
     if re.match(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", identifier_clean):
         return identifier_clean
