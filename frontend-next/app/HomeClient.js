@@ -1608,7 +1608,9 @@ export default function HomePage() {
           <span className="footer-sep" aria-hidden="true">&middot;</span>
           <Link href="/terms" className="footer-link">Terms of Service</Link>
         </div>
-        <p className="footer-copy">&copy; {currentYear} OpenJam. All rights reserved.</p>
+        <p className="footer-copy">
+          &copy; {currentYear} OpenJam. Created by <span style={{ color: '#fff', fontWeight: 600 }}>Chaitanya (@chaitanyahoon)</span>. All rights reserved.
+        </p>
       </footer>
 
       {/* Floating Preview Control Bar */}
