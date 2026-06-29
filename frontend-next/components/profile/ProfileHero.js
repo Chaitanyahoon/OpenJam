@@ -96,6 +96,13 @@ export default function ProfileHero({
   const [usernameAvailable, setUsernameAvailable] = useState(null);
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
 
+  // Local settings preview states (for real-time preview before saving)
+  const [previewTheme, setPreviewTheme] = useState(theme);
+  const [previewBannerPreset, setPreviewBannerPreset] = useState(bannerPreset);
+  const [previewBannerUrl, setPreviewBannerUrl] = useState(profile?.banner_url || '');
+  const [previewBannerScale, setPreviewBannerScale] = useState(profile?.banner_scale || '100%');
+  const [previewBannerPosition, setPreviewBannerPosition] = useState(profile?.banner_position || '50%');
+
   // Sync local customization states when profile prop changes
   useEffect(() => {
     setEditedName(profile?.display_name || '');
@@ -105,6 +112,18 @@ export default function ProfileHero({
     setBannerScale(profile?.banner_scale || '100%');
     setEditedUsername(profile?.username || '');
   }, [profile]);
+
+  // Sync preview states when settings modal is opened
+  useEffect(() => {
+    if (showSettings) {
+      setPreviewTheme(profile?.profile_theme || 'amber');
+      setPreviewBannerPreset(profile?.banner_color || 'default');
+      setPreviewBannerUrl(profile?.banner_url || '');
+      setPreviewBannerScale(profile?.banner_scale || '100%');
+      setPreviewBannerPosition(profile?.banner_position || '50%');
+      setCustomBannerUrl(profile?.banner_url || '');
+    }
+  }, [showSettings, profile]);
 
   // Debounced username checker
   useEffect(() => {
@@ -149,30 +168,31 @@ export default function ProfileHero({
   }, [editedUsername, showSettings, profile]);
   
   // Choose banner style: custom URL or preset gradient
-  const bannerBackground = profile?.banner_url 
+  const bannerBackground = (bannerPreset === 'custom' && profile?.banner_url)
     ? `url(${profile.banner_url})` 
     : (BANNER_GRADIENTS[bannerPreset]?.style(theme) || BANNER_GRADIENTS.default.style(theme));
 
   const handleSaveName = async () => {
     if (!editedName.trim()) return;
-    await onUpdateProfile({ display_name: editedName.trim(), bio: editedBio, profile_theme: theme, banner_color: bannerPreset, banner_url: customBannerUrl || null, banner_position: bannerPosition, banner_scale: bannerScale, username: profile?.username || null });
+    await onUpdateProfile({ display_name: editedName.trim(), bio: editedBio, profile_theme: theme, banner_color: bannerPreset, banner_url: profile?.banner_url || null, banner_position: bannerPosition, banner_scale: bannerScale, username: profile?.username || null });
     setIsEditingName(false);
   };
 
   const handleSaveBio = async () => {
-    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: theme, banner_color: bannerPreset, banner_url: customBannerUrl || null, banner_position: bannerPosition, banner_scale: bannerScale, username: profile?.username || null });
+    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: theme, banner_color: bannerPreset, banner_url: profile?.banner_url || null, banner_position: bannerPosition, banner_scale: bannerScale, username: profile?.username || null });
     setIsEditingBio(false);
   };
 
-  const handleThemeChange = async (newTheme) => {
-    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: newTheme, banner_color: bannerPreset, banner_url: customBannerUrl || null, banner_position: bannerPosition, banner_scale: bannerScale, username: profile?.username || null });
+  const handleThemeChange = (newTheme) => {
+    setPreviewTheme(newTheme);
   };
 
-  const handleBannerPresetChange = async (preset) => {
+  const handleBannerPresetChange = (preset) => {
+    setPreviewBannerPreset(preset);
+    setPreviewBannerUrl('');
+    setPreviewBannerPosition('50%');
+    setPreviewBannerScale('100%');
     setCustomBannerUrl('');
-    setBannerPosition('50%');
-    setBannerScale('100%');
-    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: theme, banner_color: preset, banner_url: null, banner_position: '50%', banner_scale: '100%', username: profile?.username || null });
   };
 
   const handleSaveUsername = async () => {
@@ -181,11 +201,11 @@ export default function ProfileHero({
     await onUpdateProfile({
       display_name: editedName,
       bio: editedBio,
-      profile_theme: theme,
-      banner_color: bannerPreset,
-      banner_url: customBannerUrl || null,
-      banner_position: bannerPosition,
-      banner_scale: bannerScale,
+      profile_theme: previewTheme,
+      banner_color: previewBannerPreset,
+      banner_url: previewBannerUrl || null,
+      banner_position: previewBannerPosition,
+      banner_scale: previewBannerScale,
       username: clean || null
     });
     if (addToast) {
@@ -193,28 +213,20 @@ export default function ProfileHero({
     }
   };
 
-  const handleCustomBannerSave = async () => {
-    // Save Custom Banner URL and automatically open the Cropper Editor Modal
-    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: theme, banner_color: 'custom', banner_url: customBannerUrl.trim() || null, banner_position: '50%', banner_scale: '100%' });
+  const handleCustomBannerSave = () => {
+    if (!customBannerUrl.trim()) return;
     setTempPosition(50);
     setTempScale(100);
     setShowCropModal(true);
     setShowSettings(false);
   };
 
-  const handleRemoveBanner = async () => {
+  const handleRemoveBanner = () => {
     setCustomBannerUrl('');
-    setBannerPosition('50%');
-    setBannerScale('100%');
-    await onUpdateProfile({
-      display_name: editedName,
-      bio: editedBio,
-      profile_theme: theme,
-      banner_color: 'default',
-      banner_url: null,
-      banner_position: '50%',
-      banner_scale: '100%'
-    });
+    setPreviewBannerUrl('');
+    setPreviewBannerPreset('default');
+    setPreviewBannerPosition('50%');
+    setPreviewBannerScale('100%');
   };
 
   // Cropper drag-to-pan handlers
@@ -251,20 +263,30 @@ export default function ProfileHero({
     setShowSettings(true);
   };
 
-  const handleCropperApply = async () => {
+  const handleCropperApply = () => {
     setShowCropModal(false);
-    setBannerPosition(`${tempPosition}%`);
-    setBannerScale(`${tempScale}%`);
+    setPreviewBannerPreset('custom');
+    setPreviewBannerUrl(customBannerUrl.trim());
+    setPreviewBannerPosition(`${tempPosition}%`);
+    setPreviewBannerScale(`${tempScale}%`);
+    setShowSettings(true);
+  };
+
+  const handleSaveSettings = async () => {
     await onUpdateProfile({
       display_name: editedName,
       bio: editedBio,
-      profile_theme: theme,
-      banner_color: 'custom',
-      banner_url: customBannerUrl.trim() || null,
-      banner_position: `${tempPosition}%`,
-      banner_scale: `${tempScale}%`
+      profile_theme: previewTheme,
+      banner_color: previewBannerPreset,
+      banner_url: previewBannerUrl || null,
+      banner_position: previewBannerPosition,
+      banner_scale: previewBannerScale,
+      username: profile?.username || null
     });
-    setShowSettings(true);
+    setShowSettings(false);
+    if (addToast) {
+      addToast('Profile customization saved successfully!', 'success');
+    }
   };
 
   const formattedDate = profile?.created_at
@@ -335,26 +357,26 @@ export default function ProfileHero({
               width: '100%', 
               height: '140px', 
               overflow: 'hidden',
-              cursor: profile?.banner_url ? 'pointer' : 'default',
+              cursor: (previewBannerPreset === 'custom' && previewBannerUrl) ? 'pointer' : 'default',
               flexShrink: 0
             }}
               onClick={() => {
-                if (profile?.banner_url) {
-                  setTempPosition(parseInt(bannerPosition) || 50);
-                  setTempScale(parseInt(bannerScale) || 100);
+                if (previewBannerPreset === 'custom' && previewBannerUrl) {
+                  setTempPosition(parseInt(previewBannerPosition) || 50);
+                  setTempScale(parseInt(previewBannerScale) || 100);
                   setShowCropModal(true);
                   setShowSettings(false);
                 }
               }}
             >
               {/* Banner image or gradient */}
-              {(customBannerUrl || profile?.banner_url) ? (
+              {(previewBannerPreset === 'custom' && previewBannerUrl) ? (
                 <div style={{
                   position: 'absolute',
                   inset: 0,
-                  backgroundImage: `url(${customBannerUrl.trim() || profile?.banner_url})`,
-                  backgroundSize: bannerScale || 'cover',
-                  backgroundPosition: `center ${bannerPosition || '50%'}`,
+                  backgroundImage: `url(${previewBannerUrl})`,
+                  backgroundSize: previewBannerScale || 'cover',
+                  backgroundPosition: `center ${previewBannerPosition || '50%'}`,
                   backgroundRepeat: 'no-repeat',
                   transition: 'all 0.2s ease-out'
                 }} />
@@ -362,7 +384,8 @@ export default function ProfileHero({
                 <div style={{
                   position: 'absolute',
                   inset: 0,
-                  background: BANNER_GRADIENTS.default.style(theme)
+                  background: BANNER_GRADIENTS[previewBannerPreset]?.style(previewTheme) || BANNER_GRADIENTS.default.style(previewTheme),
+                  transition: 'all 0.2s ease-out'
                 }} />
               )}
               {/* Bottom vignette */}
@@ -518,11 +541,11 @@ export default function ProfileHero({
                         height: '32px',
                         borderRadius: '50%',
                         background: item.color,
-                        border: theme === key ? '3px solid #fff' : '2px solid rgba(255,255,255,0.1)',
+                        border: previewTheme === key ? '3px solid #fff' : '2px solid rgba(255,255,255,0.1)',
                         cursor: 'pointer',
-                        transform: theme === key ? 'scale(1.15)' : 'scale(1)',
+                        transform: previewTheme === key ? 'scale(1.15)' : 'scale(1)',
                         transition: 'transform 0.2s, border-color 0.2s',
-                        boxShadow: theme === key ? `0 0 12px ${item.color}88` : 'none'
+                        boxShadow: previewTheme === key ? `0 0 12px ${item.color}88` : 'none'
                       }}
                       title={item.name}
                     />
@@ -539,8 +562,8 @@ export default function ProfileHero({
                       key={key}
                       onClick={() => handleBannerPresetChange(key)}
                       style={{
-                        background: item.style(theme),
-                        border: (bannerPreset === key && !profile?.banner_url) ? '2px solid #fff' : '1px solid rgba(255,255,255,0.1)',
+                        background: item.style(previewTheme),
+                        border: (previewBannerPreset === key) ? '2px solid #fff' : '1px solid rgba(255,255,255,0.1)',
                         borderRadius: '8px',
                         padding: '8px 12px',
                         color: '#fff',
@@ -548,9 +571,9 @@ export default function ProfileHero({
                         fontWeight: 700,
                         cursor: 'pointer',
                         textShadow: '0 1px 3px rgba(0,0,0,0.5)',
-                        opacity: (bannerPreset === key && !profile?.banner_url) ? 1 : 0.7,
+                        opacity: (previewBannerPreset === key) ? 1 : 0.7,
                         transition: 'opacity 0.2s, transform 0.2s',
-                        transform: (bannerPreset === key && !profile?.banner_url) ? 'scale(1.03)' : 'scale(1)'
+                        transform: (previewBannerPreset === key) ? 'scale(1.03)' : 'scale(1)'
                       }}
                     >
                       {item.name}
@@ -617,7 +640,7 @@ export default function ProfileHero({
               })()}
 
               {/* Remove Banner - only if banner exists */}
-              {(profile?.banner_url || customBannerUrl.trim()) && (
+              {(previewBannerUrl || customBannerUrl.trim()) && (
                 <button
                   onClick={handleRemoveBanner}
                   style={{
@@ -648,7 +671,7 @@ export default function ProfileHero({
             {/* Footer */}
             <div style={{ padding: '14px 24px', borderTop: '1px solid rgba(255,255,255,0.04)', display: 'flex', justifyContent: 'flex-end' }}>
               <button
-                onClick={() => setShowSettings(false)}
+                onClick={handleSaveSettings}
                 style={{
                   background: 'var(--theme-accent, #ff9f1c)',
                   border: 'none',
