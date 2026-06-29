@@ -302,18 +302,48 @@ async def discord_callback(request: Request, code: str = ""):
                 user.display_name = discord_username
                 user.avatar_url = avatar_url
                 user.discord_username = discord_username
+                if not user.username:
+                    import re
+                    base_clean = re.sub(r'[^a-zA-Z0-9_]', '', discord_username).lower()
+                    if not base_clean or len(base_clean) < 3:
+                        base_clean = "jammer"
+                    base_clean = base_clean[:15]
+                    
+                    candidate = base_clean
+                    counter = 1
+                    while db.query(User).filter(User.username == candidate).first():
+                        suffix = f"_{counter}"
+                        candidate = f"{base_clean}{suffix}"
+                        counter += 1
+                    user.username = candidate
                 db.commit()
                 user_id = user.id
                 log_auth_event(f"discord_callback: updated existing user in DB (id={user_id})")
             else:
                 # Create new user
                 user_id = str(uuid.uuid4())
+                
+                # Generate default username
+                import re
+                base_clean = re.sub(r'[^a-zA-Z0-9_]', '', discord_username).lower()
+                if not base_clean or len(base_clean) < 3:
+                    base_clean = "jammer"
+                base_clean = base_clean[:15]
+                
+                candidate = base_clean
+                counter = 1
+                while db.query(User).filter(User.username == candidate).first():
+                    suffix = f"_{counter}"
+                    candidate = f"{base_clean}{suffix}"
+                    counter += 1
+                
                 user = User(
                     id=user_id,
                     display_name=discord_username,
                     avatar_url=avatar_url,
                     discord_id=discord_id,
                     discord_username=discord_username,
+                    username=candidate,
                 )
                 db.add(user)
                 db.commit()

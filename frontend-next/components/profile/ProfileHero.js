@@ -91,6 +91,11 @@ export default function ProfileHero({
   const theme = profile?.profile_theme || 'amber';
   const bannerPreset = profile?.banner_color || 'default';
 
+  const [editedUsername, setEditedUsername] = useState(profile?.username || '');
+  const [usernameError, setUsernameError] = useState('');
+  const [usernameAvailable, setUsernameAvailable] = useState(null);
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+
   // Sync local customization states when profile prop changes
   useEffect(() => {
     setEditedName(profile?.display_name || '');
@@ -98,7 +103,50 @@ export default function ProfileHero({
     setCustomBannerUrl(profile?.banner_url || '');
     setBannerPosition(profile?.banner_position || '50%');
     setBannerScale(profile?.banner_scale || '100%');
+    setEditedUsername(profile?.username || '');
   }, [profile]);
+
+  // Debounced username checker
+  useEffect(() => {
+    if (!showSettings) return;
+    const q = editedUsername.trim().toLowerCase();
+    if (q === (profile?.username || '').toLowerCase()) {
+      setUsernameAvailable(null);
+      setUsernameError('');
+      return;
+    }
+    if (q.length < 3 || q.length > 20) {
+      setUsernameAvailable(false);
+      setUsernameError('Must be 3-20 characters');
+      return;
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(q)) {
+      setUsernameAvailable(false);
+      setUsernameError('Only letters, numbers, and underscores allowed');
+      return;
+    }
+
+    setUsernameError('');
+    setIsCheckingUsername(true);
+    const delayDebounce = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/profile/check-username?q=${encodeURIComponent(q)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setUsernameAvailable(data.available);
+          if (!data.available) {
+            setUsernameError('Username is already taken');
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsCheckingUsername(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(delayDebounce);
+  }, [editedUsername, showSettings, profile]);
   
   // Choose banner style: custom URL or preset gradient
   const bannerBackground = profile?.banner_url 
@@ -107,24 +155,42 @@ export default function ProfileHero({
 
   const handleSaveName = async () => {
     if (!editedName.trim()) return;
-    await onUpdateProfile({ display_name: editedName.trim(), bio: editedBio, profile_theme: theme, banner_color: bannerPreset, banner_url: customBannerUrl || null, banner_position: bannerPosition, banner_scale: bannerScale });
+    await onUpdateProfile({ display_name: editedName.trim(), bio: editedBio, profile_theme: theme, banner_color: bannerPreset, banner_url: customBannerUrl || null, banner_position: bannerPosition, banner_scale: bannerScale, username: profile?.username || null });
     setIsEditingName(false);
   };
 
   const handleSaveBio = async () => {
-    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: theme, banner_color: bannerPreset, banner_url: customBannerUrl || null, banner_position: bannerPosition, banner_scale: bannerScale });
+    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: theme, banner_color: bannerPreset, banner_url: customBannerUrl || null, banner_position: bannerPosition, banner_scale: bannerScale, username: profile?.username || null });
     setIsEditingBio(false);
   };
 
   const handleThemeChange = async (newTheme) => {
-    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: newTheme, banner_color: bannerPreset, banner_url: customBannerUrl || null, banner_position: bannerPosition, banner_scale: bannerScale });
+    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: newTheme, banner_color: bannerPreset, banner_url: customBannerUrl || null, banner_position: bannerPosition, banner_scale: bannerScale, username: profile?.username || null });
   };
 
   const handleBannerPresetChange = async (preset) => {
     setCustomBannerUrl('');
     setBannerPosition('50%');
     setBannerScale('100%');
-    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: theme, banner_color: preset, banner_url: null, banner_position: '50%', banner_scale: '100%' });
+    await onUpdateProfile({ display_name: editedName, bio: editedBio, profile_theme: theme, banner_color: preset, banner_url: null, banner_position: '50%', banner_scale: '100%', username: profile?.username || null });
+  };
+
+  const handleSaveUsername = async () => {
+    if (usernameError || usernameAvailable === false) return;
+    const clean = editedUsername.trim().toLowerCase();
+    await onUpdateProfile({
+      display_name: editedName,
+      bio: editedBio,
+      profile_theme: theme,
+      banner_color: bannerPreset,
+      banner_url: customBannerUrl || null,
+      banner_position: bannerPosition,
+      banner_scale: bannerScale,
+      username: clean || null
+    });
+    if (addToast) {
+      addToast('Username updated successfully!', 'success');
+    }
   };
 
   const handleCustomBannerSave = async () => {
@@ -211,8 +277,7 @@ export default function ProfileHero({
       <div 
         className="profile-hero-banner" 
         style={{ 
-          backgroundImage: profile?.banner_url ? `url(${profile.banner_url})` : 'none',
-          background: !profile?.banner_url ? bannerBackground : 'none',
+          background: bannerBackground,
           backgroundColor: '#18191c',
           backgroundSize: profile?.banner_url ? (bannerScale || 'cover') : 'cover',
           backgroundPosition: `center ${bannerPosition}`,
@@ -382,14 +447,124 @@ export default function ProfileHero({
             </div>
 
             {/* Body Content */}
-            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '18px', maxHeight: '420px', overflowY: 'auto' }}>
+
+              {/* Vanity Username Input */}
+              <div>
+                <div style={{ fontSize: '11px', color: '#666', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Vanity Username</div>
+                <div style={{ display: 'flex', gap: '8px', position: 'relative', alignItems: 'center' }}>
+                  <span style={{ position: 'absolute', left: '12px', color: '#666', fontSize: '13px', fontWeight: 600 }}>@</span>
+                  <input
+                    type="text"
+                    placeholder="username"
+                    value={editedUsername}
+                    onChange={(e) => setEditedUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                    style={{
+                      flex: 1,
+                      background: 'rgba(255,255,255,0.03)',
+                      border: usernameError ? '1px solid rgba(255,71,87,0.5)' : (usernameAvailable ? '1px solid rgba(46,213,115,0.5)' : '1px solid rgba(255,255,255,0.06)'),
+                      borderRadius: '10px',
+                      padding: '10px 14px 10px 26px',
+                      color: '#fff',
+                      fontSize: '13px',
+                      outline: 'none',
+                      transition: 'border-color 0.2s'
+                    }}
+                  />
+                  <button
+                    disabled={isCheckingUsername || !!usernameError || usernameAvailable === null || editedUsername.trim().toLowerCase() === (profile?.username || '').toLowerCase()}
+                    onClick={handleSaveUsername}
+                    style={{
+                      background: (isCheckingUsername || !!usernameError || usernameAvailable === null || editedUsername.trim().toLowerCase() === (profile?.username || '').toLowerCase()) ? 'rgba(255,255,255,0.03)' : 'var(--theme-accent, #ff9f1c)',
+                      border: 'none',
+                      color: (isCheckingUsername || !!usernameError || usernameAvailable === null || editedUsername.trim().toLowerCase() === (profile?.username || '').toLowerCase()) ? '#444' : '#000',
+                      padding: '10px 18px',
+                      borderRadius: '10px',
+                      fontSize: '12px',
+                      fontWeight: 800,
+                      cursor: (isCheckingUsername || !!usernameError || usernameAvailable === null || editedUsername.trim().toLowerCase() === (profile?.username || '').toLowerCase()) ? 'not-allowed' : 'pointer',
+                      opacity: (isCheckingUsername || !!usernameError || usernameAvailable === null || editedUsername.trim().toLowerCase() === (profile?.username || '').toLowerCase()) ? 0.5 : 1,
+                      transition: 'all 0.2s',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    Save
+                  </button>
+                </div>
+                {isCheckingUsername && (
+                  <div style={{ color: '#aaa', fontSize: '10px', marginTop: '6px', fontWeight: 600 }}>Checking availability...</div>
+                )}
+                {usernameError && (
+                  <div style={{ color: '#ff4757', fontSize: '10px', marginTop: '6px', fontWeight: 600 }}>{usernameError}</div>
+                )}
+                {usernameAvailable && !usernameError && editedUsername.trim().toLowerCase() !== (profile?.username || '').toLowerCase() && (
+                  <div style={{ color: '#2ed573', fontSize: '10px', marginTop: '6px', fontWeight: 600 }}>✓ Username is available!</div>
+                )}
+                <div style={{ color: '#555', fontSize: '10px', marginTop: '6px', lineHeight: 1.3 }}>
+                  This creates your personal vanity link: openjam.fun/profile/@{editedUsername || 'username'}
+                </div>
+              </div>
+
+              {/* Theme Color Selection */}
+              <div>
+                <div style={{ fontSize: '11px', color: '#666', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Profile Theme Accent</div>
+                <div style={{ display: 'flex', gap: '12px', padding: '4px 0' }}>
+                  {Object.entries(THEME_COLORS).map(([key, item]) => (
+                    <button
+                      key={key}
+                      onClick={() => handleThemeChange(key)}
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '50%',
+                        background: item.color,
+                        border: theme === key ? '3px solid #fff' : '2px solid rgba(255,255,255,0.1)',
+                        cursor: 'pointer',
+                        transform: theme === key ? 'scale(1.15)' : 'scale(1)',
+                        transition: 'transform 0.2s, border-color 0.2s',
+                        boxShadow: theme === key ? `0 0 12px ${item.color}88` : 'none'
+                      }}
+                      title={item.name}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Banner Preset Selection */}
+              <div>
+                <div style={{ fontSize: '11px', color: '#666', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Preset Banner Gradients</div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {Object.entries(BANNER_GRADIENTS).map(([key, item]) => (
+                    <button
+                      key={key}
+                      onClick={() => handleBannerPresetChange(key)}
+                      style={{
+                        background: item.style(theme),
+                        border: (bannerPreset === key && !profile?.banner_url) ? '2px solid #fff' : '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '8px',
+                        padding: '8px 12px',
+                        color: '#fff',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        textShadow: '0 1px 3px rgba(0,0,0,0.5)',
+                        opacity: (bannerPreset === key && !profile?.banner_url) ? 1 : 0.7,
+                        transition: 'opacity 0.2s, transform 0.2s',
+                        transform: (bannerPreset === key && !profile?.banner_url) ? 'scale(1.03)' : 'scale(1)'
+                      }}
+                    >
+                      {item.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               {/* Banner URL Input */}
               {(() => {
                 const isUrlInvalid = customBannerUrl.trim().length > 0 && !isValidImageUrl(customBannerUrl);
                 return (
                   <div>
-                    <div style={{ fontSize: '11px', color: '#666', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Banner Image</div>
+                    <div style={{ fontSize: '11px', color: '#666', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Custom Banner Image URL</div>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <input
                         type="text"
@@ -425,7 +600,7 @@ export default function ProfileHero({
                           whiteSpace: 'nowrap'
                         }}
                       >
-                        Apply
+                        Apply Image
                       </button>
                     </div>
                     {isUrlInvalid ? (
@@ -465,7 +640,7 @@ export default function ProfileHero({
                   onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.borderColor = 'rgba(255,71,87,0.12)'; }}
                 >
                   <Trash2 size={13} />
-                  Remove Banner
+                  Remove Custom Image
                 </button>
               )}
             </div>
@@ -629,7 +804,9 @@ export default function ProfileHero({
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
             <button
               onClick={() => {
-                const link = `${window.location.origin}/profile/${profile?.id}`;
+                const link = profile?.username 
+                  ? `${window.location.origin}/profile/@${profile.username}` 
+                  : `${window.location.origin}/profile/${profile?.id}`;
                 navigator.clipboard.writeText(link);
                 if (addToast) {
                   addToast('Profile link copied to clipboard!', 'success');

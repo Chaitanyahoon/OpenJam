@@ -123,7 +123,7 @@ export default function SocialListModal({
               >
                 {/* User Info Link */}
                 <Link
-                  href={`/profile/${usr.id}`}
+                  href={`/profile/${usr.username ? `@${usr.username}` : usr.id}`}
                   onClick={onClose}
                   style={{
                     display: 'flex',

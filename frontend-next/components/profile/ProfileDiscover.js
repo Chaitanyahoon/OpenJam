@@ -91,7 +91,7 @@ export default function ProfileDiscover({
             return (
               <Link
                 key={user.id}
-                href={`/profile/${user.id}`}
+                href={`/profile/${user.username ? `@${user.username}` : user.id}`}
                 style={{
                   display: 'block',
                   textDecoration: 'none',

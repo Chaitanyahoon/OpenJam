@@ -10586,7 +10586,7 @@ div:hover > .play-hover-btn,
 }
 
 .profile-hero-banner {
-  height: 260px;
+  height: 320px;
   width: 100%;
   position: relative;
   border-radius: 24px 24px 0 0; /* Keep top corners rounded since parent overflow is visible */

@@ -1,3 +1,4 @@
+import re
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from backend.database import get_db
@@ -19,6 +20,35 @@ class UpdateProfileRequest(BaseModel):
     banner_url: Optional[str] = Field(None, max_length=1000)
     banner_position: Optional[str] = Field("50%", max_length=10)
     banner_scale: Optional[str] = Field("100%", max_length=10)
+    username: Optional[str] = Field(None, min_length=3, max_length=20, pattern="^[a-zA-Z0-9_]+$")
+
+
+def resolve_user_id(identifier: str, db: Session) -> str:
+    """Resolve a user identifier (UUID or @username/username) to their actual user ID (UUID)."""
+    identifier_clean = identifier.strip()
+    # Check if identifier is already a valid UUID
+    if re.match(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", identifier_clean):
+        return identifier_clean
+        
+    # Check username (both with or without @ prefix)
+    target_username = identifier_clean[1:].lower() if identifier_clean.startswith("@") else identifier_clean.lower()
+    user = db.query(User).filter(User.username == target_username).first()
+    if user:
+        return user.id
+    return identifier_clean
+
+
+@router.get("/check-username")
+async def check_username_availability(q: str, db: Session = Depends(get_db), user_id: str = Depends(require_registered_user)):
+    """Check if a username is available (not taken by anyone else)."""
+    q_clean = q.strip().lower()
+    if len(q_clean) < 3 or len(q_clean) > 20:
+        return {"available": False, "reason": "Username must be 3-20 characters"}
+    if not re.match(r"^[a-zA-Z0-9_]+$", q_clean):
+        return {"available": False, "reason": "Only letters, numbers, and underscores allowed"}
+        
+    existing = db.query(User).filter(User.username == q_clean, User.id != user_id).first()
+    return {"available": existing is None}
 
 
 @router.get("/me")
@@ -45,7 +75,7 @@ async def update_my_profile(
     db: Session = Depends(get_db),
     user_id: str = Depends(require_registered_user)
 ):
-    """Update user profile (display name, theme, bio, banner color, banner URL, position, and scale)."""
+    """Update user profile (display name, theme, bio, banner color, banner URL, position, scale, and username)."""
     
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -64,6 +94,20 @@ async def update_my_profile(
         user.banner_position = update_req.banner_position
     if update_req.banner_scale is not None:
         user.banner_scale = update_req.banner_scale
+        
+    if update_req.username is not None:
+        new_username = update_req.username.strip().lower()
+        if len(new_username) < 3 or len(new_username) > 20:
+            raise HTTPException(status_code=400, detail="Username must be between 3 and 20 characters")
+        if not re.match(r"^[a-zA-Z0-9_]+$", new_username):
+            raise HTTPException(status_code=400, detail="Username can only contain alphanumeric characters and underscores")
+        
+        # Check uniqueness
+        existing = db.query(User).filter(User.username == new_username, User.id != user_id).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Username is already taken")
+        user.username = new_username
+        
     db.commit()
     db.refresh(user)
     
@@ -89,6 +133,7 @@ async def search_profiles(q: str, db: Session = Depends(get_db)):
                 "display_name": u.display_name,
                 "avatar_url": u.avatar_url,
                 "discord_username": u.discord_username,
+                "username": u.username,
                 "profile_theme": u.profile_theme or "amber",
                 "banner_url": u.banner_url,
                 "bio": u.bio,
@@ -101,13 +146,14 @@ async def search_profiles(q: str, db: Session = Depends(get_db)):
 @router.get("/{user_id}")
 async def get_public_profile(user_id: str, db: Session = Depends(get_db)):
     """Retrieve public profile info and public playlists of another user."""
-    user = db.query(User).filter(User.id == user_id, User.discord_id.isnot(None)).first()
+    resolved_id = resolve_user_id(user_id, db)
+    user = db.query(User).filter(User.id == resolved_id, User.discord_id.isnot(None)).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
         
     # Only expose public playlists
     playlists = db.query(Playlist).filter(
-        Playlist.creator_id == user_id,
+        Playlist.creator_id == resolved_id,
         Playlist.is_private == False
     ).order_by(Playlist.created_at.desc()).all()
     
@@ -117,6 +163,7 @@ async def get_public_profile(user_id: str, db: Session = Depends(get_db)):
             "display_name": user.display_name,
             "avatar_url": user.avatar_url,
             "discord_username": user.discord_username,
+            "username": user.username,
             "profile_theme": user.profile_theme,
             "bio": user.bio,
             "banner_color": user.banner_color,
@@ -133,18 +180,19 @@ async def get_public_profile(user_id: str, db: Session = Depends(get_db)):
 async def follow_user(user_id: str, db: Session = Depends(get_db), current_user_id: str = Depends(require_registered_user)):
     """Follow a user."""
     from backend.models.follow import Follow
-    if current_user_id == user_id:
+    resolved_id = resolve_user_id(user_id, db)
+    if current_user_id == resolved_id:
         raise HTTPException(status_code=400, detail="You cannot follow yourself")
     
-    target_user = db.query(User).filter(User.id == user_id, User.discord_id.isnot(None)).first()
+    target_user = db.query(User).filter(User.id == resolved_id, User.discord_id.isnot(None)).first()
     if not target_user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    existing_follow = db.query(Follow).filter(Follow.follower_id == current_user_id, Follow.followed_id == user_id).first()
+    existing_follow = db.query(Follow).filter(Follow.follower_id == current_user_id, Follow.followed_id == resolved_id).first()
     if existing_follow:
         return {"message": "Already following this user"}
 
-    new_follow = Follow(follower_id=current_user_id, followed_id=user_id)
+    new_follow = Follow(follower_id=current_user_id, followed_id=resolved_id)
     db.add(new_follow)
     db.commit()
     return {"message": "Successfully followed user"}
@@ -154,7 +202,8 @@ async def follow_user(user_id: str, db: Session = Depends(get_db), current_user_
 async def unfollow_user(user_id: str, db: Session = Depends(get_db), current_user_id: str = Depends(require_registered_user)):
     """Unfollow a user."""
     from backend.models.follow import Follow
-    follow = db.query(Follow).filter(Follow.follower_id == current_user_id, Follow.followed_id == user_id).first()
+    resolved_id = resolve_user_id(user_id, db)
+    follow = db.query(Follow).filter(Follow.follower_id == current_user_id, Follow.followed_id == resolved_id).first()
     if not follow:
         return {"message": "Not following this user"}
 
@@ -167,21 +216,22 @@ async def unfollow_user(user_id: str, db: Session = Depends(get_db), current_use
 async def get_user_social_details(user_id: str, db: Session = Depends(get_db), current_user_id: Optional[str] = Depends(get_current_user_id)):
     """Get followers and following details for a profile."""
     from backend.models.follow import Follow
+    resolved_id = resolve_user_id(user_id, db)
     
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db.query(User).filter(User.id == resolved_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    followers_count = db.query(Follow).filter(Follow.followed_id == user_id).count()
-    following_count = db.query(Follow).filter(Follow.follower_id == user_id).count()
+    followers_count = db.query(Follow).filter(Follow.followed_id == resolved_id).count()
+    following_count = db.query(Follow).filter(Follow.follower_id == resolved_id).count()
     
     is_following = False
     if current_user_id:
-        is_following = db.query(Follow).filter(Follow.follower_id == current_user_id, Follow.followed_id == user_id).count() > 0
+        is_following = db.query(Follow).filter(Follow.follower_id == current_user_id, Follow.followed_id == resolved_id).count() > 0
 
     # Fetch simple details of followers
-    followers_query = db.query(User).join(Follow, Follow.follower_id == User.id).filter(Follow.followed_id == user_id).limit(50).all()
-    following_query = db.query(User).join(Follow, Follow.followed_id == User.id).filter(Follow.follower_id == user_id).limit(50).all()
+    followers_query = db.query(User).join(Follow, Follow.follower_id == User.id).filter(Follow.followed_id == resolved_id).limit(50).all()
+    following_query = db.query(User).join(Follow, Follow.followed_id == User.id).filter(Follow.follower_id == resolved_id).limit(50).all()
 
     return {
         "followers_count": followers_count,
@@ -191,13 +241,15 @@ async def get_user_social_details(user_id: str, db: Session = Depends(get_db), c
             "id": u.id,
             "display_name": u.display_name,
             "avatar_url": u.avatar_url,
-            "discord_username": u.discord_username
+            "discord_username": u.discord_username,
+            "username": u.username
         } for u in followers_query],
         "following": [{
             "id": u.id,
             "display_name": u.display_name,
             "avatar_url": u.avatar_url,
-            "discord_username": u.discord_username
+            "discord_username": u.discord_username,
+            "username": u.username
         } for u in following_query]
     }
 
@@ -359,9 +411,10 @@ async def get_public_user_stats(
     current_user_id: str = Depends(require_registered_user)
 ):
     """Retrieve public stats metrics for a specific user ID, restricted to the owner."""
-    if current_user_id != user_id:
+    resolved_id = resolve_user_id(user_id, db)
+    if current_user_id != resolved_id:
         raise HTTPException(status_code=403, detail="Stats are private to the owner")
-    user = db.query(User).filter(User.id == user_id, User.discord_id.isnot(None)).first()
+    user = db.query(User).filter(User.id == resolved_id, User.discord_id.isnot(None)).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return get_user_stats_internal(db, user_id)
+    return get_user_stats_internal(db, resolved_id)

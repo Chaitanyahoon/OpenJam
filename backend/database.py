@@ -267,3 +267,65 @@ def init_db():
         except Exception as e:
             print(f"Failed to auto-migrate playlists.import_url: {e}")
 
+    # Auto-migration: Check if 'username' exists in 'users' table, and add it if missing
+    username_exists = True
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("SELECT username FROM users LIMIT 1"))
+        except Exception:
+            username_exists = False
+
+    if not username_exists:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN username VARCHAR NULL"))
+            print("Successfully added username column to users table.")
+            
+            # Create index
+            try:
+                with engine.begin() as conn:
+                    conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users (username)"))
+                print("Successfully created unique index for users.username.")
+            except Exception as e:
+                print(f"Failed to create unique index for users.username: {e}")
+                
+            # Backfill existing users
+            import re
+            from backend.models.user import User
+            
+            db = SessionLocal()
+            try:
+                users = db.query(User).all()
+                existing_usernames = set()
+                for u in users:
+                    if u.username:
+                        existing_usernames.add(u.username.lower())
+                
+                for u in users:
+                    if not u.username:
+                        base = u.discord_username or u.display_name or "jammer"
+                        base_clean = re.sub(r'[^a-zA-Z0-9_]', '', base).lower()
+                        if not base_clean or len(base_clean) < 3:
+                            base_clean = "jammer"
+                        base_clean = base_clean[:15]
+                        
+                        candidate = base_clean
+                        counter = 1
+                        while candidate in existing_usernames:
+                            suffix = f"_{counter}"
+                            candidate = f"{base_clean}{suffix}"
+                            counter += 1
+                        
+                        u.username = candidate
+                        existing_usernames.add(candidate)
+                db.commit()
+                print(f"Successfully backfilled usernames for {len(users)} users.")
+            except Exception as e:
+                print(f"Failed to backfill usernames: {e}")
+                db.rollback()
+            finally:
+                db.close()
+        except Exception as e:
+            print(f"Failed to auto-migrate users.username: {e}")
+
+

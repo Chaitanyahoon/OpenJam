@@ -17,6 +17,7 @@ class User(Base):
     stripe_customer_id = Column(String, nullable=True)
     discord_id = Column(String, unique=True, nullable=True, index=True)
     discord_username = Column(String, nullable=True)
+    username = Column(String, unique=True, nullable=True, index=True)
     profile_theme = Column(String, default="amber", nullable=False)
     bio = Column(String, nullable=True)
     banner_color = Column(String, default="default", nullable=False)
@@ -34,6 +35,7 @@ class User(Base):
             "is_admin": self.is_admin,
             "discord_id": self.discord_id,
             "discord_username": self.discord_username,
+            "username": self.username,
             "profile_theme": self.profile_theme,
             "bio": self.bio,
             "banner_color": self.banner_color,
