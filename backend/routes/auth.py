@@ -312,7 +312,7 @@ async def discord_callback(request: Request, code: str = ""):
                     candidate = base_clean
                     counter = 1
                     while db.query(User).filter(User.username == candidate).first():
-                        suffix = f"_{counter}"
+                        suffix = f"{counter:02d}"
                         candidate = f"{base_clean}{suffix}"
                         counter += 1
                     user.username = candidate
@@ -333,7 +333,7 @@ async def discord_callback(request: Request, code: str = ""):
                 candidate = base_clean
                 counter = 1
                 while db.query(User).filter(User.username == candidate).first():
-                    suffix = f"_{counter}"
+                    suffix = f"{counter:02d}"
                     candidate = f"{base_clean}{suffix}"
                     counter += 1
                 
