@@ -72,6 +72,7 @@ async def get_my_profile(db: Session = Depends(get_db), user_id: str = Depends(r
 
 @router.put("/me")
 async def update_my_profile(
+    request: Request,
     update_req: UpdateProfileRequest,
     db: Session = Depends(get_db),
     user_id: str = Depends(require_registered_user)
@@ -111,6 +112,27 @@ async def update_my_profile(
         
     db.commit()
     db.refresh(user)
+    
+    # Real-time state synchronization: update any active room listener sessions and broadcast
+    try:
+        from backend.services.room_manager import room_manager
+        rooms = room_manager.store.get_all_rooms()
+        for room_id, room in rooms.items():
+            if "users" in room and user_id in room["users"]:
+                room["users"][user_id]["display_name"] = user.display_name
+                room["users"][user_id]["avatar_url"] = user.avatar_url
+                room_manager.store.set_room(room_id, room)
+                
+                # Emit updated listeners list to the room
+                sio = getattr(request.app.state, "sio", None)
+                if sio:
+                    await sio.emit("listener_count", {
+                        "count": room_manager.get_listener_count(room_id),
+                        "listeners": room_manager.get_listeners(room_id),
+                    }, room=room_id)
+                break
+    except Exception:
+        pass
     
     return {"message": "Profile updated successfully", "user": user.to_dict()}
 
