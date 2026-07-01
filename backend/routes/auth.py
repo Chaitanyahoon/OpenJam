@@ -289,7 +289,7 @@ async def discord_callback(request: Request, code: str = ""):
             # Default Discord avatar
             default_index = (int(discord_id) >> 22) % 6
             avatar_url = f"https://cdn.discordapp.com/embed/avatars/{default_index}.png"
-
+        
         # 3. Find or create user in DB
         from backend.database import SessionLocal
         from backend.models.user import User
@@ -298,10 +298,12 @@ async def discord_callback(request: Request, code: str = ""):
         try:
             user = db.query(User).filter(User.discord_id == discord_id).first()
             if user:
-                # Update existing user's profile
-                user.display_name = discord_username
-                user.avatar_url = avatar_url
+                # Update existing user's profile (preserving custom display name and avatar)
                 user.discord_username = discord_username
+                if not user.display_name:
+                    user.display_name = discord_username
+                if not user.avatar_url:
+                    user.avatar_url = avatar_url
                 if not user.username:
                     import re
                     base_clean = re.sub(r'[^a-zA-Z0-9_]', '', discord_username).lower()
@@ -318,6 +320,9 @@ async def discord_callback(request: Request, code: str = ""):
                     user.username = candidate
                 db.commit()
                 user_id = user.id
+                # Grab updated values to sign into session token
+                display_name = user.display_name
+                avatar_url = user.avatar_url
                 log_auth_event(f"discord_callback: updated existing user in DB (id={user_id})")
             else:
                 # Create new user
@@ -347,16 +352,18 @@ async def discord_callback(request: Request, code: str = ""):
                 )
                 db.add(user)
                 db.commit()
+                display_name = discord_username
                 log_auth_event(f"discord_callback: created new user in DB (id={user_id})")
         finally:
             db.close()
-
+ 
         # 4. Create session token and set cookie
         session_token = create_session_token(
             user_id=user_id,
-            display_name=discord_username,
+            display_name=display_name,
             avatar_url=avatar_url,
         )
+
 
         response = RedirectResponse(f"{settings.FRONTEND_URL}/#token={session_token}")
         is_prod = settings.ENVIRONMENT == "production"
