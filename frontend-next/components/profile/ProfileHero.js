@@ -371,7 +371,7 @@ export default function ProfileHero({
 
       {/* Centered Customize Profile Modal */}
       {isOwnProfile && showSettings && (
-        <div className="profile-modal-backdrop" onClick={() => setShowSettings(false)}>
+        <div className="profile-modal-backdrop" onClick={handleSaveSettings}>
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -431,7 +431,7 @@ export default function ProfileHero({
               }} />
               {/* Close button on top right */}
               <div 
-                onClick={(e) => { e.stopPropagation(); setShowSettings(false); }}
+                onClick={(e) => { e.stopPropagation(); handleSaveSettings(); }}
                 style={{
                   position: 'absolute',
                   top: '12px',
