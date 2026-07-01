@@ -18,12 +18,13 @@ const THEME_COLORS = {
 const BANNER_GRADIENTS = {
   default: { name: 'Theme Match', style: (theme) => {
     const accent = THEME_COLORS[theme]?.color || '#ff9f1c';
-    return `radial-gradient(circle at 20% 30%, ${accent}33 0%, transparent 60%), radial-gradient(circle at 80% 80%, #141318 0%, #08080a 100%), linear-gradient(135deg, ${accent}55 0%, #08080a 100%)`;
+    return `linear-gradient(135deg, ${accent}cc 0%, #121216 100%)`;
   }},
-  vinyl: { name: 'Retro Vinyl', style: () => 'linear-gradient(135deg, #09090b 0%, #16161c 50%, #030305 100%)' },
-  synth: { name: 'Synthwave Neon', style: () => 'radial-gradient(circle at 20% 20%, rgba(219, 39, 119, 0.4) 0%, transparent 60%), radial-gradient(circle at 80% 80%, rgba(76, 29, 149, 0.5) 0%, transparent 60%), linear-gradient(135deg, #0c081e 0%, #03010a 100%)' },
-  cosmic: { name: 'Cosmic Nebula', style: () => 'radial-gradient(circle at 30% 30%, rgba(139, 92, 246, 0.35) 0%, transparent 50%), radial-gradient(circle at 80% 70%, rgba(236, 72, 153, 0.3) 0%, transparent 50%), linear-gradient(135deg, #090514 0%, #020105 100%)' },
-  sunset: { name: 'Sunset Glow', style: () => 'radial-gradient(circle at 10% 20%, rgba(234, 88, 12, 0.4) 0%, transparent 50%), radial-gradient(circle at 90% 80%, rgba(234, 179, 8, 0.25) 0%, transparent 50%), linear-gradient(135deg, #180803 0%, #030100 100%)' }
+  synth: { name: 'Synthwave Neon', style: () => 'linear-gradient(135deg, #ec4899 0%, #7c3aed 50%, #1e1b4b 100%)' },
+  cosmic: { name: 'Cosmic Nebula', style: () => 'linear-gradient(135deg, #8b5cf6 0%, #d946ef 50%, #0f0b29 100%)' },
+  sunset: { name: 'Sunset Glow', style: () => 'linear-gradient(135deg, #f97316 0%, #eab308 50%, #1c0a02 100%)' },
+  aurora: { name: 'Northern Lights', style: () => 'linear-gradient(135deg, #10b981 0%, #06b6d4 50%, #030712 100%)' },
+  vinyl: { name: 'Retro Vinyl', style: () => 'linear-gradient(135deg, #1f2937 0%, #111827 50%, #030712 100%)' }
 };
 
 const isValidImageUrl = (url) => {
@@ -160,7 +161,7 @@ export default function ProfileHero({
   }, [editedUsername, showSettings, profile]);
   
   // Choose banner style: custom URL or preset gradient
-  const bannerBackground = (bannerPreset === 'custom' && profile?.banner_url)
+  const bannerBackground = (profile?.banner_url)
     ? `url(${profile.banner_url})` 
     : (BANNER_GRADIENTS[bannerPreset]?.style(theme) || BANNER_GRADIENTS.default.style(theme));
 
@@ -396,7 +397,7 @@ export default function ProfileHero({
               flexShrink: 0
             }}
               onClick={() => {
-                if (previewBannerPreset === 'custom' && previewBannerUrl) {
+                if (previewBannerUrl) {
                   setTempPosition(parseInt(previewBannerPosition) || 50);
                   setTempScale(parseInt(previewBannerScale) || 100);
                   setShowCropModal(true);
@@ -405,7 +406,7 @@ export default function ProfileHero({
               }}
             >
               {/* Banner image or gradient */}
-              {(previewBannerPreset === 'custom' && previewBannerUrl) ? (
+              {(previewBannerUrl) ? (
                 <div style={{
                   position: 'absolute',
                   inset: 0,
@@ -505,7 +506,7 @@ export default function ProfileHero({
             </div>
 
             {/* Body Content */}
-            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '18px', maxHeight: '420px', overflowY: 'auto' }}>
+            <div style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
 
               {/* Vanity Username Input */}
               <div>
@@ -595,20 +596,22 @@ export default function ProfileHero({
                   {Object.entries(BANNER_GRADIENTS).map(([key, item]) => (
                     <button
                       key={key}
+                      disabled={!!previewBannerUrl}
                       onClick={() => handleBannerPresetChange(key)}
                       style={{
                         background: item.style(previewTheme),
-                        border: (previewBannerPreset === key) ? '2px solid #fff' : '1px solid rgba(255,255,255,0.1)',
-                        borderRadius: '8px',
-                        padding: '8px 12px',
+                        border: (previewBannerPreset === key && !previewBannerUrl) ? '2px solid #fff' : '1px solid rgba(255,255,255,0.08)',
+                        borderRadius: '20px',
+                        padding: '6px 14px',
                         color: '#fff',
                         fontSize: '11px',
                         fontWeight: 700,
-                        cursor: 'pointer',
-                        textShadow: '0 1px 3px rgba(0,0,0,0.5)',
-                        opacity: (previewBannerPreset === key) ? 1 : 0.7,
-                        transition: 'opacity 0.2s, transform 0.2s',
-                        transform: (previewBannerPreset === key) ? 'scale(1.03)' : 'scale(1)'
+                        cursor: !!previewBannerUrl ? 'not-allowed' : 'pointer',
+                        textShadow: '0 1px 4px rgba(0,0,0,0.6)',
+                        opacity: !!previewBannerUrl ? 0.2 : ((previewBannerPreset === key) ? 1 : 0.7),
+                        transition: 'all 0.2s',
+                        transform: (previewBannerPreset === key && !previewBannerUrl) ? 'scale(1.04)' : 'scale(1)',
+                        boxShadow: (previewBannerPreset === key && !previewBannerUrl) ? '0 0 10px rgba(255,255,255,0.2)' : 'none'
                       }}
                     >
                       {item.name}
