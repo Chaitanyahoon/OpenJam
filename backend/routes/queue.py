@@ -476,6 +476,15 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
         except Exception as e:
             logger.warning(f"Cobalt failed for {video_id}: {e}")
 
+        # Fallback to Invidious/Piped stream URL resolver if Cobalt fails
+        if not url:
+            logger.info(f"Cobalt failed to resolve stream for {video_id}, falling back to Invidious/Piped...")
+            try:
+                from backend.services.invidious import get_stream_url as get_invidious_stream_url
+                url = await asyncio.wait_for(get_invidious_stream_url(video_id), timeout=10.0)
+            except Exception as e:
+                logger.warning(f"Invidious/Piped fallback failed for {video_id}: {e}")
+
         if url:
             _prune_url_cache()
             _url_cache[cache_key] = (url, time.time() + _URL_CACHE_TTL)
