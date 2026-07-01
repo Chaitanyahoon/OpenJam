@@ -31,6 +31,20 @@
       "description": "Start a quick listening room instantly",
       "url": "/?instant=true",
       "icons": [{ "src": "/static/img/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "My Profile",
+      "short_name": "Profile",
+      "description": "Customize your banner, view playlists and stats",
+      "url": "/profile",
+      "icons": [{ "src": "/static/img/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Offline Player",
+      "short_name": "Offline",
+      "description": "Listen to your saved offline music",
+      "url": "/offline",
+      "icons": [{ "src": "/static/img/icon-192.png", "sizes": "192x192" }]
     }
   ],
   "screenshots": [
