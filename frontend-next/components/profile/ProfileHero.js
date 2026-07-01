@@ -790,12 +790,7 @@ export default function ProfileHero({
                   zIndex: 5
                 }}
                 onMouseDown={handleCropperDragStart}
-                onMouseMove={handleCropperDragMove}
-                onMouseUp={handleCropperDragEnd}
-                onMouseLeave={handleCropperDragEnd}
                 onTouchStart={handleCropperDragStart}
-                onTouchMove={handleCropperDragMove}
-                onTouchEnd={handleCropperDragEnd}
               />
             </div>
 
