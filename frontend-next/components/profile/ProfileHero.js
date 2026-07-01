@@ -28,27 +28,16 @@ const BANNER_GRADIENTS = {
 
 const isValidImageUrl = (url) => {
   if (!url) return false;
-  const u = url.trim().toLowerCase();
-  
+  const u = url.trim();
   if (!u.startsWith('http://') && !u.startsWith('https://')) {
     return false;
   }
-  
-  const hasImageHost = 
-    u.includes('pinimg.com') ||
-    u.includes('discordapp') ||
-    u.includes('unsplash.com') ||
-    u.includes('githubusercontent') ||
-    u.includes('imgur.com') ||
-    u.includes('postimages.org') ||
-    u.includes('imgbb.com') ||
-    u.includes('cloudinary.com') ||
-    u.includes('giphy.com') ||
-    u.includes('tenor.com');
-
-  const hasImageExtension = /\.(jpeg|jpg|gif|png|webp|svg|bmp)(?:\?.*)?$/i.test(u);
-  
-  return hasImageHost || hasImageExtension;
+  try {
+    new URL(u);
+    return true;
+  } catch (_) {
+    return false;
+  }
 };
 
 export default function ProfileHero({
@@ -218,8 +207,35 @@ export default function ProfileHero({
 
   const handleCustomBannerSave = () => {
     if (!customBannerUrl.trim()) return;
-    setTempPosition(50);
-    setTempScale(100);
+    
+    // Parse existing position/scale if matching the current custom URL
+    let initPos = 50;
+    let initScale = 100;
+    if (profile?.banner_url === customBannerUrl.trim()) {
+      initPos = parseInt(profile?.banner_position) || 50;
+      initScale = parseInt(profile?.banner_scale) || 100;
+    }
+    setTempPosition(initPos);
+    setTempScale(initScale);
+    setShowCropModal(true);
+    setShowSettings(false);
+  };
+
+  const handleOpenCropperForExisting = () => {
+    const url = (previewBannerUrl || customBannerUrl || '').trim();
+    if (!url) return;
+    
+    let initPos = 50;
+    let initScale = 100;
+    if (previewBannerPosition) {
+      initPos = parseInt(previewBannerPosition) || 50;
+    }
+    if (previewBannerScale) {
+      initScale = parseInt(previewBannerScale) || 100;
+    }
+    
+    setTempPosition(initPos);
+    setTempScale(initScale);
     setShowCropModal(true);
     setShowSettings(false);
   };
@@ -232,7 +248,7 @@ export default function ProfileHero({
     setPreviewBannerScale('100%');
   };
 
-  // Cropper drag-to-pan handlers
+  // Cropper drag-to-pan start handler
   const handleCropperDragStart = (e) => {
     e.preventDefault();
     setIsCropperDragging(true);
@@ -241,20 +257,36 @@ export default function ProfileHero({
     setCropperDragStartPercent(tempPosition);
   };
 
-  const handleCropperDragMove = (e) => {
+  // Smooth window drag listeners
+  useEffect(() => {
     if (!isCropperDragging) return;
-    const clientY = e.clientY || (e.touches && e.touches[0].clientY) || 0;
-    const deltaY = clientY - cropperDragStartY;
-    // Viewport height is 100px. Drag vertically.
-    const percentDiff = (deltaY / 100) * 100;
-    let newPercent = Math.round(cropperDragStartPercent - percentDiff);
-    newPercent = Math.max(0, Math.min(100, newPercent));
-    setTempPosition(newPercent);
-  };
 
-  const handleCropperDragEnd = () => {
-    setIsCropperDragging(false);
-  };
+    const handleWindowMove = (e) => {
+      const clientY = e.clientY || (e.touches && e.touches[0].clientY) || 0;
+      const deltaY = clientY - cropperDragStartY;
+      const percentDiff = (deltaY / 100) * 100;
+      // Subtracting is correct for y background-position dragging logic
+      let newPercent = Math.round(cropperDragStartPercent - percentDiff);
+      newPercent = Math.max(0, Math.min(100, newPercent));
+      setTempPosition(newPercent);
+    };
+
+    const handleWindowEnd = () => {
+      setIsCropperDragging(false);
+    };
+
+    window.addEventListener('mousemove', handleWindowMove);
+    window.addEventListener('mouseup', handleWindowEnd);
+    window.addEventListener('touchmove', handleWindowMove);
+    window.addEventListener('touchend', handleWindowEnd);
+
+    return () => {
+      window.removeEventListener('mousemove', handleWindowMove);
+      window.removeEventListener('mouseup', handleWindowEnd);
+      window.removeEventListener('touchmove', handleWindowMove);
+      window.removeEventListener('touchend', handleWindowEnd);
+    };
+  }, [isCropperDragging, cropperDragStartY, cropperDragStartPercent]);
 
   const handleCropperReset = () => {
     setTempPosition(50);
@@ -269,7 +301,7 @@ export default function ProfileHero({
   const handleCropperApply = () => {
     setShowCropModal(false);
     setPreviewBannerPreset('custom');
-    setPreviewBannerUrl(customBannerUrl.trim());
+    setPreviewBannerUrl(customBannerUrl.trim() || previewBannerUrl.trim());
     setPreviewBannerPosition(`${tempPosition}%`);
     setPreviewBannerScale(`${tempScale}%`);
     setShowSettings(true);
@@ -642,32 +674,58 @@ export default function ProfileHero({
                 );
               })()}
 
-              {/* Remove Banner - only if banner exists */}
+              {/* Adjust/Remove Custom Image - only if banner exists */}
               {(previewBannerUrl || customBannerUrl.trim()) && (
-                <button
-                  onClick={handleRemoveBanner}
-                  style={{
-                    background: 'none',
-                    border: '1px solid rgba(255,71,87,0.12)',
-                    color: '#ff4757',
-                    padding: '8px 0',
-                    borderRadius: '10px',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    transition: 'all 0.2s',
-                    width: '100%'
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,71,87,0.08)'; e.currentTarget.style.borderColor = 'rgba(255,71,87,0.25)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.borderColor = 'rgba(255,71,87,0.12)'; }}
-                >
-                  <Trash2 size={13} />
-                  Remove Custom Image
-                </button>
+                <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
+                  <button
+                    onClick={handleOpenCropperForExisting}
+                    style={{
+                      flex: 1,
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      color: '#fff',
+                      padding: '8px 0',
+                      borderRadius: '10px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                  >
+                    <Move size={13} />
+                    Adjust Position
+                  </button>
+                  <button
+                    onClick={handleRemoveBanner}
+                    style={{
+                      flex: 1,
+                      background: 'none',
+                      border: '1px solid rgba(255,71,87,0.12)',
+                      color: '#ff4757',
+                      padding: '8px 0',
+                      borderRadius: '10px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,71,87,0.08)'; e.currentTarget.style.borderColor = 'rgba(255,71,87,0.25)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.borderColor = 'rgba(255,71,87,0.12)'; }}
+                  >
+                    <Trash2 size={13} />
+                    Remove Image
+                  </button>
+                </div>
               )}
             </div>
 
