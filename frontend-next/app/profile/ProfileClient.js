@@ -602,6 +602,7 @@ export default function ProfileClient() {
                 loading={statsLoading}
                 onRefresh={fetchStats}
                 isOwnProfile={true}
+                profile={profile}
               />
             ) : activePlaylistId !== null ? (
               <ProfilePlaylistDetail 

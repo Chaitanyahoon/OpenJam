@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Music, Lock, Globe, RefreshCw, Trash2, Share2, 
   Disc, Clock, ArrowLeft, Play
@@ -16,6 +16,30 @@ export default function ProfilePlaylistDetail({
   onRemoveTrack,
   syncingPlaylistId
 }) {
+  const [isAutoSyncEnabled, setIsAutoSyncEnabled] = useState(playlist?.auto_sync ?? true);
+  
+  useEffect(() => {
+    if (playlist) {
+      setIsAutoSyncEnabled(playlist.auto_sync ?? true);
+    }
+  }, [playlist]);
+
+  const handleToggleAutoSync = async () => {
+    const nextVal = !isAutoSyncEnabled;
+    setIsAutoSyncEnabled(nextVal);
+    try {
+      const res = await fetch(`/playlists/${playlist.id}/auto-sync`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: nextVal })
+      });
+      if (!res.ok) {
+        setIsAutoSyncEnabled(!nextVal);
+      }
+    } catch (e) {
+      setIsAutoSyncEnabled(!nextVal);
+    }
+  };
   if (loading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '100px 0', color: '#888', gap: '16px' }}>
@@ -150,6 +174,7 @@ export default function ProfilePlaylistDetail({
 
           <p style={{ color: '#666', fontSize: '13px', marginTop: '6px', fontWeight: 500 }}>
             {tracks.length} songs • Created by {playlist.creator_name || 'you'}
+            {playlist.import_url && ` • Last synced: ${playlist.last_synced_at ? new Date(playlist.last_synced_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Never'}`}
           </p>
 
           {/* Action Row */}
@@ -178,27 +203,58 @@ export default function ProfilePlaylistDetail({
             </button>
 
             {isOwnProfile && playlist.import_url && onSyncPlaylist && (
-              <button
-                onClick={() => onSyncPlaylist(playlist.id)}
-                disabled={isSyncing}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  background: isSyncing ? 'rgba(0,0,0,0.2)' : 'rgba(255, 159, 28, 0.08)',
-                  border: '1px solid rgba(255, 159, 28, 0.15)',
-                  color: 'var(--theme-accent, #ff9f1c)',
-                  padding: '8px 14px',
-                  borderRadius: '12px',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-              >
-                <RefreshCw size={13} style={{ animation: isSyncing ? 'spin 1s linear infinite' : 'none' }} />
-                {isSyncing ? 'Syncing...' : 'Sync Source'}
-              </button>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <button
+                  onClick={() => onSyncPlaylist(playlist.id)}
+                  disabled={isSyncing}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: isSyncing ? 'rgba(0,0,0,0.2)' : 'rgba(255, 159, 28, 0.08)',
+                    border: '1px solid rgba(255, 159, 28, 0.15)',
+                    color: 'var(--theme-accent, #ff9f1c)',
+                    padding: '8px 14px',
+                    borderRadius: '12px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <RefreshCw size={13} style={{ animation: isSyncing ? 'spin 1s linear infinite' : 'none' }} />
+                  {isSyncing ? 'Syncing...' : 'Sync Source'}
+                </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '6px 14px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.6)' }}>Auto-Sync</span>
+                  <button
+                    onClick={handleToggleAutoSync}
+                    style={{
+                      position: 'relative',
+                      width: '34px',
+                      height: '20px',
+                      borderRadius: '20px',
+                      background: isAutoSyncEnabled ? 'var(--theme-accent, #ff9f1c)' : 'rgba(255,255,255,0.1)',
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      padding: 0
+                    }}
+                  >
+                    <div style={{
+                      position: 'absolute',
+                      top: '2px',
+                      left: isAutoSyncEnabled ? '16px' : '2px',
+                      width: '16px',
+                      height: '16px',
+                      borderRadius: '50%',
+                      background: '#000',
+                      transition: 'all 0.2s'
+                    }} />
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </div>

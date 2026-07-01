@@ -192,6 +192,78 @@ async def _room_cleanup_loop():
             logger.error(f"Unexpected error in room cleanup loop: {e}")
 
 
+async def _playlist_auto_sync_loop():
+    """Background task to periodically sync imported playlists with auto-sync enabled."""
+    from backend.database import SessionLocal
+    from backend.models.playlist import Playlist, PlaylistTrack
+    from backend.services.playlist_importer import import_playlist
+    from datetime import datetime, timezone, timedelta
+    import asyncio
+    
+    while True:
+        try:
+            # Check every 1 hour (3600 seconds)
+            await asyncio.sleep(3600)
+            logger.info("Starting background playlist auto-sync check...")
+            
+            db = SessionLocal()
+            try:
+                cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+                
+                # Query playlists eligible for auto-sync:
+                # - has an import_url
+                # - auto_sync is enabled
+                # - last_synced_at is null or older than 24 hours
+                eligible_playlists = db.query(Playlist).filter(
+                    Playlist.import_url.isnot(None),
+                    Playlist.auto_sync == True,
+                    (Playlist.last_synced_at.is_(None)) | (Playlist.last_synced_at < cutoff)
+                ).all()
+                
+                if eligible_playlists:
+                    logger.info(f"Found {len(eligible_playlists)} playlists eligible for auto-sync.")
+                    for p in eligible_playlists:
+                        try:
+                            logger.info(f"Auto-syncing playlist: {p.name} ({p.id}) from {p.import_url}")
+                            res = await import_playlist(p.import_url)
+                            external_tracks = res.get("tracks", [])
+                            
+                            # Update local copy in a nested transaction or direct queries
+                            db.query(PlaylistTrack).filter(PlaylistTrack.playlist_id == p.id).delete()
+                            for idx, t in enumerate(external_tracks):
+                                track_uri = t.get("track_uri") or t.get("uri")
+                                track_name = t.get("track_name") or t.get("name") or "Unknown Track"
+                                artist = t.get("artist") or "Unknown Artist"
+                                album_art_url = t.get("album_art_url") or ""
+                                duration_ms = t.get("duration_ms") or 0
+                                
+                                new_track = PlaylistTrack(
+                                    playlist_id=p.id,
+                                    track_uri=track_uri,
+                                    track_name=track_name,
+                                    artist=artist,
+                                    album_art_url=album_art_url,
+                                    duration_ms=duration_ms,
+                                    position=idx
+                                )
+                                db.add(new_track)
+                                
+                            p.last_synced_at = datetime.now(timezone.utc)
+                            db.commit()
+                            logger.info(f"Successfully auto-synced playlist {p.id} with {len(external_tracks)} tracks.")
+                        except Exception as inner_e:
+                            logger.error(f"Error auto-syncing playlist {p.id}: {inner_e}")
+                            db.rollback()
+            except Exception as e:
+                logger.error(f"Error in playlist auto-sync DB query: {e}")
+            finally:
+                db.close()
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Unexpected error in playlist auto-sync loop: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app):
     """Application startup/shutdown lifecycle."""
@@ -200,13 +272,15 @@ async def lifespan(app):
     logger.info(f"CORS allowed origins: {settings.ALLOWED_ORIGINS}")
     logger.info("Database initialized successfully")
     
-    # Start background cleanup task
+    # Start background tasks
     import asyncio
     cleanup_task = asyncio.create_task(_room_cleanup_loop())
+    sync_task = asyncio.create_task(_playlist_auto_sync_loop())
     
     logger.info("Open Jam startup complete")
     yield
     cleanup_task.cancel()
+    sync_task.cancel()
     logger.info("Open Jam shutting down")
 
 app.router.lifespan_context = lifespan

@@ -181,6 +181,13 @@ async def remove_track_from_playlist(
     return {"message": "Track removed from playlist and positions re-ordered"}
 
 
+from pydantic import BaseModel
+from datetime import datetime, timezone
+
+class AutoSyncToggleRequest(BaseModel):
+    enabled: bool
+
+
 @router.post("/{playlist_id}/sync")
 async def sync_imported_playlist(
     playlist_id: str,
@@ -189,23 +196,23 @@ async def sync_imported_playlist(
 ):
     """Sync an imported playlist by fetching its external tracks and updating the local copy."""
     playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
-    
+
     if not playlist:
         raise HTTPException(status_code=404, detail="Playlist not found")
-        
+
     if playlist.creator_id != user_id:
         raise HTTPException(status_code=403, detail="You do not own this playlist")
-        
+
     if not playlist.import_url:
         raise HTTPException(status_code=400, detail="This playlist was not imported from an external source")
 
     # Fetch tracks using import_playlist
     res = await import_playlist(playlist.import_url)
     external_tracks = res.get("tracks", [])
-    
+
     # Delete all current tracks
     db.query(PlaylistTrack).filter(PlaylistTrack.playlist_id == playlist_id).delete()
-    
+
     # Add new tracks
     for idx, t in enumerate(external_tracks):
         track_uri = t.get("track_uri") or t.get("uri")
@@ -213,7 +220,7 @@ async def sync_imported_playlist(
         artist = t.get("artist") or "Unknown Artist"
         album_art_url = t.get("album_art_url") or ""
         duration_ms = t.get("duration_ms") or 0
-        
+
         new_track = PlaylistTrack(
             playlist_id=playlist_id,
             track_uri=track_uri,
@@ -225,9 +232,37 @@ async def sync_imported_playlist(
         )
         db.add(new_track)
         
+    playlist.last_synced_at = datetime.now(timezone.utc)
     db.commit()
     return {
         "message": f"Successfully synced playlist. {len(external_tracks)} tracks updated.",
         "playlist": playlist.to_dict(include_tracks=True)
     }
 
+
+@router.put("/{playlist_id}/auto-sync")
+async def toggle_playlist_auto_sync(
+    playlist_id: str,
+    req: AutoSyncToggleRequest,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(require_registered_user)
+):
+    """Toggle auto-sync status for a playlist."""
+    playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
+
+    if not playlist:
+        raise HTTPException(status_code=404, detail="Playlist not found")
+
+    if playlist.creator_id != user_id:
+        raise HTTPException(status_code=403, detail="You do not own this playlist")
+
+    if not playlist.import_url:
+        raise HTTPException(status_code=400, detail="This playlist was not imported from an external source")
+
+    playlist.auto_sync = req.enabled
+    db.commit()
+
+    return {
+        "message": "Auto-sync updated successfully",
+        "playlist": playlist.to_dict()
+    }

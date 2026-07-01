@@ -1,17 +1,62 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   BarChart2, Clock, Music, MessageSquare, ThumbsUp, RefreshCw, 
-  Disc, Award, Play, Globe
+  Disc, Award, Play, Globe, Share2, Download, Copy, X
 } from 'lucide-react';
 
 export default function ProfileStats({
   stats,
   loading,
   onRefresh,
-  isOwnProfile
+  isOwnProfile,
+  profile
 }) {
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyLink = () => {
+    const link = profile?.username 
+      ? `${window.location.origin}/profile/@${profile.username}` 
+      : `${window.location.origin}/profile/${profile?.id}`;
+    navigator.clipboard.writeText(link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDownloadCard = () => {
+    const svgElement = document.getElementById('musical-footprint-card');
+    if (!svgElement) return;
+
+    // Serialize the SVG XML source
+    const svgString = new XMLSerializer().serializeToString(svgElement);
+    const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    const DOMURL = window.URL || window.webkitURL || window;
+    const blobURL = DOMURL.createObjectURL(svgBlob);
+
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 800; // Double size for high DPI crispness
+      canvas.height = 1200;
+      const context = canvas.getContext('2d');
+      if (context) {
+        context.drawImage(image, 0, 0, 800, 1200);
+        const pngURL = canvas.toDataURL('image/png');
+        
+        const downloadLink = document.createElement('a');
+        downloadLink.href = pngURL;
+        downloadLink.download = `${profile?.display_name || 'My'}_OpenJam_Wrapped.png`;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+      }
+      DOMURL.revokeObjectURL(blobURL);
+    };
+    image.src = blobURL;
+  };
   if (loading && !stats) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '100px 0', color: '#888', gap: '16px' }}>
@@ -61,29 +106,53 @@ export default function ProfileStats({
           <BarChart2 size={28} style={{ color: 'var(--theme-accent, #ff9f1c)' }} />
           <h3 style={{ fontSize: '24px', fontWeight: 800 }}>Listening Statistics</h3>
         </div>
-        {onRefresh && (
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <button
-            onClick={onRefresh}
-            disabled={loading}
-            className="profile-btn-stats-refresh"
+            onClick={() => setShowShareModal(true)}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              background: 'rgba(255, 159, 28, 0.1)',
-              border: '1px solid rgba(255, 159, 28, 0.2)',
-              color: 'var(--theme-accent, #ff9f1c)',
+              background: 'rgba(139, 92, 246, 0.1)',
+              border: '1px solid rgba(139, 92, 246, 0.25)',
+              color: '#a855f7',
               padding: '8px 14px',
               borderRadius: '12px',
               fontSize: '13px',
               fontWeight: 700,
-              cursor: 'pointer'
+              cursor: 'pointer',
+              transition: 'all 0.2s'
             }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(139, 92, 246, 0.18)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(139, 92, 246, 0.1)'; }}
           >
-            <RefreshCw size={14} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
-            {loading ? 'Refreshing...' : 'Refresh Stats'}
+            <Share2 size={14} />
+            Share Card
           </button>
-        )}
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              disabled={loading}
+              className="profile-btn-stats-refresh"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'rgba(255, 159, 28, 0.1)',
+                border: '1px solid rgba(255, 159, 28, 0.2)',
+                color: 'var(--theme-accent, #ff9f1c)',
+                padding: '8px 14px',
+                borderRadius: '12px',
+                fontSize: '13px',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              <RefreshCw size={14} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+              {loading ? 'Refreshing...' : 'Refresh Stats'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Primary Music Footprint Grid */}
@@ -311,6 +380,162 @@ export default function ProfileStats({
           </div>
         </div>
       )}
+      {/* Shareable Music Footprint Card Modal */}
+      <AnimatePresence>
+        {showShareModal && (
+          <div 
+            className="profile-modal-backdrop"
+            onClick={() => setShowShareModal(false)}
+            style={{ zIndex: 99999 }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: '#0d0d12',
+                border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: '24px',
+                padding: '24px',
+                width: '100%',
+                maxWidth: '380px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '20px',
+                boxShadow: '0 20px 50px rgba(0,0,0,0.6)'
+              }}
+            >
+              {/* Modal Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Award size={18} style={{ color: '#ff9f1c' }} />
+                  <span style={{ fontSize: '15px', fontWeight: 800, color: '#fff' }}>Share Footprint</span>
+                </div>
+                <button
+                  onClick={() => setShowShareModal(false)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'rgba(255,255,255,0.4)',
+                    cursor: 'pointer',
+                    padding: '4px',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* The SVG Share Card Viewport */}
+              <div style={{ display: 'flex', justifyContent: 'center', background: '#070709', padding: '12px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.02)' }}>
+                <svg 
+                  id="musical-footprint-card" 
+                  width="280" 
+                  height="420" 
+                  viewBox="0 0 400 600" 
+                  fill="none" 
+                  xmlns="http://www.w3.org/2000/svg"
+                  style={{ borderRadius: '12px' }}
+                >
+                  <rect width="400" height="600" rx="30" fill="#0b0b0f"/>
+                  <circle cx="80" cy="100" r="160" fill="#ff9f1c" opacity="0.14" filter="blur(60px)"/>
+                  <circle cx="320" cy="480" r="140" fill="#8b5cf6" opacity="0.12" filter="blur(50px)"/>
+                  <rect x="15" y="15" width="370" height="570" rx="20" stroke="rgba(255,255,255,0.04)" stroke-width="1.5"/>
+                  
+                  <text x="40" y="60" fill="#fff" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="900" letter-spacing="-0.5">OpenJam</text>
+                  <text x="40" y="78" fill="rgba(255,255,255,0.3)" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="700" letter-spacing="1.5">MY MUSICAL FOOTPRINT</text>
+
+                  <text x="40" y="145" fill="#fff" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="800" letter-spacing="-0.5">{profile?.display_name || 'Jammer'}</text>
+                  <text x="40" y="168" fill="rgba(255,255,255,0.4)" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="600">@{profile?.discord_username || 'user'}</text>
+                  
+                  <line x1="40" y1="195" x2="360" y2="195" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+
+                  <text x="40" y="240" fill="rgba(255,255,255,0.3)" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="700" letter-spacing="0.5">LISTENING TIME</text>
+                  <text x="40" y="268" fill="#ff9f1c" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="800">
+                    {stats.listening_time_mins > 60 
+                      ? `${Math.floor(stats.listening_time_mins / 60)}h ${stats.listening_time_mins % 60}m` 
+                      : `${stats.listening_time_mins}m`}
+                  </text>
+
+                  <text x="210" y="240" fill="rgba(255,255,255,0.3)" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="700" letter-spacing="0.5">SONGS QUEUED</text>
+                  <text x="210" y="268" fill="#3b82f6" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="800">{stats.total_queued}</text>
+
+                  <line x1="40" y1="300" x2="360" y2="300" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+
+                  <text x="40" y="340" fill="rgba(255,255,255,0.3)" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="700" letter-spacing="0.5">FAVORITE GENRE</text>
+                  <text x="40" y="368" fill="#10b981" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="800" text-transform="capitalize">
+                    {stats.top_genres?.length > 0 ? stats.top_genres[0].genre : 'None'}
+                  </text>
+
+                  <text x="40" y="420" fill="rgba(255,255,255,0.3)" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="700" letter-spacing="0.5">TOP ARTIST</text>
+                  <text x="40" y="448" fill="#8b5cf6" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="800">
+                    {stats.top_artists?.length > 0 ? stats.top_artists[0].artist : 'None'}
+                  </text>
+
+                  <text x="40" y="500" fill="rgba(255,255,255,0.3)" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="700" letter-spacing="0.5">TOP QUEUED TRACK</text>
+                  <text x="40" y="528" fill="#ec4899" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="800">
+                    {stats.top_tracks?.length > 0 ? stats.top_tracks[0].track_name.substring(0, 32) : 'None'}
+                  </text>
+                  <text x="40" y="546" fill="rgba(255,255,255,0.4)" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600">
+                    {stats.top_tracks?.length > 0 ? `by ${stats.top_tracks[0].artist.substring(0, 32)}` : ''}
+                  </text>
+                </svg>
+              </div>
+
+              {/* Share Card Modal Actions */}
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  onClick={handleDownloadCard}
+                  style={{
+                    flex: 1,
+                    background: 'var(--theme-accent, #ff9f1c)',
+                    border: 'none',
+                    color: '#000',
+                    padding: '12px',
+                    borderRadius: '12px',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    boxShadow: '0 4px 12px rgba(255, 159, 28, 0.2)'
+                  }}
+                >
+                  <Download size={14} />
+                  Download PNG
+                </button>
+                <button
+                  onClick={handleCopyLink}
+                  style={{
+                    flex: 1,
+                    background: 'rgba(255,255,255,0.02)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    color: '#fff',
+                    padding: '12px',
+                    borderRadius: '12px',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <Copy size={14} />
+                  {copied ? 'Copied!' : 'Copy Link'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

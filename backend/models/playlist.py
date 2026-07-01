@@ -13,6 +13,8 @@ class Playlist(Base):
     creator_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     is_private = Column(Boolean, default=False, nullable=False)
     import_url = Column(String, nullable=True)
+    last_synced_at = Column(DateTime, nullable=True)
+    auto_sync = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationship to user
@@ -28,6 +30,8 @@ class Playlist(Base):
             "creator_name": self.creator.display_name if self.creator else "Unknown",
             "is_private": self.is_private,
             "import_url": self.import_url,
+            "last_synced_at": self.last_synced_at.isoformat() if self.last_synced_at else None,
+            "auto_sync": self.auto_sync,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
         if include_tracks:

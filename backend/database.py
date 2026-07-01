@@ -253,11 +253,21 @@ def init_db():
 
     # Auto-migration: Check if 'import_url' exists in 'playlists' table, and add it if missing
     import_url_exists = True
+    last_synced_at_exists = True
+    auto_sync_exists = True
     with engine.connect() as conn:
         try:
             conn.execute(text("SELECT import_url FROM playlists LIMIT 1"))
         except Exception:
             import_url_exists = False
+        try:
+            conn.execute(text("SELECT last_synced_at FROM playlists LIMIT 1"))
+        except Exception:
+            last_synced_at_exists = False
+        try:
+            conn.execute(text("SELECT auto_sync FROM playlists LIMIT 1"))
+        except Exception:
+            auto_sync_exists = False
 
     if not import_url_exists:
         try:
@@ -266,6 +276,22 @@ def init_db():
             print("Successfully added import_url column to playlists table.")
         except Exception as e:
             print(f"Failed to auto-migrate playlists.import_url: {e}")
+
+    if not last_synced_at_exists:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE playlists ADD COLUMN last_synced_at DATETIME NULL"))
+            print("Successfully added last_synced_at column to playlists table.")
+        except Exception as e:
+            print(f"Failed to auto-migrate playlists.last_synced_at: {e}")
+
+    if not auto_sync_exists:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE playlists ADD COLUMN auto_sync BOOLEAN NOT NULL DEFAULT 1"))
+            print("Successfully added auto_sync column to playlists table.")
+        except Exception as e:
+            print(f"Failed to auto-migrate playlists.auto_sync: {e}")
 
     # Auto-migration: Check if 'username' exists in 'users' table, and add it if missing
     username_exists = True
