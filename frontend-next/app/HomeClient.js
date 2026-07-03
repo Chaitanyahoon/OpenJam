@@ -989,6 +989,7 @@ export default function HomePage() {
         logo="/static/img/logo.png"
         logoAlt="OpenJam Logo"
         items={navItems}
+        me={me}
       />
 
       {/* HERO */}

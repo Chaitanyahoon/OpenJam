@@ -17,7 +17,8 @@ const PillNav = ({
   hoveredPillTextColor = '#ff9f1c',
   pillTextColor = '#cbd5e1',
   onMobileMenuClick,
-  initialLoadAnimation = true
+  initialLoadAnimation = true,
+  me
 }) => {
   const resolvedPillTextColor = pillTextColor ?? '#cbd5e1';
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -303,15 +304,53 @@ const PillNav = ({
           </ul>
         </div>
 
-        <button
-          className="mobile-menu-button mobile-only"
-          onClick={toggleMobileMenu}
-          aria-label="Toggle menu"
-          ref={hamburgerRef}
-        >
-          <span className="hamburger-line" />
-          <span className="hamburger-line" />
-        </button>
+        <div className="mobile-right-actions mobile-only" style={{ display: 'flex', alignItems: 'center' }}>
+          {me && (
+            <Link
+              href="/profile"
+              className="mobile-profile-shortcut"
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                overflow: 'hidden',
+                border: '1.5px solid var(--hover-text, #ff9f1c)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'rgba(255,255,255,0.05)',
+                cursor: 'pointer',
+                marginRight: '12px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+                transition: 'transform 0.2s',
+                touchAction: 'manipulation'
+              }}
+            >
+              {me.avatar_url ? (
+                <img 
+                  src={me.avatar_url} 
+                  alt="Profile" 
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : (
+                <span style={{ color: '#fff', fontSize: '11px', fontWeight: 800 }}>
+                  {(me.display_name || me.username || 'U').substring(0, 2).toUpperCase()}
+                </span>
+              )}
+            </Link>
+          )}
+
+          <button
+            className="mobile-menu-button"
+            onClick={toggleMobileMenu}
+            aria-label="Toggle menu"
+            ref={hamburgerRef}
+            style={{ display: 'flex' }}
+          >
+            <span className="hamburger-line" />
+            <span className="hamburger-line" />
+          </button>
+        </div>
       </nav>
 
       <div className="mobile-menu-popover mobile-only" ref={mobileMenuRef} style={cssVars}>
