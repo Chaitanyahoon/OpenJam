@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Disc, ArrowLeft, Trash2, X, AlertTriangle } from 'lucide-react';
 import { ProfileSkeleton } from '@/components/SkeletonLoaders';
+import { extractColors } from '@/utils/colorExtractor';
 
 // Import our new sub-components
 import ProfileHero from '@/components/profile/ProfileHero';
@@ -23,6 +24,7 @@ export default function ProfileClient() {
   const [likes, setLikes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [extractedColors, setExtractedColors] = useState(['#141318', '#08080a']);
 
   // Tab & playlist selection states
   const [activeTab, setActiveTab] = useState('library'); // 'library' | 'discover' | 'stats'
@@ -111,6 +113,18 @@ export default function ProfileClient() {
   useEffect(() => {
     fetchProfileData();
   }, []);
+
+  useEffect(() => {
+    if (!profile) return;
+    const targetUrl = profile.banner_url || profile.avatar_url;
+    if (!targetUrl) return;
+    
+    extractColors(targetUrl).then((colors) => {
+      if (colors && colors.length > 0) {
+        setExtractedColors(colors);
+      }
+    });
+  }, [profile]);
 
   // Fetch stats data
   const fetchStats = async () => {
@@ -484,7 +498,7 @@ export default function ProfileClient() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'radial-gradient(circle at top, #141318 0%, #08080a 70%)',
+      background: `radial-gradient(circle at top, ${extractedColors[0]}1f 0%, #08080a 75%)`,
       color: '#fff',
       position: 'relative',
       overflow: 'hidden',

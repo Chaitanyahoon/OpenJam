@@ -9,6 +9,7 @@ import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, 
 import PwaInstallPrompt from '@/components/PwaInstallPrompt';
 import { offlineDb } from '@/utils/offlineDb';
 import EmojiPicker from '@/components/EmojiPicker';
+import { extractColors } from '@/utils/colorExtractor';
 
 export default function RoomClient({ roomId }) {
   const { socket, isConnected, isReconnecting, isConnectionFailed, reconnect } = useSocket();
@@ -94,9 +95,17 @@ export default function RoomClient({ roomId }) {
   const isDraggingSuggestion = useRef(false);
   const reactionContainerRef = useRef(null);
   const lastReactionSentRef = useRef(0);
+  const colorsRef = useRef(['#ff9f1c', '#8b5cf6', '#ec4899']);
 
   useEffect(() => {
     nowPlayingRef.current = nowPlaying;
+    if (!nowPlaying?.album_art_url) {
+      colorsRef.current = ['#ff9f1c', '#8b5cf6', '#ec4899'];
+    } else {
+      extractColors(nowPlaying.album_art_url).then((colors) => {
+        colorsRef.current = colors;
+      });
+    }
   }, [nowPlaying]);
 
   useEffect(() => {
@@ -1164,6 +1173,14 @@ export default function RoomClient({ roomId }) {
     let amplitude = (playbackState.isPlaying ? 80 : 20) / 4;
     let frequency = (playbackState.isPlaying ? 0.008 : 0.003) * 4;
 
+    const hexToRgba = (hex, opacity = 1) => {
+      if (!hex || !hex.startsWith('#')) return `rgba(255, 176, 58, ${opacity})`;
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+    };
+
     const render = () => {
       if (!ctx) return;
       
@@ -1171,15 +1188,21 @@ export default function RoomClient({ roomId }) {
       ctx.fillStyle = '#08080a';
       ctx.fillRect(0, 0, width, height);
 
+      // Access extracted colors from ref dynamically
+      const colors = colorsRef.current;
+      const c1 = colors[0] || '#ff9f1c';
+      const c2 = colors[1] || '#8b5cf6';
+      const c3 = colors[2] || '#ec4899';
+
       // Draw a slow-moving, large breathing central glow portal
       const glowRadius = Math.max(width, height) * (playbackState.isPlaying ? 0.45 : 0.35) + Math.sin(phase * 2) * 5;
       const centerGrad = ctx.createRadialGradient(
         width / 2, height / 2, 0,
         width / 2, height / 2, glowRadius
       );
-      centerGrad.addColorStop(0, playbackState.isPlaying ? 'rgba(255, 176, 58, 0.035)' : 'rgba(255, 176, 58, 0.012)');
-      centerGrad.addColorStop(0.4, 'rgba(236, 72, 153, 0.008)');
-      centerGrad.addColorStop(0.8, 'rgba(99, 102, 241, 0.004)');
+      centerGrad.addColorStop(0, playbackState.isPlaying ? hexToRgba(c1, 0.04) : hexToRgba(c1, 0.015));
+      centerGrad.addColorStop(0.4, hexToRgba(c2, 0.01));
+      centerGrad.addColorStop(0.8, hexToRgba(c3, 0.005));
       centerGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
       ctx.fillStyle = centerGrad;
       ctx.fillRect(0, 0, width, height);
@@ -1192,11 +1215,11 @@ export default function RoomClient({ roomId }) {
       frequency += (targetFrequency - frequency) * 0.05;
       phase += speed;
 
-      // Draw flowing sine waves (amber, pink, indigo accents)
+      // Draw flowing sine waves (dynamic album art accents)
       const waves = [
-        { color: 'rgba(255, 176, 58, 0.06)', freqMul: 1.0, speedMul: 1.0, phaseOffset: 0 },
-        { color: 'rgba(236, 72, 153, 0.04)', freqMul: 0.6, speedMul: 0.7, phaseOffset: Math.PI / 3 },
-        { color: 'rgba(99, 102, 241, 0.03)', freqMul: 1.4, speedMul: 1.2, phaseOffset: Math.PI / 1.5 }
+        { color: hexToRgba(c1, 0.06), freqMul: 1.0, speedMul: 1.0, phaseOffset: 0 },
+        { color: hexToRgba(c2, 0.04), freqMul: 0.6, speedMul: 0.7, phaseOffset: Math.PI / 3 },
+        { color: hexToRgba(c3, 0.03), freqMul: 1.4, speedMul: 1.2, phaseOffset: Math.PI / 1.5 }
       ];
 
       waves.forEach((wave) => {
@@ -1214,7 +1237,7 @@ export default function RoomClient({ roomId }) {
       });
 
       // Draw floating glowing circles
-      particles.forEach((p) => {
+      particles.forEach((p, idx) => {
         p.y -= p.speed * (playbackState.isPlaying ? 2.2 : 0.6);
         p.x += Math.sin(phase * 0.5 + p.offset) * 0.15;
 
@@ -1223,11 +1246,13 @@ export default function RoomClient({ roomId }) {
           p.x = Math.random() * width;
         }
 
+        const particleColor = idx % 3 === 0 ? c1 : (idx % 3 === 1 ? c2 : c3);
+
         ctx.beginPath();
         const radGrad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 2.5);
-        radGrad.addColorStop(0, 'rgba(255, 176, 58, 0.08)');
-        radGrad.addColorStop(0.5, 'rgba(255, 176, 58, 0.03)');
-        radGrad.addColorStop(1, 'rgba(255, 176, 58, 0)');
+        radGrad.addColorStop(0, hexToRgba(particleColor, 0.09));
+        radGrad.addColorStop(0.5, hexToRgba(particleColor, 0.03));
+        radGrad.addColorStop(1, hexToRgba(particleColor, 0));
         ctx.fillStyle = radGrad;
         ctx.arc(p.x, p.y, p.size * 2.5, 0, Math.PI * 2);
         ctx.fill();
@@ -1813,7 +1838,7 @@ export default function RoomClient({ roomId }) {
 
       {/* Dynamic Audio-Visual Backdrop */}
       <div className="dynamic-bg-wrapper">
-        <canvas id="ambient-canvas"></canvas>
+        <canvas id="ambient-canvas" className={nowPlaying && settingsVisuals ? 'active' : ''}></canvas>
         {nowPlaying?.album_art_url && (
           <img decoding="async" loading="lazy" id="dynamic-bg" className="dynamic-bg active" src={nowPlaying.album_art_url} alt="Dynamic Ambient Background" />
         )}
