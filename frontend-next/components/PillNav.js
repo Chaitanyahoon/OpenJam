@@ -304,7 +304,7 @@ const PillNav = ({
           </ul>
         </div>
 
-        <div className="mobile-right-actions mobile-only" style={{ display: 'flex', alignItems: 'center' }}>
+        <div className="mobile-right-actions mobile-only" style={{ alignItems: 'center' }}>
           {me && (
             <Link
               href="/profile"
@@ -345,7 +345,6 @@ const PillNav = ({
             onClick={toggleMobileMenu}
             aria-label="Toggle menu"
             ref={hamburgerRef}
-            style={{ display: 'flex' }}
           >
             <span className="hamburger-line" />
             <span className="hamburger-line" />
