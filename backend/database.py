@@ -280,7 +280,7 @@ def init_db():
     if not last_synced_at_exists:
         try:
             with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE playlists ADD COLUMN last_synced_at DATETIME NULL"))
+                conn.execute(text("ALTER TABLE playlists ADD COLUMN last_synced_at TIMESTAMP NULL"))
             print("Successfully added last_synced_at column to playlists table.")
         except Exception as e:
             print(f"Failed to auto-migrate playlists.last_synced_at: {e}")
