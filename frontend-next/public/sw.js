@@ -1,4 +1,4 @@
-const CACHE_NAME = 'openjam-pwa-v4';
+const CACHE_NAME = 'openjam-pwa-v5';
 
 // Core assets to cache immediately on SW install
 const PRECACHE_ASSETS = [
@@ -132,6 +132,15 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
+  // Skip all cross-origin requests (except Google Fonts) to avoid CORS issues
+  // External images (Pinterest, Imgur, etc.) should not be intercepted by the SW
+  if (url.origin !== self.location.origin) {
+    const isGoogleFont = url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
+    if (!isGoogleFont) {
+      return; // Let the browser handle cross-origin requests natively
+    }
+  }
+
   // Bypass API routes, socket connections, and audio streams entirely
   const bypassPrefixes = [
     '/socket.io',
@@ -148,12 +157,9 @@ self.addEventListener('fetch', (event) => {
     '/profile'
   ];
 
-  // Only bypass for same-origin API paths
-  if (url.origin === self.location.origin) {
-    const shouldBypass = bypassPrefixes.some(prefix => url.pathname.startsWith(prefix));
-    if (shouldBypass) {
-      return;
-    }
+  const shouldBypass = bypassPrefixes.some(prefix => url.pathname.startsWith(prefix));
+  if (shouldBypass) {
+    return;
   }
 
   // --- Strategy 1: Next.js static chunks & public static assets -> Cache-First ---
