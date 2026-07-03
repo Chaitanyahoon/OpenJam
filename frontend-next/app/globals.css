@@ -11290,4 +11290,13 @@ div:hover > .play-hover-btn,
   }
 }
 
+@keyframes eq-pulse {
+  0% { height: 3px; }
+  100% { height: 12px; }
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 

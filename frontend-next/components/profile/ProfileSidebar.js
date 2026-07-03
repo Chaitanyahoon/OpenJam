@@ -3,7 +3,7 @@
 import React from 'react';
 import { 
   Music, Heart, Plus, Lock, Globe, RefreshCw, Trash2, 
-  BarChart2, Users, FolderHeart
+  BarChart2, Users, FolderHeart, Activity
 } from 'lucide-react';
 
 export default function ProfileSidebar({
@@ -55,6 +55,15 @@ export default function ProfileSidebar({
         >
           <BarChart2 size={16} />
           <span>Listening Stats</span>
+        </button>
+
+        <button
+          onClick={() => { setActiveTab('social'); setActivePlaylistId(null); }}
+          className={`profile-tab-btn ${activeTab === 'social' ? 'active' : ''}`}
+          style={{ width: '100%', justifyContent: 'flex-start' }}
+        >
+          <Activity size={16} />
+          <span>Friends Activity</span>
         </button>
       </div>
 

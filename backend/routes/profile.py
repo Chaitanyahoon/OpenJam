@@ -444,3 +444,64 @@ async def get_public_user_stats(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return get_user_stats_internal(db, resolved_id)
+
+
+@router.get("/following/activity")
+async def get_following_activity(
+    db: Session = Depends(get_db),
+    user_id: str = Depends(require_registered_user)
+):
+    """Retrieve real-time room listening activity for users the logged-in user follows."""
+    from backend.models.follow import Follow
+    from backend.services.room_manager import room_manager
+    from backend.models.room import Room
+    from backend.models.user import User
+    
+    # 1. Get user IDs of followed users
+    followed_relations = db.query(Follow.followed_id).filter(Follow.follower_id == user_id).all()
+    followed_ids = {r[0] for r in followed_relations}
+    
+    if not followed_ids:
+        return {"activities": []}
+        
+    # 2. Get active rooms from Redis
+    active_rooms = room_manager.store.get_all_rooms()
+    
+    # 3. Scan active rooms for followed users
+    activities = []
+    for room_id, room_data in active_rooms.items():
+        users_in_room = room_data.get("users", {})
+        followed_in_room = followed_ids.intersection(users_in_room.keys())
+        
+        if not followed_in_room:
+            continue
+            
+        # Get room details from DB
+        room_db = db.query(Room).filter(Room.id == room_id).first()
+        room_name = room_db.name if room_db else "Live Room"
+        
+        # Get track info
+        playback = room_data.get("playback", {})
+        current_track = None
+        if playback and playback.get("track_name"):
+            current_track = {
+                "track_uri": playback.get("track_uri"),
+                "track_name": playback.get("track_name"),
+                "artist": playback.get("artist"),
+                "album_art_url": playback.get("album_art_url"),
+                "is_playing": playback.get("is_playing", False)
+            }
+            
+        # Add activities for each followed user in this room
+        for friend_id in followed_in_room:
+            friend = db.query(User).filter(User.id == friend_id).first()
+            if not friend:
+                continue
+            activities.append({
+                "friend": friend.to_dict(),
+                "room_id": room_id,
+                "room_name": room_name,
+                "current_track": current_track
+            })
+            
+    return {"activities": activities}

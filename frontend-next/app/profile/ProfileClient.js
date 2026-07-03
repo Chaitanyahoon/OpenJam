@@ -16,6 +16,7 @@ import ProfilePlaylistDetail from '@/components/profile/ProfilePlaylistDetail';
 import ProfileDiscover from '@/components/profile/ProfileDiscover';
 import CreatePlaylistModal from '@/components/profile/CreatePlaylistModal';
 import SocialListModal from '@/components/profile/SocialListModal';
+import ProfileSocialActivity from '@/components/profile/ProfileSocialActivity';
 
 export default function ProfileClient() {
   // Core data states
@@ -610,6 +611,8 @@ export default function ProfileClient() {
                 setSearchQuery={setUserSearchQuery}
                 results={userSearchResults}
               />
+            ) : activeTab === 'social' ? (
+              <ProfileSocialActivity />
             ) : activeTab === 'stats' ? (
               <ProfileStats 
                 stats={stats}
