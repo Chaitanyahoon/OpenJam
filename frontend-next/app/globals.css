@@ -11200,4 +11200,94 @@ div:hover > .play-hover-btn,
   transform: translateY(0);
 }
 
+/* Mobile responsive profile layout overrides */
+@media (max-width: 768px) {
+  .profile-hero-banner {
+    height: 180px !important;
+  }
+  
+  .profile-hero-body {
+    padding: 0 16px 24px 16px !important;
+    align-items: center !important;
+  }
+  
+  .profile-hero-top-row {
+    flex-direction: column !important;
+    align-items: center !important;
+    margin-top: -60px !important;
+    gap: 14px !important;
+    text-align: center !important;
+    justify-content: center !important;
+  }
+  
+  .profile-hero-avatar-wrapper {
+    margin: 0 auto !important;
+    width: 100px !important;
+    height: 100px !important;
+  }
+  
+  .profile-hero-info-container {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+    width: 100% !important;
+  }
+  
+  .profile-hero-name-row {
+    justify-content: center !important;
+    gap: 8px !important;
+    width: 100% !important;
+    flex-direction: column !important;
+    align-items: center !important;
+  }
+  
+  .profile-hero-name-row h2 {
+    font-size: 24px !important;
+    text-align: center !important;
+  }
+  
+  .profile-hero-bio {
+    display: flex !important;
+    justify-content: center !important;
+    text-align: center !important;
+    width: 100% !important;
+  }
+  
+  .profile-hero-bio p {
+    text-align: center !important;
+    font-size: 13px !important;
+  }
+  
+  .profile-hero-meta-row {
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 14px !important;
+    width: 100% !important;
+    border-top: 1px solid rgba(255,255,255,0.05) !important;
+    padding-top: 14px !important;
+  }
+  
+  .profile-hero-details-list {
+    justify-content: center !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+  
+  .profile-hero-social-list {
+    justify-content: center !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+
+  /* Adjust stats visual layout on mobile */
+  .profile-stat-card {
+    padding: 16px !important;
+  }
+  
+  .profile-stat-card div[style*="font-size: 28px"] {
+    font-size: 22px !important;
+  }
+}
+
 

@@ -960,8 +960,8 @@ export default function ProfileHero({
         </div>
 
         {/* Lower Row: Profile Name, Bio, Stats details sits clearly in background card */}
-        <div style={{ width: '100%' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+        <div className="profile-hero-info-container" style={{ width: '100%' }}>
+          <div className="profile-hero-name-row" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             {isEditingName ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
@@ -1024,7 +1024,7 @@ export default function ProfileHero({
           </div>
 
           {/* Bio text */}
-          <div style={{ marginTop: '8px', maxWidth: '650px' }}>
+          <div className="profile-hero-bio" style={{ marginTop: '8px', maxWidth: '650px', width: '100%' }}>
             {isEditingBio ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', width: '100%' }}>
@@ -1077,10 +1077,10 @@ export default function ProfileHero({
           </div>
 
           {/* Details & Social Stats row */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', gap: '20px', flexWrap: 'wrap', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '16px' }}>
+          <div className="profile-hero-meta-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', gap: '20px', flexWrap: 'wrap', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '16px', width: '100%' }}>
             
             {/* Meta details */}
-            <div style={{ display: 'flex', gap: '16px', color: '#666', fontSize: '12px', flexWrap: 'wrap' }}>
+            <div className="profile-hero-details-list" style={{ display: 'flex', gap: '16px', color: '#666', fontSize: '12px', flexWrap: 'wrap' }}>
               {profile?.discord_username && (
                 <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#5865F2' }} />
@@ -1094,7 +1094,7 @@ export default function ProfileHero({
             </div>
 
             {/* Clickable Social Followers count and standard badges */}
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div className="profile-hero-social-list" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
               {/* Followers counts */}
               <button
                 onClick={onOpenSocialModal}
