@@ -288,7 +288,7 @@ def init_db():
     if not auto_sync_exists:
         try:
             with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE playlists ADD COLUMN auto_sync BOOLEAN NOT NULL DEFAULT 1"))
+                conn.execute(text("ALTER TABLE playlists ADD COLUMN auto_sync BOOLEAN NOT NULL DEFAULT TRUE"))
             print("Successfully added auto_sync column to playlists table.")
         except Exception as e:
             print(f"Failed to auto-migrate playlists.auto_sync: {e}")
