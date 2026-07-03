@@ -430,7 +430,7 @@ export default function ProfileStats({
               </div>
 
               {/* The SVG Share Card Viewport */}
-              <div style={{ display: 'flex', justifyContent: 'center', background: '#070709', padding: '12px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.02)' }}>
+              <div style={{ display: 'flex', justifyContent: 'center', background: '#050507', padding: '12px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.03)' }}>
                 <svg 
                   id="musical-footprint-card" 
                   width="280" 
@@ -438,50 +438,159 @@ export default function ProfileStats({
                   viewBox="0 0 400 600" 
                   fill="none" 
                   xmlns="http://www.w3.org/2000/svg"
-                  style={{ borderRadius: '12px' }}
+                  style={{ borderRadius: '16px' }}
                 >
-                  <rect width="400" height="600" rx="30" fill="#0b0b0f"/>
-                  <circle cx="80" cy="100" r="160" fill="#ff9f1c" opacity="0.14" filter="blur(60px)"/>
-                  <circle cx="320" cy="480" r="140" fill="#8b5cf6" opacity="0.12" filter="blur(50px)"/>
-                  <rect x="15" y="15" width="370" height="570" rx="20" stroke="rgba(255,255,255,0.04)" stroke-width="1.5"/>
-                  
-                  <text x="40" y="60" fill="#fff" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="900" letter-spacing="-0.5">OpenJam</text>
-                  <text x="40" y="78" fill="rgba(255,255,255,0.3)" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="700" letter-spacing="1.5">MY MUSICAL FOOTPRINT</text>
+                  <defs>
+                    <linearGradient id="cardBgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#08080c"/>
+                      <stop offset="50%" stopColor="#0f0e15"/>
+                      <stop offset="100%" stopColor="#050507"/>
+                    </linearGradient>
+                    <radialGradient id="goldGlow" cx="0%" cy="0%" r="60%">
+                      <stop offset="0%" stopColor="#ff9f1c" stopOpacity="0.16"/>
+                      <stop offset="100%" stopColor="#ff9f1c" stopOpacity="0"/>
+                    </radialGradient>
+                    <radialGradient id="purpleGlow" cx="100%" cy="100%" r="50%">
+                      <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.14"/>
+                      <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0"/>
+                    </radialGradient>
+                    <radialGradient id="pinkGlow" cx="100%" cy="40%" r="50%">
+                      <stop offset="0%" stopColor="#ec4899" stopOpacity="0.12"/>
+                      <stop offset="100%" stopColor="#ec4899" stopOpacity="0"/>
+                    </radialGradient>
+                    <linearGradient id="vinylCenter" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#ffd700"/>
+                      <stop offset="50%" stopColor="#f5b041"/>
+                      <stop offset="100%" stopColor="#a04000"/>
+                    </linearGradient>
+                    <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="120%">
+                      <feDropShadow dx="0" dy="8" stdDeviation="15" floodColor="#000000" floodOpacity="0.6"/>
+                    </filter>
+                  </defs>
 
-                  <text x="40" y="145" fill="#fff" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="800" letter-spacing="-0.5">{profile?.display_name || 'Jammer'}</text>
-                  <text x="40" y="168" fill="rgba(255,255,255,0.4)" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="600">@{profile?.discord_username || 'user'}</text>
-                  
-                  <line x1="40" y1="195" x2="360" y2="195" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                  <style>
+                    {`
+                      @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&display=swap');
+                      .outfit-font { font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif; }
+                    `}
+                  </style>
 
-                  <text x="40" y="240" fill="rgba(255,255,255,0.3)" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="700" letter-spacing="0.5">LISTENING TIME</text>
-                  <text x="40" y="268" fill="#ff9f1c" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="800">
+                  {/* Base Card Background */}
+                  <rect width="400" height="600" rx="30" fill="url(#cardBgGradient)" />
+                  <rect width="400" height="600" rx="30" fill="url(#goldGlow)" />
+                  <rect width="400" height="600" rx="30" fill="url(#purpleGlow)" />
+                  <rect width="400" height="600" rx="30" fill="url(#pinkGlow)" />
+
+                  {/* Decorative Geometric Lines */}
+                  <path d="M 0 100 L 400 180" stroke="rgba(255,255,255,0.015)" strokeWidth="1" />
+                  <path d="M 0 240 L 400 320" stroke="rgba(255,255,255,0.01)" strokeWidth="1.5" />
+                  <path d="M 0 380 L 400 460" stroke="rgba(255,255,255,0.01)" strokeWidth="1" />
+                  
+                  {/* Subtle Grid Dots */}
+                  <circle cx="50" cy="50" r="1" fill="rgba(255,255,255,0.05)" />
+                  <circle cx="100" cy="50" r="1" fill="rgba(255,255,255,0.05)" />
+                  <circle cx="150" cy="50" r="1" fill="rgba(255,255,255,0.05)" />
+                  <circle cx="200" cy="50" r="1" fill="rgba(255,255,255,0.05)" />
+                  <circle cx="50" cy="100" r="1" fill="rgba(255,255,255,0.05)" />
+                  <circle cx="100" cy="100" r="1" fill="rgba(255,255,255,0.05)" />
+                  <circle cx="150" cy="100" r="1" fill="rgba(255,255,255,0.05)" />
+                  <circle cx="200" cy="100" r="1" fill="rgba(255,255,255,0.05)" />
+
+                  {/* Card Borders */}
+                  <rect x="12" y="12" width="376" height="576" rx="22" stroke="rgba(255,255,255,0.025)" strokeWidth="1" />
+                  <rect x="18" y="18" width="364" height="564" rx="18" stroke="rgba(255,255,255,0.04)" strokeDasharray="6 6" strokeWidth="1" />
+
+                  {/* Cosmic Vinyl Record on the right edge */}
+                  <g transform="translate(360, 280)">
+                    {/* Vinyl Record body */}
+                    <circle cx="0" cy="0" r="150" fill="#111116" stroke="rgba(255,255,255,0.06)" strokeWidth="2" filter="url(#cardShadow)" />
+                    
+                    {/* Concentric Groove Lines */}
+                    <circle cx="0" cy="0" r="135" stroke="rgba(255,255,255,0.03)" strokeWidth="1.5" fill="none" />
+                    <circle cx="0" cy="0" r="120" stroke="rgba(255,255,255,0.03)" strokeWidth="1" fill="none" />
+                    <circle cx="0" cy="0" r="105" stroke="rgba(255,255,255,0.03)" strokeWidth="1.5" fill="none" />
+                    <circle cx="0" cy="0" r="90" stroke="rgba(255,255,255,0.03)" strokeWidth="1" fill="none" />
+                    <circle cx="0" cy="0" r="75" stroke="rgba(255,255,255,0.04)" strokeWidth="2" fill="none" />
+                    
+                    {/* Shiny sheen reflection overlays */}
+                    <path d="M -150 0 A 150 150 0 0 1 150 0 Z" fill="rgba(255,255,255,0.015)" />
+                    <path d="M 0 -150 A 150 150 0 0 1 0 150 Z" fill="rgba(255,255,255,0.01)" />
+
+                    {/* Vinyl Center Sticker */}
+                    <circle cx="0" cy="0" r="48" fill="url(#vinylCenter)" stroke="rgba(255,255,255,0.12)" strokeWidth="2" />
+                    <circle cx="0" cy="0" r="40" fill="none" stroke="rgba(0,0,0,0.1)" strokeWidth="1.5" strokeDasharray="3 3" />
+                    
+                    {/* Inner glowing vinyl ring */}
+                    <circle cx="0" cy="0" r="14" fill="#000" />
+                    <circle cx="0" cy="0" r="6" fill="#050507" />
+
+                    {/* Headphone brand graphic in center */}
+                    <path d="M -18,0 A 18,18 0 0,1 18,0" stroke="#fff" strokeWidth="3" fill="none" strokeLinecap="round" opacity="0.9" />
+                    <rect x="-21" y="-3" width="6" height="11" rx="3" fill="#ff9f1c" opacity="0.9" />
+                    <rect x="15" y="-3" width="6" height="11" rx="3" fill="#ff9f1c" opacity="0.9" />
+                  </g>
+                  
+                  {/* OpenJam Logo Brand Text */}
+                  <text x="40" y="60" fill="#fff" className="outfit-font" fontSize="22" fontWeight="900" letterSpacing="-0.5">OpenJam</text>
+                  <text x="40" y="78" fill="rgba(255,255,255,0.3)" className="outfit-font" fontSize="10" fontWeight="800" letterSpacing="1.5">MY MUSICAL FOOTPRINT</text>
+
+                  {/* WRAPPED Badge */}
+                  <rect x="265" y="42" width="95" height="22" rx="11" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.1)" />
+                  <text x="312.5" y="56" fill="var(--theme-accent, #ff9f1c)" className="outfit-font" fontSize="9" fontWeight="800" textAnchor="middle" letterSpacing="1">V2 STATS</text>
+
+                  {/* User Profile Info */}
+                  <text x="40" y="145" fill="#fff" className="outfit-font" fontSize="28" fontWeight="900" letterSpacing="-0.8">{profile?.display_name || 'Jammer'}</text>
+                  <text x="40" y="168" fill="rgba(255,255,255,0.4)" className="outfit-font" fontSize="12" fontWeight="600">@{profile?.username || 'user'}</text>
+                  
+                  <line x1="40" y1="195" x2="360" y2="195" stroke="rgba(255,255,255,0.05)" strokeWidth="1"/>
+
+                  {/* Stats Block 1: LISTENING TIME */}
+                  <text x="40" y="235" fill="rgba(255,255,255,0.3)" className="outfit-font" fontSize="10" fontWeight="800" letterSpacing="0.8">LISTENING TIME</text>
+                  <text x="40" y="262" fill="#ff9f1c" className="outfit-font" fontSize="24" fontWeight="900">
                     {stats.listening_time_mins > 60 
                       ? `${Math.floor(stats.listening_time_mins / 60)}h ${stats.listening_time_mins % 60}m` 
                       : `${stats.listening_time_mins}m`}
                   </text>
 
-                  <text x="210" y="240" fill="rgba(255,255,255,0.3)" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="700" letter-spacing="0.5">SONGS QUEUED</text>
-                  <text x="210" y="268" fill="#3b82f6" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="800">{stats.total_queued}</text>
+                  {/* Stats Block 2: SONGS QUEUED */}
+                  <text x="210" y="235" fill="rgba(255,255,255,0.3)" className="outfit-font" fontSize="10" fontWeight="800" letterSpacing="0.8">SONGS QUEUED</text>
+                  <text x="210" y="262" fill="#3b82f6" className="outfit-font" fontSize="24" fontWeight="900">{stats.total_queued}</text>
 
-                  <line x1="40" y1="300" x2="360" y2="300" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                  <line x1="40" y1="295" x2="360" y2="295" stroke="rgba(255,255,255,0.05)" strokeWidth="1"/>
 
-                  <text x="40" y="340" fill="rgba(255,255,255,0.3)" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="700" letter-spacing="0.5">FAVORITE GENRE</text>
-                  <text x="40" y="368" fill="#10b981" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="800" text-transform="capitalize">
+                  {/* Stats Block 3: FAVORITE GENRE */}
+                  <text x="40" y="335" fill="rgba(255,255,255,0.3)" className="outfit-font" fontSize="10" fontWeight="800" letterSpacing="0.8">FAVORITE GENRE</text>
+                  <text x="40" y="362" fill="#10b981" className="outfit-font" fontSize="18" fontWeight="900" textTransform="capitalize">
                     {stats.top_genres?.length > 0 ? stats.top_genres[0].genre : 'None'}
                   </text>
 
-                  <text x="40" y="420" fill="rgba(255,255,255,0.3)" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="700" letter-spacing="0.5">TOP ARTIST</text>
-                  <text x="40" y="448" fill="#8b5cf6" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="800">
+                  {/* Stats Block 4: TOP ARTIST */}
+                  <text x="40" y="415" fill="rgba(255,255,255,0.3)" className="outfit-font" fontSize="10" fontWeight="800" letterSpacing="0.8">TOP ARTIST</text>
+                  <text x="40" y="442" fill="#8b5cf6" className="outfit-font" fontSize="18" fontWeight="900">
                     {stats.top_artists?.length > 0 ? stats.top_artists[0].artist : 'None'}
                   </text>
 
-                  <text x="40" y="500" fill="rgba(255,255,255,0.3)" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="700" letter-spacing="0.5">TOP QUEUED TRACK</text>
-                  <text x="40" y="528" fill="#ec4899" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="800">
-                    {stats.top_tracks?.length > 0 ? stats.top_tracks[0].track_name.substring(0, 32) : 'None'}
+                  {/* Stats Block 5: TOP QUEUED TRACK */}
+                  <text x="40" y="495" fill="rgba(255,255,255,0.3)" className="outfit-font" fontSize="10" fontWeight="800" letterSpacing="0.8">TOP QUEUED TRACK</text>
+                  <text x="40" y="522" fill="#ec4899" className="outfit-font" fontSize="16" fontWeight="900">
+                    {stats.top_tracks?.length > 0 ? stats.top_tracks[0].track_name.substring(0, 30) : 'None'}
                   </text>
-                  <text x="40" y="546" fill="rgba(255,255,255,0.4)" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600">
-                    {stats.top_tracks?.length > 0 ? `by ${stats.top_tracks[0].artist.substring(0, 32)}` : ''}
+                  <text x="40" y="540" fill="rgba(255,255,255,0.4)" className="outfit-font" fontSize="11" fontWeight="600">
+                    {stats.top_tracks?.length > 0 ? `by ${stats.top_tracks[0].artist.substring(0, 30)}` : ''}
                   </text>
+
+                  {/* Footer Wave Pattern */}
+                  <g opacity="0.15" transform="translate(40, 560)">
+                    <rect x="0" y="10" width="3" height="8" rx="1.5" fill="#fff" />
+                    <rect x="6" y="5" width="3" height="13" rx="1.5" fill="#fff" />
+                    <rect x="12" y="8" width="3" height="10" rx="1.5" fill="#fff" />
+                    <rect x="18" y="2" width="3" height="16" rx="1.5" fill="#fff" />
+                    <rect x="24" y="6" width="3" height="12" rx="1.5" fill="#fff" />
+                    <rect x="30" y="11" width="3" height="7" rx="1.5" fill="#fff" />
+                    <rect x="36" y="7" width="3" height="11" rx="1.5" fill="#fff" />
+                    <rect x="42" y="3" width="3" height="15" rx="1.5" fill="#fff" />
+                  </g>
+                  <text x="360" y="572" fill="rgba(255,255,255,0.2)" className="outfit-font" fontSize="9" fontWeight="800" textAnchor="end" letterSpacing="0.5">openjam.fun</text>
                 </svg>
               </div>
 
