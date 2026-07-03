@@ -355,3 +355,15 @@ def init_db():
             print(f"Failed to auto-migrate users.username: {e}")
 
 
+def safe_isoformat(dt) -> str:
+    """Safely convert a datetime object or raw SQLite string to an ISO 8601 formatted string."""
+    if dt is None:
+        return None
+    if isinstance(dt, str):
+        # Normalize SQLite space separator to 'T'
+        return dt.replace(" ", "T")
+    if hasattr(dt, "isoformat"):
+        return dt.isoformat()
+    return str(dt)
+
+

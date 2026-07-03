@@ -149,6 +149,7 @@ async def search_profiles(q: str, db: Session = Depends(get_db)):
         (User.discord_username.ilike(query_str))
     ).limit(10).all()
     
+    from backend.database import safe_isoformat
     return {
         "users": [
             {
@@ -160,7 +161,7 @@ async def search_profiles(q: str, db: Session = Depends(get_db)):
                 "profile_theme": u.profile_theme or "amber",
                 "banner_url": u.banner_url,
                 "bio": u.bio,
-                "created_at": u.created_at.isoformat() if u.created_at else None
+                "created_at": safe_isoformat(u.created_at)
             } for u in users
         ]
     }
@@ -180,6 +181,7 @@ async def get_public_profile(user_id: str, db: Session = Depends(get_db)):
         Playlist.is_private == False
     ).order_by(Playlist.created_at.desc()).all()
     
+    from backend.database import safe_isoformat
     return {
         "user": {
             "id": user.id,
@@ -193,7 +195,7 @@ async def get_public_profile(user_id: str, db: Session = Depends(get_db)):
             "banner_url": user.banner_url,
             "banner_position": user.banner_position,
             "banner_scale": user.banner_scale,
-            "created_at": user.created_at.isoformat() if user.created_at else None,
+            "created_at": safe_isoformat(user.created_at),
         },
         "playlists": [p.to_dict() for p in playlists]
     }
@@ -392,6 +394,7 @@ def get_user_stats_internal(db: Session, user_id: str):
         QueueItem.status == "played"
     ).order_by(QueueItem.created_at.desc()).limit(10).all()
     
+    from backend.database import safe_isoformat
     recently_played = [
         {
             "id": r.id,
@@ -399,7 +402,7 @@ def get_user_stats_internal(db: Session, user_id: str):
             "artist": r.artist,
             "album_art_url": r.album_art_url,
             "duration_ms": r.duration_ms,
-            "played_at": r.created_at.isoformat() if r.created_at else None
+            "played_at": safe_isoformat(r.created_at)
         }
         for r in recent_query
     ]

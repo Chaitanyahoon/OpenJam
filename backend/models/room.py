@@ -29,15 +29,8 @@ class Room(Base):
         except Exception:
             tags = []
             
-        created_at_iso = None
-        if self.created_at:
-            if isinstance(self.created_at, str):
-                created_at_iso = self.created_at
-            else:
-                try:
-                    created_at_iso = self.created_at.isoformat()
-                except Exception:
-                    pass
+        from backend.database import safe_isoformat
+        created_at_iso = safe_isoformat(self.created_at)
 
         return {
             "id": self.id,

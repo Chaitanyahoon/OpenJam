@@ -16,9 +16,10 @@ class Follow(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     def to_dict(self):
+        from backend.database import safe_isoformat
         return {
             "id": self.id,
             "follower_id": self.follower_id,
             "followed_id": self.followed_id,
-            "created_at": self.created_at.isoformat() if self.created_at else None
+            "created_at": safe_isoformat(self.created_at)
         }

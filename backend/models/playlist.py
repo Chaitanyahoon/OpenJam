@@ -23,6 +23,7 @@ class Playlist(Base):
     tracks = relationship("PlaylistTrack", back_populates="playlist", cascade="all, delete-orphan", order_by="PlaylistTrack.position")
 
     def to_dict(self, include_tracks=False):
+        from backend.database import safe_isoformat
         res = {
             "id": self.id,
             "name": self.name,
@@ -30,9 +31,9 @@ class Playlist(Base):
             "creator_name": self.creator.display_name if self.creator else "Unknown",
             "is_private": self.is_private,
             "import_url": self.import_url,
-            "last_synced_at": self.last_synced_at.isoformat() if self.last_synced_at else None,
+            "last_synced_at": safe_isoformat(self.last_synced_at),
             "auto_sync": self.auto_sync,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_at": safe_isoformat(self.created_at),
         }
         if include_tracks:
             res["tracks"] = [t.to_dict() for t in self.tracks]
@@ -55,6 +56,7 @@ class PlaylistTrack(Base):
     playlist = relationship("Playlist", back_populates="tracks")
 
     def to_dict(self):
+        from backend.database import safe_isoformat
         return {
             "id": self.id,
             "playlist_id": self.playlist_id,
@@ -64,5 +66,5 @@ class PlaylistTrack(Base):
             "album_art_url": self.album_art_url,
             "duration_ms": self.duration_ms,
             "position": self.position,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_at": safe_isoformat(self.created_at),
         }

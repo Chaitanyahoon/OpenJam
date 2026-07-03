@@ -27,6 +27,7 @@ class User(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     def to_dict(self):
+        from backend.database import safe_isoformat
         return {
             "id": self.id,
             "display_name": self.display_name,
@@ -42,6 +43,6 @@ class User(Base):
             "banner_url": self.banner_url,
             "banner_position": self.banner_position,
             "banner_scale": self.banner_scale,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_at": safe_isoformat(self.created_at),
         }
 

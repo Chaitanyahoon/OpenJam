@@ -242,6 +242,7 @@ async def get_all_playlists(
             selectinload(Playlist.tracks)
         ).order_by(Playlist.created_at.desc()).all()
         
+        from backend.database import safe_isoformat
         result = []
         for pl in playlists:
             result.append({
@@ -250,7 +251,7 @@ async def get_all_playlists(
                 "creator_name": pl.creator.display_name if pl.creator else "Unknown",
                 "is_private": pl.is_private,
                 "track_count": len(pl.tracks),
-                "created_at": pl.created_at.isoformat() if pl.created_at else None
+                "created_at": safe_isoformat(pl.created_at)
             })
         return {"playlists": result}
     except Exception as e:

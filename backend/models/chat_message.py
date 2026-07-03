@@ -19,6 +19,7 @@ class ChatMessage(Base):
     timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     def to_dict(self):
+        from backend.database import safe_isoformat
         return {
             "id": self.id,
             "room_id": self.room_id,
@@ -26,5 +27,5 @@ class ChatMessage(Base):
             "user_name": self.user_name,
             "user_avatar": self.user_avatar,
             "content": self.content,
-            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "timestamp": safe_isoformat(self.timestamp),
         }
