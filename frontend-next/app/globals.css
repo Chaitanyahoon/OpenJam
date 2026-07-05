@@ -10889,6 +10889,7 @@ div:hover > .play-hover-btn,
 }
 
 /* Tab button animation */
+/* Tab button animation */
 .profile-tab-btn {
   position: relative;
   padding: 12px 20px;
@@ -10903,6 +10904,34 @@ div:hover > .play-hover-btn,
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.profile-sidebar-tabs-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  padding-bottom: 16px;
+}
+
+.profile-sidebar-playlists-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.profile-sidebar-playlists-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .profile-tab-btn:hover {
@@ -11097,7 +11126,8 @@ div:hover > .play-hover-btn,
 /* The horizontal rectangular crop overlay viewport */
 .image-editor-crop-viewport {
   position: absolute;
-  width: 440px;
+  width: 100%;
+  max-width: 440px;
   height: 100px; /* ~4.4:1 ratio matching taller banner dimensions */
   border: 2px solid #fff;
   box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6); /* Dim the area outside viewport */
@@ -11202,28 +11232,37 @@ div:hover > .play-hover-btn,
 
 /* Mobile responsive profile layout overrides */
 @media (max-width: 768px) {
+  .profile-page-wrapper {
+    padding: 16px 12px !important;
+  }
+
+  .profile-workspace-container {
+    padding: 20px 16px !important;
+    border-radius: 20px !important;
+  }
+
   .profile-hero-banner {
-    height: 180px !important;
+    height: 140px !important;
   }
   
   .profile-hero-body {
-    padding: 0 16px 24px 16px !important;
+    padding: 0 12px 20px 12px !important;
     align-items: center !important;
   }
   
   .profile-hero-top-row {
     flex-direction: column !important;
     align-items: center !important;
-    margin-top: -60px !important;
-    gap: 14px !important;
+    margin-top: -50px !important;
+    gap: 12px !important;
     text-align: center !important;
     justify-content: center !important;
   }
   
   .profile-hero-avatar-wrapper {
     margin: 0 auto !important;
-    width: 100px !important;
-    height: 100px !important;
+    width: 90px !important;
+    height: 90px !important;
   }
   
   .profile-hero-info-container {
@@ -11236,14 +11275,14 @@ div:hover > .play-hover-btn,
   
   .profile-hero-name-row {
     justify-content: center !important;
-    gap: 8px !important;
+    gap: 6px !important;
     width: 100% !important;
     flex-direction: column !important;
     align-items: center !important;
   }
   
   .profile-hero-name-row h2 {
-    font-size: 24px !important;
+    font-size: 22px !important;
     text-align: center !important;
   }
   
@@ -11262,22 +11301,76 @@ div:hover > .play-hover-btn,
   .profile-hero-meta-row {
     flex-direction: column !important;
     align-items: center !important;
-    gap: 14px !important;
+    gap: 12px !important;
     width: 100% !important;
     border-top: 1px solid rgba(255,255,255,0.05) !important;
-    padding-top: 14px !important;
+    padding-top: 12px !important;
   }
   
   .profile-hero-details-list {
     justify-content: center !important;
-    gap: 12px !important;
+    gap: 10px !important;
     width: 100% !important;
   }
   
   .profile-hero-social-list {
     justify-content: center !important;
-    gap: 10px !important;
+    gap: 8px !important;
     width: 100% !important;
+  }
+
+  /* Compact Horizontal Tabs Navigation on Mobile */
+  .profile-sidebar-tabs-container {
+    flex-direction: row !important;
+    gap: 8px !important;
+    margin-bottom: 16px !important;
+    border-bottom: none !important;
+    padding-bottom: 0 !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    -webkit-overflow-scrolling: touch;
+    padding: 6px 0 !important;
+    width: 100% !important;
+  }
+
+  .profile-tab-btn {
+    width: auto !important;
+    justify-content: center !important;
+    padding: 8px 16px !important;
+    border-radius: 20px !important;
+    flex-shrink: 0 !important;
+    font-size: 13px !important;
+  }
+
+  /* Compact Horizontal Playlists List on Mobile */
+  .profile-sidebar-playlists-header {
+    margin-bottom: 8px !important;
+  }
+
+  .profile-sidebar-playlists-list {
+    flex-direction: row !important;
+    gap: 8px !important;
+    max-height: none !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    white-space: nowrap !important;
+    -webkit-overflow-scrolling: touch;
+    padding: 6px 0 !important;
+    margin-top: 4px !important;
+    width: 100% !important;
+  }
+
+  .profile-sidebar-item {
+    flex-shrink: 0 !important;
+    margin-bottom: 0 !important;
+    padding: 8px 14px !important;
+    border-radius: 20px !important;
+  }
+
+  /* Hide secondary actions inside playlist items on mobile to stay clean */
+  .profile-sidebar-item .profile-delete-btn,
+  .profile-sidebar-item .profile-sync-btn {
+    display: none !important;
   }
 
   /* Adjust stats visual layout on mobile */

@@ -29,11 +29,10 @@ export default function ProfileSidebar({
       boxShadow: '0 10px 30px rgba(0,0,0,0.3)'
     }}>
       {/* Sidebar Tabs */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '16px' }}>
+      <div className="profile-sidebar-tabs-container">
         <button
           onClick={() => { setActiveTab('library'); setActivePlaylistId(null); }}
           className={`profile-tab-btn ${activeTab === 'library' ? 'active' : ''}`}
-          style={{ width: '100%', justifyContent: 'flex-start' }}
         >
           <FolderHeart size={16} />
           <span>My Library</span>
@@ -42,7 +41,6 @@ export default function ProfileSidebar({
         <button
           onClick={() => { setActiveTab('discover'); setActivePlaylistId(null); }}
           className={`profile-tab-btn ${activeTab === 'discover' ? 'active' : ''}`}
-          style={{ width: '100%', justifyContent: 'flex-start' }}
         >
           <Users size={16} />
           <span>Discover Users</span>
@@ -51,7 +49,6 @@ export default function ProfileSidebar({
         <button
           onClick={() => { setActiveTab('stats'); setActivePlaylistId(null); }}
           className={`profile-tab-btn ${activeTab === 'stats' ? 'active' : ''}`}
-          style={{ width: '100%', justifyContent: 'flex-start' }}
         >
           <BarChart2 size={16} />
           <span>Listening Stats</span>
@@ -60,7 +57,6 @@ export default function ProfileSidebar({
         <button
           onClick={() => { setActiveTab('social'); setActivePlaylistId(null); }}
           className={`profile-tab-btn ${activeTab === 'social' ? 'active' : ''}`}
-          style={{ width: '100%', justifyContent: 'flex-start' }}
         >
           <Activity size={16} />
           <span>Friends Activity</span>
@@ -70,7 +66,7 @@ export default function ProfileSidebar({
       {/* Playlists Navigation (Only visible when library is active or just generally shown as part of the library navigation) */}
       {activeTab === 'library' && (
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div className="profile-sidebar-playlists-header">
             <h4 style={{ fontSize: '12px', color: '#666', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Playlists</h4>
             {isOwnProfile && (
               <button
@@ -117,7 +113,7 @@ export default function ProfileSidebar({
           </div>
 
           {/* User Playlists List */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '6px', maxHeight: '320px', overflowY: 'auto', paddingRight: '4px' }}>
+          <div className="profile-sidebar-playlists-list">
             {playlists.length === 0 ? (
               <div style={{ padding: '24px 0', textAlign: 'center', color: '#444', fontSize: '13px' }}>
                 No playlists created yet.

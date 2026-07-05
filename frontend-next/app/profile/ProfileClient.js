@@ -497,13 +497,12 @@ export default function ProfileClient() {
   }
 
   return (
-    <div style={{
+    <div className="profile-page-wrapper" style={{
       minHeight: '100vh',
       background: `radial-gradient(circle at top, ${extractedColors[0]}1f 0%, #08080a 75%)`,
       color: '#fff',
       position: 'relative',
       overflow: 'hidden',
-      padding: '40px 24px',
       fontFamily: 'sans-serif'
     }}>
       {/* Interactive Cursor Glow */}
@@ -596,7 +595,7 @@ export default function ProfileClient() {
           />
 
           {/* Right main workspace card */}
-          <div className="glass-card" style={{
+          <div className="glass-card profile-workspace-container" style={{
             padding: '32px',
             borderRadius: '24px',
             border: '1px solid rgba(255,255,255,0.04)',

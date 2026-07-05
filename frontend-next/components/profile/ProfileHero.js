@@ -778,7 +778,8 @@ export default function ProfileHero({
               {/* Draggable preview background */}
               <div
                 style={{
-                  width: '440px',
+                  width: '100%',
+                  maxWidth: '440px',
                   height: '100px',
                   backgroundImage: `url(${customBannerUrl})`,
                   backgroundSize: `${tempScale}%`,
