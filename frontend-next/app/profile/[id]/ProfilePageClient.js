@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Disc, ArrowLeft, Music, Share2, Globe, ExternalLink, RefreshCw } from 'lucide-react';
+import { Disc, ArrowLeft, Music, Share2, Globe, ExternalLink, RefreshCw, Heart } from 'lucide-react';
 import { ProfileSkeleton } from '@/components/SkeletonLoaders';
 
 import ProfileHero from '@/components/profile/ProfileHero';
@@ -53,6 +53,8 @@ export default function ProfilePageClient() {
 
   const [socialStats, setSocialStats] = useState({ followers_count: 0, following_count: 0, is_following: false, followers: [], following: [] });
   const [socialModalOpen, setSocialModalOpen] = useState(false);
+  const [me, setMe] = useState(null);
+  const [likedPlaylistIds, setLikedPlaylistIds] = useState([]);
 
   useEffect(() => {
     if (!userId) return;
@@ -84,6 +86,24 @@ export default function ProfilePageClient() {
         } catch (err) {
           console.warn('Failed to load public social data:', err);
         }
+
+        // Fetch current user and liked playlists
+        try {
+          const meRes = await fetch('/auth/me');
+          if (meRes.ok) {
+            const meData = await meRes.json();
+            setMe(meData.user);
+            if (meData.user?.is_registered) {
+              const likedRes = await fetch('/playlists/liked');
+              if (likedRes.ok) {
+                const likedData = await likedRes.json();
+                setLikedPlaylistIds((likedData.playlists || []).map(p => p.id));
+              }
+            }
+          }
+        } catch (err) {
+          console.warn("Failed to load current user for liking playlists:", err);
+        }
       } catch (err) {
         console.error(err);
         setError('Connection error');
@@ -93,6 +113,35 @@ export default function ProfilePageClient() {
 
     fetchPublicProfile();
   }, [userId]);
+
+  const handlePlaylistLikeToggle = async (playlistId) => {
+    if (!me || !me.is_registered) {
+      addToast('Please sign in with Discord to save playlists!', 'warning');
+      return;
+    }
+    const isLiked = likedPlaylistIds.includes(playlistId);
+    try {
+      if (isLiked) {
+        const res = await fetch(`/playlists/${playlistId}/like`, { method: 'DELETE' });
+        if (res.ok) {
+          setLikedPlaylistIds(likedPlaylistIds.filter(id => id !== playlistId));
+          addToast('Removed playlist from library', 'success');
+        } else {
+          addToast('Failed to unlike playlist', 'error');
+        }
+      } else {
+        const res = await fetch(`/playlists/${playlistId}/like`, { method: 'POST' });
+        if (res.ok) {
+          setLikedPlaylistIds([...likedPlaylistIds, playlistId]);
+          addToast('Saved playlist to library!', 'success');
+        } else {
+          addToast('Failed to save playlist', 'error');
+        }
+      }
+    } catch (err) {
+      addToast('Connection error', 'error');
+    }
+  };
 
   const handleFollow = async () => {
     try {
@@ -346,6 +395,27 @@ export default function ProfilePageClient() {
                   </div>
 
                   <div style={{ display: 'flex', gap: '10px' }}>
+                    {me && me.is_registered && (
+                      <button
+                        onClick={() => handlePlaylistLikeToggle(pl.id)}
+                        style={{
+                          padding: '8px 12px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRadius: '12px',
+                          background: likedPlaylistIds.includes(pl.id) ? 'rgba(255, 159, 28, 0.12)' : 'rgba(255,255,255,0.02)',
+                          border: likedPlaylistIds.includes(pl.id) ? '1px solid rgba(255, 159, 28, 0.25)' : '1px solid rgba(255,255,255,0.08)',
+                          color: likedPlaylistIds.includes(pl.id) ? 'var(--theme-accent, #ff9f1c)' : '#888',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          flexShrink: 0
+                        }}
+                        title={likedPlaylistIds.includes(pl.id) ? 'Remove Playlist from Library' : 'Save Playlist to Library'}
+                      >
+                        <Heart size={14} fill={likedPlaylistIds.includes(pl.id) ? 'var(--theme-accent, #ff9f1c)' : 'none'} />
+                      </button>
+                    )}
                     <button
                       onClick={() => handleCopyPlaylistLink(pl.id)}
                       style={{

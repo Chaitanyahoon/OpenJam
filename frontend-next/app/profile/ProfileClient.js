@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Disc, ArrowLeft, Trash2, X, AlertTriangle, Plus, Heart, Music, Lock, Globe } from 'lucide-react';
+import { Disc, ArrowLeft, Trash2, X, AlertTriangle, Plus, Heart, Music, Lock, Globe, ListMusic } from 'lucide-react';
 import { ProfileSkeleton } from '@/components/SkeletonLoaders';
 import { extractColors } from '@/utils/colorExtractor';
 
@@ -22,6 +22,7 @@ export default function ProfileClient() {
   // Core data states
   const [profile, setProfile] = useState(null);
   const [playlists, setPlaylists] = useState([]);
+  const [savedPlaylists, setSavedPlaylists] = useState([]);
   const [likes, setLikes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -106,6 +107,7 @@ export default function ProfileClient() {
       const data = await res.json();
       setProfile(data.user);
       setPlaylists(data.playlists || []);
+      setSavedPlaylists(data.saved_playlists || []);
       setLikes(data.likes || []);
       setLoading(false);
 
@@ -599,6 +601,7 @@ export default function ProfileClient() {
             activeTab={activeTab}
             setActiveTab={setActiveTab}
             playlists={playlists}
+            savedPlaylists={savedPlaylists}
             likesCount={likes.length}
             activePlaylistId={activePlaylistId}
             setActivePlaylistId={setActivePlaylistId}
@@ -641,7 +644,7 @@ export default function ProfileClient() {
                 <ProfilePlaylistDetail 
                   playlist={activePlaylistData}
                   loading={loadingPlaylist}
-                  isOwnProfile={true}
+                  isOwnProfile={activePlaylistData?.creator_id === profile?.id}
                   onBackToLibrary={() => setActivePlaylistId(null)}
                   onCopyPlaylistLink={handleCopyPlaylistLink}
                   onSyncPlaylist={handleSyncPlaylist}
@@ -775,10 +778,58 @@ export default function ProfileClient() {
                       </div>
                     )}
 
-                    {playlists.length === 0 && (
+                    {/* Saved Playlists list */}
+                    {savedPlaylists && savedPlaylists.length > 0 && (
+                      <div style={{ marginTop: '16px' }}>
+                        <h4 style={{ fontSize: '12px', color: '#555', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>Saved Playlists</h4>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          {savedPlaylists.map((pl) => (
+                            <div
+                              key={pl.id}
+                              onClick={() => setActivePlaylistId(pl.id)}
+                              className="profile-card-hover"
+                              style={{
+                                padding: '16px',
+                                borderRadius: '16px',
+                                background: 'rgba(255,255,255,0.02)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
+                                <div style={{
+                                  width: '40px',
+                                  height: '40px',
+                                  borderRadius: '10px',
+                                  background: 'rgba(16, 185, 129, 0.1)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  flexShrink: 0
+                                }}>
+                                  <ListMusic size={18} style={{ color: '#10b981' }} />
+                                </div>
+                                <div style={{ minWidth: 0 }}>
+                                  <h4 style={{ fontSize: '15px', fontWeight: 700, color: '#fff', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pl.name}</h4>
+                                  <p style={{ fontSize: '12px', color: '#666', margin: '2px 0 0 0' }}>By {pl.creator_name}</p>
+                                </div>
+                              </div>
+                              
+                              <div>
+                                <Globe size={12} color="#10b981" />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {playlists.length === 0 && savedPlaylists.length === 0 && (
                       <div style={{ textAlign: 'center', padding: '40px 0', color: '#444' }}>
                         <Music size={32} style={{ opacity: 0.1, marginBottom: '12px' }} />
-                        <p style={{ fontSize: '13px', margin: 0 }}>No custom playlists created yet.</p>
+                        <p style={{ fontSize: '13px', margin: 0 }}>No playlists in your library yet.</p>
                       </div>
                     )}
                   </div>
@@ -790,7 +841,7 @@ export default function ProfileClient() {
                 <ProfilePlaylistDetail 
                   playlist={activePlaylistData}
                   loading={loadingPlaylist}
-                  isOwnProfile={true}
+                  isOwnProfile={activePlaylistData?.creator_id === profile?.id}
                   onBackToLibrary={() => setActivePlaylistId(null)}
                   onCopyPlaylistLink={handleCopyPlaylistLink}
                   onSyncPlaylist={handleSyncPlaylist}

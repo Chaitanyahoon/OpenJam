@@ -20,6 +20,7 @@ export default function PlaylistClient() {
   const [error, setError] = useState(null);
   const [me, setMe] = useState(null);
   const [likes, setLikes] = useState([]);
+  const [isPlaylistLiked, setIsPlaylistLiked] = useState(false);
 
   // Preview player states
   const [activePreview, setActivePreview] = useState(null);
@@ -59,6 +60,17 @@ export default function PlaylistClient() {
         if (likesRes.ok) {
           const likesData = await likesRes.json();
           setLikes(likesData.likes || []);
+        }
+
+        try {
+          const likedPlaylistsRes = await fetch('/playlists/liked');
+          if (likedPlaylistsRes.ok) {
+            const likedPlaylistsData = await likedPlaylistsRes.json();
+            const likedList = likedPlaylistsData.playlists || [];
+            setIsPlaylistLiked(likedList.some((p) => p.id === playlistId));
+          }
+        } catch (err) {
+          console.warn("Failed to load liked playlists:", err);
         }
       }
 
@@ -131,6 +143,35 @@ export default function PlaylistClient() {
           addToast('Added to liked songs!', 'success');
         } else {
           addToast('Failed to like song', 'error');
+        }
+      }
+    } catch (err) {
+      addToast('Connection error', 'error');
+    }
+  };
+
+  const handlePlaylistLikeToggle = async () => {
+    if (!me || !me.is_registered) {
+      addToast('Please sign in with Discord to save playlists!', 'warning');
+      return;
+    }
+    
+    try {
+      if (isPlaylistLiked) {
+        const res = await fetch(`/playlists/${playlistId}/like`, { method: 'DELETE' });
+        if (res.ok) {
+          setIsPlaylistLiked(false);
+          addToast('Removed playlist from library', 'success');
+        } else {
+          addToast('Failed to unlike playlist', 'error');
+        }
+      } else {
+        const res = await fetch(`/playlists/${playlistId}/like`, { method: 'POST' });
+        if (res.ok) {
+          setIsPlaylistLiked(true);
+          addToast('Saved playlist to library!', 'success');
+        } else {
+          addToast('Failed to save playlist', 'error');
         }
       }
     } catch (err) {
@@ -356,6 +397,25 @@ export default function PlaylistClient() {
           </div>
 
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            {me && me.is_registered && playlist && playlist.creator_id !== me.id && (
+              <button 
+                className="btn btn-ghost" 
+                onClick={handlePlaylistLikeToggle}
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '8px', 
+                  padding: '12px 20px', 
+                  borderRadius: '30px',
+                  color: isPlaylistLiked ? 'var(--theme-accent, #ff9f1c)' : '#aaa',
+                  border: isPlaylistLiked ? '1px solid rgba(255, 159, 28, 0.3)' : '1px solid rgba(255,255,255,0.08)'
+                }}
+              >
+                <Heart size={16} fill={isPlaylistLiked ? 'var(--theme-accent, #ff9f1c)' : 'none'} />
+                {isPlaylistLiked ? 'Saved' : 'Save to Library'}
+              </button>
+            )}
+
             <button 
               className="btn btn-ghost" 
               onClick={handleCopyLink}

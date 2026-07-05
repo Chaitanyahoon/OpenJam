@@ -54,7 +54,7 @@ def get_db():
 
 
 def init_db():
-    from backend.models import User, Room, QueueItem, ChatMessage, Vote, UserLike, Playlist, PlaylistTrack, Follow  # noqa: F401
+    from backend.models import User, Room, QueueItem, ChatMessage, Vote, UserLike, Playlist, PlaylistTrack, PlaylistLike, Follow  # noqa: F401
     Base.metadata.create_all(bind=engine)
     
     # Auto-migration: Check if 'is_admin', 'is_premium', 'stripe_customer_id', 'bio', 'banner_color' columns exist in 'users' table, and add them if missing

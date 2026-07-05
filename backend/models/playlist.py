@@ -68,3 +68,26 @@ class PlaylistTrack(Base):
             "position": self.position,
             "created_at": safe_isoformat(self.created_at),
         }
+
+
+class PlaylistLike(Base):
+    __tablename__ = "playlist_likes"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    playlist_id = Column(String, ForeignKey("playlists.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    # Relationship to user
+    user = relationship("User", foreign_keys=[user_id])
+    # Relationship to playlist
+    playlist = relationship("Playlist", foreign_keys=[playlist_id])
+
+    def to_dict(self):
+        from backend.database import safe_isoformat
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "playlist_id": self.playlist_id,
+            "created_at": safe_isoformat(self.created_at),
+        }

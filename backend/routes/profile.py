@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.models.user import User
-from backend.models.playlist import Playlist
+from backend.models.playlist import Playlist, PlaylistLike
 from backend.models.like import UserLike
 from backend.middleware.auth import require_registered_user, get_current_user_id
 from pydantic import BaseModel, Field
@@ -54,7 +54,7 @@ async def check_username_availability(q: str, db: Session = Depends(get_db), use
 
 @router.get("/me")
 async def get_my_profile(db: Session = Depends(get_db), user_id: str = Depends(require_registered_user)):
-    """Retrieve full profile details, playlists, and liked songs for the signed-in user."""
+    """Retrieve full profile details, playlists, saved playlists, and liked songs for the signed-in user."""
     
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -63,9 +63,17 @@ async def get_my_profile(db: Session = Depends(get_db), user_id: str = Depends(r
     playlists = db.query(Playlist).filter(Playlist.creator_id == user_id).order_by(Playlist.created_at.desc()).all()
     likes = db.query(UserLike).filter(UserLike.user_id == user_id).order_by(UserLike.created_at.desc()).all()
     
+    liked_relations = db.query(PlaylistLike).filter(PlaylistLike.user_id == user_id).all()
+    liked_ids = [l.playlist_id for l in liked_relations]
+    liked_playlists = db.query(Playlist).filter(
+        Playlist.id.in_(liked_ids),
+        (Playlist.is_private == False) | (Playlist.creator_id == user_id)
+    ).all()
+    
     return {
         "user": user.to_dict(),
         "playlists": [p.to_dict() for p in playlists],
+        "saved_playlists": [p.to_dict() for p in liked_playlists],
         "likes": [l.to_dict() for l in likes]
     }
 

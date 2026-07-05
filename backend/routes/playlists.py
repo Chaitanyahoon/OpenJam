@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session, selectinload
 from backend.database import get_db
-from backend.models.playlist import Playlist, PlaylistTrack
+from backend.models.playlist import Playlist, PlaylistTrack, PlaylistLike
 from backend.middleware.auth import require_registered_user, get_current_user_id
 from backend.schemas import CreatePlaylistRequest, PlaylistTrackRequest, BulkTracksRequest
 from backend.services.playlist_importer import import_playlist
@@ -30,6 +30,23 @@ async def create_playlist(create_req: CreatePlaylistRequest, db: Session = Depen
     db.refresh(playlist)
     
     return {"message": "Playlist created successfully", "playlist": playlist.to_dict()}
+
+
+@router.get("/liked")
+async def get_liked_playlists(
+    db: Session = Depends(get_db),
+    user_id: str = Depends(require_registered_user)
+):
+    """Retrieve all playlists liked by the user."""
+    likes = db.query(PlaylistLike).filter(PlaylistLike.user_id == user_id).all()
+    playlist_ids = [l.playlist_id for l in likes]
+    
+    playlists = db.query(Playlist).filter(
+        Playlist.id.in_(playlist_ids),
+        (Playlist.is_private == False) | (Playlist.creator_id == user_id)
+    ).all()
+    
+    return {"playlists": [playlist.to_dict() for playlist in playlists]}
 
 
 @router.get("/{playlist_id}")
@@ -266,3 +283,54 @@ async def toggle_playlist_auto_sync(
         "message": "Auto-sync updated successfully",
         "playlist": playlist.to_dict()
     }
+
+
+@router.post("/{playlist_id}/like")
+async def like_playlist(
+    playlist_id: str,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(require_registered_user)
+):
+    """Like a playlist."""
+    playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
+    if not playlist:
+        raise HTTPException(status_code=404, detail="Playlist not found")
+    
+    # Check if private and not owner
+    if playlist.is_private and playlist.creator_id != user_id:
+        raise HTTPException(status_code=403, detail="Cannot like a private playlist")
+        
+    # Check if already liked
+    existing = db.query(PlaylistLike).filter(
+        PlaylistLike.user_id == user_id,
+        PlaylistLike.playlist_id == playlist_id
+    ).first()
+    
+    if existing:
+        return {"message": "Playlist already liked", "like": existing.to_dict()}
+        
+    like = PlaylistLike(user_id=user_id, playlist_id=playlist_id)
+    db.add(like)
+    db.commit()
+    db.refresh(like)
+    return {"message": "Playlist liked successfully", "like": like.to_dict()}
+
+
+@router.delete("/{playlist_id}/like")
+async def unlike_playlist(
+    playlist_id: str,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(require_registered_user)
+):
+    """Unlike a playlist."""
+    like = db.query(PlaylistLike).filter(
+        PlaylistLike.user_id == user_id,
+        PlaylistLike.playlist_id == playlist_id
+    ).first()
+    
+    if not like:
+        raise HTTPException(status_code=404, detail="Like not found")
+        
+    db.delete(like)
+    db.commit()
+    return {"message": "Playlist unliked successfully"}

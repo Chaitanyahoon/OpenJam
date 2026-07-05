@@ -10683,6 +10683,52 @@ div:hover > .play-hover-btn,
   border-color: rgba(255,255,255,0.1);
 }
 
+/* Unified Profile Stats Styles */
+.profile-hero-social-list {
+  display: flex !important;
+  gap: 24px !important;
+  align-items: center !important;
+}
+
+.profile-hero-stat-btn {
+  background: none !important;
+  border: none !important;
+  color: #fff !important;
+  cursor: pointer !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  padding: 4px 8px !important;
+  transition: all 0.2s ease !important;
+  border-radius: 12px !important;
+}
+
+.profile-hero-stat-btn:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.profile-hero-stat-item {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  padding: 4px 8px !important;
+}
+
+.profile-hero-stat-value {
+  font-size: 20px !important;
+  font-weight: 800 !important;
+  color: #ffffff !important;
+}
+
+.profile-hero-stat-label {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: rgba(255, 255, 255, 0.4) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.08em !important;
+  margin-top: 4px !important;
+}
+
 .profile-theme-selector {
   display: flex;
   align-items: center;
@@ -11314,32 +11360,71 @@ div:hover > .play-hover-btn,
   }
   
   .profile-hero-social-list {
-    justify-content: center !important;
-    gap: 8px !important;
     width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 8px !important;
+    background: rgba(255, 255, 255, 0.02) !important;
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    border-radius: 16px !important;
+    padding: 10px 4px !important;
+    box-sizing: border-box !important;
+    justify-content: center !important;
+  }
+  
+  .profile-hero-social-list.has-hosted {
+    grid-template-columns: repeat(5, 1fr) !important;
   }
 
-  /* Compact Horizontal Tabs Navigation on Mobile */
+  .profile-hero-stat-btn {
+    padding: 2px 4px !important;
+  }
+
+  .profile-hero-stat-value {
+    font-size: 16px !important;
+  }
+
+  .profile-hero-stat-label {
+    font-size: 9px !important;
+    letter-spacing: 0.03em !important;
+  }
+
+  /* Compact Horizontal Tabs Navigation on Mobile - Balanced Row */
   .profile-sidebar-tabs-container {
     flex-direction: row !important;
-    gap: 8px !important;
+    gap: 4px !important;
     margin-bottom: 16px !important;
     border-bottom: none !important;
     padding-bottom: 0 !important;
-    overflow-x: auto !important;
-    white-space: nowrap !important;
-    -webkit-overflow-scrolling: touch;
-    padding: 6px 0 !important;
+    overflow-x: visible !important;
+    white-space: normal !important;
+    padding: 4px 0 !important;
     width: 100% !important;
+    display: flex !important;
+    justify-content: space-between !important;
   }
 
   .profile-tab-btn {
+    flex: 1 !important;
     width: auto !important;
     justify-content: center !important;
-    padding: 8px 16px !important;
-    border-radius: 20px !important;
+    padding: 8px 4px !important;
+    border-radius: 12px !important;
     flex-shrink: 0 !important;
-    font-size: 13px !important;
+    font-size: 11px !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    text-align: center !important;
+  }
+  
+  .profile-tab-btn span {
+    font-size: 10px !important;
+    font-weight: 700 !important;
+  }
+
+  .profile-tab-btn svg {
+    width: 14px !important;
+    height: 14px !important;
   }
 
   /* Compact Horizontal Playlists List on Mobile */

@@ -3,13 +3,14 @@
 import React from 'react';
 import { 
   Music, Heart, Plus, Lock, Globe, RefreshCw, Trash2, 
-  BarChart2, Users, FolderHeart, Activity
+  BarChart2, Users, FolderHeart, Activity, ListMusic
 } from 'lucide-react';
 
 export default function ProfileSidebar({
   activeTab,
   setActiveTab,
   playlists,
+  savedPlaylists = [],
   likesCount,
   activePlaylistId,
   setActivePlaylistId,
@@ -35,7 +36,7 @@ export default function ProfileSidebar({
           className={`profile-tab-btn ${activeTab === 'library' ? 'active' : ''}`}
         >
           <FolderHeart size={16} />
-          <span>My Library</span>
+          <span>Library</span>
         </button>
 
         <button
@@ -43,7 +44,7 @@ export default function ProfileSidebar({
           className={`profile-tab-btn ${activeTab === 'discover' ? 'active' : ''}`}
         >
           <Users size={16} />
-          <span>Discover Users</span>
+          <span>Discover</span>
         </button>
 
         <button
@@ -51,7 +52,7 @@ export default function ProfileSidebar({
           className={`profile-tab-btn ${activeTab === 'stats' ? 'active' : ''}`}
         >
           <BarChart2 size={16} />
-          <span>Listening Stats</span>
+          <span>Stats</span>
         </button>
 
         <button
@@ -59,7 +60,7 @@ export default function ProfileSidebar({
           className={`profile-tab-btn ${activeTab === 'social' ? 'active' : ''}`}
         >
           <Activity size={16} />
-          <span>Friends Activity</span>
+          <span>Social</span>
         </button>
       </div>
 
@@ -204,6 +205,41 @@ export default function ProfileSidebar({
                   </div>
                 );
               })
+            )}
+
+            {/* Saved Playlists list */}
+            {savedPlaylists && savedPlaylists.length > 0 && (
+              <div style={{ marginTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: '16px' }}>
+                <div style={{ padding: '0 14px 8px 14px', fontSize: '11px', color: '#555', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Saved Playlists
+                </div>
+                {savedPlaylists.map((pl) => {
+                  const isSelected = activePlaylistId === pl.id;
+                  return (
+                    <div
+                      key={pl.id}
+                      onClick={() => setActivePlaylistId(pl.id)}
+                      className={`profile-sidebar-item ${isSelected ? 'active' : ''}`}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+                        <ListMusic size={15} style={{ color: isSelected ? '#10b981' : '#888', flexShrink: 0 }} />
+                        <span style={{
+                          fontSize: '14px',
+                          fontWeight: isSelected ? 700 : 500,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}>
+                          {pl.name}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '10px', color: '#555', marginLeft: '6px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '60px' }}>
+                        By {pl.creator_name}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         </div>

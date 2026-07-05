@@ -1094,46 +1094,62 @@ export default function ProfileHero({
               </span>
             </div>
 
-            {/* Clickable Social Followers count and standard badges */}
-            <div className="profile-hero-social-list" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-              {/* Followers counts */}
+            {/* Clickable Social Followers count and standard stats list */}
+            <div className={`profile-hero-social-list ${roomsHostedCount > 0 ? 'has-hosted' : ''}`} style={{ display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap' }}>
               <button
                 onClick={onOpenSocialModal}
+                className="profile-hero-stat-btn"
+                title="View Followers"
                 style={{
-                  background: 'rgba(255,255,255,0.03)',
-                  border: '1px solid rgba(255,255,255,0.06)',
+                  background: 'none',
+                  border: 'none',
                   color: '#fff',
-                  padding: '6px 14px',
-                  borderRadius: '20px',
-                  fontSize: '12px',
-                  fontWeight: 600,
                   cursor: 'pointer',
                   display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'center',
-                  gap: '6px',
-                  transition: 'background 0.2s'
+                  padding: '4px 8px',
+                  transition: 'opacity 0.2s'
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
-                onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
               >
-                <Users size={12} color="var(--theme-accent, #ff9f1c)" />
-                <span>{social.followers_count} Followers</span>
-                <span style={{ color: '#555' }}>•</span>
-                <span>{social.following_count} Following</span>
+                <span className="profile-hero-stat-value" style={{ fontSize: '20px', fontWeight: 800, color: '#fff' }}>{social.followers_count}</span>
+                <span className="profile-hero-stat-label" style={{ fontSize: '11px', fontWeight: 600, color: '#666', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '4px' }}>Followers</span>
               </button>
 
-              <div className="profile-hero-badge" title="Saved Tracks">
-                <Heart size={12} style={{ color: '#ff4757' }} />
-                <span>{likesCount} Likes</span>
+              <button
+                onClick={onOpenSocialModal}
+                className="profile-hero-stat-btn"
+                title="View Following"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  padding: '4px 8px',
+                  transition: 'opacity 0.2s'
+                }}
+              >
+                <span className="profile-hero-stat-value" style={{ fontSize: '20px', fontWeight: 800, color: '#fff' }}>{social.following_count}</span>
+                <span className="profile-hero-stat-label" style={{ fontSize: '11px', fontWeight: 600, color: '#666', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '4px' }}>Following</span>
+              </button>
+
+              <div className="profile-hero-stat-item" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '4px 8px' }}>
+                <span className="profile-hero-stat-value" style={{ fontSize: '20px', fontWeight: 800, color: '#fff' }}>{likesCount}</span>
+                <span className="profile-hero-stat-label" style={{ fontSize: '11px', fontWeight: 600, color: '#666', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '4px' }}>Likes</span>
               </div>
-              <div className="profile-hero-badge" title="Created Playlists">
-                <ListMusic size={12} style={{ color: 'var(--theme-accent, #ff9f1c)' }} />
-                <span>{playlistsCount} Playlists</span>
+
+              <div className="profile-hero-stat-item" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '4px 8px' }}>
+                <span className="profile-hero-stat-value" style={{ fontSize: '20px', fontWeight: 800, color: '#fff' }}>{playlistsCount}</span>
+                <span className="profile-hero-stat-label" style={{ fontSize: '11px', fontWeight: 600, color: '#666', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '4px' }}>Playlists</span>
               </div>
+
               {roomsHostedCount > 0 && (
-                <div className="profile-hero-badge" title="Rooms Hosted">
-                  <Globe size={12} style={{ color: '#10b981' }} />
-                  <span>{roomsHostedCount} Hosted</span>
+                <div className="profile-hero-stat-item" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '4px 8px' }}>
+                  <span className="profile-hero-stat-value" style={{ fontSize: '20px', fontWeight: 800, color: '#fff' }}>{roomsHostedCount}</span>
+                  <span className="profile-hero-stat-label" style={{ fontSize: '11px', fontWeight: 600, color: '#666', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '4px' }}>Hosted</span>
                 </div>
               )}
             </div>
