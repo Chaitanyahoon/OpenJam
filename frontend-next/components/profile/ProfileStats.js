@@ -101,12 +101,12 @@ export default function ProfileStats({
   return (
     <div>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+      <div className="profile-stats-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '16px' }}>
+        <div className="profile-stats-title-group" style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <BarChart2 size={28} style={{ color: 'var(--theme-accent, #ff9f1c)' }} />
           <h3 style={{ fontSize: '24px', fontWeight: 800 }}>Listening Statistics</h3>
         </div>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div className="profile-stats-actions-group" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <button
             onClick={() => setShowShareModal(true)}
             style={{
@@ -156,7 +156,7 @@ export default function ProfileStats({
       </div>
 
       {/* Primary Music Footprint Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+      <div className="profile-stats-primary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
         <div className="profile-stat-card">
           <Clock size={20} style={{ color: 'var(--theme-accent, #ff9f1c)', marginBottom: '12px' }} />
           <div style={{ color: '#666', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Listening Time</div>
@@ -185,7 +185,7 @@ export default function ProfileStats({
       </div>
 
       {/* Secondary Engagement Bar */}
-      <div style={{ 
+      <div className="profile-stats-engagement-bar" style={{ 
         display: 'flex', 
         gap: '24px', 
         background: 'rgba(255,255,255,0.01)', 
@@ -203,12 +203,12 @@ export default function ProfileStats({
           <MessageSquare size={13} style={{ color: '#8b5cf6' }} />
           <strong>{stats.total_chats}</strong> chat messages sent
         </span>
-        <span style={{ color: '#333' }}>|</span>
+        <span className="divider-pipe" style={{ color: '#333' }}>|</span>
         <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <ThumbsUp size={13} style={{ color: '#10b981' }} />
           <strong>{stats.total_votes}</strong> skip votes cast
         </span>
-        <span style={{ color: '#333' }}>|</span>
+        <span className="divider-pipe" style={{ color: '#333' }}>|</span>
         <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <Globe size={13} style={{ color: '#3b82f6' }} />
           <strong>{stats.rooms_hosted || 0}</strong> rooms hosted
@@ -216,7 +216,7 @@ export default function ProfileStats({
       </div>
 
       {/* Grid for charts & lists */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '32px', marginBottom: '32px' }}>
+      <div className="profile-stats-secondary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '32px', marginBottom: '32px' }}>
         
         {/* Top Tracks */}
         <div className="glass-card" style={{ padding: '24px', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.03)', background: 'rgba(0,0,0,0.1)' }}>
