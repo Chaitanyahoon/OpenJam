@@ -626,7 +626,7 @@ export default function ProfileHero({
                 return (
                   <div>
                     <div style={{ fontSize: '11px', color: '#666', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Custom Banner Image URL</div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                    <div className="profile-banner-input-row" style={{ display: 'flex', gap: '8px' }}>
                       <input
                         type="text"
                         placeholder="Paste an image or GIF URL..."
@@ -679,7 +679,7 @@ export default function ProfileHero({
 
               {/* Adjust/Remove Custom Image - only if banner exists */}
               {(previewBannerUrl || customBannerUrl.trim()) && (
-                <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
+                <div className="profile-banner-actions-row" style={{ display: 'flex', gap: '10px', width: '100%' }}>
                   <button
                     onClick={handleOpenCropperForExisting}
                     style={{

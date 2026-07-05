@@ -5,7 +5,7 @@ import { useSocket } from '@/contexts/SocketContext';
 import YouTubePlayer from '@/utils/YouTubePlayer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MusicPlayer } from '@/components/ui/music-player';
-import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart, CheckCircle, AlertCircle, AlertTriangle, Info, Download, Check, Flame, Smile, Save, RefreshCw } from 'lucide-react';
+import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart, CheckCircle, AlertCircle, AlertTriangle, Info, Download, Check, Flame, Smile, Save, RefreshCw, ListPlus } from 'lucide-react';
 import PwaInstallPrompt from '@/components/PwaInstallPrompt';
 import { offlineDb } from '@/utils/offlineDb';
 import EmojiPicker from '@/components/EmojiPicker';
@@ -2310,21 +2310,31 @@ export default function RoomClient({ roomId }) {
                                       const trackUri = track.uri || track.track_uri;
                                       setActiveDropdownTrackUri(activeDropdownTrackUri === trackUri ? null : trackUri);
                                     }}
+                                    title="Add to Playlist"
                                     style={{
-                                      background: 'rgba(0,0,0,0.6)',
-                                      border: '1px solid rgba(255, 159, 28, 0.2)',
-                                      color: activeDropdownTrackUri === (track.uri || track.track_uri) ? 'var(--amber)' : '#fff',
-                                      fontSize: '11px',
-                                      padding: '4px 8px',
-                                      borderRadius: '6px',
+                                      background: activeDropdownTrackUri === (track.uri || track.track_uri) ? 'rgba(255, 159, 28, 0.15)' : 'rgba(255,255,255,0.03)',
+                                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                                      color: activeDropdownTrackUri === (track.uri || track.track_uri) ? 'var(--theme-accent, #ff9f1c)' : '#aaa',
+                                      padding: '6px',
+                                      borderRadius: '8px',
                                       cursor: 'pointer',
                                       display: 'flex',
                                       alignItems: 'center',
                                       justifyContent: 'center',
-                                      gap: '4px'
+                                      transition: 'all 0.2s'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                                      e.currentTarget.style.color = '#fff';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      const trackUri = track.uri || track.track_uri;
+                                      const isActive = activeDropdownTrackUri === trackUri;
+                                      e.currentTarget.style.background = isActive ? 'rgba(255, 159, 28, 0.15)' : 'rgba(255,255,255,0.03)';
+                                      e.currentTarget.style.color = isActive ? 'var(--theme-accent, #ff9f1c)' : '#aaa';
                                     }}
                                   >
-                                    Playlist +
+                                    <ListPlus size={14} />
                                   </button>
 
                                   {activeDropdownTrackUri === (track.uri || track.track_uri) && (
@@ -2342,30 +2352,33 @@ export default function RoomClient({ roomId }) {
                                         }}
                                       />
                                       <div 
+                                        className="glass-card"
                                         style={{
                                           position: 'absolute',
                                           right: 0,
                                           top: '100%',
-                                          marginTop: '4px',
-                                          background: '#0e0e12',
-                                          border: '1px solid rgba(255, 159, 28, 0.2)',
+                                          marginTop: '6px',
+                                          background: 'rgba(15, 15, 22, 0.98)',
+                                          backdropFilter: 'blur(12px)',
+                                          WebkitBackdropFilter: 'blur(12px)',
+                                          border: '1px solid rgba(255, 255, 255, 0.08)',
                                           borderRadius: '12px',
-                                          padding: '8px 0',
-                                          minWidth: '160px',
+                                          padding: '6px 0',
+                                          minWidth: '170px',
                                           zIndex: 991,
-                                          boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                                          boxShadow: '0 12px 32px rgba(0,0,0,0.5)',
                                           display: 'flex',
                                           flexDirection: 'column'
                                         }}
                                       >
                                         <div style={{
-                                          fontSize: '11px',
-                                          color: '#666',
-                                          padding: '4px 12px 8px 12px',
+                                          fontSize: '10px',
+                                          color: 'rgba(255,255,255,0.4)',
+                                          padding: '6px 12px 6px 12px',
                                           borderBottom: '1px solid rgba(255,255,255,0.05)',
-                                          fontWeight: 600,
+                                          fontWeight: 700,
                                           textTransform: 'uppercase',
-                                          letterSpacing: '0.05em'
+                                          letterSpacing: '0.08em'
                                         }}>Add to Playlist</div>
                                         <div style={{ maxHeight: '150px', overflowY: 'auto', padding: '4px 0' }}>
                                           {playlists.map(p => (
@@ -2400,18 +2413,28 @@ export default function RoomClient({ roomId }) {
                                                 width: '100%',
                                                 background: 'none',
                                                 border: 'none',
-                                                color: '#fff',
+                                                color: 'rgba(255,255,255,0.8)',
                                                 textAlign: 'left',
                                                 padding: '8px 16px',
-                                                fontSize: '13px',
+                                                fontSize: '12px',
+                                                fontWeight: 500,
                                                 cursor: 'pointer',
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 gap: '8px',
-                                                transition: 'background 0.2s'
+                                                transition: 'all 0.2s',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap'
                                               }}
-                                              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 159, 28, 0.1)'}
-                                              onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                                              onMouseEnter={(e) => {
+                                                e.currentTarget.style.background = 'rgba(255, 159, 28, 0.1)';
+                                                e.currentTarget.style.color = 'var(--theme-accent, #ff9f1c)';
+                                              }}
+                                              onMouseLeave={(e) => {
+                                                e.currentTarget.style.background = 'none';
+                                                e.currentTarget.style.color = 'rgba(255,255,255,0.8)';
+                                              }}
                                             >
                                               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
                                             </button>
@@ -2662,21 +2685,30 @@ export default function RoomClient({ roomId }) {
                                         e.stopPropagation();
                                         setActiveQueueDropdownId(activeQueueDropdownId === item.id ? null : item.id);
                                       }}
+                                      title="Add to Playlist"
                                       style={{
-                                        background: 'rgba(0,0,0,0.6)',
-                                        border: '1px solid rgba(255, 159, 28, 0.2)',
-                                        color: activeQueueDropdownId === item.id ? 'var(--amber)' : '#fff',
-                                        fontSize: '11px',
-                                        padding: '4px 8px',
-                                        borderRadius: '6px',
+                                        background: activeQueueDropdownId === item.id ? 'rgba(255, 159, 28, 0.15)' : 'rgba(255,255,255,0.03)',
+                                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                                        color: activeQueueDropdownId === item.id ? 'var(--theme-accent, #ff9f1c)' : '#aaa',
+                                        padding: '6px',
+                                        borderRadius: '8px',
                                         cursor: 'pointer',
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        gap: '4px'
+                                        transition: 'all 0.2s'
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                                        e.currentTarget.style.color = '#fff';
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        const isActive = activeQueueDropdownId === item.id;
+                                        e.currentTarget.style.background = isActive ? 'rgba(255, 159, 28, 0.15)' : 'rgba(255,255,255,0.03)';
+                                        e.currentTarget.style.color = isActive ? 'var(--theme-accent, #ff9f1c)' : '#aaa';
                                       }}
                                     >
-                                      Playlist +
+                                      <ListPlus size={14} />
                                     </button>
 
                                     {activeQueueDropdownId === item.id && (
@@ -2694,30 +2726,33 @@ export default function RoomClient({ roomId }) {
                                           }}
                                         />
                                         <div 
+                                          className="glass-card"
                                           style={{
                                             position: 'absolute',
                                             right: 0,
                                             top: '100%',
-                                            marginTop: '4px',
-                                            background: '#0e0e12',
-                                            border: '1px solid rgba(255, 159, 28, 0.2)',
+                                            marginTop: '6px',
+                                            background: 'rgba(15, 15, 22, 0.98)',
+                                            backdropFilter: 'blur(12px)',
+                                            WebkitBackdropFilter: 'blur(12px)',
+                                            border: '1px solid rgba(255, 255, 255, 0.08)',
                                             borderRadius: '12px',
-                                            padding: '8px 0',
-                                            minWidth: '160px',
+                                            padding: '6px 0',
+                                            minWidth: '170px',
                                             zIndex: 991,
-                                            boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                                            boxShadow: '0 12px 32px rgba(0,0,0,0.5)',
                                             display: 'flex',
                                             flexDirection: 'column'
                                           }}
                                         >
                                           <div style={{
-                                            fontSize: '11px',
-                                            color: '#666',
-                                            padding: '4px 12px 8px 12px',
+                                            fontSize: '10px',
+                                            color: 'rgba(255,255,255,0.4)',
+                                            padding: '6px 12px 6px 12px',
                                             borderBottom: '1px solid rgba(255,255,255,0.05)',
-                                            fontWeight: 600,
+                                            fontWeight: 700,
                                             textTransform: 'uppercase',
-                                            letterSpacing: '0.05em'
+                                            letterSpacing: '0.08em'
                                           }}>Add to Playlist</div>
                                           <div style={{ maxHeight: '150px', overflowY: 'auto', padding: '4px 0' }}>
                                             {playlists.map(p => (
@@ -2749,22 +2784,32 @@ export default function RoomClient({ roomId }) {
                                                 }}
                                                 style={{
                                                   width: '100%',
-                                                  textAlign: 'left',
                                                   background: 'none',
                                                   border: 'none',
-                                                  color: 'var(--text-1)',
-                                                  padding: '8px 12px',
+                                                  color: 'rgba(255,255,255,0.8)',
+                                                  textAlign: 'left',
+                                                  padding: '8px 16px',
                                                   fontSize: '12px',
+                                                  fontWeight: 500,
                                                   cursor: 'pointer',
-                                                  transition: 'background 0.2s',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  gap: '8px',
+                                                  transition: 'all 0.2s',
                                                   overflow: 'hidden',
                                                   textOverflow: 'ellipsis',
                                                   whiteSpace: 'nowrap'
                                                 }}
-                                                onMouseEnter={(e) => e.target.style.background = 'rgba(255, 159, 28, 0.1)'}
-                                                onMouseLeave={(e) => e.target.style.background = 'none'}
+                                                onMouseEnter={(e) => {
+                                                  e.currentTarget.style.background = 'rgba(255, 159, 28, 0.1)';
+                                                  e.currentTarget.style.color = 'var(--theme-accent, #ff9f1c)';
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                  e.currentTarget.style.background = 'none';
+                                                  e.currentTarget.style.color = 'rgba(255,255,255,0.8)';
+                                                }}
                                               >
-                                                {p.name}
+                                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
                                               </button>
                                             ))}
                                           </div>

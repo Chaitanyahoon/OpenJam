@@ -1842,10 +1842,52 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
     flex: 1 1 0% !important;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
     order: 1 !important;
+    height: auto !important;
+    min-height: 0 !important;
   }
 
   .mp-theater-body.lyrics-visible .mp-artwork-container {
     display: none !important;
+  }
+
+  /* Compact controls on mobile when lyrics are active */
+  .mp-theater-body.lyrics-visible .mp-theater-left {
+    padding: 8px 12px !important;
+  }
+  .mp-theater-body.lyrics-visible .mp-meta-container {
+    margin-bottom: 4px !important;
+  }
+  .mp-theater-body.lyrics-visible .mp-track-title {
+    font-size: 15px !important;
+  }
+  .mp-theater-body.lyrics-visible .mp-track-artist {
+    font-size: 11px !important;
+  }
+  .mp-theater-body.lyrics-visible .mp-controls-row {
+    margin: 6px 0 8px !important;
+    gap: 8px !important;
+  }
+  .mp-theater-body.lyrics-visible .mp-play-btn-large {
+    width: 38px !important;
+    height: 38px !important;
+  }
+  .mp-theater-body.lyrics-visible .mp-play-btn-large svg {
+    width: 16px !important;
+    height: 16px !important;
+  }
+  .mp-theater-body.lyrics-visible .mp-ctrl-icon-btn {
+    width: 28px !important;
+    height: 28px !important;
+  }
+  .mp-theater-body.lyrics-visible .mp-ctrl-icon-btn svg {
+    width: 14px !important;
+    height: 14px !important;
+  }
+  .mp-theater-body.lyrics-visible .mp-utility-toolbar {
+    padding-top: 6px !important;
+  }
+  .mp-theater-body.lyrics-visible .mp-progress-section {
+    margin-bottom: 2px !important;
   }
 }
 

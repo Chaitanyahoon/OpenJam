@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Disc, ArrowLeft, Trash2, X, AlertTriangle } from 'lucide-react';
+import { Disc, ArrowLeft, Trash2, X, AlertTriangle, Plus, Heart, Music, Lock, Globe } from 'lucide-react';
 import { ProfileSkeleton } from '@/components/SkeletonLoaders';
 import { extractColors } from '@/utils/colorExtractor';
 
@@ -32,6 +32,21 @@ export default function ProfileClient() {
   const [activePlaylistId, setActivePlaylistId] = useState(null);
   const [activePlaylistData, setActivePlaylistData] = useState(null);
   const [loadingPlaylist, setLoadingPlaylist] = useState(false);
+
+  // Mobile library layout states
+  const [showLikesOnMobile, setShowLikesOnMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  useEffect(() => {
+    setShowLikesOnMobile(false);
+  }, [activeTab]);
 
   // Modals & overlay states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -620,27 +635,179 @@ export default function ProfileClient() {
                 isOwnProfile={true}
                 profile={profile}
               />
-            ) : activePlaylistId !== null ? (
-              <ProfilePlaylistDetail 
-                playlist={activePlaylistData}
-                loading={loadingPlaylist}
-                isOwnProfile={true}
-                onBackToLibrary={() => setActivePlaylistId(null)}
-                onCopyPlaylistLink={handleCopyPlaylistLink}
-                onSyncPlaylist={handleSyncPlaylist}
-                onRemoveTrack={handleRemoveTrackFromPlaylist}
-                syncingPlaylistId={syncingPlaylistId}
-              />
+            ) : isMobile ? (
+              /* Mobile Library Drill-Down Layout */
+              activePlaylistId !== null ? (
+                <ProfilePlaylistDetail 
+                  playlist={activePlaylistData}
+                  loading={loadingPlaylist}
+                  isOwnProfile={true}
+                  onBackToLibrary={() => setActivePlaylistId(null)}
+                  onCopyPlaylistLink={handleCopyPlaylistLink}
+                  onSyncPlaylist={handleSyncPlaylist}
+                  onRemoveTrack={handleRemoveTrackFromPlaylist}
+                  syncingPlaylistId={syncingPlaylistId}
+                />
+              ) : showLikesOnMobile ? (
+                <ProfileLikes 
+                  likes={likes}
+                  playlists={playlists}
+                  isOwnProfile={true}
+                  onUnlikeTrack={handleUnlikeTrack}
+                  onAddTrackToPlaylist={handleAddTrackToPlaylist}
+                  activeDropdownTrackUri={activeDropdownTrackUri}
+                  setActiveDropdownTrackUri={setActiveDropdownTrackUri}
+                  onBackToLibrary={() => setShowLikesOnMobile(false)}
+                />
+              ) : (
+                /* Mobile Library Home Menu */
+                <div className="mobile-library-menu">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                    <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#fff', margin: 0 }}>My Library</h3>
+                    {true && (
+                      <button
+                        onClick={() => setShowCreateModal(true)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          background: 'linear-gradient(135deg, var(--theme-accent, #ff9f1c) 0%, #ff8c00 100%)',
+                          border: 'none',
+                          color: '#000',
+                          padding: '6px 12px',
+                          borderRadius: '20px',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Plus size={14} /> Create
+                      </button>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px' }}>
+                    {/* Liked Songs Card */}
+                    <div 
+                      onClick={() => setShowLikesOnMobile(true)}
+                      className="profile-card-hover"
+                      style={{
+                        padding: '16px',
+                        borderRadius: '16px',
+                        background: 'rgba(255,255,255,0.02)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{
+                          width: '40px',
+                          height: '40px',
+                          borderRadius: '10px',
+                          background: 'rgba(255, 71, 87, 0.1)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}>
+                          <Heart size={18} style={{ color: '#ff4757' }} />
+                        </div>
+                        <div>
+                          <h4 style={{ fontSize: '15px', fontWeight: 700, color: '#fff', margin: 0 }}>Liked Songs</h4>
+                          <p style={{ fontSize: '12px', color: '#666', margin: '2px 0 0 0' }}>{likes.length} songs</p>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '11px', background: 'rgba(255,255,255,0.05)', color: '#888', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>
+                        Default
+                      </span>
+                    </div>
+
+                    {/* Custom Playlists list */}
+                    {playlists.length > 0 && (
+                      <div style={{ marginTop: '8px' }}>
+                        <h4 style={{ fontSize: '12px', color: '#555', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>Playlists</h4>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          {playlists.map((pl) => (
+                            <div
+                              key={pl.id}
+                              onClick={() => setActivePlaylistId(pl.id)}
+                              className="profile-card-hover"
+                              style={{
+                                padding: '16px',
+                                borderRadius: '16px',
+                                background: 'rgba(255,255,255,0.02)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
+                                <div style={{
+                                  width: '40px',
+                                  height: '40px',
+                                  borderRadius: '10px',
+                                  background: 'rgba(255, 159, 28, 0.1)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  flexShrink: 0
+                                }}>
+                                  <Music size={18} style={{ color: 'var(--theme-accent, #ff9f1c)' }} />
+                                </div>
+                                <div style={{ minWidth: 0 }}>
+                                  <h4 style={{ fontSize: '15px', fontWeight: 700, color: '#fff', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pl.name}</h4>
+                                  <p style={{ fontSize: '12px', color: '#666', margin: '2px 0 0 0' }}>Playlist</p>
+                                </div>
+                              </div>
+                              
+                              <div>
+                                {pl.is_private ? (
+                                  <Lock size={12} color="#ff4757" />
+                                ) : (
+                                  <Globe size={12} color="#10b981" />
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {playlists.length === 0 && (
+                      <div style={{ textAlign: 'center', padding: '40px 0', color: '#444' }}>
+                        <Music size={32} style={{ opacity: 0.1, marginBottom: '12px' }} />
+                        <p style={{ fontSize: '13px', margin: 0 }}>No custom playlists created yet.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
             ) : (
-              <ProfileLikes 
-                likes={likes}
-                playlists={playlists}
-                isOwnProfile={true}
-                onUnlikeTrack={handleUnlikeTrack}
-                onAddTrackToPlaylist={handleAddTrackToPlaylist}
-                activeDropdownTrackUri={activeDropdownTrackUri}
-                setActiveDropdownTrackUri={setActiveDropdownTrackUri}
-              />
+              /* Desktop Layout */
+              activePlaylistId !== null ? (
+                <ProfilePlaylistDetail 
+                  playlist={activePlaylistData}
+                  loading={loadingPlaylist}
+                  isOwnProfile={true}
+                  onBackToLibrary={() => setActivePlaylistId(null)}
+                  onCopyPlaylistLink={handleCopyPlaylistLink}
+                  onSyncPlaylist={handleSyncPlaylist}
+                  onRemoveTrack={handleRemoveTrackFromPlaylist}
+                  syncingPlaylistId={syncingPlaylistId}
+                />
+              ) : (
+                <ProfileLikes 
+                  likes={likes}
+                  playlists={playlists}
+                  isOwnProfile={true}
+                  onUnlikeTrack={handleUnlikeTrack}
+                  onAddTrackToPlaylist={handleAddTrackToPlaylist}
+                  activeDropdownTrackUri={activeDropdownTrackUri}
+                  setActiveDropdownTrackUri={setActiveDropdownTrackUri}
+                />
+              )
             )}
           </div>
         </div>

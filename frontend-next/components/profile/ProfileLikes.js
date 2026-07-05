@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { 
   Heart, Search, Plus, Trash2, Disc, Play, ListPlus, 
-  ChevronDown, Globe, Lock, ArrowUpDown
+  ChevronDown, Globe, Lock, ArrowUpDown, ArrowLeft
 } from 'lucide-react';
 
 export default function ProfileLikes({
@@ -13,7 +13,8 @@ export default function ProfileLikes({
   onUnlikeTrack,
   onAddTrackToPlaylist,
   activeDropdownTrackUri,
-  setActiveDropdownTrackUri
+  setActiveDropdownTrackUri,
+  onBackToLibrary
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('date'); // 'date' | 'name' | 'artist'
@@ -44,6 +45,27 @@ export default function ProfileLikes({
 
   return (
     <div>
+      {onBackToLibrary && (
+        <button
+          onClick={onBackToLibrary}
+          className="profile-back-to-library mobile-only"
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#888',
+            cursor: 'pointer',
+            fontWeight: 700,
+            fontSize: '13px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            marginBottom: '20px'
+          }}
+        >
+          <ArrowLeft size={14} /> Back to Library
+        </button>
+      )}
+
       {/* Header section */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '16px', gap: '16px', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>

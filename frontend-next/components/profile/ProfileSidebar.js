@@ -65,7 +65,7 @@ export default function ProfileSidebar({
 
       {/* Playlists Navigation (Only visible when library is active or just generally shown as part of the library navigation) */}
       {activeTab === 'library' && (
-        <div>
+        <div className="desktop-only">
           <div className="profile-sidebar-playlists-header">
             <h4 style={{ fontSize: '12px', color: '#666', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Playlists</h4>
             {isOwnProfile && (
