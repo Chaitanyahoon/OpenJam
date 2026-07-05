@@ -884,7 +884,7 @@ export default function ProfileHero({
           </div>
 
           {/* Right Action buttons */}
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <div className="profile-hero-actions" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
             <button
               onClick={() => {
                 const link = profile?.username 

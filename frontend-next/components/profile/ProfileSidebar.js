@@ -21,7 +21,7 @@ export default function ProfileSidebar({
   onSyncPlaylistClick
 }) {
   return (
-    <div className="glass-card" style={{
+    <div className="glass-card profile-sidebar-container" style={{
       padding: '24px',
       borderRadius: '24px',
       border: '1px solid rgba(255,255,255,0.04)',
