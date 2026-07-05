@@ -302,13 +302,7 @@ export default function ProfilePageClient() {
 
       {/* Main Container */}
       <div style={{ maxWidth: '1000px', margin: '0 auto', position: 'relative', zIndex: 2 }}>
-        {/* Back navigation */}
-        <div style={{ marginBottom: '24px' }}>
-          <Link href="/" className="profile-back-link">
-            <ArrowLeft size={16} />
-            <span>Back to OpenJam Rooms</span>
-          </Link>
-        </div>
+
 
         {/* Public Profile Hero Card */}
         <ProfileHero 
