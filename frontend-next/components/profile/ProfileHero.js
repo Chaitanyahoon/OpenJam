@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import Link from 'next/link';
 import { 
-  User, Edit2, Check, X, LogOut, Disc, 
+  User, Edit2, Check, X, LogOut, Disc, ArrowLeft,
   Heart, ListMusic, Globe, Calendar, KeyRound, Sparkles, PlusCircle, Users, Move, Trash2, Share2
 } from 'lucide-react';
 
@@ -342,6 +343,36 @@ export default function ProfileHero({
           backgroundRepeat: 'no-repeat'
         }}
       >
+        <Link
+          href="/"
+          className="profile-hero-back-btn"
+          style={{
+            position: 'absolute',
+            top: '16px',
+            left: '16px',
+            background: 'rgba(0, 0, 0, 0.6)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            color: '#fff',
+            padding: '6px 14px',
+            borderRadius: '20px',
+            fontSize: '12px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            backdropFilter: 'blur(8px)',
+            zIndex: 10,
+            textDecoration: 'none',
+            transition: 'all 0.2s'
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0, 0, 0, 0.6)'; }}
+        >
+          <ArrowLeft size={13} style={{ color: 'var(--theme-accent, #ff9f1c)' }} />
+          <span>Back to Rooms</span>
+        </Link>
+
         {isOwnProfile && (
           <button
             onClick={() => setShowSettings(true)}
