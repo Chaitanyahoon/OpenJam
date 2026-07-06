@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Music, Play, Pause, ArrowLeft, Disc, Share2, 
-  Plus, Users, Volume2, VolumeX, ListMusic, Globe, Lock, Heart 
+  Plus, Users, Volume2, VolumeX, ListMusic, Globe, Lock, Heart, X
 } from 'lucide-react';
 import { PlaylistSkeleton } from '@/components/SkeletonLoaders';
 
@@ -685,7 +685,7 @@ export default function PlaylistClient() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <button 
                 onClick={() => setMuted(!muted)} 
-                style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer' }}
+                style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
               >
                 {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
               </button>
@@ -708,6 +708,31 @@ export default function PlaylistClient() {
                   cursor: 'pointer'
                 }}
               />
+              <button
+                onClick={() => {
+                  setActivePreview(null);
+                  setIsPlayingPreview(false);
+                }}
+                style={{
+                  background: 'rgba(255,255,255,0.05)',
+                  border: 'none',
+                  color: '#aaa',
+                  width: '24px',
+                  height: '24px',
+                  borderRadius: '50%',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginLeft: '4px',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = '#fff'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#aaa'; }}
+                title="Dismiss Player"
+              >
+                <X size={14} />
+              </button>
             </div>
           </motion.div>
         )}
