@@ -11675,6 +11675,55 @@ div:hover > .play-hover-btn,
   .mobile-only {
     display: block !important;
   }
+
+  /* Phone-friendly playlist detail visual enhancements */
+  .profile-playlist-header {
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 16px !important;
+    margin-bottom: 20px !important;
+    flex-wrap: nowrap !important;
+  }
+  .profile-playlist-cover {
+    width: 90px !important;
+    height: 90px !important;
+    flex-shrink: 0 !important;
+  }
+  .profile-playlist-cover .profile-playlist-mosaic,
+  .profile-playlist-cover img,
+  .profile-playlist-cover div[style*="width: 100%"] {
+    width: 90px !important;
+    height: 90px !important;
+  }
+  .profile-playlist-header h3 {
+    font-size: 20px !important;
+    line-height: 1.2 !important;
+  }
+  .profile-playlist-header p {
+    font-size: 11px !important;
+    margin-top: 4px !important;
+  }
+  .profile-playlist-header div[style*="margin-top: 16px"] {
+    margin-top: 8px !important;
+    gap: 8px !important;
+  }
+  .profile-playlist-header button {
+    padding: 6px 12px !important;
+    font-size: 11px !important;
+    border-radius: 8px !important;
+  }
+  .profile-playlist-track-card {
+    padding: 8px 10px !important;
+    gap: 8px !important;
+    border-radius: 10px !important;
+  }
+  .profile-playlist-track-header {
+    padding: 8px 10px !important;
+  }
+  .profile-playlist-track-header span:last-child {
+    padding-right: 20px !important;
+    width: auto !important;
+  }
 }
 
 @keyframes eq-pulse {

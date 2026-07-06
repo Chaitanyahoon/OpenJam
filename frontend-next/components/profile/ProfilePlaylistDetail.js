@@ -143,9 +143,9 @@ export default function ProfilePlaylistDetail({
       </button>
 
       {/* Playlist Header card */}
-      <div style={{ display: 'flex', gap: '24px', marginBottom: '32px', flexWrap: 'wrap' }}>
+      <div className="profile-playlist-header" style={{ display: 'flex', gap: '24px', marginBottom: '32px', flexWrap: 'wrap' }}>
         {/* Cover Art container */}
-        <div style={{ width: '130px', flexShrink: 0 }}>
+        <div className="profile-playlist-cover" style={{ width: '130px', flexShrink: 0 }}>
           {renderCover()}
         </div>
 
@@ -272,7 +272,7 @@ export default function ProfilePlaylistDetail({
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           {/* Tracks list headers */}
-          <div style={{ display: 'flex', padding: '8px 16px', fontSize: '11px', fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <div className="profile-playlist-track-header" style={{ display: 'flex', padding: '8px 16px', fontSize: '11px', fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             <span style={{ width: '30px' }}>#</span>
             <span style={{ flex: 1 }}>Title</span>
             <span style={{ width: '60px', textAlign: 'right', paddingRight: isOwnProfile ? '36px' : '0px' }}>Time</span>
