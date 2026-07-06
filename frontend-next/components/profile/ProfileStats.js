@@ -16,6 +16,7 @@ export default function ProfileStats({
 }) {
   const [showShareModal, setShowShareModal] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showAllHistory, setShowAllHistory] = useState(false);
 
   const handleCopyLink = () => {
     const link = profile?.username 
@@ -40,10 +41,10 @@ export default function ProfileStats({
     image.onload = () => {
       const canvas = document.createElement('canvas');
       canvas.width = 800; // Double size for high DPI crispness
-      canvas.height = 1200;
+      canvas.height = 960;
       const context = canvas.getContext('2d');
       if (context) {
-        context.drawImage(image, 0, 0, 800, 1200);
+        context.drawImage(image, 0, 0, 800, 960);
         const pngURL = canvas.toDataURL('image/png');
         
         const downloadLink = document.createElement('a');
@@ -93,10 +94,6 @@ export default function ProfileStats({
       </div>
     );
   }
-
-  // Calculate max values for bar relative widths
-  const maxArtistCount = stats.top_artists?.length > 0 ? stats.top_artists[0].count : 1;
-  const maxGenreCount = stats.top_genres?.length > 0 ? stats.top_genres[0].count : 1;
 
   return (
     <div>
@@ -209,27 +206,27 @@ export default function ProfileStats({
         </span>
       </div>
 
-      {/* Grid for charts & lists */}
+      {/* Grid for lists */}
       <div className="profile-stats-secondary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '32px', marginBottom: '32px' }}>
         
         {/* Top Tracks */}
         <div className="glass-card" style={{ padding: '24px', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.03)', background: 'rgba(0,0,0,0.1)' }}>
           <h4 style={{ fontSize: '15px', fontWeight: 800, color: '#fff', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Award size={16} style={{ color: '#ffd700' }} />
-            Top Queued Tracks
+            Top Listened Tracks
           </h4>
           {(!stats.top_tracks || stats.top_tracks.length === 0) ? (
             <p style={{ color: '#444', fontSize: '13px', textAlign: 'center', padding: '40px 0' }}>Queue tracks to populate.</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {stats.top_tracks.map((track, i) => (
+              {stats.top_tracks.slice(0, 5).map((track, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <span className={`profile-rank-badge rank-${i+1 <= 3 ? i+1 : 'other'}`}>
                     {i + 1}
                   </span>
                   
                   {track.album_art_url ? (
-                    <img 
+                    <img decoding="async" loading="lazy"
                       src={track.album_art_url} 
                       alt="" 
                       style={{ width: '40px', height: '40px', borderRadius: '6px', objectFit: 'cover' }} 
@@ -258,122 +255,90 @@ export default function ProfileStats({
           )}
         </div>
 
-        {/* Top Artists */}
-        <div className="glass-card" style={{ padding: '24px', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.03)', background: 'rgba(0,0,0,0.1)' }}>
-          <h4 style={{ fontSize: '15px', fontWeight: 800, color: '#fff', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Music size={16} style={{ color: '#3b82f6' }} />
-            Top Artists
-          </h4>
-          {(!stats.top_artists || stats.top_artists.length === 0) ? (
-            <p style={{ color: '#444', fontSize: '13px', textAlign: 'center', padding: '40px 0' }}>Play more music to populate.</p>
-          ) : (
-            <div className="profile-bar-chart-container">
-              {stats.top_artists.map((artist, i) => {
-                const percentage = (artist.count / maxArtistCount) * 100;
-                return (
-                  <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                      <span style={{ fontWeight: 700, color: '#ddd' }}>{artist.artist}</span>
-                      <span style={{ color: '#888', fontWeight: 600 }}>{artist.count} times</span>
-                    </div>
-                    <div className="profile-bar-chart-bar-bg">
-                      <div 
-                        className="profile-bar-chart-bar-fill" 
-                        style={{ width: `${percentage}%`, background: 'linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%)' }} 
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Favorite Genres */}
-        <div className="glass-card" style={{ padding: '24px', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.03)', background: 'rgba(0,0,0,0.1)' }}>
-          <h4 style={{ fontSize: '15px', fontWeight: 800, color: '#fff', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Play size={16} style={{ color: '#10b981' }} />
-            Favorite Genres
-          </h4>
-          {(!stats.top_genres || stats.top_genres.length === 0) ? (
-            <p style={{ color: '#444', fontSize: '13px', textAlign: 'center', padding: '40px 0' }}>Join genres/rooms to populate.</p>
-          ) : (
-            <div className="profile-bar-chart-container">
-              {stats.top_genres.map((genre, i) => {
-                const percentage = (genre.count / maxGenreCount) * 100;
-                return (
-                  <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                      <span style={{ fontWeight: 700, color: '#ddd', textTransform: 'capitalize' }}>{genre.genre}</span>
-                      <span style={{ color: '#888', fontWeight: 600 }}>{genre.count} songs</span>
-                    </div>
-                    <div className="profile-bar-chart-bar-bg">
-                      <div 
-                        className="profile-bar-chart-bar-fill" 
-                        style={{ width: `${percentage}%`, background: 'linear-gradient(90deg, #10b981 0%, #34d399 100%)' }} 
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Recently Played Section */}
-      {stats.recently_played && stats.recently_played.length > 0 && (
+        {/* Recently Played Section */}
         <div className="glass-card" style={{ padding: '24px', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.03)', background: 'rgba(0,0,0,0.1)' }}>
           <h4 style={{ fontSize: '15px', fontWeight: 800, color: '#fff', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Clock size={16} style={{ color: '#a855f7' }} />
             Recently Played Tracks
           </h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {stats.recently_played.map((track, i) => {
-              const playedDate = track.played_at ? new Date(track.played_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : 'N/A';
-              return (
-                <div 
-                  key={track.id || i}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '8px 12px',
-                    borderRadius: '10px',
-                    background: 'rgba(255,255,255,0.01)',
-                    border: '1px solid rgba(255,255,255,0.03)'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
-                    {track.album_art_url ? (
-                      <img 
-                        src={track.album_art_url} 
-                        alt="" 
-                        style={{ width: '36px', height: '36px', borderRadius: '6px', objectFit: 'cover' }} 
-                      />
-                    ) : (
-                      <div style={{ width: '36px', height: '36px', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Disc size={16} color="#444" />
+          {(!stats.recently_played || stats.recently_played.length === 0) ? (
+            <p style={{ color: '#444', fontSize: '13px', textAlign: 'center', padding: '40px 0' }}>Queue tracks to populate history.</p>
+          ) : (
+            <>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {(showAllHistory ? stats.recently_played : stats.recently_played.slice(0, 3)).map((track, i) => {
+                  const playedDate = track.played_at ? new Date(track.played_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : 'N/A';
+                  return (
+                    <div 
+                      key={track.id || i}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 12px',
+                        borderRadius: '10px',
+                        background: 'rgba(255,255,255,0.01)',
+                        border: '1px solid rgba(255,255,255,0.03)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
+                        {track.album_art_url ? (
+                          <img decoding="async" loading="lazy"
+                            src={track.album_art_url} 
+                            alt="" 
+                            style={{ width: '36px', height: '36px', borderRadius: '6px', objectFit: 'cover' }} 
+                          />
+                        ) : (
+                          <div style={{ width: '36px', height: '36px', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Disc size={16} color="#444" />
+                          </div>
+                        )}
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {track.track_name}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '1px' }}>
+                            {track.artist}
+                          </div>
+                        </div>
                       </div>
-                    )}
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {track.track_name}
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '1px' }}>
-                        {track.artist}
+                      <div style={{ color: '#555', fontSize: '12px', fontWeight: 600 }}>
+                        {playedDate}
                       </div>
                     </div>
-                  </div>
-                  <div style={{ color: '#555', fontSize: '12px', fontWeight: 600 }}>
-                    {playedDate}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                  );
+                })}
+              </div>
+
+              {stats.recently_played.length > 3 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllHistory(!showAllHistory)}
+                  style={{
+                    marginTop: '16px',
+                    width: '100%',
+                    padding: '8px',
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    border: '1px solid rgba(255, 255, 255, 0.05)',
+                    borderRadius: '10px',
+                    color: 'var(--theme-accent, #ff9f1c)',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255, 159, 28, 0.05)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)'; }}
+                >
+                  {showAllHistory ? 'Show Less History' : `View Full History (${stats.recently_played.length} tracks)`}
+                </button>
+              )}
+            </>
+          )}
         </div>
-      )}
+
+      </div>
       {/* Shareable Music Footprint Card Modal */}
       <AnimatePresence>
         {showShareModal && (
@@ -428,8 +393,8 @@ export default function ProfileStats({
                 <svg 
                   id="musical-footprint-card" 
                   width="280" 
-                  height="420" 
-                  viewBox="0 0 400 600" 
+                  height="336" 
+                  viewBox="0 0 400 480" 
                   fill="none" 
                   xmlns="http://www.w3.org/2000/svg"
                   style={{ borderRadius: '16px' }}
@@ -470,15 +435,14 @@ export default function ProfileStats({
                   </style>
 
                   {/* Base Card Background */}
-                  <rect width="400" height="600" rx="30" fill="url(#cardBgGradient)" />
-                  <rect width="400" height="600" rx="30" fill="url(#goldGlow)" />
-                  <rect width="400" height="600" rx="30" fill="url(#purpleGlow)" />
-                  <rect width="400" height="600" rx="30" fill="url(#pinkGlow)" />
+                  <rect width="400" height="480" rx="30" fill="url(#cardBgGradient)" />
+                  <rect width="400" height="480" rx="30" fill="url(#goldGlow)" />
+                  <rect width="400" height="480" rx="30" fill="url(#purpleGlow)" />
+                  <rect width="400" height="480" rx="30" fill="url(#pinkGlow)" />
 
                   {/* Decorative Geometric Lines */}
                   <path d="M 0 100 L 400 180" stroke="rgba(255,255,255,0.015)" strokeWidth="1" />
                   <path d="M 0 240 L 400 320" stroke="rgba(255,255,255,0.01)" strokeWidth="1.5" />
-                  <path d="M 0 380 L 400 460" stroke="rgba(255,255,255,0.01)" strokeWidth="1" />
                   
                   {/* Subtle Grid Dots */}
                   <circle cx="50" cy="50" r="1" fill="rgba(255,255,255,0.05)" />
@@ -491,11 +455,11 @@ export default function ProfileStats({
                   <circle cx="200" cy="100" r="1" fill="rgba(255,255,255,0.05)" />
 
                   {/* Card Borders */}
-                  <rect x="12" y="12" width="376" height="576" rx="22" stroke="rgba(255,255,255,0.025)" strokeWidth="1" />
-                  <rect x="18" y="18" width="364" height="564" rx="18" stroke="rgba(255,255,255,0.04)" strokeDasharray="6 6" strokeWidth="1" />
+                  <rect x="12" y="12" width="376" height="456" rx="22" stroke="rgba(255,255,255,0.025)" strokeWidth="1" />
+                  <rect x="18" y="18" width="364" height="444" rx="18" stroke="rgba(255,255,255,0.04)" strokeDasharray="6 6" strokeWidth="1" />
 
                   {/* Cosmic Vinyl Record on the right edge */}
-                  <g transform="translate(360, 280)">
+                  <g transform="translate(360, 240)">
                     {/* Vinyl Record body */}
                     <circle cx="0" cy="0" r="150" fill="#111116" stroke="rgba(255,255,255,0.06)" strokeWidth="2" filter="url(#cardShadow)" />
                     
@@ -552,29 +516,17 @@ export default function ProfileStats({
 
                   <line x1="40" y1="295" x2="360" y2="295" stroke="rgba(255,255,255,0.05)" strokeWidth="1"/>
 
-                  {/* Stats Block 3: FAVORITE GENRE */}
-                  <text x="40" y="335" fill="rgba(255,255,255,0.3)" className="outfit-font" fontSize="10" fontWeight="800" letterSpacing="0.8">FAVORITE GENRE</text>
-                  <text x="40" y="362" fill="#10b981" className="outfit-font" fontSize="18" fontWeight="900" textTransform="capitalize">
-                    {stats.top_genres?.length > 0 ? stats.top_genres[0].genre : 'None'}
-                  </text>
-
-                  {/* Stats Block 4: TOP ARTIST */}
-                  <text x="40" y="415" fill="rgba(255,255,255,0.3)" className="outfit-font" fontSize="10" fontWeight="800" letterSpacing="0.8">TOP ARTIST</text>
-                  <text x="40" y="442" fill="#8b5cf6" className="outfit-font" fontSize="18" fontWeight="900">
-                    {stats.top_artists?.length > 0 ? stats.top_artists[0].artist : 'None'}
-                  </text>
-
-                  {/* Stats Block 5: TOP QUEUED TRACK */}
-                  <text x="40" y="495" fill="rgba(255,255,255,0.3)" className="outfit-font" fontSize="10" fontWeight="800" letterSpacing="0.8">TOP QUEUED TRACK</text>
-                  <text x="40" y="522" fill="#ec4899" className="outfit-font" fontSize="16" fontWeight="900">
+                  {/* Stats Block 3: TOP LISTENED SONG */}
+                  <text x="40" y="335" fill="rgba(255,255,255,0.3)" className="outfit-font" fontSize="10" fontWeight="800" letterSpacing="0.8">TOP LISTENED SONG</text>
+                  <text x="40" y="362" fill="#ec4899" className="outfit-font" fontSize="18" fontWeight="900">
                     {stats.top_tracks?.length > 0 ? stats.top_tracks[0].track_name.substring(0, 30) : 'None'}
                   </text>
-                  <text x="40" y="540" fill="rgba(255,255,255,0.4)" className="outfit-font" fontSize="11" fontWeight="600">
+                  <text x="40" y="380" fill="rgba(255,255,255,0.4)" className="outfit-font" fontSize="11" fontWeight="600">
                     {stats.top_tracks?.length > 0 ? `by ${stats.top_tracks[0].artist.substring(0, 30)}` : ''}
                   </text>
 
                   {/* Footer Wave Pattern */}
-                  <g opacity="0.15" transform="translate(40, 560)">
+                  <g opacity="0.15" transform="translate(40, 440)">
                     <rect x="0" y="10" width="3" height="8" rx="1.5" fill="#fff" />
                     <rect x="6" y="5" width="3" height="13" rx="1.5" fill="#fff" />
                     <rect x="12" y="8" width="3" height="10" rx="1.5" fill="#fff" />
@@ -584,7 +536,7 @@ export default function ProfileStats({
                     <rect x="36" y="7" width="3" height="11" rx="1.5" fill="#fff" />
                     <rect x="42" y="3" width="3" height="15" rx="1.5" fill="#fff" />
                   </g>
-                  <text x="360" y="572" fill="rgba(255,255,255,0.2)" className="outfit-font" fontSize="9" fontWeight="800" textAnchor="end" letterSpacing="0.5">openjam.fun</text>
+                  <text x="360" y="452" fill="rgba(255,255,255,0.2)" className="outfit-font" fontSize="9" fontWeight="800" textAnchor="end" letterSpacing="0.5">openjam.fun</text>
                 </svg>
               </div>
 

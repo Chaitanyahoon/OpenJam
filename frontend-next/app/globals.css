@@ -11650,6 +11650,7 @@ div:hover > .play-hover-btn,
     display: none !important;
   }
   .profile-stats-secondary-grid {
+    grid-template-columns: 1fr !important;
     gap: 16px !important;
     margin-bottom: 16px !important;
   }
