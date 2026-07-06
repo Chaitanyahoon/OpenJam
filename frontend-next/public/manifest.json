@@ -9,7 +9,7 @@
   "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait",
   "background_color": "#08080a",
-  "theme_color": "#08080a",
+  "theme_color": "#ff9f1c",
   "categories": ["music", "social", "entertainment"],
   "icons": [
     {
