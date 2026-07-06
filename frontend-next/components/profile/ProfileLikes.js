@@ -192,8 +192,8 @@ export default function ProfileLikes({
                       }}
                     >
                       <ListPlus size={14} />
-                      <span>Add to Playlist</span>
-                      <ChevronDown size={12} />
+                      <span className="desktop-only">Add to Playlist</span>
+                      <ChevronDown size={12} className="desktop-only" />
                     </button>
 
                     {/* Playlist drop menu */}

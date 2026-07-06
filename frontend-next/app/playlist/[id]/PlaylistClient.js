@@ -358,7 +358,7 @@ export default function PlaylistClient() {
         </div>
 
         {/* Playlist Banner */}
-        <div className="glass-card" style={{
+        <div className="glass-card playlist-header-card" style={{
           padding: '32px',
           borderRadius: '24px',
           border: '1px solid rgba(255,255,255,0.06)',
@@ -370,7 +370,7 @@ export default function PlaylistClient() {
           flexWrap: 'wrap',
           marginBottom: '40px'
         }}>
-          <div style={{
+          <div className="playlist-header-cover" style={{
             width: '120px',
             height: '120px',
             borderRadius: '16px',
@@ -383,7 +383,7 @@ export default function PlaylistClient() {
             <ListMusic size={60} color="#fff" />
           </div>
 
-          <div style={{ flex: 1, minWidth: '200px' }}>
+          <div className="playlist-header-info" style={{ flex: 1, minWidth: '200px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Globe size={14} color="#888" />
               <span style={{ fontSize: '12px', fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -396,7 +396,7 @@ export default function PlaylistClient() {
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <div className="playlist-header-actions" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
             {me && me.is_registered && playlist && playlist.creator_id !== me.id && (
               <button 
                 className="btn btn-ghost" 
@@ -506,7 +506,7 @@ export default function PlaylistClient() {
         </div>
 
         {/* Tracks List */}
-        <div className="glass-card" style={{
+        <div className="glass-card playlist-tracks-container" style={{
           padding: '24px',
           borderRadius: '24px',
           border: '1px solid rgba(255,255,255,0.06)',
@@ -523,6 +523,7 @@ export default function PlaylistClient() {
               {playlist.tracks.map((track) => (
                 <div
                   key={track.id}
+                  className="playlist-track-card"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -627,6 +628,7 @@ export default function PlaylistClient() {
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
+            className="playlist-preview-pill"
             style={{
               position: 'fixed',
               bottom: '24px',
