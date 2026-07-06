@@ -175,13 +175,7 @@ export default function ProfileStats({
           </div>
         </div>
 
-        <div className="profile-stat-card">
-          <ThumbsUp size={20} style={{ color: '#ec4899', marginBottom: '12px' }} />
-          <div style={{ color: '#666', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Likes Received</div>
-          <div style={{ fontSize: '28px', fontWeight: 800, color: '#fff', marginTop: '4px' }}>
-            {stats.total_likes}
-          </div>
-        </div>
+
       </div>
 
       {/* Secondary Engagement Bar */}

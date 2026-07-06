@@ -589,36 +589,7 @@ export default function ProfileHero({
                 </div>
               </div>
 
-              {/* Banner Preset Selection */}
-              <div>
-                <div style={{ fontSize: '11px', color: '#666', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Preset Banner Gradients</div>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  {Object.entries(BANNER_GRADIENTS).map(([key, item]) => (
-                    <button
-                      key={key}
-                      disabled={!!previewBannerUrl}
-                      onClick={() => handleBannerPresetChange(key)}
-                      style={{
-                        background: item.style(previewTheme),
-                        border: (previewBannerPreset === key && !previewBannerUrl) ? '2px solid #fff' : '1px solid rgba(255,255,255,0.08)',
-                        borderRadius: '20px',
-                        padding: '6px 14px',
-                        color: '#fff',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        cursor: !!previewBannerUrl ? 'not-allowed' : 'pointer',
-                        textShadow: '0 1px 4px rgba(0,0,0,0.6)',
-                        opacity: !!previewBannerUrl ? 0.2 : ((previewBannerPreset === key) ? 1 : 0.7),
-                        transition: 'all 0.2s',
-                        transform: (previewBannerPreset === key && !previewBannerUrl) ? 'scale(1.04)' : 'scale(1)',
-                        boxShadow: (previewBannerPreset === key && !previewBannerUrl) ? '0 0 10px rgba(255,255,255,0.2)' : 'none'
-                      }}
-                    >
-                      {item.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
+
 
               {/* Banner URL Input */}
               {(() => {
@@ -1137,21 +1108,9 @@ export default function ProfileHero({
               </button>
 
               <div className="profile-hero-stat-item" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '4px 8px' }}>
-                <span className="profile-hero-stat-value" style={{ fontSize: '20px', fontWeight: 800, color: '#fff' }}>{likesCount}</span>
-                <span className="profile-hero-stat-label" style={{ fontSize: '11px', fontWeight: 600, color: '#666', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '4px' }}>Likes</span>
-              </div>
-
-              <div className="profile-hero-stat-item" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '4px 8px' }}>
                 <span className="profile-hero-stat-value" style={{ fontSize: '20px', fontWeight: 800, color: '#fff' }}>{playlistsCount}</span>
                 <span className="profile-hero-stat-label" style={{ fontSize: '11px', fontWeight: 600, color: '#666', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '4px' }}>Playlists</span>
               </div>
-
-              {roomsHostedCount > 0 && (
-                <div className="profile-hero-stat-item" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '4px 8px' }}>
-                  <span className="profile-hero-stat-value" style={{ fontSize: '20px', fontWeight: 800, color: '#fff' }}>{roomsHostedCount}</span>
-                  <span className="profile-hero-stat-label" style={{ fontSize: '11px', fontWeight: 600, color: '#666', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '4px' }}>Hosted</span>
-                </div>
-              )}
             </div>
           </div>
         </div>

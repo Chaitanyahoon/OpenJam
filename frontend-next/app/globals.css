@@ -10574,6 +10574,20 @@ div:hover > .play-hover-btn,
 /* ================================================================
    NEW PREMIUM PROFILE STYLES
    ================================================================ */
+/* Glass Card styling overrode for premium Orange/Amber theme */
+.glass-card {
+  background: linear-gradient(135deg, rgba(255, 159, 28, 0.02) 0%, rgba(10, 10, 14, 0.65) 100%) !important;
+  border: 1px solid rgba(255, 159, 28, 0.08) !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.02) !important;
+  backdrop-filter: blur(30px) !important;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease !important;
+}
+
+.glass-card:hover {
+  border-color: rgba(255, 159, 28, 0.15) !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55), 0 0 25px rgba(255, 159, 28, 0.02), inset 0 1px 0 rgba(255, 255, 255, 0.03) !important;
+}
+
 .profile-hero {
   position: relative;
   border-radius: 24px;
@@ -10762,27 +10776,28 @@ div:hover > .play-hover-btn,
 .profile-stat-card {
   padding: 24px;
   border-radius: 20px;
-  border: 1px solid rgba(255,255,255,0.06);
-  background: linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.005) 100%);
+  border: 1px solid rgba(255, 159, 28, 0.05) !important;
+  background: linear-gradient(135deg, rgba(255, 159, 28, 0.01) 0%, rgba(255, 255, 255, 0.005) 100%) !important;
   backdrop-filter: blur(12px);
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
   overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.01);
 }
 
 .profile-stat-card::after {
   content: '';
   position: absolute;
   top: 0; left: 0; width: 100%; height: 100%;
-  background: radial-gradient(circle at 80% 20%, rgba(255,255,255,0.03) 0%, transparent 50%);
+  background: radial-gradient(circle at 80% 20%, rgba(255, 159, 28, 0.02) 0%, transparent 50%);
   pointer-events: none;
 }
 
 .profile-stat-card:hover {
   transform: translateY(-5px);
-  border-color: rgba(255,159,28,0.3);
-  box-shadow: 0 16px 36px rgba(0,0,0,0.5), 0 0 20px rgba(255,159,28,0.15);
+  border-color: rgba(255, 159, 28, 0.2) !important;
+  box-shadow: 0 16px 36px rgba(0,0,0,0.5), 0 0 20px rgba(255, 159, 28, 0.04) !important;
+  background: linear-gradient(135deg, rgba(255, 159, 28, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%) !important;
 }
 
 /* Stat card individual hover glows based on icons */
@@ -11384,7 +11399,7 @@ div:hover > .play-hover-btn,
     order: 1 !important;
     width: 100% !important;
     display: grid !important;
-    grid-template-columns: repeat(4, 1fr) !important;
+    grid-template-columns: repeat(3, 1fr) !important; /* 3 columns since we simplified stats */
     gap: 4px !important;
     background: none !important;
     border: none !important;
@@ -11396,7 +11411,7 @@ div:hover > .play-hover-btn,
   }
   
   .profile-hero-social-list.has-hosted {
-    grid-template-columns: repeat(5, 1fr) !important;
+    grid-template-columns: repeat(3, 1fr) !important;
   }
 
   .profile-hero-stat-btn {
@@ -11469,6 +11484,14 @@ div:hover > .play-hover-btn,
     flex-direction: column !important;
     gap: 4px !important;
     text-align: center !important;
+    border: 1px solid rgba(255, 255, 255, 0.04) !important;
+    background: rgba(255, 255, 255, 0.01) !important;
+  }
+
+  .profile-tab-btn.active {
+    color: var(--theme-accent, #ff9f1c) !important;
+    background: rgba(255, 159, 28, 0.08) !important;
+    border: 1px solid rgba(255, 159, 28, 0.25) !important;
   }
   
   .profile-tab-btn span {
@@ -11518,7 +11541,7 @@ div:hover > .play-hover-btn,
   }
   
   .profile-stat-card div[style*="font-size: 28px"] {
-    font-size: 22px !important;
+    font-size: 18px !important; /* Elegant smaller stats text */
   }
 
   /* Banner URL Input & Action Rows on Mobile */
@@ -11595,9 +11618,6 @@ div:hover > .play-hover-btn,
     gap: 10px !important;
     margin-bottom: 16px !important;
   }
-  .profile-stats-primary-grid .profile-stat-card:last-child {
-    grid-column: span 2 !important;
-  }
   .profile-stats-engagement-bar {
     flex-direction: column !important;
     align-items: flex-start !important;
@@ -11623,6 +11643,21 @@ div:hover > .play-hover-btn,
   .profile-stats-secondary-grid {
     gap: 16px !important;
     margin-bottom: 16px !important;
+  }
+
+  /* Centered Customize & Crop Modal mobile scrolling fixes */
+  .profile-modal-backdrop {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 12px !important;
+    overflow: hidden !important;
+  }
+  .image-editor-container {
+    max-height: 85vh !important;
+    overflow-y: auto !important;
+    display: flex !important;
+    flex-direction: column !important;
   }
 }
 
