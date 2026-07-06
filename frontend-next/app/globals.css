@@ -10571,6 +10571,14 @@ div:hover > .play-hover-btn,
   border-color: rgba(255, 255, 255, 0.06) !important;
 }
 
+/* Global display helper classes */
+.desktop-only {
+  display: block !important;
+}
+.mobile-only {
+  display: none !important;
+}
+
 /* ================================================================
    NEW PREMIUM PROFILE STYLES
    ================================================================ */
@@ -11658,6 +11666,14 @@ div:hover > .play-hover-btn,
     overflow-y: auto !important;
     display: flex !important;
     flex-direction: column !important;
+  }
+
+  /* Helper overrides for mobile query display status */
+  .desktop-only {
+    display: none !important;
+  }
+  .mobile-only {
+    display: block !important;
   }
 }
 
