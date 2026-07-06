@@ -127,6 +127,9 @@ export default function HomePage() {
   const [currentYear, setCurrentYear] = useState(2026);
   useEffect(() => {
     setCurrentYear(new Date().getFullYear());
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('activeRoomPath');
+    }
   }, []);
 
   const loadOfflineData = async () => {

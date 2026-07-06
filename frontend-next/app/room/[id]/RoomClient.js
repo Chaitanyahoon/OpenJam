@@ -141,6 +141,9 @@ export default function RoomClient({ roomId }) {
     if (typeof document !== 'undefined') {
       document.body.classList.add('room-page');
     }
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('activeRoomPath', window.location.pathname);
+    }
     const fetchRecommendations = async () => {
       try {
         const res = await fetch('/search/recommendations');

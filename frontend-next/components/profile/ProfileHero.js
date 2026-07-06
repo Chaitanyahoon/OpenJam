@@ -81,6 +81,19 @@ export default function ProfileHero({
   const [usernameAvailable, setUsernameAvailable] = useState(null);
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
 
+  const [backLink, setBackLink] = useState('/');
+  const [backLabel, setBackLabel] = useState('Back to Rooms');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const activeRoom = localStorage.getItem('activeRoomPath');
+      if (activeRoom) {
+        setBackLink(activeRoom);
+        setBackLabel('Back to Jam Room');
+      }
+    }
+  }, []);
+
   // Local settings preview states (for real-time preview before saving)
   const [previewTheme, setPreviewTheme] = useState(theme);
   const [previewBannerPreset, setPreviewBannerPreset] = useState(bannerPreset);
@@ -344,7 +357,7 @@ export default function ProfileHero({
         }}
       >
         <Link
-          href="/"
+          href={backLink}
           className="profile-hero-back-btn"
           style={{
             position: 'absolute',
@@ -370,7 +383,7 @@ export default function ProfileHero({
           onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0, 0, 0, 0.6)'; }}
         >
           <ArrowLeft size={13} style={{ color: 'var(--theme-accent, #ff9f1c)' }} />
-          <span>Back to Rooms</span>
+          <span>{backLabel}</span>
         </Link>
 
         {isOwnProfile && (
