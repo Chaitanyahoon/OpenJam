@@ -253,12 +253,12 @@
   top: 4.5rem;
   left: 1rem;
   right: 1rem;
-  background: rgba(10, 10, 15, 0.96);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(135deg, rgba(12, 12, 18, 0.96) 0%, rgba(6, 6, 9, 0.98) 100%);
+  border: 1px solid rgba(255, 159, 28, 0.15);
   border-radius: 24px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(255, 159, 28, 0.03);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
   z-index: 998;
   opacity: 0;
   transform-origin: top center;
@@ -270,10 +270,10 @@
 .mobile-menu-list {
   list-style: none;
   margin: 0;
-  padding: 8px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0px;
   width: 100%;
   box-sizing: border-box;
 }
@@ -282,32 +282,37 @@
   width: 100%;
 }
 
+.mobile-menu-list > li:not(:last-child) {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
 .mobile-menu-popover .mobile-menu-link {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  gap: 8px !important;
-  padding: 14px 20px;
+  gap: 10px !important;
+  padding: 16px 20px;
   color: var(--pill-text, #cbd5e1);
-  background-color: rgba(255, 255, 255, 0.02);
+  background-color: transparent;
   text-decoration: none;
   font-family: var(--font-display, sans-serif);
   font-size: 14px;
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.8px;
   text-transform: uppercase;
-  border-radius: 16px;
-  transition: all 0.2s ease;
-  border: 1px solid rgba(255, 255, 255, 0.02);
+  border-radius: 14px;
+  transition: all 0.25s ease;
+  border: none;
   width: 100% !important;
   box-sizing: border-box !important;
 }
 
-.mobile-menu-popover .mobile-menu-link:hover {
+.mobile-menu-popover .mobile-menu-link:active,
+.mobile-menu-popover .mobile-menu-link:focus,
+.mobile-menu-popover .mobile-menu-link.is-active {
   cursor: pointer;
-  background-color: var(--base, #0a0a0f);
-  color: var(--hover-text, #ff9f1c);
-  border-color: rgba(255, 159, 28, 0.15);
+  background-color: rgba(255, 159, 28, 0.05) !important;
+  color: var(--hover-text, #ff9f1c) !important;
 }
 
 @media (max-width: 768px) {
@@ -330,9 +335,10 @@
   }
 
   .mobile-menu-popover {
-    top: 62px !important;
+    top: 60px !important;
     left: 0 !important;
     right: 0 !important;
     border-radius: 20px !important;
+    padding: 6px !important;
   }
 }
