@@ -521,7 +521,7 @@ export default function ProfileHero({
                 />
                 <div>
                   <div style={{ fontSize: '14px', fontWeight: 800, color: '#fff', textShadow: '0 1px 6px rgba(0,0,0,0.8)' }}>{profile?.display_name}</div>
-                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)', textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>@{profile?.discord_username || 'user'}</div>
+                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)', textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>@{profile?.username || profile?.discord_username || 'user'}</div>
                 </div>
               </div>
               {/* Click-to-edit hint for banner */}
@@ -1011,18 +1011,23 @@ export default function ProfileHero({
                 </button>
               </div>
             ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <h2 style={{ fontSize: '32px', fontWeight: 800, letterSpacing: '-0.03em', background: 'linear-gradient(135deg, #fff 0%, #ccc 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                  {profile?.display_name}
-                </h2>
-                {isOwnProfile && (
-                  <button 
-                    onClick={() => setIsEditingName(true)} 
-                    className="profile-edit-name-btn"
-                  >
-                    <Edit2 size={13} />
-                  </button>
-                )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'flex-start' }} className="profile-hero-titles-wrap">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <h2 style={{ fontSize: '32px', fontWeight: 800, letterSpacing: '-0.03em', background: 'linear-gradient(135deg, #fff 0%, #ccc 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>
+                    {profile?.display_name}
+                  </h2>
+                  {isOwnProfile && (
+                    <button 
+                      onClick={() => setIsEditingName(true)} 
+                      className="profile-edit-name-btn"
+                    >
+                      <Edit2 size={13} />
+                    </button>
+                  )}
+                </div>
+                <div className="profile-hero-username-handle">
+                  @{profile?.username || profile?.discord_username || 'user'}
+                </div>
               </div>
             )}
 

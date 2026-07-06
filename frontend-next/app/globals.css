@@ -10116,6 +10116,8 @@ body:not(.room-page) .navbar:hover {
     width: 100% !important;
     max-width: 360px !important;
     margin: 0 auto !important;
+    background: rgba(12, 12, 18, 0.96) !important;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.95) !important;
   }
 
   .hero-glass-card .hero-badge {
@@ -11658,14 +11660,15 @@ div:hover > .play-hover-btn,
   /* Centered Customize & Crop Modal mobile scrolling fixes */
   .profile-modal-backdrop {
     display: flex !important;
-    align-items: center !important;
+    align-items: flex-start !important;
     justify-content: center !important;
-    padding: 12px !important;
-    overflow: hidden !important;
+    padding: 20px 12px !important;
+    overflow-y: auto !important;
   }
   .image-editor-container {
-    max-height: 85vh !important;
-    overflow-y: auto !important;
+    margin: auto 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
     display: flex !important;
     flex-direction: column !important;
   }
@@ -11798,6 +11801,32 @@ div:hover > .play-hover-btn,
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+.profile-hero-titles-wrap {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+}
+.profile-hero-username-handle {
+  font-size: 13px !important;
+  color: rgba(255, 255, 255, 0.4) !important;
+  font-weight: 600 !important;
+  text-align: left !important;
+  margin-top: -2px !important;
+}
+
+@media (max-width: 640px) {
+  .profile-hero-titles-wrap {
+    align-items: center !important;
+    width: 100% !important;
+  }
+  .profile-hero-username-handle {
+    text-align: center !important;
+    font-size: 12px !important;
+    margin-top: 1px !important;
+    margin-bottom: 2px !important;
+  }
 }
 
 
