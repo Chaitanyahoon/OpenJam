@@ -1,0 +1,79 @@
+const presence = new Presence({
+  clientId: "1514249657549586482"
+});
+
+let lastTrackTitle = "";
+let lastArtist = "";
+let elapsedSinceChange = 0;
+let trackActive = false;
+
+presence.on("UpdateData", async () => {
+  const presenceData: PresenceData = {
+    largeImageKey: "logo"
+  };
+
+  const showButtons = await presence.getSetting<boolean>("buttons");
+  const showTimestamps = await presence.getSetting<boolean>("timestamps");
+  const path = document.location.pathname;
+
+  const roomMatch = path.match(/^\/room\/(.+)/);
+
+  if (roomMatch) {
+    const roomId = roomMatch[1];
+    const trackTitleEl = document.querySelector("[data-presence='track-name'], .mp-track-title");
+    const artistEl = document.querySelector("[data-presence='artist'], .mp-track-artist");
+    const playBtn = document.querySelector<HTMLButtonElement>(".mp-play-btn-large");
+    const isPlaying = playBtn?.title === "Pause";
+
+    const trackTitle = trackTitleEl?.textContent?.trim() || "";
+    const artist = artistEl?.textContent?.trim() || "";
+
+    if (trackTitle && artist && trackTitle !== "Nothing playing" && isPlaying) {
+      if (trackTitle !== lastTrackTitle) {
+        lastTrackTitle = trackTitle;
+        lastArtist = artist;
+        elapsedSinceChange = Date.now();
+        trackActive = true;
+      }
+
+      presenceData.details = trackTitle.substring(0, 127);
+      presenceData.state = `by ${artist.substring(0, 120)}`;
+
+      if (showTimestamps) {
+        presenceData.startTimestamp = Math.floor(elapsedSinceChange / 1000);
+      }
+
+      // Dynamic Album Art
+      const artworkEl = document.querySelector<HTMLImageElement>(".mp-artwork-img, .mini-art");
+      const artworkUrl = artworkEl?.src || "";
+      if (artworkUrl && artworkUrl.startsWith("http") && !artworkUrl.includes("/logo.png")) {
+        presenceData.largeImageKey = artworkUrl;
+        presenceData.smallImageKey = "logo";
+        presenceData.smallImageText = "OpenJam";
+      }
+    } else {
+      trackActive = false;
+      lastTrackTitle = "";
+      lastArtist = "";
+
+      presenceData.details = "In a Jam Room";
+      presenceData.state = "Waiting for music...";
+    }
+
+    if (showButtons) {
+      presenceData.buttons = [
+        {
+          label: "Join Jam Room",
+          url: `${document.location.origin}/room/${roomId}`
+        }
+      ];
+    }
+  } else {
+    presenceData.details = "Browsing OpenJam";
+    trackActive = false;
+    lastTrackTitle = "";
+    lastArtist = "";
+  }
+
+  presence.setActivity(presenceData);
+});
