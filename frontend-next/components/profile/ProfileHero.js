@@ -80,6 +80,7 @@ export default function ProfileHero({
   const [usernameError, setUsernameError] = useState('');
   const [usernameAvailable, setUsernameAvailable] = useState(null);
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
 
   const [backLink, setBackLink] = useState('/');
   const [backLabel, setBackLabel] = useState('Back to Rooms');
@@ -109,6 +110,7 @@ export default function ProfileHero({
     setBannerPosition(profile?.banner_position || '50%');
     setBannerScale(profile?.banner_scale || '100%');
     setEditedUsername(profile?.username || '');
+    setAvatarError(false);
   }, [profile]);
 
   // Sync preview states when settings modal is opened
@@ -885,15 +887,18 @@ export default function ProfileHero({
         <div className="profile-hero-top-row">
           {/* Avatar */}
           <div className="profile-hero-avatar-wrapper">
-            {profile?.avatar_url ? (
+            {profile?.avatar_url && !avatarError ? (
               <img 
                 src={profile.avatar_url} 
                 alt={profile.display_name} 
                 className="profile-hero-avatar"
+                onError={() => setAvatarError(true)}
               />
             ) : (
-              <div className="profile-hero-avatar-placeholder">
-                <User size={48} color="#666" />
+              <div className="profile-hero-avatar-placeholder" style={{ background: 'rgba(255, 255, 255, 0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', borderRadius: '50%' }}>
+                <span style={{ fontSize: '32px', fontWeight: 800, color: THEME_COLORS[theme]?.color || '#ff9f1c', textTransform: 'uppercase' }}>
+                  {(profile?.display_name || profile?.username || 'U').substring(0, 1).toUpperCase()}
+                </span>
               </div>
             )}
           </div>

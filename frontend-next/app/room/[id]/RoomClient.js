@@ -1878,12 +1878,29 @@ export default function RoomClient({ roomId }) {
             <div className="room-sub-meta">
               <div className="room-bar-host">
                 {room?.host_avatar_url ? (
-                  <img decoding="async" loading="lazy" className="room-host-avatar" src={room.host_avatar_url} alt={room.host_name} style={{ objectFit: 'cover' }} />
-                ) : (
-                  <div className="room-host-avatar-fallback" style={{ background: nameColor(room?.host_name || 'Host') }}>
-                    {initials(room?.host_name || 'Host')}
-                  </div>
-                )}
+                  <img 
+                    decoding="async" 
+                    loading="lazy" 
+                    className="room-host-avatar" 
+                    src={room.host_avatar_url} 
+                    alt={room.host_name} 
+                    style={{ objectFit: 'cover' }} 
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      const fallback = e.currentTarget.parentElement.querySelector('.room-host-avatar-fallback');
+                      if (fallback) fallback.style.display = 'flex';
+                    }}
+                  />
+                ) : null}
+                <div 
+                  className="room-host-avatar-fallback" 
+                  style={{ 
+                    background: nameColor(room?.host_name || 'Host'),
+                    display: room?.host_avatar_url ? 'none' : 'flex' 
+                  }}
+                >
+                  {initials(room?.host_name || 'Host')}
+                </div>
                 <span>Hosted by <strong>{room ? room.host_name : 'Unknown'}</strong></span>
               </div>
 
@@ -1927,12 +1944,36 @@ export default function RoomClient({ roomId }) {
             {me?.is_registered ? (
               <a href="/profile" target="_blank" rel="noopener noreferrer" className="navbar-user" style={{ cursor: 'pointer', textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center' }} title="View Profile Settings (Opens in new tab)">
                 {me?.avatar_url ? (
-                  <img decoding="async" loading="lazy" className="avatar avatar-sm" src={me.avatar_url} alt="" style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} />
-                ) : (
-                  <div className="avatar avatar-sm" style={{ backgroundColor: nameColor(me?.display_name || '?'), width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold' }}>
-                    {initials(me?.display_name || '?')}
-                  </div>
-                )}
+                  <img 
+                    decoding="async" 
+                    loading="lazy" 
+                    className="avatar avatar-sm" 
+                    src={me.avatar_url} 
+                    alt="" 
+                    style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} 
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      const fallback = e.currentTarget.parentElement.querySelector('.my-avatar-fallback');
+                      if (fallback) fallback.style.display = 'flex';
+                    }}
+                  />
+                ) : null}
+                <div 
+                  className="avatar avatar-sm my-avatar-fallback" 
+                  style={{ 
+                    backgroundColor: nameColor(me?.display_name || '?'), 
+                    width: '28px', 
+                    height: '28px', 
+                    borderRadius: '50%', 
+                    display: me?.avatar_url ? 'none' : 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    fontSize: '12px', 
+                    fontWeight: 'bold' 
+                  }}
+                >
+                  {initials(me?.display_name || '?')}
+                </div>
                 <span className="navbar-username" style={{ marginLeft: '8px', fontSize: '13px', fontWeight: 600 }}>{me?.display_name}</span>
               </a>
             ) : (
@@ -3228,12 +3269,28 @@ export default function RoomClient({ roomId }) {
                           <div key={msg.id} className="chat-system-msg reaction-alert">
                             <div className="reaction-avatar-small">
                               {msg.user_avatar ? (
-                                <img decoding="async" loading="lazy" className="avatar" src={msg.user_avatar} alt="" />
-                              ) : (
-                                <div className="avatar" style={{ backgroundColor: nameColor(msg.user_name) }}>
-                                  {initials(msg.user_name)}
-                                </div>
-                              )}
+                                <img 
+                                  decoding="async" 
+                                  loading="lazy" 
+                                  className="avatar" 
+                                  src={msg.user_avatar} 
+                                  alt="" 
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                    const fallback = e.currentTarget.parentElement.querySelector('.avatar-fallback');
+                                    if (fallback) fallback.style.display = 'flex';
+                                  }}
+                                />
+                              ) : null}
+                              <div 
+                                className="avatar avatar-fallback" 
+                                style={{ 
+                                  backgroundColor: nameColor(msg.user_name),
+                                  display: msg.user_avatar ? 'none' : 'flex' 
+                                }}
+                              >
+                                {initials(msg.user_name)}
+                              </div>
                             </div>
                             <div className="reaction-alert-content">
                               <span className="reaction-user-name">{msg.user_name}</span> reacted with <span className="reaction-emoji">{msg.content}</span>
@@ -3244,15 +3301,29 @@ export default function RoomClient({ roomId }) {
                       return (
                         <div key={msg.id} className={`chat-message ${isSelf ? 'self' : ''}`}>
                           {msg.user_avatar ? (
-                            <img decoding="async" loading="lazy" className="avatar" src={msg.user_avatar} alt="" style={{ objectFit: 'cover' }} />
-                          ) : (
-                            <div 
-                              className="avatar"
-                              style={{ backgroundColor: nameColor(msg.user_name) }}
-                            >
-                              {initials(msg.user_name)}
-                            </div>
-                          )}
+                            <img 
+                              decoding="async" 
+                              loading="lazy" 
+                              className="avatar" 
+                              src={msg.user_avatar} 
+                              alt="" 
+                              style={{ objectFit: 'cover' }} 
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                const fallback = e.currentTarget.parentElement.querySelector('.avatar-fallback');
+                                if (fallback) fallback.style.display = 'flex';
+                              }}
+                            />
+                          ) : null}
+                          <div 
+                            className="avatar avatar-fallback"
+                            style={{ 
+                              backgroundColor: nameColor(msg.user_name),
+                              display: msg.user_avatar ? 'none' : 'flex' 
+                            }}
+                          >
+                            {initials(msg.user_name)}
+                          </div>
                           <div className="chat-msg-body">
                             <div className="chat-msg-bubble">
                               <div className="chat-msg-header" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -3462,27 +3533,31 @@ export default function RoomClient({ roomId }) {
                             border: room && room.host_user_id === uid ? '1.5px solid var(--amber, #ff9f1c)' : 'none',
                             boxShadow: room && room.host_user_id === uid ? '0 0 6px rgba(255, 159, 28, 0.4)' : 'none'
                           }} 
-                        />
-                      ) : (
-                        <div 
-                          className="avatar avatar-sm"
-                          style={{ 
-                            backgroundColor: nameColor(user.display_name), 
-                            width: '24px', 
-                            height: '24px', 
-                            borderRadius: '50%', 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            justifyContent: 'center', 
-                            fontSize: '11px', 
-                            fontWeight: 'bold',
-                            border: room && room.host_user_id === uid ? '1.5px solid var(--amber, #ff9f1c)' : 'none',
-                            boxShadow: room && room.host_user_id === uid ? '0 0 6px rgba(255, 159, 28, 0.4)' : 'none'
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            const fallback = e.currentTarget.parentElement.querySelector('.listener-avatar-fallback');
+                            if (fallback) fallback.style.display = 'flex';
                           }}
-                        >
-                          {initials(user.display_name)}
-                        </div>
-                      )}
+                        />
+                      ) : null}
+                      <div 
+                        className="avatar avatar-sm listener-avatar-fallback"
+                        style={{ 
+                          backgroundColor: nameColor(user.display_name), 
+                          width: '24px', 
+                          height: '24px', 
+                          borderRadius: '50%', 
+                          display: user.avatar_url ? 'none' : 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center', 
+                          fontSize: '11px', 
+                          fontWeight: 'bold',
+                          border: room && room.host_user_id === uid ? '1.5px solid var(--amber, #ff9f1c)' : 'none',
+                          boxShadow: room && room.host_user_id === uid ? '0 0 6px rgba(255, 159, 28, 0.4)' : 'none'
+                        }}
+                      >
+                        {initials(user.display_name)}
+                      </div>
                       <span className="member-name">
                         {user.display_name}
                         {me && uid === me.id && <span className="member-you"> (you)</span>}
