@@ -128,5 +128,11 @@ async def get_cobalt_stream_url(video_id: str) -> Optional[str]:
         for task in tasks:
             if not task.done():
                 task.cancel()
+        if tasks:
+            try:
+                await asyncio.gather(*tasks, return_exceptions=True)
+            except Exception:
+                pass
                 
     return url
+

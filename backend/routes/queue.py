@@ -485,6 +485,29 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
             except Exception as e:
                 logger.warning(f"Invidious/Piped fallback failed for {video_id}: {e}")
 
+        # Fallback to yt-dlp if Invidious and Cobalt both fail
+        if not url:
+            logger.info(f"Invidious/Piped failed to resolve stream for {video_id}, falling back to yt-dlp...")
+            try:
+                import yt_dlp
+                loop = asyncio.get_running_loop()
+                def extract():
+                    ydl_opts = {
+                        "format": "bestaudio/best",
+                        "quiet": True,
+                        "no_warnings": True,
+                        "nocheckcertificate": True,
+                        "ignoreerrors": True,
+                        "skip_download": True,
+                    }
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        return ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+                info = await loop.run_in_executor(None, extract)
+                if info:
+                    url = info.get("url")
+            except Exception as e:
+                logger.warning(f"yt-dlp extraction fallback failed for {video_id}: {e}")
+
         if url:
             _prune_url_cache()
             _url_cache[cache_key] = (url, time.time() + _URL_CACHE_TTL)
@@ -588,6 +611,12 @@ async def stream_audio(video_id: str, request: Request, low: bool = False, nocac
                 report_stream_failure(url)
                 if cache_key in _url_cache:
                     del _url_cache[cache_key]
+                if redis_store.client:
+                    try:
+                        redis_store.client.delete(f"openjam:url:{cache_key}")
+                        logger.info(f"Evicted invalid stream URL for {cache_key} from Redis")
+                    except Exception:
+                        pass
                 last_error_detail = f"Upstream returned status {r.status_code}"
                 continue
 
@@ -684,6 +713,11 @@ async def stream_audio(video_id: str, request: Request, low: bool = False, nocac
             report_stream_failure(url)
             if cache_key in _url_cache:
                 del _url_cache[cache_key]
+            if redis_store.client:
+                try:
+                    redis_store.client.delete(f"openjam:url:{cache_key}")
+                except Exception:
+                    pass
             last_error_detail = f"Upstream connection failed: {e}"
             continue
 

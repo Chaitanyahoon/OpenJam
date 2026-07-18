@@ -627,6 +627,18 @@ export default class YouTubePlayer {
     if (this._useIFrame) {
       if (this.ytPlayer && this._ready) {
         this.ytPlayer.loadVideoById({ videoId, startSeconds });
+        if (this._iframeAutoplayCheck) clearTimeout(this._iframeAutoplayCheck);
+        this._iframeAutoplayCheck = setTimeout(() => {
+          if (this._useIFrame && this.ytPlayer && typeof this.ytPlayer.getPlayerState === 'function') {
+            const state = this.ytPlayer.getPlayerState();
+            if (state !== 1 && state !== 3 && this.isPlaying) {
+              console.warn("YouTube IFrame autoplay blocked (state:", state, "), showing unlock overlay");
+              this._userUnlocked = false;
+              this._pendingPlayAfterUnlock = { videoId, startSeconds: Math.round(this.positionMs / 1000) };
+              this._showOverlay();
+            }
+          }
+        }, 2500);
       } else {
         this._pendingLoad = { videoId, startSeconds };
         if (!this.ytPlayer) this._initIFramePlayer();

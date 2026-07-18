@@ -2000,7 +2000,7 @@ export default function RoomClient({ roomId }) {
       )}
 
       {/* ══ ROOM CONTENT — Premium Tabbed 2-Column Layout ════════════ */}
-      <div className="room-content" id="room-grid">
+      <div className={`room-content ${activeTab !== 'playing' && nowPlaying ? 'has-mini-player' : ''}`} id="room-grid">
         
         <div 
           className={`room-now-playing ${activeTab === 'playing' ? 'tab-active' : ''}`} 

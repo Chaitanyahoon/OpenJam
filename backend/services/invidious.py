@@ -194,18 +194,33 @@ async def _health_check_instances_bg():
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             }
-            async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as client:
+            async with httpx.AsyncClient(timeout=5.5, follow_redirects=True) as client:
+                # 1. Real functional test: can it retrieve metadata for a popular video?
+                try:
+                    r = await client.get(f"{url}/api/v1/videos/dQw4w9WgXcQ", headers=headers)
+                    if r.status_code == 200:
+                        data = r.json()
+                        if data.get("title"):
+                            _instance_health[url] = {
+                                "score": 100,
+                                "failures": 0,
+                                "last_check": now,
+                                "latency_ms": r.elapsed.total_seconds() * 1000,
+                            }
+                            return True
+                except Exception:
+                    pass
+
+                # 2. Status fallback: is the API server online at least?
                 r = await client.get(f"{url}/api/v1/status", headers=headers)
                 if r.status_code == 200:
-                    data = r.json()
-                    if data.get("version"):
-                        _instance_health[url] = {
-                            "score": 100,
-                            "failures": 0,
-                            "last_check": now,
-                            "latency_ms": r.elapsed.total_seconds() * 1000,
-                        }
-                        return True
+                    _instance_health[url] = {
+                        "score": 80,  # Slightly lower score since video extraction wasn't verified
+                        "failures": 0,
+                        "last_check": now,
+                        "latency_ms": r.elapsed.total_seconds() * 1000,
+                    }
+                    return True
         except Exception:
             pass
         health = _get_instance_health(url)
@@ -357,6 +372,10 @@ async def get_stream_url(video_id: str) -> Optional[str]:
                     headers=headers,
                 )
                 if r.status_code != 200:
+                    if r.status_code in (429, 403, 500, 502, 503):
+                        health = _get_instance_health(instance)
+                        health["failures"] += 1
+                        health["score"] = max(0, health.get("score", 100) - 15)
                     return None
 
                 data = r.json()
@@ -394,6 +413,10 @@ async def get_stream_url(video_id: str) -> Optional[str]:
             async with httpx.AsyncClient(timeout=6.0, follow_redirects=True) as client:
                 r = await client.get(f"{instance}/streams/{video_id}", headers=headers)
                 if r.status_code != 200:
+                    if r.status_code in (429, 403, 500, 502, 503):
+                        health = _get_piped_health(instance)
+                        health["failures"] += 1
+                        health["score"] = max(0, health.get("score", 100) - 15)
                     return None
                 data = r.json()
                 audio_streams = data.get("audioStreams", [])

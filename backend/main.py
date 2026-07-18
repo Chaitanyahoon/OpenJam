@@ -277,6 +277,13 @@ async def lifespan(app):
     cleanup_task = asyncio.create_task(_room_cleanup_loop())
     sync_task = asyncio.create_task(_playlist_auto_sync_loop())
     
+    # Eagerly check and warm up Invidious/Piped instances on startup
+    try:
+        from backend.services.invidious import trigger_health_check_if_needed
+        trigger_health_check_if_needed()
+    except Exception as e:
+        logger.warning(f"Failed to eagerly start Invidious health check: {e}")
+        
     logger.info("Open Jam startup complete")
     yield
     cleanup_task.cancel()
