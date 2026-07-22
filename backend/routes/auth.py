@@ -276,10 +276,11 @@ async def discord_callback(request: Request, code: str = ""):
             discord_user = user_resp.json()
 
         discord_id = discord_user["id"]
-        discord_username = discord_user.get("global_name") or discord_user.get("username", "Jammer")
+        raw_discord_handle = discord_user.get("username", "Jammer")
+        discord_display_name = discord_user.get("global_name") or raw_discord_handle
         discord_avatar_hash = discord_user.get("avatar")
 
-        log_auth_event(f"discord_callback: fetched user '{discord_username}' (id={discord_id})")
+        log_auth_event(f"discord_callback: fetched user handle='@{raw_discord_handle}' display='{discord_display_name}' (id={discord_id})")
 
         # Build avatar URL
         if discord_avatar_hash:
@@ -299,14 +300,14 @@ async def discord_callback(request: Request, code: str = ""):
             user = db.query(User).filter(User.discord_id == discord_id).first()
             if user:
                 # Update existing user's profile (preserving custom display name and avatar)
-                user.discord_username = discord_username
+                user.discord_username = raw_discord_handle
                 if not user.display_name:
-                    user.display_name = discord_username
+                    user.display_name = discord_display_name
                 if not user.avatar_url:
                     user.avatar_url = avatar_url
                 if not user.username:
                     import re
-                    base_clean = re.sub(r'[^a-zA-Z0-9_]', '', discord_username).lower()
+                    base_clean = re.sub(r'[^a-zA-Z0-9_]', '', raw_discord_handle).lower()
                     if not base_clean or len(base_clean) < 3:
                         base_clean = "jammer"
                     base_clean = base_clean[:15]
@@ -330,7 +331,7 @@ async def discord_callback(request: Request, code: str = ""):
                 
                 # Generate default username
                 import re
-                base_clean = re.sub(r'[^a-zA-Z0-9_]', '', discord_username).lower()
+                base_clean = re.sub(r'[^a-zA-Z0-9_]', '', raw_discord_handle).lower()
                 if not base_clean or len(base_clean) < 3:
                     base_clean = "jammer"
                 base_clean = base_clean[:15]
@@ -344,15 +345,15 @@ async def discord_callback(request: Request, code: str = ""):
                 
                 user = User(
                     id=user_id,
-                    display_name=discord_username,
+                    display_name=discord_display_name,
                     avatar_url=avatar_url,
                     discord_id=discord_id,
-                    discord_username=discord_username,
+                    discord_username=raw_discord_handle,
                     username=candidate,
                 )
                 db.add(user)
                 db.commit()
-                display_name = discord_username
+                display_name = discord_display_name
                 log_auth_event(f"discord_callback: created new user in DB (id={user_id})")
         finally:
             db.close()

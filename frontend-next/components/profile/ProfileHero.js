@@ -28,6 +28,14 @@ const BANNER_GRADIENTS = {
   vinyl: { name: 'Retro Vinyl', style: () => 'linear-gradient(135deg, #1f2937 0%, #111827 50%, #030712 100%)' }
 };
 
+const PRESET_BANNER_IMAGES = [
+  { name: 'Neon Cyberpunk', url: 'https://images.unsplash.com/photo-1508739773434-c26b3d09e071?auto=format&fit=crop&w=1200&q=80' },
+  { name: 'Cosmic Space', url: 'https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?auto=format&fit=crop&w=1200&q=80' },
+  { name: 'Sunset Lofi', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80' },
+  { name: 'Retro Vinyl', url: 'https://images.unsplash.com/photo-1539375665275-f9de415ef9ac?auto=format&fit=crop&w=1200&q=80' },
+  { name: 'Synthwave Lights', url: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?auto=format&fit=crop&w=1200&q=80' }
+];
+
 const isValidImageUrl = (url) => {
   if (!url) return false;
   const u = url.trim();
@@ -35,8 +43,8 @@ const isValidImageUrl = (url) => {
     return false;
   }
   try {
-    new URL(u);
-    return true;
+    const parsed = new URL(u);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
   } catch (_) {
     return false;
   }
@@ -345,8 +353,10 @@ export default function ProfileHero({
     ? new Date(profile.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
     : 'N/A';
 
+  const activeAccent = THEME_COLORS[showSettings ? previewTheme : theme]?.color || '#ff9f1c';
+
   return (
-    <div className="profile-hero">
+    <div className="profile-hero" style={{ '--theme-accent': activeAccent }}>
       {/* Banner */}
       <div 
         className="profile-hero-banner" 
@@ -683,13 +693,46 @@ export default function ProfileHero({
                     </div>
                     {isUrlInvalid ? (
                       <div style={{ color: '#ff4757', fontSize: '10px', marginTop: '6px', fontWeight: 600 }}>
-                        Enter a valid direct image URL (e.g. .png, .jpg, .gif, or from Pinterest/Discord).
+                        Enter a valid direct image URL (e.g. .png, .jpg, .gif, or from Pinterest/Discord/Unsplash).
                       </div>
                     ) : (
                       <div style={{ color: '#555', fontSize: '10px', marginTop: '6px', lineHeight: 1.3 }}>
-                        Supports direct image links (.png, .jpg, .gif, .webp) and animated GIFs.
+                        Supports direct image links (.png, .jpg, .gif, .webp), Discord CDN, Pinterest pins, and animated GIFs.
                       </div>
                     )}
+                    <div style={{ marginTop: '8px' }}>
+                      <div style={{ fontSize: '10px', color: '#666', fontWeight: 700, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Preset Banner Images</div>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        {PRESET_BANNER_IMAGES.map((preset) => (
+                          <button
+                            key={preset.name}
+                            type="button"
+                            onClick={() => {
+                              setCustomBannerUrl(preset.url);
+                              setPreviewBannerPreset('custom');
+                              setPreviewBannerUrl(preset.url);
+                              setPreviewBannerPosition('50%');
+                              setPreviewBannerScale('100%');
+                            }}
+                            style={{
+                              background: 'rgba(255,255,255,0.04)',
+                              border: '1px solid rgba(255,255,255,0.08)',
+                              color: '#bbb',
+                              padding: '4px 10px',
+                              borderRadius: '12px',
+                              fontSize: '10px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              transition: 'all 0.15s'
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; e.currentTarget.style.color = '#fff'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = '#bbb'; }}
+                          >
+                            🖼️ {preset.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 );
               })()}
@@ -1030,8 +1073,26 @@ export default function ProfileHero({
                     </button>
                   )}
                 </div>
-                <div className="profile-hero-username-handle">
-                  @{profile?.username || profile?.discord_username || 'user'}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '2px' }}>
+                  <div className="profile-hero-username-handle" style={{ color: 'var(--theme-accent, #ff9f1c)', fontWeight: 700 }}>
+                    @{profile?.username || 'user'}
+                  </div>
+                  {profile?.discord_username && (
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontSize: '11px',
+                      background: 'rgba(88, 101, 242, 0.15)',
+                      border: '1px solid rgba(88, 101, 242, 0.3)',
+                      color: '#5865F2',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      fontWeight: 600
+                    }}>
+                      <Disc size={11} /> Discord: @{profile.discord_username}
+                    </span>
+                  )}
                 </div>
               </div>
             )}
