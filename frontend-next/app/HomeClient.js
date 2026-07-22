@@ -339,20 +339,25 @@ export default function HomePage() {
   }, []);
 
   // Filter & Search
-  const filteredRooms = rooms.filter((r) => {
-    const matchQuery =
-      r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (r.genre_tags || []).some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchGenre = !activeGenreFilter || (r.genre_tags || []).includes(activeGenreFilter);
-    return matchQuery && matchGenre;
-  });
+  const filteredRooms = useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    return rooms.filter((r) => {
+      const matchQuery =
+        !q ||
+        r.name.toLowerCase().includes(q) ||
+        (r.genre_tags || []).some((t) => t.toLowerCase().includes(q));
+      const matchGenre = !activeGenreFilter || (r.genre_tags || []).includes(activeGenreFilter);
+      return matchQuery && matchGenre;
+    });
+  }, [rooms, searchQuery, activeGenreFilter]);
 
-  const dynamicFilterGenres = Array.from(
+  const dynamicFilterGenres = useMemo(() => Array.from(
     new Set(rooms.reduce((acc, curr) => acc.concat(curr.genre_tags || []), []))
-  ).sort();
-  const publicRooms = rooms.filter((room) => !room.is_private).length;
-  const privateRooms = rooms.length - publicRooms;
-  const totalListeners = rooms.reduce((sum, room) => sum + (room.listener_count || 0), 0);
+  ).sort(), [rooms]);
+
+  const publicRooms = useMemo(() => rooms.filter((room) => !room.is_private).length, [rooms]);
+  const privateRooms = useMemo(() => rooms.length - publicRooms, [rooms, publicRooms]);
+  const totalListeners = useMemo(() => rooms.reduce((sum, room) => sum + (room.listener_count || 0), 0), [rooms]);
 
   // Helpers
   const triggerToast = (msg, type = 'info') => {
@@ -721,7 +726,11 @@ export default function HomePage() {
       });
       if (r.ok) {
         const data = await r.json();
-        window.location.href = `/room/${data.room.id}?created=true`;
+        setShowCreateModal(false);
+        triggerToast('Jam Room created! Entering room...', 'success');
+        setTimeout(() => {
+          window.location.href = `/room/${data.room.id}?created=true`;
+        }, 150);
       } else {
         const err = await r.json();
         throw new Error(err.detail || 'Failed to create room');

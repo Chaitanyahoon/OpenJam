@@ -10,12 +10,12 @@ const backdropVariants = {
 };
 
 const modalVariants = {
-  hidden: { opacity: 0, scale: 0.92, y: 40 },
+  hidden: { opacity: 0, scale: 0.94, y: 30 },
   visible: {
     opacity: 1, scale: 1, y: 0,
-    transition: { type: 'spring', stiffness: 350, damping: 30 },
+    transition: { type: 'spring', stiffness: 400, damping: 32 },
   },
-  exit: { opacity: 0, scale: 0.92, y: 30, transition: { duration: 0.2 } },
+  exit: { opacity: 0, scale: 0.94, y: 20, transition: { duration: 0.15, ease: 'easeOut' } },
 };
 
 const availableTags = [

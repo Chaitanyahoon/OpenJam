@@ -14,6 +14,8 @@ from backend.schemas import CreateRoomRequest, RoomListResponse
 router = APIRouter(prefix="/rooms", tags=["rooms"])
 
 
+import asyncio
+
 @router.get("", response_model=RoomListResponse)
 async def list_rooms(
     request: Request,
@@ -22,55 +24,56 @@ async def list_rooms(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
 ):
-    query = db.query(Room).options(selectinload(Room.host)).filter(Room.is_active == True)
-    if search:
-        escaped_search = search.strip().lower().replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
-        query = query.filter(Room.name.ilike(f"%{escaped_search}%", escape='\\'))
-
-
-    rooms = query.order_by(Room.created_at.desc()).all()
-
-    listener_counts = room_manager.get_listener_counts()
-    
-    from datetime import datetime, timezone
-    now = datetime.now(timezone.utc)
-
-    # Get current user for ghost-room exception
-    from backend.middleware.auth import get_current_user_id
     current_user = get_current_user_id(request, include_name=True)
     current_user_id = current_user["id"] if current_user else None
 
-    visible_rooms = []
-    for room in rooms:
-        count = listener_counts.get(room.id, 0)
+    def _db_list_rooms():
+        query = db.query(Room).options(selectinload(Room.host)).filter(Room.is_active == True)
+        if search:
+            escaped_search = search.strip().lower().replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+            query = query.filter(Room.name.ilike(f"%{escaped_search}%", escape='\\'))
+
+        rooms = query.order_by(Room.created_at.desc()).all()
+        listener_counts = room_manager.get_listener_counts()
         
-        # Hide empty rooms unless:
-        # 1. They were just created (< 30 seconds ago), OR
-        # 2. The current user is the host (prevents ghost room for the creator)
-        age_seconds = float('inf')
-        if room.created_at:
-            try:
-                dt = room.created_at
-                if isinstance(dt, str):
-                    from datetime import datetime
-                    dt = datetime.fromisoformat(dt.replace('Z', '+00:00'))
-                age_seconds = (now - dt.replace(tzinfo=timezone.utc)).total_seconds()
-            except Exception:
-                pass
-        is_my_room = current_user_id and room.host_user_id == current_user_id
-        if count == 0 and age_seconds > 30 and not is_my_room:
-            continue
-            
-        host_name = room.host.display_name if room.host else "Unknown"
-        now_playing = queue_manager.get_now_playing(db, room.id)
-        visible_rooms.append(room.to_dict(
-            listener_count=count,
-            current_track=now_playing,
-            host_name=host_name,
-        ))
-    visible_rooms.sort(key=lambda r: r["listener_count"], reverse=True)
-    total = len(visible_rooms)
-    return {"rooms": visible_rooms[skip:skip + limit], "total": total}
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+
+        visible_rooms = []
+        for room in rooms:
+            count = listener_counts.get(room.id, 0)
+            age_seconds = float('inf')
+            if room.created_at:
+                try:
+                    dt = room.created_at
+                    if isinstance(dt, str):
+                        from datetime import datetime
+                        dt = datetime.fromisoformat(dt.replace('Z', '+00:00'))
+                    age_seconds = (now - dt.replace(tzinfo=timezone.utc)).total_seconds()
+                except Exception:
+                    pass
+            is_my_room = current_user_id and room.host_user_id == current_user_id
+            if count == 0 and age_seconds > 30 and not is_my_room:
+                continue
+                
+            host_name = room.host.display_name if room.host else "Unknown"
+            now_playing = queue_manager.get_now_playing(db, room.id)
+            visible_rooms.append(room.to_dict(
+                listener_count=count,
+                current_track=now_playing,
+                host_name=host_name,
+            ))
+        visible_rooms.sort(key=lambda r: r["listener_count"], reverse=True)
+        total = len(visible_rooms)
+        return {"rooms": visible_rooms[skip:skip + limit], "total": total}
+
+    return await asyncio.to_thread(_db_list_rooms)
+
+
+def _hash_password(raw_password: str) -> str:
+    import bcrypt
+    return bcrypt.hashpw(raw_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
 
 @router.post("")
 async def create_room(request: Request, create_room_req: CreateRoomRequest, db: Session = Depends(get_db)):
@@ -82,50 +85,51 @@ async def create_room(request: Request, create_room_req: CreateRoomRequest, db: 
     user_id = user_data["id"]
     display_name = user_data["display_name"]
 
-    # Clean up ghost rooms: deactivate any of this user's rooms with 0 listeners
-    listener_counts = room_manager.get_listener_counts()
-    user_rooms = db.query(Room).filter(Room.host_user_id == user_id, Room.is_active == True).all()
-    for r in user_rooms:
-        count = listener_counts.get(r.id, 0)
-        if count == 0:
-            r.is_active = False
-
-    # Ensure a User row exists so the Room FK is satisfied
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        user = User(id=user_id, display_name=display_name, avatar_url=user_data.get("avatar_url"))
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-    else:
-        user.display_name = display_name
-        if user_data.get("avatar_url"):
-            user.avatar_url = user_data.get("avatar_url")
-        db.commit()
-        db.refresh(user)
-
-    import bcrypt
     password_hash = None
     is_private = False
     if create_room_req.password:
-        password_hash = bcrypt.hashpw(create_room_req.password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        password_hash = await asyncio.to_thread(_hash_password, create_room_req.password)
         is_private = True
 
+    def _db_create_room():
+        # Clean up ghost rooms: deactivate any of this user's rooms with 0 listeners
+        listener_counts = room_manager.get_listener_counts()
+        user_rooms = db.query(Room).filter(Room.host_user_id == user_id, Room.is_active == True).all()
+        for r in user_rooms:
+            count = listener_counts.get(r.id, 0)
+            if count == 0:
+                r.is_active = False
 
-    room = Room(
-        name=create_room_req.name,
-        host_user_id=user_id,
-        genre_tags=json.dumps(create_room_req.genre_tags),
-        description=create_room_req.description,
-        queue_mode=create_room_req.queue_mode,
-        password_hash=password_hash,
-        is_private=is_private,
-    )
-    db.add(room)
-    db.commit()
-    db.refresh(room)
+        # Ensure a User row exists so the Room FK is satisfied
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            user = User(id=user_id, display_name=display_name, avatar_url=user_data.get("avatar_url"))
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+        else:
+            user.display_name = display_name
+            if user_data.get("avatar_url"):
+                user.avatar_url = user_data.get("avatar_url")
+            db.commit()
+            db.refresh(user)
 
-    return {"room": room.to_dict(host_name=display_name, host_avatar_url=user_data.get("avatar_url"))}
+        room = Room(
+            name=create_room_req.name,
+            host_user_id=user_id,
+            genre_tags=json.dumps(create_room_req.genre_tags),
+            description=create_room_req.description,
+            queue_mode=create_room_req.queue_mode,
+            password_hash=password_hash,
+            is_private=is_private,
+        )
+        db.add(room)
+        db.commit()
+        db.refresh(room)
+        return room.to_dict(host_name=display_name, host_avatar_url=user_data.get("avatar_url"))
+
+    room_dict = await asyncio.to_thread(_db_create_room)
+    return {"room": room_dict}
 def check_room_access(room: Room, user_id: str | None) -> bool:
     """Check if user_id is authorized to access/modify private room details.
     

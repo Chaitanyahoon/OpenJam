@@ -51,8 +51,22 @@ class MusicSearchService:
         q = query.strip().lower()
         cache_key = f"{q}_{limit}"
         if cache_key in self._search_cache:
-            logger.debug(f"Search results for '{query}' retrieved from cache")
+            logger.debug(f"Search results for '{query}' retrieved from memory cache")
             return self._search_cache[cache_key]
+
+        # Check Redis cache
+        try:
+            from backend.services.redis_store import RedisStore
+            redis_store = RedisStore()
+            if redis_store.client:
+                cached_data = redis_store.client.get(f"openjam:search:{cache_key}")
+                if cached_data:
+                    tracks = json.loads(cached_data)
+                    self._search_cache[cache_key] = tracks
+                    logger.debug(f"Search results for '{query}' retrieved from Redis cache")
+                    return tracks
+        except Exception as e:
+            logger.warning(f"Failed to check Redis search cache: {e}")
 
         async def _search_itunes():
             params = urllib.parse.urlencode({
@@ -113,12 +127,21 @@ class MusicSearchService:
 
         logger.debug(f"Combined search '{query}' → {len(tracks)} results")
 
-        self._search_cache[cache_key] = tracks[:limit]
+        final_tracks = tracks[:limit]
+        self._search_cache[cache_key] = final_tracks
         if len(self._search_cache) > 200:
             first_key = next(iter(self._search_cache))
             self._search_cache.pop(first_key, None)
 
-        return tracks[:limit]
+        try:
+            from backend.services.redis_store import RedisStore
+            redis_store = RedisStore()
+            if redis_store.client and final_tracks:
+                redis_store.client.setex(f"openjam:search:{cache_key}", 86400, json.dumps(final_tracks))
+        except Exception as e:
+            logger.warning(f"Failed to save search results to Redis: {e}")
+
+        return final_tracks
 
     def _search_via_ytmusic(self, query: str, limit: int = 10) -> list:
         """Search YouTube Music as a fallback when iTunes returns no results."""

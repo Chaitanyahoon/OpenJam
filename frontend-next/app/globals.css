@@ -10182,6 +10182,11 @@ body:not(.room-page) .navbar:hover {
   body.mini-player-active .room-content {
     height: calc(100dvh - 200px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) !important;
   }
+
+  button, a, .btn, .pill, .room-card, .modal-box {
+    touch-action: manipulation !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
 }
 
 /* Premium iOS-style Toggle Switch */
