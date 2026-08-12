@@ -10,7 +10,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Request, Depends, HTTPException
-from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
+from fastapi.responses import StreamingResponse, FileResponse
 import httpx
 from sqlalchemy.orm import Session
 from backend.database import get_db
@@ -405,11 +405,19 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
 
     cache_key = f"{video_id}_low" if low else video_id
 
-    # Fast path check outside lock: instant return on cache hit (no blocking HEAD probe)
+    # Fast path check outside lock
     if cache_key in _url_cache:
         url, expiry = _url_cache[cache_key]
         if time.time() < expiry:
-            return url
+            if await _is_url_valid(url):
+                return url
+            logger.info(f"Evicting invalid memory-cached stream URL for {cache_key}")
+            del _url_cache[cache_key]
+            if redis_store.client:
+                try:
+                    redis_store.client.delete(f"openjam:url:{cache_key}")
+                except Exception:
+                    pass
         else:
             del _url_cache[cache_key]
 
@@ -417,20 +425,31 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
         try:
             cached_url = redis_store.client.get(f"openjam:url:{cache_key}")
             if cached_url:
-                _url_cache[cache_key] = (cached_url, time.time() + _URL_CACHE_TTL)
-                logger.info(f"Resolved stream URL for {cache_key} instantly from Redis cache")
-                return cached_url
+                if await _is_url_valid(cached_url):
+                    _url_cache[cache_key] = (cached_url, time.time() + _URL_CACHE_TTL)
+                    logger.info(f"Resolved stream URL for {cache_key} from Redis cache")
+                    return cached_url
+                logger.info(f"Evicting invalid Redis-cached stream URL for {cache_key}")
+                redis_store.client.delete(f"openjam:url:{cache_key}")
         except Exception as e:
             logger.warning(f"Failed to retrieve stream URL from Redis for {cache_key}: {e}")
 
     # Acquire resolve lock for this video ID to serialize concurrent requests
     resolve_lock = await get_resolve_lock(video_id)
     async with resolve_lock:
-        # Check cache again inside lock
+        # Check cache again inside lock in case another task resolved it while we were waiting
         if cache_key in _url_cache:
             url, expiry = _url_cache[cache_key]
             if time.time() < expiry:
-                return url
+                if await _is_url_valid(url):
+                    return url
+                logger.info(f"Evicting invalid memory-cached stream URL (inside lock) for {cache_key}")
+                del _url_cache[cache_key]
+                if redis_store.client:
+                    try:
+                        redis_store.client.delete(f"openjam:url:{cache_key}")
+                    except Exception:
+                        pass
             else:
                 del _url_cache[cache_key]
 
@@ -438,44 +457,37 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
             try:
                 cached_url = redis_store.client.get(f"openjam:url:{cache_key}")
                 if cached_url:
-                    _url_cache[cache_key] = (cached_url, time.time() + _URL_CACHE_TTL)
-                    return cached_url
+                    if await _is_url_valid(cached_url):
+                        _url_cache[cache_key] = (cached_url, time.time() + _URL_CACHE_TTL)
+                        logger.info(f"Resolved stream URL for {cache_key} from Redis cache (inside lock)")
+                        return cached_url
+                    logger.info(f"Evicting invalid Redis-cached stream URL (inside lock) for {cache_key}")
+                    redis_store.client.delete(f"openjam:url:{cache_key}")
             except Exception:
                 pass
 
-        logger.info(f"Racing Invidious/Piped and Cobalt concurrently for {video_id}")
+        logger.info(f"Resolving stream URL using Cobalt for {video_id}")
         url = None
-        from backend.services.invidious import get_stream_url as get_invidious_stream_url
-        from backend.services.cobalt import get_cobalt_stream_url
+        try:
+            from backend.services.cobalt import get_cobalt_stream_url
+            url = await asyncio.wait_for(get_cobalt_stream_url(video_id), timeout=12.0)
+        except asyncio.TimeoutError:
+            logger.warning(f"Cobalt resolution timed out after 12.0s for {video_id}")
+        except Exception as e:
+            logger.warning(f"Cobalt failed for {video_id}: {e}")
 
-        async def _resolve_invidious():
-            try:
-                return await asyncio.wait_for(get_invidious_stream_url(video_id), timeout=4.5)
-            except Exception:
-                return None
-
-        async def _resolve_cobalt():
-            try:
-                return await asyncio.wait_for(get_cobalt_stream_url(video_id), timeout=4.5)
-            except Exception:
-                return None
-
-        tasks = [asyncio.create_task(_resolve_invidious()), asyncio.create_task(_resolve_cobalt())]
-        for completed in asyncio.as_completed(tasks):
-            try:
-                res_url = await completed
-                if res_url:
-                    url = res_url
-                    for t in tasks:
-                        if not t.done():
-                            t.cancel()
-                    break
-            except Exception:
-                pass
-
-        # Fast fallback to yt-dlp if parallel race returned nothing
+        # Fallback to Invidious/Piped stream URL resolver if Cobalt fails
         if not url:
-            logger.info(f"Parallel resolvers failed for {video_id}, falling back to fast yt-dlp...")
+            logger.info(f"Cobalt failed to resolve stream for {video_id}, falling back to Invidious/Piped...")
+            try:
+                from backend.services.invidious import get_stream_url as get_invidious_stream_url
+                url = await asyncio.wait_for(get_invidious_stream_url(video_id), timeout=10.0)
+            except Exception as e:
+                logger.warning(f"Invidious/Piped fallback failed for {video_id}: {e}")
+
+        # Fallback to yt-dlp if Invidious and Cobalt both fail
+        if not url:
+            logger.info(f"Invidious/Piped failed to resolve stream for {video_id}, falling back to yt-dlp...")
             try:
                 import yt_dlp
                 loop = asyncio.get_running_loop()
@@ -487,15 +499,14 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
                         "nocheckcertificate": True,
                         "ignoreerrors": True,
                         "skip_download": True,
-                        "socket_timeout": 5,
                     }
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                         return ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
-                info = await asyncio.wait_for(loop.run_in_executor(None, extract), timeout=5.0)
+                info = await loop.run_in_executor(None, extract)
                 if info:
                     url = info.get("url")
             except Exception as e:
-                logger.warning(f"yt-dlp fallback failed for {video_id}: {e}")
+                logger.warning(f"yt-dlp extraction fallback failed for {video_id}: {e}")
 
         if url:
             _prune_url_cache()
@@ -557,18 +568,30 @@ async def stream_audio(video_id: str, request: Request, low: bool = False, nocac
                     headers={"Accept-Ranges": "bytes"}
                 )
 
-    # Fallback: CDN stream URL resolution
-    url = await _resolve_audio_url(video_id, low=low)
-    if not url:
-        raise HTTPException(status_code=404, detail="Could not extract audio stream")
+    # Fallback: Live streaming from YouTube
+    cache_key = f"{video_id}_low" if low else video_id
+    if nocache:
+        if cache_key in _url_cache:
+            try:
+                del _url_cache[cache_key]
+                logger.info(f"Invalidated stream local cache for {cache_key} due to nocache=true")
+            except KeyError:
+                pass
+        if redis_store.client:
+            try:
+                redis_store.client.delete(f"openjam:url:{cache_key}")
+                logger.info(f"Invalidated stream Redis cache for {cache_key} due to nocache=true")
+            except Exception as e:
+                logger.warning(f"Failed to delete stream URL from Redis for {cache_key}: {e}")
 
-    # Trigger background track caching so subsequent requests serve directly from local disk
-    asyncio.create_task(download_and_cache_track(video_id))
+    max_attempts = 2
+    last_error_detail = "Could not extract stream"
 
-    # Direct Google Video URLs block browser CORS and cause 'MEDIA_ELEMENT_ERROR: Format error' in HTML5 <audio>.
-    # Proxy raw googlevideo.com URLs through FastAPI with proper CORS and media headers.
-    if "googlevideo.com" in url:
-        client = _get_stream_client()
+    for attempt in range(1, max_attempts + 1):
+        url = await _resolve_audio_url(video_id, low=low)
+        if not url:
+            raise HTTPException(status_code=404, detail="Could not extract stream")
+
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
@@ -576,34 +599,129 @@ async def stream_audio(video_id: str, request: Request, low: bool = False, nocac
         if range_header:
             headers["Range"] = range_header
 
+        client = _get_stream_client()
         try:
+            logger.info(f"Streaming live from url: {url} (attempt {attempt}/{max_attempts})")
             req = client.build_request("GET", url, headers=headers)
             r = await client.send(req, stream=True)
 
-            if r.status_code in (200, 206):
-                media_type = r.headers.get("Content-Type", "audio/webm")
-                resp_headers = {
-                    "Accept-Ranges": "bytes",
-                    "Access-Control-Allow-Origin": "*",
-                }
-                if "Content-Range" in r.headers:
-                    resp_headers["Content-Range"] = r.headers["Content-Range"]
-                if "Content-Length" in r.headers:
-                    resp_headers["Content-Length"] = r.headers["Content-Length"]
-
-                async def iterfile():
+            if r.status_code not in (200, 206):
+                await r.aclose()
+                logger.warning(f"Upstream returned status {r.status_code} for {video_id} on attempt {attempt}")
+                report_stream_failure(url)
+                if cache_key in _url_cache:
+                    del _url_cache[cache_key]
+                if redis_store.client:
                     try:
-                        async for chunk in r.aiter_bytes(chunk_size=65536):
-                            yield chunk
-                    finally:
-                        await r.aclose()
+                        redis_store.client.delete(f"openjam:url:{cache_key}")
+                        logger.info(f"Evicted invalid stream URL for {cache_key} from Redis")
+                    except Exception:
+                        pass
+                last_error_detail = f"Upstream returned status {r.status_code}"
+                continue
 
-                return StreamingResponse(iterfile(), status_code=r.status_code, media_type=media_type, headers=resp_headers)
+            resp_headers = {
+                "Accept-Ranges": "bytes",
+                "Content-Type": r.headers.get("Content-Type", "audio/webm"),
+            }
+            if "Content-Range" in r.headers:
+                resp_headers["Content-Range"] = r.headers["Content-Range"]
+            if "Content-Length" in r.headers:
+                resp_headers["Content-Length"] = r.headers["Content-Length"]
+
+            # Determine if we should attempt on-the-fly caching
+            content_range = r.headers.get("Content-Range", "")
+            starts_at_zero = (r.status_code == 200) or (r.status_code == 206 and content_range.strip().startswith("bytes 0-"))
+            
+            temp_path = None
+            f_cache = None
+            
+            if starts_at_zero:
+                ext = "webm"
+                if "mime=audio/mp4" in url or "ext=m4a" in url or ".m4a" in url:
+                    ext = "m4a"
+                elif "mime=audio/webm" in url or "ext=webm" in url or ".webm" in url:
+                    ext = "webm"
+                
+                final_path = CACHE_DIR / f"{cache_key}.{ext}"
+                if not final_path.exists():
+                    temp_path = CACHE_DIR / f"{cache_key}.{ext}.{uuid.uuid4().hex}.tmp"
+                    try:
+                        f_cache = open(temp_path, "wb")
+                        logger.info(f"Started on-the-fly streaming cache for {video_id} to {temp_path}")
+                    except Exception as e:
+                        logger.warning(f"Could not open temp file for streaming cache: {e}")
+                        f_cache = None
+                        temp_path = None
+
+            completed = False
+            async def generate():
+                nonlocal completed, f_cache, temp_path
+                bytes_written = 0
+                try:
+                    async for chunk in r.aiter_bytes(chunk_size=32768):
+                        yield chunk
+                        if f_cache:
+                            try:
+                                f_cache.write(chunk)
+                                bytes_written += len(chunk)
+                            except Exception as e:
+                                logger.warning(f"Error writing chunk to on-the-fly cache: {e}")
+                                try:
+                                    f_cache.close()
+                                except Exception:
+                                    pass
+                                f_cache = None
+                                if temp_path and temp_path.exists():
+                                    try: os.remove(temp_path)
+                                    except Exception: pass
+                    completed = True
+                finally:
+                    await r.aclose()
+                    if f_cache:
+                        try:
+                            f_cache.close()
+                            if completed and temp_path and temp_path.exists() and bytes_written > 500000:
+                                ext = "webm"
+                                if "mime=audio/mp4" in url or "ext=m4a" in url or ".m4a" in url:
+                                    ext = "m4a"
+                                final_path = CACHE_DIR / f"{cache_key}.{ext}"
+                                if final_path.exists():
+                                    try: os.remove(temp_path)
+                                    except Exception: pass
+                                    logger.info(f"Track {video_id} was already cached by another request, discarded temp file.")
+                                else:
+                                    shutil.move(temp_path, final_path)
+                                    logger.info(f"Successfully finalized on-the-fly cache for {video_id}: {final_path} (size: {bytes_written} bytes)")
+                                    asyncio.create_task(cleanup_old_cache())
+                            else:
+                                if temp_path and temp_path.exists():
+                                    os.remove(temp_path)
+                        except Exception as e:
+                            logger.warning(f"Failed to finalize on-the-fly cache: {e}")
+                            if temp_path and temp_path.exists():
+                                try: os.remove(temp_path)
+                                except Exception: pass
+
+            return StreamingResponse(
+                generate(),
+                status_code=206 if r.status_code == 206 else 200,
+                headers=resp_headers,
+            )
         except Exception as e:
-            logger.warning(f"Direct stream proxying failed for googlevideo URL: {e}")
+            logger.warning(f"Connection or stream failure for {video_id} on attempt {attempt}: {e}")
+            report_stream_failure(url)
+            if cache_key in _url_cache:
+                del _url_cache[cache_key]
+            if redis_store.client:
+                try:
+                    redis_store.client.delete(f"openjam:url:{cache_key}")
+                except Exception:
+                    pass
+            last_error_detail = f"Upstream connection failed: {e}"
+            continue
 
-    # Invidious / Piped proxied URL: 302 Redirect directly for instant playback
-    return RedirectResponse(url=url, status_code=302)
+    raise HTTPException(status_code=502, detail=last_error_detail)
 
 
 @router.get("/search/playlist")
