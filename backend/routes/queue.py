@@ -10,7 +10,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Request, Depends, HTTPException
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
 import httpx
 from sqlalchemy.orm import Session
 from backend.database import get_db
@@ -568,160 +568,15 @@ async def stream_audio(video_id: str, request: Request, low: bool = False, nocac
                     headers={"Accept-Ranges": "bytes"}
                 )
 
-    # Fallback: Live streaming from YouTube
-    cache_key = f"{video_id}_low" if low else video_id
-    if nocache:
-        if cache_key in _url_cache:
-            try:
-                del _url_cache[cache_key]
-                logger.info(f"Invalidated stream local cache for {cache_key} due to nocache=true")
-            except KeyError:
-                pass
-        if redis_store.client:
-            try:
-                redis_store.client.delete(f"openjam:url:{cache_key}")
-                logger.info(f"Invalidated stream Redis cache for {cache_key} due to nocache=true")
-            except Exception as e:
-                logger.warning(f"Failed to delete stream URL from Redis for {cache_key}: {e}")
+    # Fallback: Redirect directly to CDN URL for instant ad-free playback
+    url = await _resolve_audio_url(video_id, low=low)
+    if not url:
+        raise HTTPException(status_code=404, detail="Could not extract audio stream")
 
-    max_attempts = 2
-    last_error_detail = "Could not extract stream"
+    # Trigger background track caching so subsequent requests serve from local disk
+    asyncio.create_task(download_and_cache_track(video_id))
 
-    for attempt in range(1, max_attempts + 1):
-        url = await _resolve_audio_url(video_id, low=low)
-        if not url:
-            raise HTTPException(status_code=404, detail="Could not extract stream")
-
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
-        range_header = request.headers.get("Range")
-        if range_header:
-            headers["Range"] = range_header
-
-        client = _get_stream_client()
-        try:
-            logger.info(f"Streaming live from url: {url} (attempt {attempt}/{max_attempts})")
-            req = client.build_request("GET", url, headers=headers)
-            r = await client.send(req, stream=True)
-
-            if r.status_code not in (200, 206):
-                await r.aclose()
-                logger.warning(f"Upstream returned status {r.status_code} for {video_id} on attempt {attempt}")
-                report_stream_failure(url)
-                if cache_key in _url_cache:
-                    del _url_cache[cache_key]
-                if redis_store.client:
-                    try:
-                        redis_store.client.delete(f"openjam:url:{cache_key}")
-                        logger.info(f"Evicted invalid stream URL for {cache_key} from Redis")
-                    except Exception:
-                        pass
-                last_error_detail = f"Upstream returned status {r.status_code}"
-                continue
-
-            resp_headers = {
-                "Accept-Ranges": "bytes",
-                "Content-Type": r.headers.get("Content-Type", "audio/webm"),
-            }
-            if "Content-Range" in r.headers:
-                resp_headers["Content-Range"] = r.headers["Content-Range"]
-            if "Content-Length" in r.headers:
-                resp_headers["Content-Length"] = r.headers["Content-Length"]
-
-            # Determine if we should attempt on-the-fly caching
-            content_range = r.headers.get("Content-Range", "")
-            starts_at_zero = (r.status_code == 200) or (r.status_code == 206 and content_range.strip().startswith("bytes 0-"))
-            
-            temp_path = None
-            f_cache = None
-            
-            if starts_at_zero:
-                ext = "webm"
-                if "mime=audio/mp4" in url or "ext=m4a" in url or ".m4a" in url:
-                    ext = "m4a"
-                elif "mime=audio/webm" in url or "ext=webm" in url or ".webm" in url:
-                    ext = "webm"
-                
-                final_path = CACHE_DIR / f"{cache_key}.{ext}"
-                if not final_path.exists():
-                    temp_path = CACHE_DIR / f"{cache_key}.{ext}.{uuid.uuid4().hex}.tmp"
-                    try:
-                        f_cache = open(temp_path, "wb")
-                        logger.info(f"Started on-the-fly streaming cache for {video_id} to {temp_path}")
-                    except Exception as e:
-                        logger.warning(f"Could not open temp file for streaming cache: {e}")
-                        f_cache = None
-                        temp_path = None
-
-            completed = False
-            async def generate():
-                nonlocal completed, f_cache, temp_path
-                bytes_written = 0
-                try:
-                    async for chunk in r.aiter_bytes(chunk_size=32768):
-                        yield chunk
-                        if f_cache:
-                            try:
-                                f_cache.write(chunk)
-                                bytes_written += len(chunk)
-                            except Exception as e:
-                                logger.warning(f"Error writing chunk to on-the-fly cache: {e}")
-                                try:
-                                    f_cache.close()
-                                except Exception:
-                                    pass
-                                f_cache = None
-                                if temp_path and temp_path.exists():
-                                    try: os.remove(temp_path)
-                                    except Exception: pass
-                    completed = True
-                finally:
-                    await r.aclose()
-                    if f_cache:
-                        try:
-                            f_cache.close()
-                            if completed and temp_path and temp_path.exists() and bytes_written > 500000:
-                                ext = "webm"
-                                if "mime=audio/mp4" in url or "ext=m4a" in url or ".m4a" in url:
-                                    ext = "m4a"
-                                final_path = CACHE_DIR / f"{cache_key}.{ext}"
-                                if final_path.exists():
-                                    try: os.remove(temp_path)
-                                    except Exception: pass
-                                    logger.info(f"Track {video_id} was already cached by another request, discarded temp file.")
-                                else:
-                                    shutil.move(temp_path, final_path)
-                                    logger.info(f"Successfully finalized on-the-fly cache for {video_id}: {final_path} (size: {bytes_written} bytes)")
-                                    asyncio.create_task(cleanup_old_cache())
-                            else:
-                                if temp_path and temp_path.exists():
-                                    os.remove(temp_path)
-                        except Exception as e:
-                            logger.warning(f"Failed to finalize on-the-fly cache: {e}")
-                            if temp_path and temp_path.exists():
-                                try: os.remove(temp_path)
-                                except Exception: pass
-
-            return StreamingResponse(
-                generate(),
-                status_code=206 if r.status_code == 206 else 200,
-                headers=resp_headers,
-            )
-        except Exception as e:
-            logger.warning(f"Connection or stream failure for {video_id} on attempt {attempt}: {e}")
-            report_stream_failure(url)
-            if cache_key in _url_cache:
-                del _url_cache[cache_key]
-            if redis_store.client:
-                try:
-                    redis_store.client.delete(f"openjam:url:{cache_key}")
-                except Exception:
-                    pass
-            last_error_detail = f"Upstream connection failed: {e}"
-            continue
-
-    raise HTTPException(status_code=502, detail=last_error_detail)
+    return RedirectResponse(url=url, status_code=302)
 
 
 @router.get("/search/playlist")

@@ -124,8 +124,8 @@ export default class YouTubePlayer {
       if (!audioElement.src || audioElement.src.startsWith('data:')) return;
       const err = audioElement.error;
       if (!err || err.code === 0) return; // Ignore non-errors (autoplay policy blocks)
-      console.error(`HTML5 Audio Error details (${name}):`, err ? { code: err.code, message: err.message } : "No details");
-      console.error(`HTML5 Audio Player State (${name}):`, {
+      console.warn(`HTML5 Audio Error details (${name}):`, err ? { code: err.code, message: err.message } : "No details");
+      console.warn(`HTML5 Audio Player State (${name}):`, {
         src: audioElement.src,
         networkState: audioElement.networkState,
         readyState: audioElement.readyState
@@ -170,30 +170,13 @@ export default class YouTubePlayer {
     if (audioElement !== this.activePlayer) return;
     if (!audioElement.src || audioElement.src.startsWith('data:')) return;
     this._hideLoadIndicator();
-    console.error(`Audio stream error from ${source}, fail count:`, this._streamFailCount);
+    console.warn(`Audio stream error from ${source}, fail count:`, this._streamFailCount);
     this._streamFailCount++;
 
     if (this._streamFailCount >= this._maxStreamFails) {
-      if (!this._useIFrame) {
-        console.warn('Stream failed completely, switching to YouTube IFrame fallback');
-        if (this.onStreamFailUpdate) this.onStreamFailUpdate(null);
-        
-        try {
-          audioElement.pause();
-          audioElement.src = '';
-          audioElement.load();
-        } catch (e) {}
-
-        this._useIFrame = true;
-        this._initIFramePlayer();
-        if (this.currentVideoId) {
-          this._loadVideo(this.currentVideoId, Math.round(this.positionMs / 1000));
-        }
-      } else {
-        console.error(`Playback failed completely after ${this._streamFailCount} attempts.`);
-        this.toast("Playback failed after multiple retries. Skipping...", "error");
-        this._emitControlEvent('nexttrack');
-      }
+      console.warn('[YouTubePlayer] Stream failed after retries, advancing to next track');
+      this.toast("Audio stream unavailable. Skipping to next track...", "warning");
+      this._emitControlEvent('nexttrack');
     } else {
       setTimeout(() => {
         if (this._streamFailCount === 1 && !this._useLowBitrate && this.currentVideoId) {

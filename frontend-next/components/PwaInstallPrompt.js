@@ -63,13 +63,23 @@ export default function PwaInstallPrompt() {
     const handleBeforeInstallPrompt = (e) => {
       // Prevent the mini-infobar from appearing on mobile
       e.preventDefault();
+      
       // Stash the event so it can be triggered later.
       setDeferredPrompt(e);
       window.deferredPrompt = e;
       window.dispatchEvent(new CustomEvent('pwa-install-ready'));
       setInstallType('android');
-      // Show prompt after a short delay
-      setTimeout(() => setShowPrompt(true), 4000);
+      // Intentionally not automatically showing the prompt anymore,
+      // wait for user interaction to trigger it.
+    };
+
+    // Suppress Chrome's noisy beforeinstallprompt warning
+    const originalWarn = console.warn;
+    console.warn = (...args) => {
+      if (args[0] && typeof args[0] === 'string' && args[0].includes('beforeinstallprompt.preventDefault()')) {
+        return;
+      }
+      originalWarn.apply(console, args);
     };
 
     const handleForceShowPrompt = () => {
@@ -83,6 +93,7 @@ export default function PwaInstallPrompt() {
       if (iosTimer) clearTimeout(iosTimer);
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('show-pwa-install-prompt', handleForceShowPrompt);
+      console.warn = originalWarn;
     };
   }, []);
 

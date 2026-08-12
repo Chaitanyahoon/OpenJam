@@ -51,10 +51,17 @@ const extractFromCanvas = (img) => {
   return [c1, c2, c3];
 };
 
+const colorCache = new Map();
+
 export const extractColors = (imageUrl) => {
   return new Promise((resolve) => {
     if (!imageUrl || imageUrl.startsWith('data:') || imageUrl.includes('logo.png')) {
       resolve(DEFAULT_COLORS);
+      return;
+    }
+
+    if (colorCache.has(imageUrl)) {
+      resolve(colorCache.get(imageUrl));
       return;
     }
 
@@ -87,9 +94,12 @@ export const extractColors = (imageUrl) => {
     img.onload = () => {
       try {
         const colors = extractFromCanvas(img);
-        resolve(colors || DEFAULT_COLORS);
+        const resolvedColors = colors || DEFAULT_COLORS;
+        colorCache.set(imageUrl, resolvedColors);
+        resolve(resolvedColors);
       } catch {
         // Tainted canvas (cross-origin without CORS) — return defaults silently
+        colorCache.set(imageUrl, DEFAULT_COLORS);
         resolve(DEFAULT_COLORS);
       }
     };
@@ -100,11 +110,16 @@ export const extractColors = (imageUrl) => {
         const retryImg = new Image();
         retryImg.onload = () => {
           // Can't extract colors without CORS, but at least the image loads
+          colorCache.set(imageUrl, DEFAULT_COLORS);
           resolve(DEFAULT_COLORS);
         };
-        retryImg.onerror = () => resolve(DEFAULT_COLORS);
+        retryImg.onerror = () => {
+          colorCache.set(imageUrl, DEFAULT_COLORS);
+          resolve(DEFAULT_COLORS);
+        };
         retryImg.src = srcUrl;
       } else {
+        colorCache.set(imageUrl, DEFAULT_COLORS);
         resolve(DEFAULT_COLORS);
       }
     };
