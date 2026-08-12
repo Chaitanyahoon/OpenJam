@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { io } from 'socket.io-client';
 
 const SocketContext = createContext(null);
@@ -37,8 +37,14 @@ export const SocketProvider = ({ children }) => {
         }
       }
       if (typeof window !== 'undefined') {
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-          return 'http://localhost:8000';
+        const hostname = window.location.hostname;
+        const isLocal = hostname === 'localhost' ||
+                        hostname === '127.0.0.1' ||
+                        hostname.startsWith('192.168.') ||
+                        hostname.startsWith('10.') ||
+                        /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname);
+        if (isLocal) {
+          return `http://${hostname}:8000`;
         }
         return 'https://api.openjam.fun';
       }
@@ -102,8 +108,12 @@ export const SocketProvider = ({ children }) => {
     }
   };
 
+  const contextValue = useMemo(() => ({
+    socket, isConnected, isReconnecting, isConnectionFailed, reconnect
+  }), [socket, isConnected, isReconnecting, isConnectionFailed, reconnect]);
+
   return (
-    <SocketContext.Provider value={{ socket, isConnected, isReconnecting, isConnectionFailed, reconnect }}>
+    <SocketContext.Provider value={contextValue}>
       {children}
     </SocketContext.Provider>
   );

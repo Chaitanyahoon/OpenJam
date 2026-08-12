@@ -318,57 +318,65 @@ def register_connection_handlers(sio: socketio.AsyncServer):
         cancel_room_close(room_id)
 
         # Offload blocking DB read to a thread pool — event loop stays free
-        messages, queue = await asyncio.to_thread(_db_get_join_data, room_id)
-        await sio.emit("chat_history", {"messages": messages}, to=sid)
-        await sio.emit("queue_updated", {"queue": queue}, to=sid)
-
-        playback = room_manager.get_playback(room_id)
-
-        # Build now_playing from queue
-        now_playing_item = None
-        for item in queue:
-            if item.get("status") == "playing":
-                now_playing_item = item
-                break
-
-        join_data = {
-            "room_id": room_id,
-            "queue": queue,
-            "listeners": room_manager.get_listeners(room_id),
-        }
-        if playback and playback.get("track_uri"):
-            join_data["now_playing"] = {
-                "track_uri": playback.get("track_uri"),
-                "track_name": playback.get("track_name"),
-                "artist": playback.get("artist"),
-                "album_art_url": playback.get("album_art_url"),
-                "duration_ms": playback.get("duration_ms", 0),
+        try:
+            messages, queue = await asyncio.wait_for(
+                asyncio.to_thread(_db_get_join_data, room_id),
+                timeout=8.0
+            )
+            await sio.emit("chat_history", {"messages": messages}, to=sid)
+            await sio.emit("queue_updated", {"queue": queue}, to=sid)
+    
+            playback = room_manager.get_playback(room_id)
+    
+            # Build now_playing from queue
+            now_playing_item = None
+            for item in queue:
+                if item.get("status") == "playing":
+                    now_playing_item = item
+                    break
+    
+            join_data = {
+                "room_id": room_id,
+                "queue": queue,
+                "listeners": room_manager.get_listeners(room_id),
             }
-            import time
-            join_data["playback"] = {
-                "positionMs": playback.get("position_ms", 0),
-                "durationMs": playback.get("duration_ms", 0),
-                "isPlaying": playback.get("is_playing", False),
-                "is_buffering": playback.get("is_buffering", False),
-                "server_timestamp": int(time.time() * 1000)
-            }
-
-        await sio.emit("join_success", join_data, to=sid)
-
-        if was_new:
-            await sio.emit("user_joined", {
-                "user_id": user_id,
-                "display_name": display_name,
-                "avatar_url": avatar_url,
+            if playback and playback.get("track_uri"):
+                join_data["now_playing"] = {
+                    "track_uri": playback.get("track_uri"),
+                    "track_name": playback.get("track_name"),
+                    "artist": playback.get("artist"),
+                    "album_art_url": playback.get("album_art_url"),
+                    "duration_ms": playback.get("duration_ms", 0),
+                }
+                import time
+                join_data["playback"] = {
+                    "positionMs": playback.get("position_ms", 0),
+                    "durationMs": playback.get("duration_ms", 0),
+                    "isPlaying": playback.get("is_playing", False),
+                    "is_buffering": playback.get("is_buffering", False),
+                    "server_timestamp": int(time.time() * 1000)
+                }
+    
+            await sio.emit("join_success", join_data, to=sid)
+    
+            if was_new:
+                await sio.emit("user_joined", {
+                    "user_id": user_id,
+                    "display_name": display_name,
+                    "avatar_url": avatar_url,
+                }, room=room_id)
+            await sio.emit("listener_count", {
+                "count": room_manager.get_listener_count(room_id),
+                "listeners": room_manager.get_listeners(room_id),
             }, room=room_id)
-        await sio.emit("listener_count", {
-            "count": room_manager.get_listener_count(room_id),
-            "listeners": room_manager.get_listeners(room_id),
-        }, room=room_id)
-
-        # Re-evaluate skip votes dynamically (since listener count increased)
-        from backend.sockets.playback import evaluate_skip_votes
-        await evaluate_skip_votes(room_id, sio)
+    
+            # Re-evaluate skip votes dynamically (since listener count increased)
+            from backend.sockets.playback import evaluate_skip_votes
+            await evaluate_skip_votes(room_id, sio)
+        except Exception as e:
+            logger.error(f"Failed to complete room join for {sid} in {room_id}: {e}")
+            await sio.emit("join_error", {"message": "Failed to load room data. Please try again."}, to=sid)
+            return
 
     @sio.event
     async def leave_room(sid, data):

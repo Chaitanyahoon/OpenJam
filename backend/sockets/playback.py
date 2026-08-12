@@ -269,7 +269,11 @@ async def _playback_sync_loop(room_id: str, sio: socketio.AsyncServer):
             async with lock:
                 # Re-check: the track may have already been advanced by the host
                 fresh = room_manager.get_playback(room_id)
-                if fresh and fresh.get("track_uri") == playback.get("track_uri"):
+                if not fresh:
+                    # Room was closed or playback was cleared
+                    stop_sync_loop(room_id)
+                    return
+                if fresh.get("track_uri") == playback.get("track_uri"):
                     stop_sync_loop(room_id)
                     await _do_advance(room_id, sio)
             return
@@ -318,6 +322,8 @@ async def evaluate_skip_votes(room_id: str, sio: socketio.AsyncServer):
 
     votes = room_manager.get_skip_votes(room_id)
     listeners = room_manager.get_listener_count(room_id)
+    if listeners == 0:
+        return
     required = max(1, (listeners + 1) // 2)
 
     logger.info(f"Evaluating skip votes for room {room_id}: votes={votes}, listeners={listeners}, required={required}")

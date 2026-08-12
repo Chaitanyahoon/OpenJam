@@ -58,7 +58,7 @@ _piped_health: dict[str, dict] = {}
 _stream_origin_instances: dict[str, str] = {}
 
 def load_health_from_redis():
-    global _instance_health, _piped_health
+    global _instance_health, _piped_health, _last_health_check
     if redis_store.client:
         try:
             import json
@@ -71,6 +71,9 @@ def load_health_from_redis():
             if piped_data:
                 _piped_health.update(json.loads(piped_data))
                 logger.info("Loaded Piped instance health from Redis cache")
+                
+            if inv_data or piped_data:
+                _last_health_check = time.time()
         except Exception as e:
             logger.warning(f"Failed to load instance health from Redis: {e}")
 

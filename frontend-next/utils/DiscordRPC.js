@@ -14,6 +14,11 @@ class DiscordRPC {
   }
 
   connect() {
+    if (typeof window === 'undefined') return;
+    if (window.location.protocol === 'https:') {
+      console.info('[Discord RPC] Direct local WebSocket RPC is disabled on HTTPS origins due to browser Mixed Content policies (ws://127.0.0.1 is blocked on https://).');
+      return;
+    }
     if (this.socket || this.connected) return;
     this.portIndex = 0;
     this.tryNextPort();

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSocket } from '@/contexts/SocketContext';
 import HeroSection from '@/components/HeroSection';
@@ -24,6 +25,7 @@ const MusicPill = dynamic(() => import('@/components/MusicPill'), { ssr: false }
 
 export default function HomePage() {
   const { isConnected, reconnect } = useSocket();
+  const router = useRouter();
 
   // Authentication & User States
   const [me, setMe] = useState(null);
@@ -729,7 +731,7 @@ export default function HomePage() {
         setShowCreateModal(false);
         triggerToast('Jam Room created! Entering room...', 'success');
         setTimeout(() => {
-          window.location.href = `/room/${data.room.id}?created=true`;
+          router.push(`/room/${data.room.id}?created=true`);
         }, 150);
       } else {
         const err = await r.json();
@@ -782,7 +784,7 @@ export default function HomePage() {
       const sorted = [...rooms].sort((a, b) => (b.listener_count || 0) - (a.listener_count || 0));
       const targetRoom = sorted.find(r => !r.is_private) || sorted[0];
       triggerToast(`⚡ Joining: ${targetRoom.name}`, 'success');
-      setTimeout(() => { window.location.href = `/room/${targetRoom.id}`; }, 800);
+      setTimeout(() => { router.push(`/room/${targetRoom.id}`); }, 800);
     } else {
       triggerToast(`⚡ Creating a new Quick Jam room...`, 'info');
       const roomNames = ['Neon Lounge', 'Retro Beatcave', 'Analog Space', 'Echo Chamber', 'Decibel Oasis', 'Strobe Sanctuary'];
@@ -802,7 +804,7 @@ export default function HomePage() {
         });
         if (r.ok) {
           const data = await r.json();
-          setTimeout(() => { window.location.href = `/room/${data.room.id}?created=true`; }, 800);
+          setTimeout(() => { router.push(`/room/${data.room.id}?created=true`); }, 800);
         } else {
           triggerToast('Failed to create quick room', 'error');
         }

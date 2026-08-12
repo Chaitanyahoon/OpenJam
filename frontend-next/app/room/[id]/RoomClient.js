@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useSocket } from '@/contexts/SocketContext';
+import { useRouter } from 'next/navigation';
 import YouTubePlayer from '@/utils/YouTubePlayer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MusicPlayer } from '@/components/ui/music-player';
@@ -11,9 +12,13 @@ import { offlineDb } from '@/utils/offlineDb';
 import EmojiPicker from '@/components/EmojiPicker';
 import { extractColors } from '@/utils/colorExtractor';
 
+import DiscordRPC from '@/utils/DiscordRPC';
+
 export default function RoomClient({ roomId }) {
   const { socket, isConnected, isReconnecting, isConnectionFailed, reconnect } = useSocket();
+  const router = useRouter();
   const playerRef = useRef(null);
+  const discordRpcRef = useRef(null);
   const typingTimeoutRef = useRef(null);
 
   // States
@@ -107,6 +112,35 @@ export default function RoomClient({ roomId }) {
       });
     }
   }, [nowPlaying]);
+
+  // Discord Rich Presence (RPC) Integration
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const rpc = new DiscordRPC();
+    discordRpcRef.current = rpc;
+    rpc.connect();
+    return () => {
+      rpc.destroy();
+      discordRpcRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (discordRpcRef.current && nowPlaying) {
+      discordRpcRef.current.setActivity({
+        details: nowPlaying.track_name || 'Listening to music',
+        state: `by ${nowPlaying.artist || 'Unknown Artist'}`,
+        timestamps: {
+          start: Date.now() - (playbackState.positionMs || 0)
+        },
+        buttons: [
+          { label: 'Listen Along', url: typeof window !== 'undefined' ? window.location.href : 'https://www.openjam.fun' }
+        ]
+      });
+    } else if (discordRpcRef.current && !nowPlaying) {
+      discordRpcRef.current.clearActivity();
+    }
+  }, [nowPlaying, playbackState.positionMs]);
 
   useEffect(() => {
     playbackStateRef.current = playbackState;
@@ -432,7 +466,7 @@ export default function RoomClient({ roomId }) {
             setIsReady(true);
           }
         } else {
-          window.location.href = '/404';
+          router.push('/404');
         }
       } catch (err) {
         console.error('Initial fetch error:', err);
@@ -843,7 +877,7 @@ export default function RoomClient({ roomId }) {
     socket.on('room_closed', () => {
       triggerToast('This room has been closed by the host.', 'warning');
       setTimeout(() => {
-        window.location.href = '/';
+        router.push('/');
       }, 2000);
     });
 
@@ -1723,7 +1757,7 @@ export default function RoomClient({ roomId }) {
       .then((res) => {
         if (res.ok) {
           socket.emit('leave_room', { room_id: roomId });
-          window.location.href = '/';
+          router.push('/');
         }
       });
   };
@@ -3652,7 +3686,7 @@ export default function RoomClient({ roomId }) {
                   <motion.button 
                     type="button" 
                     className="btn btn-secondary btn-bubble btn-guest-bubble" 
-                    onClick={() => window.location.href = '/'}
+                    onClick={() => router.push('/')}
                     whileHover={{ scale: 1.05, boxShadow: '0 8px 20px rgba(255, 255, 255, 0.1)' }}
                     whileTap={{ scale: 0.98 }}
                     style={{ padding: '10px 20px', borderRadius: '12px', fontSize: '13px' }}
