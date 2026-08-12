@@ -376,7 +376,7 @@ async def discord_callback(request: Request, code: str = ""):
             secure=is_prod,
             max_age=86400 * 30,  # 30 days for Discord login
         )
-        log_auth_event(f"Discord login successful: '{discord_username}' (discord_id={discord_id}, user_id={user_id})")
+        log_auth_event(f"Discord login successful: '{display_name}' (@{raw_discord_handle}, discord_id={discord_id}, user_id={user_id})")
         return response
 
     except Exception as e:
