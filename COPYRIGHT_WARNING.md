@@ -1,33 +1,44 @@
-# ⚠️ Copyright Warning & Code Theft Notice
+# ⚠️ Copyright Warning & Intellectual Property Protection Notice
 
-**Copyright (c) 2026 Chaitanya. All rights reserved.**
+**Copyright (c) 2026 Chaitanya. All Rights Reserved.**
 
-This repository is protected by copyright law and proprietary software terms. By viewing, cloning, accessing, or running the code in this repository, you agree to abide by the strict rules of usage outlined below.
-
----
-
-## 1. Proprietary Rights & Terms of Use
-Unless explicitly stated otherwise in writing by the copyright holder:
-- **No Commercial Use**: You are strictly prohibited from utilizing this codebase, in whole or in part, for commercial gain, paid subscription services, SaaS platforms, or promotional business operations.
-- **No Re-skinning or Re-branding**: You may not clone this project, replace logos/banners, rename variables, and re-distribute it as your own application or product.
-- **Educational / Personal Use Only**: You are permitted to run this application locally for personal evaluation or educational research purposes. Any public online deployment must contain visible, un-altered attribution links back to the original author.
+This repository and all its associated source code, design systems, algorithms, documentation, and assets are protected by international copyright law and proprietary software terms. By viewing, cloning, accessing, or referencing this public repository, you explicitly agree to abide by the strict legal terms outlined below.
 
 ---
 
-## 2. 🛡️ The "Rules of Stealing" (Code Integrity & Plagiarism Policy)
-Plagiarism is a serious offense in both open-source and proprietary software ecosystems. If you attempt to copy or steal this codebase, note the following strict rules of consequences:
+## 1. Terms of Use & Proprietary Rights
 
-1. **Direct Copy-Pasting**: Copying files directly without understanding or modifying the source code is a breach of intellectual property. If we detect identical code footprints (structural blocks, variable naming patterns, and custom layout tokens) on public repositories (e.g. GitHub, GitLab, Bitbucket), a **DMCA Takedown Notice** will be filed immediately against your repository.
-2. **Attribution Forgery**: Removing copyright headers from files is considered fraud. You must retain all original copyright comments, author details, and licensing headers intact in any fork or reference.
-3. **Scraping & Machine Learning**: Scraping this code to train closed-source generative AI models without explicit consent is strictly forbidden.
-4. **Karma & The Developer Guild**: Software development relies on trust. Stealing another developer's hard work, responsive UI layout designs, and custom WebSocket synchronization code diminishes your credibility as an engineer. Build, adapt, and learn—do not simply scrape and copy.
+Unless explicitly granted in writing by the copyright holder:
+
+- ❌ **No Commercial Use**: You are strictly prohibited from using, deploying, or integrating this codebase (in whole or in part) for commercial gain, paid subscription services, SaaS products, ad-supported websites, or business operations.
+- ❌ **No Re-branding or Re-skinning**: You may not clone this repository, change the project name, swap logos/banners, rename variables, and re-distribute it as your own application or product.
+- ❌ **No Unauthorized Public Hosting**: You are prohibited from re-hosting this application on public servers (Vercel, Render, AWS, Heroku, DigitalOcean, etc.) under another brand or domain name.
+- ✅ **Personal & Educational Evaluation**: You are granted permission to clone and run this project locally on your personal machine for personal evaluation, peer code review, or educational research purposes only. Any academic or educational reference MUST include un-altered attribution back to the original author.
 
 ---
 
-## 3. Enforcement & Legal Remedies
-The copyright owner reserves the right to pursue all legal remedies available under local and international copyright conventions, including:
-- Issuing immediate DMCA takedown requests to hosting providers (GitHub, Render, Vercel, Netlify, AWS).
-- Requesting structural blocking from package registries.
-- Pursuing financial damages for unauthorized commercial exploitation of the copyrighted assets and intellectual layouts.
+## 2. 🛡️ Anti-Plagiarism & Code Theft Policy
 
-*If you wish to build a commercial project using OpenJam's architecture, contact the copyright owner to request a commercial license.*
+Plagiarism and code theft are serious offenses. If you copy or steal from this repository, be advised of the following enforcement measures:
+
+1. **Automated Source Scanning**: We actively monitor GitHub, GitLab, Bitbucket, Vercel, and public web deployments for matching structural blocks, custom Socket.IO event names, variable naming patterns, and layout CSS tokens.
+2. **Immediate DMCA Takedowns**: Any unauthorized public repository or host deployment containing stolen code, re-skinned UI elements, or stripped copyright headers will be subject to **immediate DMCA Takedown Notices** filed directly with GitHub, Vercel, Render, AWS, and search engines.
+3. **Attribution Forgery**: Removing copyright comments, author notices, or license headers from any file in this repository constitutes willful copyright infringement and fraud. All header notices must remain intact.
+4. **Scraping & AI Training**: Scraping this repository to train closed-source generative AI models without explicit written permission is strictly prohibited.
+
+---
+
+## 3. Legal Enforcement & Financial Remedies
+
+The copyright owner reserves the right to pursue all legal remedies available under federal, state, and international copyright laws (including the Digital Millennium Copyright Act - 17 U.S.C. § 512), including:
+- Filing formal DMCA takedown requests for immediate content removal.
+- Issuing cease-and-desist notices to hosting providers and domain registrars.
+- Seeking statutory damages, legal fees, and financial disgorgement for unauthorized commercial exploitation.
+
+---
+
+## 4. Contact & Commercial Licensing
+
+If you wish to obtain a commercial license, partner on OpenJam, or request permission for a custom deployment, please contact the copyright owner directly via GitHub:
+- **Author**: Chaitanya (`Chaitanyahoon`)
+- **Repository**: [https://github.com/Chaitanyahoon/OpenJam](https://github.com/Chaitanyahoon/OpenJam)
