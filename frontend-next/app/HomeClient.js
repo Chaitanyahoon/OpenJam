@@ -394,7 +394,8 @@ export default function HomePage() {
   const navItems = useMemo(() => {
     const list = [
       { label: 'Home', href: '/' },
-      { label: 'Rooms', href: '#active-rooms' }
+      { label: 'Rooms', href: '#active-rooms' },
+      { label: 'FAQ', href: '#faq' }
     ];
 
     if (showInstallBtn) {

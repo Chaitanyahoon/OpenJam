@@ -35,7 +35,7 @@ export default function FaqSection() {
   };
 
   return (
-    <section className="faq-section" style={{
+    <section id="faq" className="faq-section" style={{
       maxWidth: '800px',
       margin: '64px auto',
       padding: '0 24px',
