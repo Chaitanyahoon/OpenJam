@@ -405,19 +405,11 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
 
     cache_key = f"{video_id}_low" if low else video_id
 
-    # Fast path check outside lock
+    # Fast path check outside lock: instant return on cache hit (no blocking HEAD probe)
     if cache_key in _url_cache:
         url, expiry = _url_cache[cache_key]
         if time.time() < expiry:
-            if await _is_url_valid(url):
-                return url
-            logger.info(f"Evicting invalid memory-cached stream URL for {cache_key}")
-            del _url_cache[cache_key]
-            if redis_store.client:
-                try:
-                    redis_store.client.delete(f"openjam:url:{cache_key}")
-                except Exception:
-                    pass
+            return url
         else:
             del _url_cache[cache_key]
 
@@ -425,31 +417,20 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
         try:
             cached_url = redis_store.client.get(f"openjam:url:{cache_key}")
             if cached_url:
-                if await _is_url_valid(cached_url):
-                    _url_cache[cache_key] = (cached_url, time.time() + _URL_CACHE_TTL)
-                    logger.info(f"Resolved stream URL for {cache_key} from Redis cache")
-                    return cached_url
-                logger.info(f"Evicting invalid Redis-cached stream URL for {cache_key}")
-                redis_store.client.delete(f"openjam:url:{cache_key}")
+                _url_cache[cache_key] = (cached_url, time.time() + _URL_CACHE_TTL)
+                logger.info(f"Resolved stream URL for {cache_key} instantly from Redis cache")
+                return cached_url
         except Exception as e:
             logger.warning(f"Failed to retrieve stream URL from Redis for {cache_key}: {e}")
 
     # Acquire resolve lock for this video ID to serialize concurrent requests
     resolve_lock = await get_resolve_lock(video_id)
     async with resolve_lock:
-        # Check cache again inside lock in case another task resolved it while we were waiting
+        # Check cache again inside lock
         if cache_key in _url_cache:
             url, expiry = _url_cache[cache_key]
             if time.time() < expiry:
-                if await _is_url_valid(url):
-                    return url
-                logger.info(f"Evicting invalid memory-cached stream URL (inside lock) for {cache_key}")
-                del _url_cache[cache_key]
-                if redis_store.client:
-                    try:
-                        redis_store.client.delete(f"openjam:url:{cache_key}")
-                    except Exception:
-                        pass
+                return url
             else:
                 del _url_cache[cache_key]
 
@@ -457,37 +438,44 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
             try:
                 cached_url = redis_store.client.get(f"openjam:url:{cache_key}")
                 if cached_url:
-                    if await _is_url_valid(cached_url):
-                        _url_cache[cache_key] = (cached_url, time.time() + _URL_CACHE_TTL)
-                        logger.info(f"Resolved stream URL for {cache_key} from Redis cache (inside lock)")
-                        return cached_url
-                    logger.info(f"Evicting invalid Redis-cached stream URL (inside lock) for {cache_key}")
-                    redis_store.client.delete(f"openjam:url:{cache_key}")
+                    _url_cache[cache_key] = (cached_url, time.time() + _URL_CACHE_TTL)
+                    return cached_url
             except Exception:
                 pass
 
-        logger.info(f"Resolving stream URL using Cobalt for {video_id}")
+        logger.info(f"Racing Invidious/Piped and Cobalt concurrently for {video_id}")
         url = None
-        try:
-            from backend.services.cobalt import get_cobalt_stream_url
-            url = await asyncio.wait_for(get_cobalt_stream_url(video_id), timeout=12.0)
-        except asyncio.TimeoutError:
-            logger.warning(f"Cobalt resolution timed out after 12.0s for {video_id}")
-        except Exception as e:
-            logger.warning(f"Cobalt failed for {video_id}: {e}")
+        from backend.services.invidious import get_stream_url as get_invidious_stream_url
+        from backend.services.cobalt import get_cobalt_stream_url
 
-        # Fallback to Invidious/Piped stream URL resolver if Cobalt fails
-        if not url:
-            logger.info(f"Cobalt failed to resolve stream for {video_id}, falling back to Invidious/Piped...")
+        async def _resolve_invidious():
             try:
-                from backend.services.invidious import get_stream_url as get_invidious_stream_url
-                url = await asyncio.wait_for(get_invidious_stream_url(video_id), timeout=10.0)
-            except Exception as e:
-                logger.warning(f"Invidious/Piped fallback failed for {video_id}: {e}")
+                return await asyncio.wait_for(get_invidious_stream_url(video_id), timeout=4.5)
+            except Exception:
+                return None
 
-        # Fallback to yt-dlp if Invidious and Cobalt both fail
+        async def _resolve_cobalt():
+            try:
+                return await asyncio.wait_for(get_cobalt_stream_url(video_id), timeout=4.5)
+            except Exception:
+                return None
+
+        tasks = [asyncio.create_task(_resolve_invidious()), asyncio.create_task(_resolve_cobalt())]
+        for completed in asyncio.as_completed(tasks):
+            try:
+                res_url = await completed
+                if res_url:
+                    url = res_url
+                    for t in tasks:
+                        if not t.done():
+                            t.cancel()
+                    break
+            except Exception:
+                pass
+
+        # Fast fallback to yt-dlp if parallel race returned nothing
         if not url:
-            logger.info(f"Invidious/Piped failed to resolve stream for {video_id}, falling back to yt-dlp...")
+            logger.info(f"Parallel resolvers failed for {video_id}, falling back to fast yt-dlp...")
             try:
                 import yt_dlp
                 loop = asyncio.get_running_loop()
@@ -499,14 +487,15 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
                         "nocheckcertificate": True,
                         "ignoreerrors": True,
                         "skip_download": True,
+                        "socket_timeout": 5,
                     }
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                         return ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
-                info = await loop.run_in_executor(None, extract)
+                info = await asyncio.wait_for(loop.run_in_executor(None, extract), timeout=5.0)
                 if info:
                     url = info.get("url")
             except Exception as e:
-                logger.warning(f"yt-dlp extraction fallback failed for {video_id}: {e}")
+                logger.warning(f"yt-dlp fallback failed for {video_id}: {e}")
 
         if url:
             _prune_url_cache()
