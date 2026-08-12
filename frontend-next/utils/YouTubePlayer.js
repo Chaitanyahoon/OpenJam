@@ -124,12 +124,6 @@ export default class YouTubePlayer {
       if (!audioElement.src || audioElement.src.startsWith('data:')) return;
       const err = audioElement.error;
       if (!err || err.code === 0) return; // Ignore non-errors (autoplay policy blocks)
-      console.error(`HTML5 Audio Error details (${name}):`, err ? { code: err.code, message: err.message } : "No details");
-      console.error(`HTML5 Audio Player State (${name}):`, {
-        src: audioElement.src,
-        networkState: audioElement.networkState,
-        readyState: audioElement.readyState
-      });
       this._handleAudioError('error_event', audioElement);
     });
 
@@ -141,10 +135,9 @@ export default class YouTubePlayer {
       this._showLoadIndicator();
       const timer = setTimeout(() => {
         if (audioElement.readyState < 2 && !audioElement.paused) {
-          console.warn('Stream stalled for 10s, triggering error');
           this._handleAudioError('stalled_timeout', audioElement);
         }
-      }, 10000);
+      }, 2500);
       this._stallTimers.set(audioElement, timer);
     });
 
@@ -156,10 +149,9 @@ export default class YouTubePlayer {
       this._showLoadIndicator();
       const timer = setTimeout(() => {
         if (audioElement.readyState < 2 && !audioElement.paused) {
-          console.warn('Stream waiting too long, triggering error');
           this._handleAudioError('waiting_timeout', audioElement);
         }
-      }, 10000);
+      }, 2500);
       this._stallTimers.set(audioElement, timer);
     });
   }
@@ -170,12 +162,10 @@ export default class YouTubePlayer {
     if (audioElement !== this.activePlayer) return;
     if (!audioElement.src || audioElement.src.startsWith('data:')) return;
     this._hideLoadIndicator();
-    console.error(`Audio stream error from ${source}, fail count:`, this._streamFailCount);
     this._streamFailCount++;
 
     if (this._streamFailCount >= this._maxStreamFails) {
       if (!this._useIFrame) {
-        console.warn('Stream failed completely, switching to YouTube IFrame fallback');
         if (this.onStreamFailUpdate) this.onStreamFailUpdate(null);
         
         try {
@@ -190,36 +180,31 @@ export default class YouTubePlayer {
           this._loadVideo(this.currentVideoId, Math.round(this.positionMs / 1000));
         }
       } else {
-        console.error(`Playback failed completely after ${this._streamFailCount} attempts.`);
-        this.toast("Playback failed after multiple retries. Skipping...", "error");
         this._emitControlEvent('nexttrack');
       }
     } else {
       setTimeout(() => {
         if (this._streamFailCount === 1 && !this._useLowBitrate && this.currentVideoId) {
-          console.warn('Stream failed, trying low bitrate fallback...');
-          if (this.onStreamFailUpdate) this.onStreamFailUpdate("Trying alternative source…");
+          if (this.onStreamFailUpdate) this.onStreamFailUpdate("Connecting fast stream…");
           this._useLowBitrate = true;
           audioElement.src = `${BACKEND_URL}/stream/${this.currentVideoId}?low=true`;
           this.setVolume(this.volume);
           audioElement.currentTime = Math.round(this.positionMs / 1000);
           audioElement.play().catch(() => {});
         } else if (this._streamFailCount === 2 && this.currentVideoId) {
-          console.warn('Stream failed again, trying low bitrate with cache-buster...');
-          if (this.onStreamFailUpdate) this.onStreamFailUpdate("Refreshing stream metadata…");
+          if (this.onStreamFailUpdate) this.onStreamFailUpdate("Optimizing connection…");
           audioElement.src = `${BACKEND_URL}/stream/${this.currentVideoId}?low=true&nocache=true`;
           this.setVolume(this.volume);
           audioElement.currentTime = Math.round(this.positionMs / 1000);
           audioElement.play().catch(() => {});
         } else if (this._streamFailCount === 3 && this.currentVideoId) {
-          console.warn('Stream failed 3 times, trying fresh standard stream...');
-          if (this.onStreamFailUpdate) this.onStreamFailUpdate("Retrying standard source…");
+          if (this.onStreamFailUpdate) this.onStreamFailUpdate("Retrying audio stream…");
           audioElement.src = `${BACKEND_URL}/stream/${this.currentVideoId}?nocache=true`;
           this.setVolume(this.volume);
           audioElement.currentTime = Math.round(this.positionMs / 1000);
           audioElement.play().catch(() => {});
         }
-      }, 1000 * this._streamFailCount);
+      }, 300 * this._streamFailCount);
     }
   }
 
