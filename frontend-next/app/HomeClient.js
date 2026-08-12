@@ -14,6 +14,7 @@ import VolumeIcon from '@/components/VolumeIcon';
 import { FALLBACK_DISCOVERY_TRACKS } from '@/constants/tracks';
 import { CheckCircle, AlertCircle, AlertTriangle, Info, Play, Pause, Trash2, Plus, Music, FolderHeart, ListMusic } from 'lucide-react';
 import { offlineDb } from '@/utils/offlineDb';
+import FaqSection from '@/components/FaqSection';
 
 
 const JoinModal = dynamic(() => import('@/components/modals/JoinModal'), { ssr: false });
@@ -1617,6 +1618,8 @@ export default function HomePage() {
       )}
 
 
+
+      <FaqSection />
 
       {/* FOOTER */}
       <footer className="footer footer-landing">
