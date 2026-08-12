@@ -557,14 +557,52 @@ async def stream_audio(video_id: str, request: Request, low: bool = False, nocac
                     headers={"Accept-Ranges": "bytes"}
                 )
 
-    # Fallback: Redirect directly to CDN URL for instant ad-free playback
+    # Fallback: CDN stream URL resolution
     url = await _resolve_audio_url(video_id, low=low)
     if not url:
         raise HTTPException(status_code=404, detail="Could not extract audio stream")
 
-    # Trigger background track caching so subsequent requests serve from local disk
+    # Trigger background track caching so subsequent requests serve directly from local disk
     asyncio.create_task(download_and_cache_track(video_id))
 
+    # Direct Google Video URLs block browser CORS and cause 'MEDIA_ELEMENT_ERROR: Format error' in HTML5 <audio>.
+    # Proxy raw googlevideo.com URLs through FastAPI with proper CORS and media headers.
+    if "googlevideo.com" in url:
+        client = _get_stream_client()
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        range_header = request.headers.get("Range")
+        if range_header:
+            headers["Range"] = range_header
+
+        try:
+            req = client.build_request("GET", url, headers=headers)
+            r = await client.send(req, stream=True)
+
+            if r.status_code in (200, 206):
+                media_type = r.headers.get("Content-Type", "audio/webm")
+                resp_headers = {
+                    "Accept-Ranges": "bytes",
+                    "Access-Control-Allow-Origin": "*",
+                }
+                if "Content-Range" in r.headers:
+                    resp_headers["Content-Range"] = r.headers["Content-Range"]
+                if "Content-Length" in r.headers:
+                    resp_headers["Content-Length"] = r.headers["Content-Length"]
+
+                async def iterfile():
+                    try:
+                        async for chunk in r.aiter_bytes(chunk_size=65536):
+                            yield chunk
+                    finally:
+                        await r.aclose()
+
+                return StreamingResponse(iterfile(), status_code=r.status_code, media_type=media_type, headers=resp_headers)
+        except Exception as e:
+            logger.warning(f"Direct stream proxying failed for googlevideo URL: {e}")
+
+    # Invidious / Piped proxied URL: 302 Redirect directly for instant playback
     return RedirectResponse(url=url, status_code=302)
 
 
