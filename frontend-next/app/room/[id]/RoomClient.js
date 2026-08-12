@@ -3295,42 +3295,8 @@ export default function RoomClient({ roomId }) {
 
                 <div className="chat-messages" id="chat-msgs">
                   {chatMsgs.length > 0 ? (
-                    chatMsgs.map((msg) => {
+                    chatMsgs.filter(msg => msg.type !== 'system').map((msg) => {
                       const isSelf = me && msg.user_id === me.id;
-                      if (msg.type === 'system') {
-                        return (
-                          <div key={msg.id} className="chat-system-msg reaction-alert">
-                            <div className="reaction-avatar-small">
-                              {msg.user_avatar ? (
-                                <img 
-                                  decoding="async" 
-                                  loading="lazy" 
-                                  className="avatar" 
-                                  src={msg.user_avatar} 
-                                  alt="" 
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = 'none';
-                                    const fallback = e.currentTarget.parentElement.querySelector('.avatar-fallback');
-                                    if (fallback) fallback.style.display = 'flex';
-                                  }}
-                                />
-                              ) : null}
-                              <div 
-                                className="avatar avatar-fallback" 
-                                style={{ 
-                                  backgroundColor: nameColor(msg.user_name),
-                                  display: msg.user_avatar ? 'none' : 'flex' 
-                                }}
-                              >
-                                {initials(msg.user_name)}
-                              </div>
-                            </div>
-                            <div className="reaction-alert-content">
-                              <span className="reaction-user-name">{msg.user_name}</span> reacted with <span className="reaction-emoji">{msg.content}</span>
-                            </div>
-                          </div>
-                        );
-                      }
                       return (
                         <div key={msg.id} className={`chat-message ${isSelf ? 'self' : ''}`}>
                           {msg.user_avatar ? (
