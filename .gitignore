@@ -13,6 +13,8 @@ logs/
 .pytest_cache/
 pytest-cache-files-*/
 .agent/
+.agents/
+.gemini/
 .mypy_cache/
 *.egg-info/
 AGENTS.md
