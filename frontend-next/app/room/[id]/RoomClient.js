@@ -543,6 +543,32 @@ export default function RoomClient({ roomId }) {
     };
   }, [socket, isConnected]);
 
+  // Global Desktop Media Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+      const isInputFocused = activeTag === 'input' || activeTag === 'textarea' || document.activeElement?.isContentEditable;
+      
+      if (isInputFocused || showPassword || showNicknamePrompt || showSettings || showInvite || showClose || showBulkAdd) {
+        return;
+      }
+
+      if (e.key === ' ' || e.key === 'k' || e.key === 'K') {
+        e.preventDefault();
+        handleTogglePlay();
+      } else if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault();
+        setIsMuted((prev) => !prev);
+      } else if (e.shiftKey && (e.key === 'ArrowRight' || e.key === 'n' || e.key === 'N')) {
+        e.preventDefault();
+        handleNextTrack();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showPassword, showNicknamePrompt, showSettings, showInvite, showClose, showBulkAdd, isHost, playbackState.isPlaying]);
+
   // 2. WebSocket Listeners Setup
   useEffect(() => {
     if (!socket || !isReady) {
