@@ -329,32 +329,65 @@ async def health(db=Depends(get_db)):
     })
 
 
+from typing import Optional
 from backend.services.og_generator import generate_og_image
+from backend.services.queue_manager import queue_manager
+from backend.services.room_manager import room_manager
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 @app.get("/api/og/room/{room_id}.png")
-async def get_og_image(room_id: str, inviter: str = "Someone", db: Session = Depends(get_db)):
+async def get_og_image(
+    room_id: str,
+    inviter: Optional[str] = None,
+    track_name: Optional[str] = None,
+    artist: Optional[str] = None,
+    listener_count: Optional[int] = None,
+    cover_art_url: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
     from backend.models.room import Room
     room = db.query(Room).filter(Room.id == room_id).first()
     room_name = room.name if room else "OpenJam Room"
     
-    # Try to resolve user avatar via host if not passed? 
-    # Actually if inviter is host, we use host avatar, but the link is usually shared by whoever.
-    # To keep it simple, we don't have inviter's avatar unless passed, 
-    # but we can fallback to host's avatar or None.
-    avatar_url = None
-    if room and room.host and inviter == room.host.display_name:
-        avatar_url = room.host.avatar_url
-    
+    # 1. Resolve host / inviter name
+    host_name = room.host.display_name if (room and room.host) else "Someone"
+    effective_inviter = inviter or host_name
+    avatar_url = room.host.avatar_url if (room and room.host) else None
+
+    # 2. Resolve now playing track if not explicitly passed
+    effective_track = track_name
+    effective_artist = artist
+    effective_cover_art = cover_art_url
+
+    if not effective_track and room:
+        now_playing = queue_manager.get_now_playing(db, room_id)
+        if now_playing:
+            effective_track = now_playing.get("track_name")
+            effective_artist = now_playing.get("artist")
+            if not effective_cover_art:
+                effective_cover_art = now_playing.get("album_art_url")
+
+    # 3. Resolve listener count if not explicitly passed
+    effective_listeners = listener_count
+    if effective_listeners is None and room:
+        effective_listeners = room_manager.get_listener_count(room_id)
+
+    # 4. Generate OG image PNG
     image_bytes = await generate_og_image(
-        inviter_name=inviter, 
-        room_name=room_name, 
-        avatar_url=avatar_url
+        inviter_name=effective_inviter,
+        room_name=room_name,
+        avatar_url=avatar_url,
+        track_name=effective_track,
+        artist=effective_artist,
+        listener_count=effective_listeners,
+        cover_art_url=effective_cover_art,
     )
+    
     return Response(content=image_bytes, media_type="image/png", headers={
-        "Cache-Control": "public, max-age=3600"
+        "Cache-Control": "public, max-age=300, s-maxage=600"
     })
+
 
 
 

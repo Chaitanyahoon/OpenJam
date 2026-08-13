@@ -9,8 +9,8 @@ export default function robots() {
       },
       {
         userAgent: ['GPTBot', 'ClaudeBot', 'PerplexityBot', 'Google-Extended'],
-        allow: ['/', '/privacy', '/terms'],
-        disallow: ['/room/', '/admin', '/offline', '/_next/'],
+        allow: ['/', '/privacy', '/terms', '/room/'],
+        disallow: ['/admin', '/offline', '/_next/'],
       }
     ],
     sitemap: `${baseUrl}/sitemap.xml`,

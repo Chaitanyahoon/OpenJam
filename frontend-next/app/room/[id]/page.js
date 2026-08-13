@@ -10,11 +10,36 @@ export async function generateMetadata({ params }) {
   const resolvedParams = await params;
   const id = resolvedParams?.id;
 
+  const staticFallbackImage = 'https://www.openjam.fun/static/img/hero_visual_showcase.webp';
+
   if (!id || id === 'loading') {
     return {
-      title: 'Jam Room — Open Jam',
+      title: 'Jam Room — OpenJam',
       description: 'Join a live listening room, queue tracks, and stream music with friends.',
       robots: { index: false, follow: false },
+      alternates: { canonical: 'https://www.openjam.fun' },
+      openGraph: {
+        title: 'Jam Room — OpenJam',
+        description: 'Join a live listening room, queue tracks, and stream music with friends.',
+        url: 'https://www.openjam.fun',
+        siteName: 'OpenJam',
+        locale: 'en_US',
+        type: 'website',
+        images: [
+          {
+            url: staticFallbackImage,
+            width: 1200,
+            height: 630,
+            alt: 'OpenJam — Virtual Music Room',
+          },
+        ],
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title: 'Jam Room — OpenJam',
+        description: 'Join a live listening room, queue tracks, and stream music with friends.',
+        images: [staticFallbackImage],
+      },
     };
   }
 
@@ -38,6 +63,7 @@ export async function generateMetadata({ params }) {
         const room = data.room;
         const currentTrack = room.current_track;
         const listenerCount = room.listener_count || 0;
+        const inviter = room.host_name || 'Someone';
 
         let title = `${room.name} — Open Jam`;
         let description = room.description || `Join the listening room "${room.name}" on Open Jam to stream music together in real-time.`;
@@ -47,19 +73,31 @@ export async function generateMetadata({ params }) {
           description = `Listening to "${currentTrack.track_name}" by ${currentTrack.artist} in ${room.name} with ${listenerCount} other listener(s). Join Open Jam to listen along!`;
         }
 
-        const inviter = room.host_name || 'Someone';
-        const ogImage = currentTrack?.album_art_url || `${backendUrl}/api/og/room/${id}.png?inviter=${encodeURIComponent(inviter)}`;
+        const ogParams = new URLSearchParams();
+        if (inviter) ogParams.set('inviter', inviter);
+        if (listenerCount > 0) ogParams.set('listener_count', listenerCount.toString());
+        if (currentTrack) {
+          if (currentTrack.track_name) ogParams.set('track_name', currentTrack.track_name);
+          if (currentTrack.artist) ogParams.set('artist', currentTrack.artist);
+          if (currentTrack.album_art_url) ogParams.set('cover_art_url', currentTrack.album_art_url);
+        }
+
+        const ogImage = `${backendUrl}/api/og/room/${id}.png?${ogParams.toString()}`;
 
         return {
           title,
           description,
-          robots: { index: false, follow: false },
-          alternates: { canonical: 'https://www.openjam.fun' },
+          robots: !room.is_private
+            ? { index: true, follow: true }
+            : { index: false, follow: false },
+          alternates: { canonical: `https://www.openjam.fun/room/${id}` },
           openGraph: {
             title,
             description,
             type: 'music.playlist',
             url: `https://www.openjam.fun/room/${id}`,
+            siteName: 'OpenJam',
+            locale: 'en_US',
             images: [
               {
                 url: ogImage,
@@ -86,13 +124,30 @@ export async function generateMetadata({ params }) {
   return {
     title: 'Jam Room — Open Jam',
     description: 'Join a live listening room and discover music together in real-time on Open Jam.',
-    robots: { index: false, follow: false },
+    robots: { index: true, follow: true },
     alternates: { canonical: 'https://www.openjam.fun' },
     openGraph: {
       title: 'Jam Room — Open Jam',
-      description: 'Join a live listening room and discover music together in real-time.',
+      description: 'Join a live listening room and discover music together in real-time on Open Jam.',
       url: 'https://www.openjam.fun',
-    }
+      siteName: 'OpenJam',
+      locale: 'en_US',
+      type: 'website',
+      images: [
+        {
+          url: staticFallbackImage,
+          width: 1200,
+          height: 630,
+          alt: 'OpenJam — Virtual Music Room',
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: 'Jam Room — Open Jam',
+      description: 'Join a live listening room and discover music together in real-time on Open Jam.',
+      images: [staticFallbackImage],
+    },
   };
 }
 

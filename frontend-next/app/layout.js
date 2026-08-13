@@ -37,10 +37,22 @@ const SITE_URL = "https://www.openjam.fun";
 export const metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Open Jam — Listen Together in Real-Time",
-    template: "%s | Open Jam"
+    default: "OpenJam — Listen to Music with Friends Online Free | Virtual Music Room",
+    template: "%s | OpenJam"
   },
-  description: "Create and join public listening rooms. Stream music, sync playback with friends, share queues, and discover new songs together in real-time.",
+  description: "OpenJam is a virtual music room platform to listen to music with friends online free. Sync YouTube music with friends in a shared music listening room with real-time synced music playback.",
+  keywords: [
+    "openjam",
+    "listen to music with friends online",
+    "shared music listening room",
+    "sync youtube music with friends",
+    "listen music with friends online free",
+    "virtual music room",
+    "synced music playback",
+    "real-time music sync",
+    "collaborative music queue",
+    "listen together free"
+  ],
   manifest: "/manifest.json",
   icons: {
     icon: "/static/img/logo.png",
@@ -57,11 +69,17 @@ export const metadata = {
       "max-snippet": -1,
     },
   },
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || "",
+    other: {
+      "msvalidate.01": process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION || ""
+    }
+  },
   openGraph: {
-    title: "Open Jam — Listen Together in Real-Time",
-    description: "Create and join public listening rooms. Stream music, sync playback with friends, share queues, and discover new songs together in real-time.",
+    title: "OpenJam — Listen to Music with Friends Online Free | Virtual Music Room",
+    description: "OpenJam is a virtual music room platform to listen to music with friends online free. Sync YouTube music with friends in a shared music listening room with real-time synced music playback.",
     url: SITE_URL,
-    siteName: "Open Jam",
+    siteName: "OpenJam",
     locale: "en_US",
     type: "website",
     images: [
@@ -69,20 +87,20 @@ export const metadata = {
         url: "/static/img/hero_visual_showcase.webp",
         width: 1200,
         height: 630,
-        alt: "Open Jam — Listen Together in Real-Time",
+        alt: "OpenJam — Listen to Music with Friends Online Free",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Open Jam — Listen Together in Real-Time",
-    description: "Create and join public listening rooms. Stream music, sync playback with friends, share queues, and discover new songs together in real-time.",
+    title: "OpenJam — Listen to Music with Friends Online Free | Virtual Music Room",
+    description: "OpenJam is a virtual music room platform to listen to music with friends online free. Sync YouTube music with friends in a shared music listening room with real-time synced music playback.",
     images: ["/static/img/hero_visual_showcase.webp"],
   },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Open Jam",
+    title: "OpenJam",
   }
 };
 
