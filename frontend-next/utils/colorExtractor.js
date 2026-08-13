@@ -1,9 +1,6 @@
 /**
- * Safely extracts dominant colors from any image URL using client-side canvas downsampling.
- * Uses a two-pass approach:
- * 1. For same-origin or known CORS-friendly CDNs, uses crossOrigin='Anonymous'.
- * 2. For external URLs (Pinterest, etc.), loads without CORS and catches tainted canvas gracefully.
- * Falls back to default values if extraction fails for any reason.
+ * Safely extracts vibrant dominant colors from any image URL using client-side canvas downsampling and color scoring.
+ * Filters out extreme blacks, whites, and dull greys to produce harmonious accent palettes.
  */
 
 const CORS_FRIENDLY_HOSTS = [
@@ -21,7 +18,7 @@ const CORS_FRIENDLY_HOSTS = [
 const DEFAULT_COLORS = ['#ff9f1c', '#8b5cf6', '#ec4899'];
 
 const rgbToHex = (r, g, b) => {
-  // If the sampled color is too dark, boost brightness slightly to keep visualizer glows vibrant
+  // If sampled color is too dark, boost brightness to keep glows vibrant
   const max = Math.max(r, g, b);
   if (max < 40) {
     r = Math.min(255, r + 40);
@@ -29,26 +26,70 @@ const rgbToHex = (r, g, b) => {
     b = Math.min(255, b + 60);
   }
   return "#" + [r, g, b].map(x => {
-    const hex = x.toString(16);
+    const hex = Math.round(x).toString(16);
     return hex.length === 1 ? "0" + hex : hex;
   }).join("");
 };
 
 const extractFromCanvas = (img) => {
   const canvas = document.createElement('canvas');
-  canvas.width = 10;
-  canvas.height = 10;
+  canvas.width = 16;
+  canvas.height = 16;
   const ctx = canvas.getContext('2d');
-  if (!ctx) return null;
+  if (!ctx) return DEFAULT_COLORS;
 
-  ctx.drawImage(img, 0, 0, 10, 10);
-  const data = ctx.getImageData(0, 0, 10, 10).data;
+  ctx.drawImage(img, 0, 0, 16, 16);
+  const data = ctx.getImageData(0, 0, 16, 16).data;
 
-  // Sample distinct coordinates
-  const c1 = rgbToHex(data[220], data[221], data[222]); // Center
-  const c2 = rgbToHex(data[88], data[89], data[90]);     // Top-Left
-  const c3 = rgbToHex(data[308], data[309], data[310]);   // Bottom-Right
-  return [c1, c2, c3];
+  const colorScores = [];
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const a = data[i + 3];
+
+    if (a < 128) continue; // Skip transparent
+
+    // Calculate saturation & lightness (HSL)
+    const max = Math.max(r, g, b) / 255;
+    const min = Math.min(r, g, b) / 255;
+    const l = (max + min) / 2;
+    const d = max - min;
+    const s = d === 0 ? 0 : l > 0.5 ? d / (2 - max - min) : d / (max + min);
+
+    // Skip extreme darks, extreme lights, or desaturated dull greys
+    if (l < 0.12 || l > 0.88 || s < 0.15) continue;
+
+    // Vibrance score favoring saturated midtones
+    const score = s * (1 - Math.abs(l - 0.5));
+    colorScores.push({ r, g, b, score });
+  }
+
+  if (colorScores.length === 0) {
+    return DEFAULT_COLORS;
+  }
+
+  // Sort colors by vibrance score descending
+  colorScores.sort((a, b) => b.score - a.score);
+
+  // Pick top 3 visually distinct colors (minimum RGB Euclidean distance)
+  const selected = [colorScores[0]];
+  for (let i = 1; i < colorScores.length && selected.length < 3; i++) {
+    const candidate = colorScores[i];
+    const isDistinct = selected.every(prev => {
+      const dist = Math.hypot(candidate.r - prev.r, candidate.g - prev.g, candidate.b - prev.b);
+      return dist > 55;
+    });
+    if (isDistinct) {
+      selected.push(candidate);
+    }
+  }
+
+  while (selected.length < 3) {
+    selected.push(selected[0] || { r: 255, g: 159, b: 28 });
+  }
+
+  return selected.map(c => rgbToHex(c.r, c.g, c.b));
 };
 
 const colorCache = new Map();
@@ -67,10 +108,8 @@ export const extractColors = (imageUrl) => {
 
     // Resolve absolute path if relative
     let srcUrl = imageUrl;
-    if (srcUrl.startsWith('/')) {
-      if (typeof window !== 'undefined') {
-        srcUrl = window.location.origin + srcUrl;
-      }
+    if (srcUrl.startsWith('/') && typeof window !== 'undefined') {
+      srcUrl = window.location.origin + srcUrl;
     }
 
     let urlObj;
@@ -98,18 +137,15 @@ export const extractColors = (imageUrl) => {
         colorCache.set(imageUrl, resolvedColors);
         resolve(resolvedColors);
       } catch {
-        // Tainted canvas (cross-origin without CORS) — return defaults silently
         colorCache.set(imageUrl, DEFAULT_COLORS);
         resolve(DEFAULT_COLORS);
       }
     };
 
     img.onerror = () => {
-      // If CORS mode failed, retry without CORS (image will display but canvas will be tainted)
       if (useCors && !isSameOrigin) {
         const retryImg = new Image();
         retryImg.onload = () => {
-          // Can't extract colors without CORS, but at least the image loads
           colorCache.set(imageUrl, DEFAULT_COLORS);
           resolve(DEFAULT_COLORS);
         };
@@ -127,4 +163,3 @@ export const extractColors = (imageUrl) => {
     img.src = srcUrl;
   });
 };
-

@@ -5,21 +5,12 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import PixelTransition from './PixelTransition';
 
-const getDefaultBanner = (room) => {
-  const hash = (room.id || room.name || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const fallbacks = [
-    '/static/img/cover-banner.webp',
-    '/static/img/cover-banner-1.webp',
-    '/static/img/cover-banner-2.webp',
-    '/static/img/cover-banner-3.webp'
-  ];
-  return fallbacks[hash % fallbacks.length];
-};
+const getDefaultBanner = () => null;
 
 function RoomCard({ room, nameColor, getInitials, href }) {
   const t = room.current_track;
   const isPlaying = !!(t && t.track_name);
-  const coverUrl = isPlaying ? (t.album_art_url || getDefaultBanner(room)) : null;
+  const coverUrl = isPlaying ? (t.album_art_url || null) : null;
   const trackName = isPlaying ? t.track_name : 'No track playing';
   const artistName = isPlaying ? t.artist : 'Idle room';
   const coverAlt = isPlaying ? `Album art for ${trackName} by ${artistName}` : `Cover for ${room.name}`;

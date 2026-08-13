@@ -733,6 +733,11 @@ export default function HomePage() {
       if (r.ok) {
         const data = await r.json();
         setShowCreateModal(false);
+        if (activePreview) {
+          try {
+            localStorage.setItem(`auto_play_track_${data.room.id}`, JSON.stringify(activePreview));
+          } catch (e) {}
+        }
         triggerToast('Jam Room created! Entering room...', 'success');
         setTimeout(() => {
           router.push(`/room/${data.room.id}?created=true`);

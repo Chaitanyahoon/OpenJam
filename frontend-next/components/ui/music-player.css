@@ -910,7 +910,7 @@ input[type="range"].mp-util-volume-slider {
   border-radius: 99px !important;
   outline: none !important;
   cursor: pointer !important;
-  background: rgba(255, 255, 255, 0.12) !important;
+  background: rgba(255, 255, 255, 0.12);
   border: none !important;
   box-shadow: none !important;
   transition: all 0.3s ease !important;
@@ -2187,3 +2187,59 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
     padding-top: 8px !important;
   }
 }
+
+/* Stage View Grid Responsiveness & Height Scaling */
+.stage-view-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 460px) 1fr;
+  gap: clamp(24px, 4vw, 64px);
+  padding: clamp(20px, 3vh, 40px) clamp(24px, 4vw, 64px);
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  z-index: 10;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 1024px) {
+  .stage-view-grid {
+    grid-template-columns: minmax(280px, 380px) 1fr;
+    gap: 32px;
+    padding: 24px 32px;
+  }
+}
+
+@media (max-width: 768px) {
+  .stage-view-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    gap: 20px;
+    padding: 16px;
+    overflow-y: auto;
+  }
+}
+
+@media (max-height: 820px) {
+  .stage-view-grid {
+    padding: 16px 32px !important;
+    gap: 24px !important;
+  }
+  .stage-view-grid .stage-art-card {
+    max-width: clamp(220px, 35vh, 360px) !important;
+    max-height: clamp(220px, 35vh, 360px) !important;
+  }
+}
+
+@media (max-height: 680px) {
+  .stage-view-grid {
+    padding: 12px 24px !important;
+    gap: 16px !important;
+  }
+  .stage-view-grid .stage-art-card {
+    max-width: clamp(180px, 28vh, 280px) !important;
+    max-height: clamp(180px, 28vh, 280px) !important;
+  }
+}
+

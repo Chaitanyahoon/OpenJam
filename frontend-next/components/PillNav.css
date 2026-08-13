@@ -68,22 +68,23 @@
   width: var(--nav-h);
   height: var(--nav-h);
   border-radius: 50%;
-  background: var(--base, #0a0a0f);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 10px;
+  background: #0a0a0f;
+  border: 1px solid rgba(255, 159, 28, 0.3);
+  padding: 8px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   margin-right: 12px;
   cursor: pointer;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
-  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), border-color 0.3s ease;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4), 0 0 16px rgba(255, 159, 28, 0.18);
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .pill-logo:hover {
-  transform: scale(1.05);
+  transform: scale(1.08);
   border-color: var(--amber, #ff9f1c);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 24px rgba(255, 159, 28, 0.35);
 }
 
 .pill-logo img {
@@ -91,6 +92,8 @@
   height: 100%;
   object-fit: contain;
   display: block;
+  mix-blend-mode: lighten;
+  filter: contrast(1.15) brightness(1.08);
 }
 
 .pill-list {
@@ -317,9 +320,9 @@
 
 @media (max-width: 768px) {
   .pill-logo {
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
+    background: rgba(10, 10, 15, 0.85) !important;
+    border: 1px solid rgba(255, 159, 28, 0.25) !important;
+    box-shadow: 0 0 12px rgba(255, 159, 28, 0.2) !important;
     margin-right: 0 !important;
     width: 42px !important;
     height: 42px !important;

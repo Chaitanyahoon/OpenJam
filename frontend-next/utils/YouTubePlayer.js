@@ -260,15 +260,17 @@ export default class YouTubePlayer {
           if (map[e.data]) this._onStateChange(map[e.data]);
         },
         onError: (e) => {
-          console.error('YouTube IFrame error:', e.data);
-          if (this.onStreamFailUpdate) this.onStreamFailUpdate("This track is unavailable");
+          console.warn('YouTube IFrame playback notice (code ' + e.data + '): embedding restricted or track unavailable.');
+          if (this.onStreamFailUpdate) this.onStreamFailUpdate("Track restricted by provider");
           if (e.data === 150 || e.data === 101) {
-            this.toast('This track is restricted. Skipping...', 'warning');
-            setTimeout(() => this._onStateChange('ended'), 2000);
+            this.toast('Track restricted from embedded playback. Skipping to next...', 'warning');
           } else {
-            this.toast("This track can't be played in your region.", 'error');
-            setTimeout(() => this._onStateChange('ended'), 2000);
+            this.toast('Track unavailable in region. Skipping to next...', 'warning');
           }
+          setTimeout(() => {
+            this._onStateChange('ended');
+            this._emitControlEvent('nexttrack');
+          }, 600);
         },
       },
     });

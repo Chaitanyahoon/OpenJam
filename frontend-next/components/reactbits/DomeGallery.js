@@ -384,7 +384,13 @@ export default function DomeGallery({
     };
   }, [enlargeTransitionMs, unlockScroll]);
 
+  const onItemClickRef = useRef(onItemClick);
+  useEffect(() => {
+    onItemClickRef.current = onItemClick;
+  }, [onItemClick]);
+
   const openItemFromElement = useCallback((el) => {
+    if (onItemClickRef.current) return;
     if (openingRef.current) return;
     openingRef.current = true;
     openStartedAtRef.current = performance.now();
@@ -435,10 +441,26 @@ export default function DomeGallery({
     overlay.style.willChange = 'transform, opacity';
     overlay.style.transformOrigin = 'top left';
     overlay.style.transition = `transform ${enlargeTransitionMs}ms ease, opacity ${enlargeTransitionMs}ms ease`;
+    const titleText = el.querySelector('.item-title')?.textContent;
+    const artistText = el.querySelector('.item-artist')?.textContent;
     const rawSrc = parent.dataset.src || el.querySelector('img')?.src || '';
     const img = document.createElement('img');
     img.src = rawSrc;
     overlay.appendChild(img);
+
+    if (titleText || artistText) {
+      const meta = document.createElement('div');
+      meta.className = 'enlarge-meta';
+      const tDiv = document.createElement('div');
+      tDiv.className = 'enlarge-title';
+      tDiv.textContent = titleText || 'Preview Track';
+      const aDiv = document.createElement('div');
+      aDiv.className = 'enlarge-artist';
+      aDiv.textContent = artistText || 'Popular Artist';
+      meta.appendChild(tDiv);
+      meta.appendChild(aDiv);
+      overlay.appendChild(meta);
+    }
     viewerRef.current.appendChild(overlay);
     const tx0 = tileR.left - frameR.left;
     const ty0 = tileR.top - frameR.top;
@@ -492,11 +514,12 @@ export default function DomeGallery({
     if (movedRef.current) return;
     if (performance.now() - lastDragEndAt.current < 80) return;
     if (openingRef.current) return;
-    openItemFromElement(e.currentTarget);
-    if (onItemClick) {
-      onItemClick(it);
+    if (onItemClickRef.current) {
+      onItemClickRef.current(it);
+    } else {
+      openItemFromElement(e.currentTarget);
     }
-  }, [openItemFromElement, onItemClick]);
+  }, [openItemFromElement]);
 
   const onTilePointerUp = useCallback((e, it) => {
     if (e.pointerType !== 'touch') return;
@@ -504,11 +527,12 @@ export default function DomeGallery({
     if (movedRef.current) return;
     if (performance.now() - lastDragEndAt.current < 80) return;
     if (openingRef.current) return;
-    openItemFromElement(e.currentTarget);
-    if (onItemClick) {
-      onItemClick(it);
+    if (onItemClickRef.current) {
+      onItemClickRef.current(it);
+    } else {
+      openItemFromElement(e.currentTarget);
     }
-  }, [openItemFromElement, onItemClick]);
+  }, [openItemFromElement]);
 
   // Ambient smooth Y-axis auto-rotation
   useEffect(() => {
@@ -578,7 +602,7 @@ export default function DomeGallery({
                     alt={it.alt} 
                     onError={(e) => {
                       e.target.onerror = null;
-                      e.target.src = '/static/img/cover-banner.webp';
+                      e.target.style.display = 'none';
                     }}
                   />
                   {(it.trackName || it.artist) && (

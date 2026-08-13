@@ -193,7 +193,7 @@ export const MusicPlayer = ({
 
     window.addEventListener("keydown", handleKeyPress);
     return () => window.removeEventListener("keydown", handleKeyPress);
-  }, [track.duration, disableKeyboardShortcuts, isHost]);
+  }, [track.duration, disableKeyboardShortcuts, isHost, isPlaying]);
 
   // Equalizer animation
   useEffect(() => {
@@ -325,7 +325,7 @@ export const MusicPlayer = ({
             </div>
             
             {/* Progress timeline bar */}
-            <div className="mp-progress-section" style={{ width: '100%', marginBottom: 0 }}>
+            <div className="mp-progress-section" style={{ width: '100%', marginBottom: '16px' }}>
               <div
                 ref={progressRef}
                 className="mp-progress-bar"
@@ -351,7 +351,7 @@ export const MusicPlayer = ({
                   </div>
                 )}
               </div>
-              <div className="mp-times" style={{ marginTop: '6px' }}>
+              <div className="mp-times" style={{ marginTop: '6px', display: 'flex', justifyContent: 'space-between', width: '100%', padding: '0 2px' }}>
                 <span>{formatTime(Math.min(currentTime, track.duration))}</span>
                 <span>{formatTime(track.duration)}</span>
               </div>
@@ -450,7 +450,7 @@ export const MusicPlayer = ({
                       setIsMuted(false);
                     }
                   }}
-                  style={{ background: `linear-gradient(to right, var(--theme-accent) ${isMuted ? 0 : volume}%, rgba(255, 255, 255, 0.12) ${isMuted ? 0 : volume}%)` }}
+                  style={{ background: `linear-gradient(to right, var(--theme-accent, #ff9f1c) ${isMuted ? 0 : volume}%, rgba(255, 255, 255, 0.15) ${isMuted ? 0 : volume}%)` }}
                   title={`Volume: ${isMuted ? 0 : volume}%`}
                 />
               </div>
@@ -465,7 +465,6 @@ export const MusicPlayer = ({
                     style={{ position: 'relative' }}
                   >
                     <List className="h-4 w-4" />
-                    {lyricsVisible && <span className="mp-ctrl-active-dot" />}
                   </button>
                 )}
               </div>
@@ -489,22 +488,24 @@ export const MusicPlayer = ({
                 {lyricsLoading ? (
                   <div className="mp-lyrics-loading">Loading lyrics...</div>
                 ) : lyricsText && lyricsText.length > 0 ? (
-                  lyricsText.map((line, idx) => (
-                    <div 
-                      key={idx}
-                      id={`mp-lyr-${idx}`}
-                      className={`mp-lyrics-line ${idx === lyricsActiveIdx ? 'active' : idx < lyricsActiveIdx ? 'sung' : ''}`}
-                      onClick={() => {
-                        if (isHost && onSeek && line.timeMs !== undefined) {
-                          onSeek(line.timeMs / 1000);
-                        }
-                      }}
-                      style={{ cursor: isHost && line.timeMs !== undefined ? 'pointer' : 'default' }}
-                    >
-                      {line.text}
-                    </div>
-                  ))
-
+                  lyricsText.map((line, idx) => {
+                    const isActive = idx === (lyricsActiveIdx >= 0 ? lyricsActiveIdx : (currentTime > 0 ? 0 : -1));
+                    return (
+                      <div 
+                        key={idx}
+                        id={`mp-lyr-${idx}`}
+                        className={`mp-lyrics-line ${isActive ? 'active' : (lyricsActiveIdx >= 0 && idx < lyricsActiveIdx ? 'sung' : '')}`}
+                        onClick={() => {
+                          if (isHost && onSeek && line.timeMs !== undefined) {
+                            onSeek(line.timeMs / 1000);
+                          }
+                        }}
+                        style={{ cursor: isHost && line.timeMs !== undefined ? 'pointer' : 'default' }}
+                      >
+                        {line.text}
+                      </div>
+                    );
+                  })
                 ) : (
                   <div className="mp-lyrics-empty">
                     No synced lyrics found for this track.

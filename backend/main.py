@@ -66,7 +66,7 @@ if settings.REDIS_URL:
 
 sio = socketio.AsyncServer(
     async_mode="asgi",
-    cors_allowed_origins=settings.ALLOWED_ORIGINS,
+    cors_allowed_origins="*" if settings.ENVIRONMENT == "development" else settings.ALLOWED_ORIGINS,
     client_manager=sio_mgr,
     logger=False,
     engineio_logger=False,

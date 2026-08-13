@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import YouTubePlayer from '@/utils/YouTubePlayer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MusicPlayer } from '@/components/ui/music-player';
-import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart, CheckCircle, AlertCircle, AlertTriangle, Info, Download, Check, Flame, Smile, Save, RefreshCw, ListPlus } from 'lucide-react';
+import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart, CheckCircle, AlertCircle, AlertTriangle, Info, Download, Check, Flame, Smile, Save, RefreshCw, ListPlus, Maximize2, Minimize2, SkipForward, SkipBack, Shuffle, Repeat, List, Disc } from 'lucide-react';
 import PwaInstallPrompt from '@/components/PwaInstallPrompt';
 import { offlineDb } from '@/utils/offlineDb';
 import EmojiPicker from '@/components/EmojiPicker';
@@ -90,10 +90,22 @@ export default function RoomClient({ roomId }) {
   const [isDraggingOverNP, setIsDraggingOverNP] = useState(false);
   const [isDraggingOverSidebarNP, setIsDraggingOverSidebarNP] = useState(false);
   const [isDraggingOverQueue, setIsDraggingOverQueue] = useState(false);
-
+  const [isStageMode, setIsStageMode] = useState(false);
+  const [stageControlsVisible, setStageControlsVisible] = useState(false);
+  const [stageVolHovered, setStageVolHovered] = useState(false);
+  const [stageSeekHovered, setStageSeekHovered] = useState(false);
+  const [showStageQueue, setShowStageQueue] = useState(false);
+  const [showTimeRemaining, setShowTimeRemaining] = useState(false);
+  const isDraggingStageVolRef = useRef(false);
+  const isDraggingStageSeekRef = useRef(false);
+  const stageVolPillRef = useRef(null);
+  const stageSeekBarRef = useRef(null);
+  const stageControlsTimerRef = useRef(null);
 
   // Refs for scrolling and canvas
   const chatEndRef = useRef(null);
+  const stageLyricsScrollRef = useRef(null);
+  const stageLyricsActiveRef = useRef(null);
   const audioContextRef = useRef(null);
   const lastReactionId = useRef(0);
   const isOverSuggestions = useRef(false);
@@ -102,16 +114,42 @@ export default function RoomClient({ roomId }) {
   const lastReactionSentRef = useRef(0);
   const colorsRef = useRef(['#ff9f1c', '#8b5cf6', '#ec4899']);
 
+  // Sync Stage Mode lyrics auto-scrolling
+  useEffect(() => {
+    if (!isStageMode || lyricsActiveIdx === -1 || !stageLyricsScrollRef.current) return;
+    const activeEl = document.getElementById(`stage-lyr-${lyricsActiveIdx}`);
+    if (activeEl) {
+      const container = stageLyricsScrollRef.current;
+      const parentRect = container.getBoundingClientRect();
+      const elementRect = activeEl.getBoundingClientRect();
+      const relativeTop = elementRect.top - parentRect.top;
+      container.scrollTo({
+        top: container.scrollTop + relativeTop - (parentRect.height / 2) + (activeEl.clientHeight / 2),
+        behavior: 'smooth'
+      });
+    }
+  }, [isStageMode, lyricsActiveIdx]);
+
   useEffect(() => {
     nowPlayingRef.current = nowPlaying;
     if (!nowPlaying?.album_art_url) {
       colorsRef.current = ['#ff9f1c', '#8b5cf6', '#ec4899'];
+      if (typeof document !== 'undefined') {
+        document.documentElement.style.setProperty('--dynamic-accent-1', '#ff9f1c');
+        document.documentElement.style.setProperty('--dynamic-accent-2', '#8b5cf6');
+        document.documentElement.style.setProperty('--dynamic-accent-3', '#ec4899');
+      }
     } else {
       extractColors(nowPlaying.album_art_url).then((colors) => {
         colorsRef.current = colors;
+        if (typeof document !== 'undefined' && colors && colors.length >= 3) {
+          document.documentElement.style.setProperty('--dynamic-accent-1', colors[0]);
+          document.documentElement.style.setProperty('--dynamic-accent-2', colors[1]);
+          document.documentElement.style.setProperty('--dynamic-accent-3', colors[2]);
+        }
       });
     }
-  }, [nowPlaying]);
+  }, [nowPlaying?.album_art_url]);
 
   // Discord Rich Presence (RPC) Integration
   useEffect(() => {
@@ -140,7 +178,7 @@ export default function RoomClient({ roomId }) {
     } else if (discordRpcRef.current && !nowPlaying) {
       discordRpcRef.current.clearActivity();
     }
-  }, [nowPlaying, playbackState.positionMs]);
+  }, [nowPlaying, playbackState.isPlaying]);
 
   useEffect(() => {
     playbackStateRef.current = playbackState;
@@ -170,6 +208,18 @@ export default function RoomClient({ roomId }) {
   useEffect(() => {
     streamErrorMsgRef.current = streamErrorMsg;
   }, [streamErrorMsg]);
+
+  const roomPasswordRef = useRef('');
+  useEffect(() => {
+    roomPasswordRef.current = roomPassword;
+  }, [roomPassword]);
+
+  const handleTogglePlayRef = useRef(null);
+  const handleNextTrackRef = useRef(null);
+  useEffect(() => {
+    handleTogglePlayRef.current = handleTogglePlay;
+    handleNextTrackRef.current = handleNextTrack;
+  }, [handleTogglePlay, handleNextTrack]);
 
   useEffect(() => {
     if (typeof document !== 'undefined') {
@@ -553,15 +603,25 @@ export default function RoomClient({ roomId }) {
         return;
       }
 
-      if (e.key === ' ' || e.key === 'k' || e.key === 'K') {
+      if (e.key === 'Escape' && isStageMode) {
+        setIsStageMode(false);
+        return;
+      }
+
+      if (e.key === 'f' || e.key === 'F') {
         e.preventDefault();
-        handleTogglePlay();
+        setIsStageMode((prev) => !prev);
+      } else if (e.key === ' ' || e.key === 'k' || e.key === 'K') {
+        e.preventDefault();
+        if (handleTogglePlayRef.current) handleTogglePlayRef.current();
+        else handleTogglePlay();
       } else if (e.key === 'm' || e.key === 'M') {
         e.preventDefault();
         setIsMuted((prev) => !prev);
       } else if (e.shiftKey && (e.key === 'ArrowRight' || e.key === 'n' || e.key === 'N')) {
         e.preventDefault();
-        handleNextTrack();
+        if (handleNextTrackRef.current) handleNextTrackRef.current();
+        else handleNextTrack();
       }
     };
 
@@ -576,7 +636,7 @@ export default function RoomClient({ roomId }) {
     }
 
     const joinRoom = () => {
-      const password = sessionStorage.getItem(`room_password_${roomId}`) || roomPassword;
+      const password = sessionStorage.getItem(`room_password_${roomId}`) || roomPasswordRef.current || roomPassword;
       const avatarUrl = localStorage.getItem('openjam_avatar_url');
       socket.emit('join_room', { room_id: roomId, password, avatar_url: avatarUrl });
     };
@@ -675,9 +735,30 @@ export default function RoomClient({ roomId }) {
             track_uri: preQueue,
             track_name: trackName || 'Pre-queued Track',
             artist: artist || 'Unknown',
-            album_art_url: albumArtUrl || '/static/img/cover-banner.webp',
+            album_art_url: albumArtUrl || null,
             duration_ms: 240000
           });
+        } else {
+          // Check if a starting track was stored during room creation from homepage preview
+          const autoTrackRaw = localStorage.getItem(`auto_play_track_${roomId}`);
+          if (autoTrackRaw) {
+            try {
+              const autoTrack = JSON.parse(autoTrackRaw);
+              localStorage.removeItem(`auto_play_track_${roomId}`);
+              if (autoTrack && (autoTrack.trackUri || autoTrack.track_uri)) {
+                socket.emit('add_to_queue', {
+                  room_id: roomId,
+                  track_uri: autoTrack.trackUri || autoTrack.track_uri,
+                  track_name: autoTrack.trackName || autoTrack.track_name || 'Jam Track',
+                  artist: autoTrack.artist || 'Unknown Artist',
+                  album_art_url: autoTrack.src || autoTrack.album_art_url || null,
+                  duration_ms: autoTrack.duration_ms || 240000
+                });
+              }
+            } catch (e) {
+              console.error('Error auto-queuing room creation track:', e);
+            }
+          }
         }
 
         if (isCreated || preQueue) {
@@ -1107,33 +1188,74 @@ export default function RoomClient({ roomId }) {
     return () => clearTimeout(delayDebounce);
   }, [searchQuery]);
 
-  // 6. Lyrics Syncing and Scroller
+  // 6. Lyrics Syncing, Multi-Tier Fetcher & Auto-Scroller
   async function fetchLyrics(artist, track) {
-    if (!artist || !track) {
+    if (!track) {
       setLyricsText([]);
       return;
     }
     setLyricsLoading(true);
     setLyricsText([]);
     try {
-      const cleanTrack = track.replace(/\[.*?\]|\(.*?\)/g, '').trim();
-      const cleanArtist = artist.replace(/\[.*?\]|\(.*?\)/g, '').trim();
-      const url = `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTrack)}&artist_name=${encodeURIComponent(cleanArtist)}`;
-      let res = await fetch(url);
-      let data = null;
-      if (res.ok) {
-        data = await res.json();
-      } else {
-        // Strict match failed, try fuzzy search
-        const searchUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(cleanArtist + ' ' + cleanTrack)}`;
-        const searchRes = await fetch(searchUrl);
-        if (searchRes.ok) {
-          const searchData = await searchRes.json();
-          if (Array.isArray(searchData) && searchData.length > 0) {
-            // Find the first result that has synced or plain lyrics
-            data = searchData.find(item => item.syncedLyrics || item.plainLyrics) || searchData[0];
-          }
+      // 1. Clean track name & artist from common YouTube fluff
+      let cleanTrack = track
+        .replace(/\[.*?\]|\(.*?\)/g, '')
+        .replace(/ft\..*|feat\..*/i, '')
+        .replace(/official video|official audio|lyric video|lyrics|audio|video|hd|4k|remastered|remix/gi, '')
+        .trim();
+        
+      let cleanArtist = (artist || '')
+        .replace(/\[.*?\]|\(.*?\)/g, '')
+        .replace(/ - topic/i, '')
+        .replace(/vevo/i, '')
+        .trim();
+
+      // If track has "Artist - Song Title", parse it out
+      if (cleanTrack.includes(' - ')) {
+        const parts = cleanTrack.split(' - ');
+        if (!cleanArtist || cleanArtist === 'Unknown' || cleanArtist === 'Topic') {
+          cleanArtist = parts[0].trim();
         }
+        cleanTrack = parts[1].trim();
+      }
+
+      // Tier 1: Direct LRCLIB get
+      let data = null;
+      if (cleanTrack && cleanArtist) {
+        const url = `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTrack)}&artist_name=${encodeURIComponent(cleanArtist)}`;
+        try {
+          const res = await fetch(url);
+          if (res.ok) data = await res.json();
+        } catch (e) {}
+      }
+
+      // Tier 2: Combined query search
+      if (!data && (cleanTrack || cleanArtist)) {
+        const query = `${cleanArtist} ${cleanTrack}`.trim();
+        const searchUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(query)}`;
+        try {
+          const searchRes = await fetch(searchUrl);
+          if (searchRes.ok) {
+            const searchData = await searchRes.json();
+            if (Array.isArray(searchData) && searchData.length > 0) {
+              data = searchData.find(item => item.syncedLyrics || item.plainLyrics) || searchData[0];
+            }
+          }
+        } catch (e) {}
+      }
+
+      // Tier 3: Search by track name alone
+      if (!data && cleanTrack) {
+        const trackOnlyUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(cleanTrack)}`;
+        try {
+          const trackOnlyRes = await fetch(trackOnlyUrl);
+          if (trackOnlyRes.ok) {
+            const trackDataList = await trackOnlyRes.json();
+            if (Array.isArray(trackDataList) && trackDataList.length > 0) {
+              data = trackDataList.find(item => item.syncedLyrics || item.plainLyrics) || trackDataList[0];
+            }
+          }
+        } catch (e) {}
       }
 
       if (data) {
@@ -1173,21 +1295,52 @@ export default function RoomClient({ roomId }) {
     }
   }
 
+  // Auto-fetch lyrics whenever nowPlaying track changes
   useEffect(() => {
-    if (lyricsText.length === 0) return;
+    if (nowPlaying?.track_name) {
+      fetchLyrics(nowPlaying.artist, nowPlaying.track_name);
+    } else {
+      setLyricsText([]);
+    }
+  }, [nowPlaying?.track_name, nowPlaying?.artist]);
+
+  // Native Browser Fullscreen trigger for Stage Mode
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (isStageMode) {
+      if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      }
+    } else {
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+  }, [isStageMode]);
+
+  useEffect(() => {
+    if (!lyricsText || lyricsText.length === 0) {
+      setLyricsActiveIdx(-1);
+      return;
+    }
     const currentMs = playbackState.positionMs;
     let newIdx = -1;
     for (let i = 0; i < lyricsText.length; i++) {
-      if (lyricsText[i].timeMs <= currentMs + 150) {
-        newIdx = i;
-      } else {
-        break;
+      if (lyricsText[i].timeMs !== undefined && lyricsText[i].timeMs >= 0) {
+        if (lyricsText[i].timeMs <= currentMs + 250) {
+          newIdx = i;
+        } else {
+          break;
+        }
       }
     }
-    if (newIdx !== lyricsActiveIdx && newIdx !== -1) {
+    if (newIdx === -1 && playbackState.isPlaying) {
+      newIdx = 0;
+    }
+    if (newIdx !== lyricsActiveIdx) {
       setLyricsActiveIdx(newIdx);
     }
-  }, [playbackState.positionMs, lyricsText, lyricsActiveIdx]);
+  }, [playbackState.positionMs, playbackState.isPlaying, lyricsText?.length, lyricsActiveIdx]);
 
 
   // Typing Cleanup on Unmount
@@ -1461,6 +1614,11 @@ export default function RoomClient({ roomId }) {
     });
   };
 
+  const handlePreviousTrack = () => {
+    if (!isHost || !socket) return;
+    socket.emit('previous_track', { room_id: roomId });
+  };
+
   const handleNextTrack = () => {
     if (!isHost || !socket) return;
     socket.emit('next_track', { room_id: roomId });
@@ -1471,6 +1629,120 @@ export default function RoomClient({ roomId }) {
     socket.emit('vote_skip', { room_id: roomId });
     setSkipVotes((prev) => ({ ...prev, voted: true }));
   };
+
+  // ── Stage Mode: Draggable Volume Slider ──
+  const calcVolumeFromY = (clientY, rect) => {
+    const clickY = clientY - rect.top;
+    return Math.max(0, Math.min(100, Math.round(((rect.height - clickY) / rect.height) * 100)));
+  };
+
+  const handleStageVolDown = (e) => {
+    e.preventDefault();
+    isDraggingStageVolRef.current = true;
+    const rect = stageVolPillRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const newVol = calcVolumeFromY(clientY, rect);
+    setVolume(newVol);
+    if (newVol > 0 && isMuted) setIsMuted(false);
+
+    const handleMove = (ev) => {
+      if (!isDraggingStageVolRef.current) return;
+      const y = ev.touches ? ev.touches[0].clientY : ev.clientY;
+      const r = stageVolPillRef.current?.getBoundingClientRect();
+      if (!r) return;
+      const v = calcVolumeFromY(y, r);
+      setVolume(v);
+      if (v > 0 && isMuted) setIsMuted(false);
+    };
+
+    const handleUp = () => {
+      isDraggingStageVolRef.current = false;
+      document.removeEventListener('mousemove', handleMove);
+      document.removeEventListener('mouseup', handleUp);
+      document.removeEventListener('touchmove', handleMove);
+      document.removeEventListener('touchend', handleUp);
+    };
+
+    document.addEventListener('mousemove', handleMove);
+    document.addEventListener('mouseup', handleUp);
+    document.addEventListener('touchmove', handleMove, { passive: false });
+    document.addEventListener('touchend', handleUp);
+  };
+
+  // ── Stage Mode: Draggable Seekbar ──
+  const calcSeekFromX = (clientX, rect) => {
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    return Math.floor(pct * playbackState.durationMs);
+  };
+
+  const handleStageSeekDown = (e) => {
+    if (!isHost || !playbackState.durationMs || !playerRef.current) return;
+    e.preventDefault();
+    isDraggingStageSeekRef.current = true;
+    const rect = stageSeekBarRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const posMs = calcSeekFromX(clientX, rect);
+    setPlaybackState(prev => ({ ...prev, positionMs: posMs }));
+
+    const handleMove = (ev) => {
+      if (!isDraggingStageSeekRef.current) return;
+      const x = ev.touches ? ev.touches[0].clientX : ev.clientX;
+      const r = stageSeekBarRef.current?.getBoundingClientRect();
+      if (!r) return;
+      const p = calcSeekFromX(x, r);
+      setPlaybackState(prev => ({ ...prev, positionMs: p }));
+    };
+
+    const handleUp = (ev) => {
+      isDraggingStageSeekRef.current = false;
+      const x = ev.changedTouches ? ev.changedTouches[0].clientX : ev.clientX;
+      const r = stageSeekBarRef.current?.getBoundingClientRect();
+      if (r && playerRef.current && socket) {
+        const finalPos = calcSeekFromX(x, r);
+        setPlaybackState(prev => ({ ...prev, positionMs: finalPos }));
+        playerRef.current.syncPosition(finalPos, playbackState.isPlaying);
+        socket.emit('playback_update', {
+          room_id: roomId,
+          track_uri: nowPlaying?.track_uri,
+          track_name: nowPlaying?.track_name,
+          artist: nowPlaying?.artist,
+          album_art_url: nowPlaying?.album_art_url,
+          position_ms: finalPos,
+          duration_ms: playbackState.durationMs,
+          is_playing: playbackState.isPlaying,
+          loop: playbackState.loop || false,
+          is_buffering: playbackState.isPlaying ? !!streamErrorMsg : false,
+        });
+      }
+      document.removeEventListener('mousemove', handleMove);
+      document.removeEventListener('mouseup', handleUp);
+      document.removeEventListener('touchmove', handleMove);
+      document.removeEventListener('touchend', handleUp);
+    };
+
+    document.addEventListener('mousemove', handleMove);
+    document.addEventListener('mouseup', handleUp);
+    document.addEventListener('touchmove', handleMove, { passive: false });
+    document.addEventListener('touchend', handleUp);
+  };
+
+  // ── Stage Mode: Hover-to-reveal controls with auto-hide timer ──
+  const showStageControls = () => {
+    setStageControlsVisible(true);
+    if (stageControlsTimerRef.current) clearTimeout(stageControlsTimerRef.current);
+    stageControlsTimerRef.current = setTimeout(() => {
+      if (!isDraggingStageVolRef.current && !isDraggingStageSeekRef.current) {
+        setStageControlsVisible(false);
+      }
+    }, 3500);
+  };
+
+  const handleStageMouseMove = () => {
+    showStageControls();
+  };
+
 
   const handleExportQueue = async () => {
     if (!queue || queue.length === 0) {
@@ -1981,6 +2253,13 @@ export default function RoomClient({ roomId }) {
 
         <div className="header-right">
           <div className="header-actions">
+            <button 
+              className="btn btn-secondary room-bar-icon-btn" 
+              onClick={() => setIsStageMode(true)} 
+              title="Enter Stage Mode (Press F)"
+            >
+              <Maximize2 size={16} />
+            </button>
             <button className="btn btn-secondary room-bar-icon-btn" onClick={() => setShowSettings(true)} title="Room Settings">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
             </button>
@@ -2395,6 +2674,20 @@ export default function RoomClient({ roomId }) {
                               onClick={() => {
                                 handleAddTrack(track);
                               }}
+                              onDoubleClick={(e) => {
+                                e.stopPropagation();
+                                if (isHost && socket) {
+                                  socket.emit('play_now', {
+                                    track_uri: track.uri || track.track_uri,
+                                    track_name: track.track_name || track.name,
+                                    artist: track.artist || '',
+                                    album_art_url: track.album_art_url || '',
+                                    duration_ms: track.duration_ms || 240000,
+                                  });
+                                  triggerToast(`Playing "${track.track_name || track.name}" instantly!`, 'success');
+                                }
+                              }}
+                              title={isHost ? 'Click to add to queue, Double click or Drag onto player to Play Now' : 'Click or Drag to add to queue'}
                               style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', cursor: 'grab' }}
                             >
                               <img decoding="async" loading="lazy" draggable="false" src={track.album_art_url || '/placeholder.svg'} alt="" style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} />
@@ -2402,6 +2695,49 @@ export default function RoomClient({ roomId }) {
                                 <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.track_name || track.name}</span>
                                 <span style={{ fontSize: '11px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.artist}</span>
                               </div>
+                              {isHost && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (socket) {
+                                      socket.emit('play_now', {
+                                        track_uri: track.uri || track.track_uri,
+                                        track_name: track.track_name || track.name,
+                                        artist: track.artist || '',
+                                        album_art_url: track.album_art_url || '',
+                                        duration_ms: track.duration_ms || 240000,
+                                      });
+                                      triggerToast(`Playing "${track.track_name || track.name}"!`, 'success');
+                                    }
+                                  }}
+                                  title="Play Now"
+                                  style={{
+                                    background: 'rgba(255, 159, 28, 0.15)',
+                                    border: '1px solid rgba(255, 159, 28, 0.3)',
+                                    color: 'var(--theme-accent, #ff9f1c)',
+                                    padding: '5px 8px',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    fontSize: '11px',
+                                    fontWeight: '600',
+                                    transition: 'all 0.2s'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = 'var(--theme-accent, #ff9f1c)';
+                                    e.currentTarget.style.color = '#000';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = 'rgba(255, 159, 28, 0.15)';
+                                    e.currentTarget.style.color = 'var(--theme-accent, #ff9f1c)';
+                                  }}
+                                >
+                                  <Play size={11} fill="currentColor" /> Play
+                                </button>
+                              )}
                               {me && me.is_registered && playlists.length > 0 && (
                                 <div 
                                   style={{ position: 'relative', display: 'flex', alignItems: 'center' }}
@@ -2713,6 +3049,19 @@ export default function RoomClient({ roomId }) {
                           onDragOver={(e) => handleDragOver(e, idx)}
                           onDragEnd={handleDragEnd}
                           onDrop={(e) => handleDrop(e, idx)}
+                          onDoubleClick={() => {
+                            if (isHost && socket && item.status !== 'playing') {
+                              socket.emit('play_now', {
+                                track_uri: item.track_uri || item.id,
+                                track_name: item.track_name,
+                                artist: item.artist,
+                                album_art_url: item.album_art_url,
+                                duration_ms: item.duration_ms || 240000
+                              });
+                              triggerToast(`Playing "${item.track_name}"!`, 'success');
+                            }
+                          }}
+                          title={item.status !== 'playing' ? (isHost ? 'Double click or drag onto player to Play Now' : 'Drag to reorder') : 'Currently playing'}
                           style={{
                             cursor: item.status !== 'playing' ? 'grab' : 'default',
                             borderTop: dragOverIdx === idx ? '2.5px solid var(--theme-accent, #ff9f1c)' : 'none',
@@ -2767,7 +3116,7 @@ export default function RoomClient({ roomId }) {
                             )}
                             <div style={{ fontSize: '10px', color: 'var(--text-4)', lineHeight: '1.2' }}>added by @{item.added_by_name}</div>
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                             {item.status === 'playing' ? (
                               playbackState.isPlaying && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '3px', paddingRight: '6px' }}>
@@ -2778,6 +3127,48 @@ export default function RoomClient({ roomId }) {
                               )
                             ) : (
                               <>
+                                {/* Host Play Now Button */}
+                                {isHost && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (socket) {
+                                        socket.emit('play_now', {
+                                          track_uri: item.track_uri || item.id,
+                                          track_name: item.track_name,
+                                          artist: item.artist,
+                                          album_art_url: item.album_art_url,
+                                          duration_ms: item.duration_ms || 240000
+                                        });
+                                        triggerToast(`Playing "${item.track_name}"!`, 'success');
+                                      }
+                                    }}
+                                    title="Play Now"
+                                    style={{
+                                      background: 'rgba(255, 159, 28, 0.15)',
+                                      border: '1px solid rgba(255, 159, 28, 0.3)',
+                                      color: 'var(--theme-accent, #ff9f1c)',
+                                      padding: '6px',
+                                      borderRadius: '8px',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      transition: 'all 0.2s'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.background = 'var(--theme-accent, #ff9f1c)';
+                                      e.currentTarget.style.color = '#000';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.background = 'rgba(255, 159, 28, 0.15)';
+                                      e.currentTarget.style.color = 'var(--theme-accent, #ff9f1c)';
+                                    }}
+                                  >
+                                    <Play size={13} fill="currentColor" />
+                                  </button>
+                                )}
                                 {me && me.is_registered && playlists.length > 0 && (
                                   <div 
                                     style={{ position: 'relative', display: 'flex', alignItems: 'center' }}
@@ -4122,6 +4513,974 @@ export default function RoomClient({ roomId }) {
 
       {/* Dynamic YouTube Fallback Iframe Container */}
       <div id="yt-fallback-container" style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '1px', height: '1px', overflow: 'hidden' }}></div>
+      {/* ══ STAGE MODE FULLSCREEN VISUALIZER (Apple Music & Vinyl Kinetic Stage) ══ */}
+      <AnimatePresence>
+        {isStageMode && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 9999,
+              background: '#070504',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              alignItems: 'center',
+              padding: '36px 48px',
+              fontFamily: 'var(--font-ui-next), sans-serif',
+              overflow: 'hidden',
+              color: '#ffffff',
+            }}
+          >
+            {/* Full-Bleed Blurred Cover Art Background */}
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                backgroundImage: nowPlaying?.album_art_url ? `url(${nowPlaying.album_art_url})` : 'none',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                filter: 'blur(110px) brightness(0.32) saturate(2.0)',
+                transform: 'scale(1.3)',
+                pointerEvents: 'none',
+                transition: 'background-image 1.2s ease',
+              }}
+            />
+
+            {/* Dark Vignette Radial Overlay */}
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                background: 'radial-gradient(circle at 30% 50%, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.75) 100%)',
+                pointerEvents: 'none',
+              }}
+            />
+
+            {/* Main Split Grid Stage — Always Split 2 Columns */}
+            <div
+              className="stage-view-grid"
+              style={{
+                display: 'grid',
+                gap: '64px',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flex: 1,
+                zIndex: 10,
+                width: '100%',
+                height: '100%',
+                padding: '40px 64px',
+                boxSizing: 'border-box',
+              }}
+            >
+              {/* Left Column: Artwork Card, Spinning Disc & Track Controls */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', maxWidth: '480px', margin: '0 auto' }}>
+                
+                {/* Artwork Outer Container with Spinning Vinyl Disc Peek Effect */}
+                <div style={{ position: 'relative', width: '100%', maxWidth: '480px', margin: '0 auto' }}>
+                  
+                  {/* Spinning Vinyl Record Disc */}
+                  <motion.div
+                    animate={{
+                      rotate: playbackState.isPlaying ? 360 : 0,
+                      x: playbackState.isPlaying ? 32 : 0,
+                    }}
+                    transition={{
+                      rotate: { duration: 6, repeat: Infinity, ease: 'linear' },
+                      x: { duration: 0.5, ease: 'easeOut' },
+                    }}
+                    style={{
+                      position: 'absolute',
+                      right: '0px',
+                      top: '5%',
+                      width: '90%',
+                      aspectRatio: '1/1',
+                      borderRadius: '50%',
+                      background: 'radial-gradient(circle, #080808 0%, #151515 30%, #050505 50%, #202020 70%, #080808 100%)',
+                      boxShadow: '0 10px 30px rgba(0,0,0,0.8), inset 0 0 0 2px rgba(255,255,255,0.06)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      zIndex: 1,
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    {/* Vinyl Center Label */}
+                    <div
+                      style={{
+                        width: '34%',
+                        height: '34%',
+                        borderRadius: '50%',
+                        background: 'radial-gradient(circle, var(--theme-accent, #ff9f1c) 0%, #111 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: '2px solid rgba(0,0,0,0.6)',
+                        boxShadow: '0 0 12px rgba(0,0,0,0.6)',
+                      }}
+                    >
+                      <Disc size={20} style={{ color: '#ffffff', opacity: 0.8 }} />
+                    </div>
+                  </motion.div>
+
+                  {/* Artwork Card */}
+                  <div
+                    className="stage-art-card"
+                    style={{
+                      position: 'relative',
+                      width: '100%',
+                      maxWidth: '480px',
+                      maxHeight: '480px',
+                      aspectRatio: '1/1',
+                      borderRadius: '20px',
+                      overflow: 'hidden',
+                      boxShadow: '0 30px 80px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.08)',
+                      background: '#121218',
+                      zIndex: 2,
+                    }}
+                  >
+                    {/* Background Cover Image or Clean Placeholder */}
+                    {nowPlaying?.album_art_url ? (
+                      <img
+                        src={nowPlaying.album_art_url}
+                        alt={nowPlaying?.track_name || 'Album Art'}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                          display: 'block',
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          background: 'radial-gradient(circle at center, #1e1e28 0%, #0a0a10 100%)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '12px',
+                        }}
+                      >
+                        <Music size={56} style={{ opacity: 0.3, color: '#ffffff' }} />
+                      </div>
+                    )}
+
+                    {/* Top Floating Glass Pill Toolbar Overlay inside Artwork */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '16px',
+                        left: '16px',
+                        right: '16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        zIndex: 10,
+                      }}
+                    >
+                      {/* Left Exit Button */}
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: 1.12, background: 'rgba(0, 0, 0, 0.7)' }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => setIsStageMode(false)}
+                        style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '50%',
+                          background: 'rgba(0, 0, 0, 0.45)',
+                          backdropFilter: 'blur(16px)',
+                          WebkitBackdropFilter: 'blur(16px)',
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          color: '#ffffff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                        }}
+                        aria-label="Exit Stage Mode"
+                        title="Exit Stage Mode (Esc)"
+                      >
+                        <X size={16} />
+                      </motion.button>
+
+                      {/* Right Quick Action Icons Group */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '4px 8px',
+                          background: 'rgba(0, 0, 0, 0.45)',
+                          backdropFilter: 'blur(16px)',
+                          WebkitBackdropFilter: 'blur(16px)',
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          borderRadius: '99px',
+                        }}
+                      >
+                        {/* Add to Playlist */}
+                        <motion.button
+                          type="button"
+                          whileHover={{ scale: 1.15 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => {
+                            if (nowPlaying) {
+                              setShowBulkAdd(true);
+                            }
+                          }}
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#ffffff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                          }}
+                          title="Add to Playlist"
+                        >
+                          <ListPlus size={16} />
+                        </motion.button>
+
+                        {/* Native Browser Fullscreen Toggle */}
+                        <motion.button
+                          type="button"
+                          whileHover={{ scale: 1.15 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => {
+                            if (document.fullscreenElement) {
+                              document.exitFullscreen().catch(() => {});
+                            } else {
+                              document.documentElement.requestFullscreen().catch(() => {});
+                            }
+                          }}
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#ffffff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                          }}
+                          title="Toggle Native Fullscreen"
+                        >
+                          <Maximize2 size={15} />
+                        </motion.button>
+
+                        {/* Heart / Like Toggle */}
+                        <motion.button
+                          type="button"
+                          whileHover={{ scale: 1.15 }}
+                          whileTap={{ scale: 0.85 }}
+                          onClick={handleLikeToggle}
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            background: 'transparent',
+                            border: 'none',
+                            color: favourites.some(f => f.track_uri === nowPlaying?.track_uri) ? '#f43f5e' : '#ffffff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                          }}
+                          title={favourites.some(f => f.track_uri === nowPlaying?.track_uri) ? 'Unlike' : 'Like'}
+                        >
+                          <Heart
+                            size={16}
+                            fill={favourites.some(f => f.track_uri === nowPlaying?.track_uri) ? '#f43f5e' : 'none'}
+                          />
+                        </motion.button>
+
+                        {/* Room Settings */}
+                        <motion.button
+                          type="button"
+                          whileHover={{ scale: 1.15 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => setShowSettings(true)}
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#ffffff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                          }}
+                          title="Room Settings"
+                        >
+                          <Settings size={15} />
+                        </motion.button>
+                      </div>
+                    </div>
+
+                    {/* Right Interactive Vertical Volume Slider — Always Visible */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        right: '14px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '6px',
+                        zIndex: 10,
+                      }}
+                    >
+                      {/* Volume percentage badge */}
+                      <AnimatePresence>
+                        {(stageVolHovered || isDraggingStageVolRef.current) && (
+                          <motion.span
+                            initial={{ opacity: 0, y: 4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 4 }}
+                            transition={{ duration: 0.15 }}
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              color: '#ffffff',
+                              textShadow: '0 1px 6px rgba(0,0,0,0.8)',
+                              fontVariantNumeric: 'tabular-nums',
+                              userSelect: 'none',
+                            }}
+                          >
+                            {isMuted ? 0 : volume}%
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
+
+                      {/* Volume pill */}
+                      <div
+                        ref={stageVolPillRef}
+                        onMouseDown={handleStageVolDown}
+                        onTouchStart={handleStageVolDown}
+                        onMouseEnter={() => setStageVolHovered(true)}
+                        onMouseLeave={() => { if (!isDraggingStageVolRef.current) setStageVolHovered(false); }}
+                        style={{
+                          width: stageVolHovered || isDraggingStageVolRef.current ? '14px' : '10px',
+                          height: '110px',
+                          background: 'rgba(255, 255, 255, 0.2)',
+                          backdropFilter: 'blur(12px)',
+                          borderRadius: '99px',
+                          overflow: 'hidden',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'flex-end',
+                          boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+                          cursor: 'pointer',
+                          transition: 'width 0.15s ease',
+                          touchAction: 'none',
+                          userSelect: 'none',
+                        }}
+                        role="slider"
+                        aria-label="Volume"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={isMuted ? 0 : volume}
+                        title={`Volume: ${isMuted ? 0 : volume}%`}
+                      >
+                        <div
+                          style={{
+                            width: '100%',
+                            height: `${isMuted ? 0 : volume}%`,
+                            background: '#ffffff',
+                            borderRadius: '99px',
+                            transition: isDraggingStageVolRef.current ? 'none' : 'height 0.1s ease-out',
+                            boxShadow: '0 0 8px rgba(255, 255, 255, 0.5)',
+                          }}
+                        />
+                      </div>
+
+                      {/* Mute toggle icon */}
+                      <motion.button
+                        type="button"
+                        whileTap={{ scale: 0.85 }}
+                        onClick={() => setIsMuted(prev => !prev)}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'rgba(255,255,255,0.8)',
+                          cursor: 'pointer',
+                          padding: 0,
+                          display: 'flex',
+                        }}
+                        aria-label={isMuted ? 'Unmute' : 'Mute'}
+                        title={isMuted ? 'Unmute' : 'Mute'}
+                      >
+                        {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                      </motion.button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Progress Bar Timeline below Artwork */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
+                  <div
+                    ref={stageSeekBarRef}
+                    onMouseDown={handleStageSeekDown}
+                    onTouchStart={handleStageSeekDown}
+                    style={{
+                      width: '100%',
+                      height: '5px',
+                      borderRadius: '99px',
+                      background: 'rgba(255, 255, 255, 0.2)',
+                      position: 'relative',
+                      cursor: isHost ? 'pointer' : 'default',
+                      overflow: 'visible',
+                      touchAction: 'none',
+                      userSelect: 'none',
+                    }}
+                    role="slider"
+                    aria-label="Seek"
+                    aria-valuemin={0}
+                    aria-valuemax={playbackState.durationMs || 0}
+                    aria-valuenow={playbackState.positionMs || 0}
+                  >
+                    {/* Filled progress */}
+                    <div
+                      style={{
+                        width: `${playbackState.durationMs ? Math.min(100, (playbackState.positionMs / playbackState.durationMs) * 100) : 0}%`,
+                        height: '100%',
+                        background: 'linear-gradient(90deg, var(--theme-accent, #ff9f1c) 0%, #ffb703 100%)',
+                        borderRadius: '99px',
+                        position: 'relative',
+                        transition: isDraggingStageSeekRef.current ? 'none' : 'width 0.15s linear',
+                      }}
+                    >
+                      {/* Scrub thumb */}
+                      {isHost && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            right: '-6px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            width: '12px',
+                            height: '12px',
+                            borderRadius: '50%',
+                            background: '#ffffff',
+                            boxShadow: '0 0 6px rgba(255,255,255,0.6), 0 2px 8px rgba(0,0,0,0.4)',
+                            pointerEvents: 'none',
+                          }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Timestamps */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600, color: 'rgba(255, 255, 255, 0.65)', fontFamily: 'var(--font-mono)', letterSpacing: '0.02em' }}>
+                    <span>{formatTime(playbackState.positionMs)}</span>
+                    <span
+                      onClick={() => setShowTimeRemaining(prev => !prev)}
+                      style={{ cursor: 'pointer', userSelect: 'none' }}
+                      title="Click to toggle total duration / time remaining"
+                    >
+                      {showTimeRemaining && playbackState.durationMs
+                        ? `-${formatTime(Math.max(0, playbackState.durationMs - playbackState.positionMs))}`
+                        : formatTime(playbackState.durationMs)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Track Title, Artist & Live Equalizer Waveform */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                    <h2 style={{ fontSize: '22px', fontWeight: 800, color: '#ffffff', margin: 0, letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                      {nowPlaying?.track_name || 'No Track Playing'}
+                    </h2>
+                    {playbackState.isPlaying && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
+                        <div className="queue-wave" style={{ height: '14px', width: '3px', animationDelay: '0s', background: 'var(--theme-accent, #ff9f1c)' }}></div>
+                        <div className="queue-wave" style={{ height: '14px', width: '3px', animationDelay: '0.15s', background: 'var(--theme-accent, #ff9f1c)' }}></div>
+                        <div className="queue-wave" style={{ height: '14px', width: '3px', animationDelay: '0.3s', background: 'var(--theme-accent, #ff9f1c)' }}></div>
+                      </div>
+                    )}
+                  </div>
+                  <p style={{ fontSize: '14px', fontWeight: 500, color: 'rgba(255, 255, 255, 0.65)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {nowPlaying?.artist || 'Idle Room'}
+                  </p>
+                </div>
+
+                {/* Clean, Non-Cluttered Stage Mode Transport Controls */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '24px',
+                    padding: '12px 0 4px 0',
+                    width: '100%',
+                  }}
+                >
+                  {/* Shuffle Button */}
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: isHost ? 1.15 : 1, background: isHost ? 'rgba(255,255,255,0.12)' : 'transparent' }}
+                    whileTap={{ scale: isHost ? 0.9 : 1 }}
+                    onClick={() => {
+                      if (isHost) handleShuffleClick();
+                      else triggerToast('Only the host can shuffle', 'info');
+                    }}
+                    style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '50%',
+                      background: 'transparent',
+                      border: 'none',
+                      color: isHost ? 'rgba(255, 255, 255, 0.8)' : 'rgba(255, 255, 255, 0.25)',
+                      cursor: isHost ? 'pointer' : 'not-allowed',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'background 0.2s, color 0.2s',
+                    }}
+                    aria-label="Shuffle Queue"
+                    title={isHost ? 'Shuffle Queue' : 'Only the host can shuffle'}
+                  >
+                    <Shuffle size={19} />
+                  </motion.button>
+
+                  {/* Previous Track Button */}
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: isHost ? 1.15 : 1, x: isHost ? -2 : 0, background: isHost ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.06)' }}
+                    whileTap={{ scale: isHost ? 0.9 : 1 }}
+                    onClick={() => {
+                      if (isHost) handlePreviousTrack();
+                      else triggerToast('Only the host can skip tracks', 'info');
+                    }}
+                    style={{
+                      width: '44px',
+                      height: '44px',
+                      borderRadius: '50%',
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      backdropFilter: 'blur(12px)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      color: isHost ? '#ffffff' : 'rgba(255, 255, 255, 0.3)',
+                      cursor: isHost ? 'pointer' : 'not-allowed',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'background 0.2s',
+                    }}
+                    aria-label="Previous Track"
+                    title={isHost ? 'Previous Track' : 'Only the host can control playback'}
+                  >
+                    <SkipBack size={20} fill={isHost ? '#ffffff' : 'rgba(255,255,255,0.3)'} />
+                  </motion.button>
+
+                  {/* Play/Pause Center Hero Circle */}
+                  <motion.button
+                    type="button"
+                    whileHover={{
+                      scale: isHost ? 1.12 : 1,
+                      boxShadow: isHost ? '0 0 28px var(--theme-accent, #ff9f1c), 0 8px 24px rgba(0,0,0,0.5)' : 'none',
+                    }}
+                    whileTap={{ scale: isHost ? 0.92 : 1 }}
+                    onClick={() => {
+                      if (isHost) handleTogglePlay();
+                      else triggerToast('Only the host can control playback', 'info');
+                    }}
+                    style={{
+                      width: '52px',
+                      height: '52px',
+                      borderRadius: '50%',
+                      background: isHost ? '#ffffff' : 'rgba(255, 255, 255, 0.15)',
+                      color: isHost ? '#09090b' : 'rgba(255,255,255,0.3)',
+                      cursor: isHost ? 'pointer' : 'not-allowed',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: isHost ? '0 4px 18px rgba(0,0,0,0.4)' : 'none',
+                      border: 'none',
+                      transition: 'all 0.2s ease',
+                    }}
+                    aria-label={playbackState.isPlaying ? 'Pause' : 'Play'}
+                    title={isHost ? (playbackState.isPlaying ? 'Pause' : 'Play') : 'Only the host can control playback'}
+                  >
+                    {playbackState.isPlaying
+                      ? <Pause size={24} fill={isHost ? '#09090b' : 'rgba(255,255,255,0.3)'} />
+                      : <Play size={24} fill={isHost ? '#09090b' : 'rgba(255,255,255,0.3)'} style={{ marginLeft: '3px' }} />}
+                  </motion.button>
+
+                  {/* Next / Vote Skip Button */}
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.15, x: 2, background: 'rgba(255,255,255,0.2)' }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={isHost ? handleNextTrack : handleVoteSkip}
+                    style={{
+                      width: '44px',
+                      height: '44px',
+                      borderRadius: '50%',
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      backdropFilter: 'blur(12px)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      color: '#ffffff',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'background 0.2s',
+                    }}
+                    aria-label={isHost ? 'Next Track' : 'Vote to Skip'}
+                    title={isHost ? 'Next Track' : 'Vote to Skip'}
+                  >
+                    <SkipForward size={20} fill="#ffffff" />
+                  </motion.button>
+
+                  {/* Repeat Button */}
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: isHost ? 1.15 : 1, background: isHost ? 'rgba(255,255,255,0.12)' : 'transparent' }}
+                    whileTap={{ scale: isHost ? 0.9 : 1 }}
+                    onClick={() => {
+                      if (isHost) handleRepeatToggle();
+                      else triggerToast('Only the host can toggle repeat', 'info');
+                    }}
+                    style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '50%',
+                      background: isHost && playbackState.loop ? 'rgba(255, 159, 28, 0.2)' : 'transparent',
+                      border: isHost && playbackState.loop ? '1px solid rgba(255, 159, 28, 0.4)' : 'none',
+                      color: isHost
+                        ? (playbackState.loop ? 'var(--theme-accent, #ff9f1c)' : 'rgba(255,255,255,0.8)')
+                        : 'rgba(255,255,255,0.25)',
+                      cursor: isHost ? 'pointer' : 'not-allowed',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'background 0.2s, color 0.2s',
+                    }}
+                    aria-label="Repeat Track"
+                    title={isHost ? 'Repeat Track' : 'Only the host can toggle repeat'}
+                  >
+                    <Repeat size={19} />
+                  </motion.button>
+                </div>
+              </div>
+
+              {/* Right Column: Apple Music Style Kinetic Lyrics Display OR Up Next Queue Drawer */}
+              {showStageQueue ? (
+                /* Stage Mode Up Next Queue Drawer Overlay */
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  transition={{ duration: 0.25 }}
+                  style={{
+                    height: '100%',
+                    maxHeight: '580px',
+                    background: 'rgba(15, 15, 22, 0.65)',
+                    backdropFilter: 'blur(16px)',
+                    WebkitBackdropFilter: 'blur(16px)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '24px',
+                    padding: '24px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '16px',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#ffffff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <List size={18} style={{ color: 'var(--theme-accent, #ff9f1c)' }} /> Up Next Queue
+                    </h3>
+                    <motion.button
+                      type="button"
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => setShowStageQueue(false)}
+                      style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', padding: 0 }}
+                    >
+                      <X size={18} />
+                    </motion.button>
+                  </div>
+
+                  <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', scrollbarWidth: 'none' }}>
+                    {queue.length > 0 ? (
+                      queue.map((item, idx) => (
+                        <div
+                          key={item.id}
+                          onDoubleClick={() => {
+                            if (isHost && socket && item.status !== 'playing') {
+                              socket.emit('play_now', {
+                                track_uri: item.track_uri || item.id,
+                                track_name: item.track_name,
+                                artist: item.artist,
+                                album_art_url: item.album_art_url,
+                                duration_ms: item.duration_ms || 240000
+                              });
+                              triggerToast(`Playing "${item.track_name}"!`, 'success');
+                            }
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            padding: '10px 12px',
+                            borderRadius: '14px',
+                            background: item.status === 'playing' ? 'rgba(255, 159, 28, 0.15)' : 'rgba(255, 255, 255, 0.04)',
+                            border: item.status === 'playing' ? '1px solid rgba(255, 159, 28, 0.3)' : '1px solid rgba(255, 255, 255, 0.05)',
+                            transition: 'all 0.2s',
+                          }}
+                        >
+                          <img
+                            src={item.album_art_url || '/placeholder.svg'}
+                            alt=""
+                            style={{ width: '38px', height: '38px', borderRadius: '8px', objectFit: 'cover' }}
+                            onError={(e) => { e.target.style.display = 'none'; }}
+                          />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '13px', fontWeight: 600, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {item.track_name}
+                            </div>
+                            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {item.artist}
+                            </div>
+                          </div>
+                          {isHost && item.status !== 'playing' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (socket) {
+                                  socket.emit('play_now', {
+                                    track_uri: item.track_uri || item.id,
+                                    track_name: item.track_name,
+                                    artist: item.artist,
+                                    album_art_url: item.album_art_url,
+                                    duration_ms: item.duration_ms || 240000
+                                  });
+                                  triggerToast(`Playing "${item.track_name}"!`, 'success');
+                                }
+                              }}
+                              style={{
+                                background: 'rgba(255, 159, 28, 0.2)',
+                                border: 'none',
+                                color: 'var(--theme-accent, #ff9f1c)',
+                                padding: '6px',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                              }}
+                              title="Play Now"
+                            >
+                              <Play size={12} fill="currentColor" />
+                            </button>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>
+                        Queue is empty
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              ) : lyricsText.length > 0 ? (
+                /* Kinetic Multi-Language Karaoke Lyrics Display */
+                <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                  {/* Floating Close (x) button on top right of lyrics panel */}
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.15, background: 'rgba(255, 255, 255, 0.25)' }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setIsStageMode(false)}
+                    style={{
+                      position: 'absolute',
+                      top: '-12px',
+                      right: '0px',
+                      width: '38px',
+                      height: '38px',
+                      borderRadius: '50%',
+                      background: 'rgba(255, 255, 255, 0.12)',
+                      backdropFilter: 'blur(12px)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      zIndex: 25,
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+                    }}
+                    title="Exit Stage Mode (Esc)"
+                  >
+                    <X size={18} />
+                  </motion.button>
+
+                  <div
+                    ref={stageLyricsScrollRef}
+                    style={{
+                      height: '100%',
+                      maxHeight: 'calc(100vh - 90px)',
+                      overflowY: 'auto',
+                      paddingRight: '28px',
+                      paddingTop: '20px',
+                      paddingBottom: '60px',
+                      maskImage: 'linear-gradient(to bottom, transparent 0%, black 5%, black 92%, transparent 100%)',
+                      WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 5%, black 92%, transparent 100%)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '36px',
+                      scrollbarWidth: 'none',
+                      fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", "Noto Sans Devanagari", "Noto Sans CJK KR", "Noto Sans JP", "Noto Sans Arabic", sans-serif',
+                    }}
+                  >
+                    {lyricsText.map((item, idx) => {
+                      const isActive = idx === lyricsActiveIdx;
+
+                      // Word-by-word Karaoke timing calculation for active line
+                      let words = (item.text || '').split(' ');
+                      let activeWordIdx = -1;
+                      if (isActive && item.timeMs !== undefined && item.timeMs >= 0) {
+                        const nextTime = (lyricsText[idx + 1] && lyricsText[idx + 1].timeMs > 0)
+                          ? lyricsText[idx + 1].timeMs
+                          : item.timeMs + 4000;
+                        const lineDuration = Math.max(1000, nextTime - item.timeMs);
+                        const elapsed = Math.max(0, playbackState.positionMs - item.timeMs);
+                        const ratio = Math.min(1, elapsed / lineDuration);
+                        activeWordIdx = Math.floor(ratio * words.length);
+                      }
+
+                      return (
+                        <motion.div
+                          key={idx}
+                          id={`stage-lyr-${idx}`}
+                          animate={{
+                            scale: isActive ? 1.06 : 1,
+                            opacity: isActive ? 1 : (idx < lyricsActiveIdx ? 0.6 : 0.28),
+                            x: isActive ? 18 : 0,
+                          }}
+                          transition={{ duration: 0.35, ease: 'easeOut' }}
+                          style={{
+                            fontSize: isActive ? '54px' : '36px',
+                            fontWeight: isActive ? 800 : 700,
+                            margin: 0,
+                            cursor: isHost ? 'pointer' : 'default',
+                            color: isActive ? '#ffffff' : (idx < lyricsActiveIdx ? 'rgba(255, 255, 255, 0.75)' : 'rgba(255, 255, 255, 0.35)'),
+                            lineHeight: 1.35,
+                            transformOrigin: 'left center',
+                            letterSpacing: '-0.02em',
+                            wordBreak: 'break-word',
+                            textShadow: isActive ? '0 0 30px rgba(255, 255, 255, 0.5), 0 0 60px var(--theme-accent, #ff9f1c)' : 'none',
+                          }}
+                          onClick={() => {
+                            if (item.timeMs > 0 && isHost && playerRef.current) {
+                              setPlaybackState(prev => ({ ...prev, positionMs: item.timeMs }));
+                              playerRef.current.syncPosition(item.timeMs, playbackState.isPlaying);
+                              triggerToast(`Jumped to ${formatTime(item.timeMs)}`, 'info');
+                            }
+                          }}
+                        >
+                          {isActive && words.length > 1 ? (
+                            words.map((word, wIdx) => {
+                              const isWordSung = wIdx <= activeWordIdx;
+                              const isCurrentWord = wIdx === activeWordIdx;
+                              return (
+                                <span
+                                  key={wIdx}
+                                  style={{
+                                    display: 'inline-block',
+                                    marginRight: '14px',
+                                    color: isWordSung ? '#ffffff' : 'rgba(255, 255, 255, 0.4)',
+                                    fontWeight: isCurrentWord ? 900 : (isWordSung ? 800 : 700),
+                                    textShadow: isCurrentWord
+                                      ? '0 0 32px #ffffff, 0 0 60px var(--theme-accent, #ff9f1c)'
+                                      : (isWordSung ? '0 0 18px rgba(255,255,255,0.7)' : 'none'),
+                                    transform: isCurrentWord ? 'scale(1.08)' : 'scale(1)',
+                                    transition: 'all 0.15s ease-out',
+                                  }}
+                                >
+                                  {word}
+                                </span>
+                              );
+                            })
+                          ) : (
+                            item.text
+                          )}
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                /* Enhanced lyrics empty state */
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '100%',
+                  gap: '16px',
+                  textAlign: 'center',
+                }}>
+                  <motion.div
+                    animate={{ rotate: [0, 5, -5, 0] }}
+                    transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+                    style={{ color: 'var(--dynamic-accent-1, rgba(255,255,255,0.4))' }}
+                  >
+                    <Music size={48} strokeWidth={1.2} />
+                  </motion.div>
+                  <div>
+                    <p style={{ fontSize: '18px', fontWeight: 700, color: 'rgba(255, 255, 255, 0.55)', margin: '0 0 6px 0' }}>
+                      {lyricsLoading ? 'Fetching lyrics…' : 'No synchronized lyrics'}
+                    </p>
+                    {!lyricsLoading && (
+                      <p style={{ fontSize: '13px', fontWeight: 500, color: 'rgba(255, 255, 255, 0.3)', margin: 0 }}>
+                        Lyrics will appear here when available for this track
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Keyboard shortcut hint — shown briefly */}
+            <motion.div
+              initial={{ opacity: 1 }}
+              animate={{ opacity: 0 }}
+              transition={{ duration: 0.5, delay: 3 }}
+              style={{
+                position: 'absolute',
+                bottom: '16px',
+                right: '24px',
+                zIndex: 10,
+                display: 'flex',
+                gap: '12px',
+                pointerEvents: 'none',
+              }}
+            >
+              <span style={{ fontSize: '11px', fontWeight: 500, color: 'rgba(255,255,255,0.35)', background: 'rgba(0,0,0,0.3)', padding: '4px 8px', borderRadius: '6px' }}>
+                Esc to exit
+              </span>
+              <span style={{ fontSize: '11px', fontWeight: 500, color: 'rgba(255,255,255,0.35)', background: 'rgba(0,0,0,0.3)', padding: '4px 8px', borderRadius: '6px' }}>
+                Space to play/pause
+              </span>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <PwaInstallPrompt />
     </div>
   );

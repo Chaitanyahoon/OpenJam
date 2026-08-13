@@ -24,6 +24,12 @@
   --brass:        #d4af37;
   --brass-glow:   rgba(212, 175, 55, 0.25);
 
+  /* Dynamic Theme Palette (Extracted from active cover art) */
+  --dynamic-accent-1: #ff9f1c;
+  --dynamic-accent-2: #8b5cf6;
+  --dynamic-accent-3: #ec4899;
+  --theme-accent: var(--dynamic-accent-1, #ff9f1c);
+
   /* Status */
   --green:        #10b981;
   --green-muted:  rgba(16, 185, 129, 0.12);
