@@ -27,7 +27,7 @@ const FAQS = [
   }
 ];
 
-export default function FaqSection() {
+function FaqSection() {
   const [openIdx, setOpenIdx] = useState(null);
 
   const toggleFaq = (idx) => {
@@ -142,3 +142,5 @@ export default function FaqSection() {
     </section>
   );
 }
+
+export default React.memo(FaqSection);

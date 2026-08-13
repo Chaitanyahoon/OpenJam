@@ -16,7 +16,7 @@ const getDefaultBanner = (room) => {
   return fallbacks[hash % fallbacks.length];
 };
 
-export default function RoomCard({ room, nameColor, getInitials, href }) {
+function RoomCard({ room, nameColor, getInitials, href }) {
   const t = room.current_track;
   const isPlaying = !!(t && t.track_name);
   const coverUrl = isPlaying ? (t.album_art_url || getDefaultBanner(room)) : null;
@@ -44,7 +44,6 @@ export default function RoomCard({ room, nameColor, getInitials, href }) {
                     src={coverUrl}
                     onError={(e) => { e.currentTarget.src = getDefaultBanner(room); }}
                     alt={coverAlt}
-                    loading="lazy"
                     style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                   />
                 ) : (
@@ -157,3 +156,5 @@ export default function RoomCard({ room, nameColor, getInitials, href }) {
     </motion.div>
   );
 }
+
+export default React.memo(RoomCard);

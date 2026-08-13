@@ -46,7 +46,7 @@ const fadeUpVariants = {
 
 
 
-export default function HeroSection({
+function HeroSection({
   me,
   onInstantJam,
   onDiscordLogin,
@@ -80,8 +80,6 @@ export default function HeroSection({
     }, 3500);
     return () => clearInterval(timer);
   }, [reduceMotion]);
-
-
 
   return (
     <section
@@ -565,3 +563,5 @@ export default function HeroSection({
     </section>
   );
 }
+
+export default React.memo(HeroSection);
