@@ -238,6 +238,7 @@ export default class YouTubePlayer {
   }
 
   _createYTPlayer(container) {
+    this._ready = false;
     this.ytPlayer = new window.YT.Player(container, {
       height: '100%',
       width: '100%',
@@ -296,18 +297,18 @@ export default class YouTubePlayer {
       this.startProgressTimer();
       this._requestWakeLock();
       this._startSilentKeepAlive();
-      const pos = this._useIFrame
+      const pos = (this._useIFrame && this.ytPlayer && typeof this.ytPlayer.getCurrentTime === 'function')
         ? Math.round((this.ytPlayer.getCurrentTime() || 0) * 1000)
-        : Math.round((this.player.currentTime || 0) * 1000);
+        : Math.round((this.player?.currentTime || 0) * 1000);
       this._emitControlEvent('play', { position_ms: pos });
     } else if (state === 'pause') {
       this.isPlaying = false;
       this.stopProgressTimer();
       this._releaseWakeLock();
       this._stopSilentKeepAlive();
-      const pos = this._useIFrame
-        ? Math.round(this.ytPlayer.getCurrentTime() * 1000)
-        : Math.round(this.player.currentTime * 1000);
+      const pos = (this._useIFrame && this.ytPlayer && typeof this.ytPlayer.getCurrentTime === 'function')
+        ? Math.round((this.ytPlayer.getCurrentTime() || 0) * 1000)
+        : Math.round((this.player?.currentTime || 0) * 1000);
       this._emitControlEvent('pause', { position_ms: pos });
     } else if (state === 'ended') {
       this.isPlaying = false;
@@ -373,8 +374,11 @@ export default class YouTubePlayer {
       const startSeconds = Math.round(this.positionMs / 1000);
       this._loadVideo(videoId, startSeconds);
     } else if (this.currentVideoId && this.isPlaying) {
-      if (this._useIFrame) this.ytPlayer.playVideo();
-      else this.player.play().catch(() => {});
+      if (this._useIFrame && this.ytPlayer && typeof this.ytPlayer.playVideo === 'function') {
+        this.ytPlayer.playVideo();
+      } else if (this.player) {
+        this.player.play().catch(() => {});
+      }
       this.startProgressTimer();
     }
   }
@@ -413,8 +417,11 @@ export default class YouTubePlayer {
       const startSeconds = Math.round(this.positionMs / 1000);
       this._loadVideo(videoId, startSeconds);
     } else if (this.currentVideoId && this.isPlaying) {
-      if (this._useIFrame) this.ytPlayer.playVideo();
-      else this.player.play().catch(() => {});
+      if (this._useIFrame && this.ytPlayer && typeof this.ytPlayer.playVideo === 'function') {
+        this.ytPlayer.playVideo();
+      } else if (this.player) {
+        this.player.play().catch(() => {});
+      }
       this.startProgressTimer();
     }
   }
@@ -623,8 +630,12 @@ export default class YouTubePlayer {
     this.currentVideoId = videoId;
 
     if (this._useIFrame) {
-      if (this.ytPlayer && this._ready) {
-        this.ytPlayer.loadVideoById({ videoId, startSeconds });
+      if (this.ytPlayer && this._ready && typeof this.ytPlayer.loadVideoById === 'function') {
+        try {
+          this.ytPlayer.loadVideoById({ videoId, startSeconds });
+        } catch (err) {
+          console.warn("[YouTubePlayer] Failed to loadVideoById:", err);
+        }
         if (this._iframeAutoplayCheck) clearTimeout(this._iframeAutoplayCheck);
         this._iframeAutoplayCheck = setTimeout(() => {
           if (this._useIFrame && this.ytPlayer && typeof this.ytPlayer.getPlayerState === 'function') {
@@ -639,7 +650,9 @@ export default class YouTubePlayer {
         }, 2500);
       } else {
         this._pendingLoad = { videoId, startSeconds };
-        if (!this.ytPlayer) this._initIFramePlayer();
+        if (!this.ytPlayer) {
+          this._initIFramePlayer();
+        }
       }
       setTimeout(() => { this._suppressStateChange = false; }, 1000);
     } else {
