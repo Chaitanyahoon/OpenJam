@@ -1263,17 +1263,22 @@ export default function RoomClient({ roomId }) {
         cleanTrack = parts[1].trim();
       }
 
-      // Tier 1: Direct LRCLIB get
+      const targetDurSec = (nowPlayingRef.current?.duration_ms || playbackStateRef.current?.durationMs || 0) / 1000;
+
+      // Tier 1: Direct LRCLIB get with optional duration
       let data = null;
       if (cleanTrack && cleanArtist) {
-        const url = `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTrack)}&artist_name=${encodeURIComponent(cleanArtist)}`;
+        let url = `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTrack)}&artist_name=${encodeURIComponent(cleanArtist)}`;
+        if (targetDurSec > 10) {
+          url += `&duration=${Math.round(targetDurSec)}`;
+        }
         try {
           const res = await fetch(url);
           if (res.ok) data = await res.json();
         } catch (e) {}
       }
 
-      // Tier 2: Combined query search
+      // Tier 2: Combined query search with closest duration matching
       if (!data && (cleanTrack || cleanArtist)) {
         const query = `${cleanArtist} ${cleanTrack}`.trim();
         const searchUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(query)}`;
@@ -1282,13 +1287,21 @@ export default function RoomClient({ roomId }) {
           if (searchRes.ok) {
             const searchData = await searchRes.json();
             if (Array.isArray(searchData) && searchData.length > 0) {
-              data = searchData.find(item => item.syncedLyrics || item.plainLyrics) || searchData[0];
+              const syncedItems = searchData.filter(item => item.syncedLyrics);
+              if (syncedItems.length > 0) {
+                if (targetDurSec > 10) {
+                  syncedItems.sort((a, b) => Math.abs((a.duration || 0) - targetDurSec) - Math.abs((b.duration || 0) - targetDurSec));
+                }
+                data = syncedItems[0];
+              } else {
+                data = searchData.find(item => item.plainLyrics) || searchData[0];
+              }
             }
           }
         } catch (e) {}
       }
 
-      // Tier 3: Search by track name alone
+      // Tier 3: Search by track name alone with duration match
       if (!data && cleanTrack) {
         const trackOnlyUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(cleanTrack)}`;
         try {
@@ -1296,7 +1309,15 @@ export default function RoomClient({ roomId }) {
           if (trackOnlyRes.ok) {
             const trackDataList = await trackOnlyRes.json();
             if (Array.isArray(trackDataList) && trackDataList.length > 0) {
-              data = trackDataList.find(item => item.syncedLyrics || item.plainLyrics) || trackDataList[0];
+              const syncedItems = trackDataList.filter(item => item.syncedLyrics);
+              if (syncedItems.length > 0) {
+                if (targetDurSec > 10) {
+                  syncedItems.sort((a, b) => Math.abs((a.duration || 0) - targetDurSec) - Math.abs((b.duration || 0) - targetDurSec));
+                }
+                data = syncedItems[0];
+              } else {
+                data = trackDataList.find(item => item.plainLyrics) || trackDataList[0];
+              }
             }
           }
         } catch (e) {}
@@ -1304,22 +1325,35 @@ export default function RoomClient({ roomId }) {
 
       if (data) {
         if (data.syncedLyrics) {
+          // Parse optional LRC [offset: +/-ms] tag
+          let lrcFileOffset = 0;
+          const offsetMatch = /\[offset:\s*([+-]?\d+)\]/i.exec(data.syncedLyrics);
+          if (offsetMatch) {
+            lrcFileOffset = parseInt(offsetMatch[1], 10) || 0;
+          }
+
           const lines = data.syncedLyrics.split('\n');
           const parsed = [];
-          const timeReg = /\[(\d{1,2}):(\d{2})[.:](\d{1,3})\]/;
+          const timeReg = /\[(\d{1,2}):(\d{2})[.:](\d{1,3})\]/g;
+
           for (const line of lines) {
-            const match = timeReg.exec(line);
-            if (match) {
-              const min = parseInt(match[1], 10);
-              const sec = parseInt(match[2], 10);
-              const rawMs = match[3];
-              const ms = rawMs.length === 2 
-                ? parseInt(rawMs, 10) * 10 
-                : (rawMs.length === 1 ? parseInt(rawMs, 10) * 100 : parseInt(rawMs.slice(0, 3), 10));
-              const timeMs = (min * 60 * 1000) + (sec * 1000) + ms;
-              const text = line.replace(/\[\d{1,2}:\d{2}[.:]\d{1,3}\]/g, '').trim();
+            // Check if line is metadata header (e.g. [ar:...], [ti:...], [offset:...])
+            if (/^\[(ar|ti|al|by|offset|length|re|ve):/i.test(line.trim())) continue;
+
+            const matches = [...line.matchAll(timeReg)];
+            if (matches.length > 0) {
+              const text = line.replace(timeReg, '').trim();
               if (text) {
-                parsed.push({ timeMs, text });
+                for (const match of matches) {
+                  const min = parseInt(match[1], 10);
+                  const sec = parseInt(match[2], 10);
+                  const rawMs = match[3];
+                  const ms = rawMs.length === 2 
+                    ? parseInt(rawMs, 10) * 10 
+                    : (rawMs.length === 1 ? parseInt(rawMs, 10) * 100 : parseInt(rawMs.slice(0, 3), 10));
+                  const timeMs = (min * 60 * 1000) + (sec * 1000) + ms + lrcFileOffset;
+                  parsed.push({ timeMs, text });
+                }
               }
             }
           }
@@ -1345,12 +1379,13 @@ export default function RoomClient({ roomId }) {
 
   // Auto-fetch lyrics whenever nowPlaying track changes
   useEffect(() => {
+    setLyricsOffsetMs(0);
     if (nowPlaying?.track_name) {
       fetchLyrics(nowPlaying.artist, nowPlaying.track_name);
     } else {
       setLyricsText([]);
     }
-  }, [nowPlaying?.track_name, nowPlaying?.artist]);
+  }, [nowPlaying?.track_name, nowPlaying?.artist, nowPlaying?.track_uri]);
 
   // Native Browser Fullscreen trigger for Stage Mode
   useEffect(() => {
@@ -5631,7 +5666,7 @@ export default function RoomClient({ roomId }) {
                           display: 'flex',
                           flexDirection: 'column',
                           gap: '10px',
-                          width: '260px',
+                          width: '280px',
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', fontWeight: 700, color: '#ffffff' }}>
@@ -5640,27 +5675,45 @@ export default function RoomClient({ roomId }) {
                             {lyricsOffsetMs > 0 ? `+${(lyricsOffsetMs/1000).toFixed(2)}s` : `${(lyricsOffsetMs/1000).toFixed(2)}s`}
                           </span>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {/* Fine Tuning */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <button
                             type="button"
                             onClick={() => {
-                              setLyricsOffsetMs(prev => {
-                                const n = prev - 250;
-                                try { localStorage.setItem('openjam_lyrics_offset', n.toString()); } catch(e){}
-                                return n;
-                              });
+                              setLyricsOffsetMs(prev => prev - 100);
                             }}
                             style={{
                               flex: 1,
                               background: 'rgba(255,255,255,0.08)',
                               border: '1px solid rgba(255,255,255,0.12)',
                               color: '#fff',
-                              borderRadius: '8px',
-                              padding: '6px 0',
-                              fontSize: '11px',
+                              borderRadius: '6px',
+                              padding: '5px 0',
+                              fontSize: '10.5px',
                               fontWeight: 700,
                               cursor: 'pointer',
                             }}
+                            title="Shift lyrics 0.1s earlier"
+                          >
+                            -0.1s
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLyricsOffsetMs(prev => prev - 250);
+                            }}
+                            style={{
+                              flex: 1,
+                              background: 'rgba(255,255,255,0.08)',
+                              border: '1px solid rgba(255,255,255,0.12)',
+                              color: '#fff',
+                              borderRadius: '6px',
+                              padding: '5px 0',
+                              fontSize: '10.5px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                            title="Shift lyrics 0.25s earlier"
                           >
                             -0.25s
                           </button>
@@ -5668,17 +5721,16 @@ export default function RoomClient({ roomId }) {
                             type="button"
                             onClick={() => {
                               setLyricsOffsetMs(0);
-                              try { localStorage.setItem('openjam_lyrics_offset', '0'); } catch(e){}
-                              triggerToast('Lyrics sync reset', 'info');
+                              triggerToast('Lyrics sync reset to default', 'info');
                             }}
                             style={{
-                              flex: 1,
+                              flex: 1.2,
                               background: 'rgba(255, 159, 28, 0.15)',
                               border: '1px solid rgba(255, 159, 28, 0.3)',
                               color: 'var(--theme-accent, #ff9f1c)',
-                              borderRadius: '8px',
-                              padding: '6px 0',
-                              fontSize: '11px',
+                              borderRadius: '6px',
+                              padding: '5px 0',
+                              fontSize: '10.5px',
                               fontWeight: 700,
                               cursor: 'pointer',
                             }}
@@ -5688,25 +5740,113 @@ export default function RoomClient({ roomId }) {
                           <button
                             type="button"
                             onClick={() => {
-                              setLyricsOffsetMs(prev => {
-                                const n = prev + 250;
-                                try { localStorage.setItem('openjam_lyrics_offset', n.toString()); } catch(e){}
-                                return n;
-                              });
+                              setLyricsOffsetMs(prev => prev + 250);
                             }}
                             style={{
                               flex: 1,
                               background: 'rgba(255,255,255,0.08)',
                               border: '1px solid rgba(255,255,255,0.12)',
                               color: '#fff',
-                              borderRadius: '8px',
-                              padding: '6px 0',
-                              fontSize: '11px',
+                              borderRadius: '6px',
+                              padding: '5px 0',
+                              fontSize: '10.5px',
                               fontWeight: 700,
                               cursor: 'pointer',
                             }}
+                            title="Shift lyrics 0.25s later"
                           >
                             +0.25s
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLyricsOffsetMs(prev => prev + 100);
+                            }}
+                            style={{
+                              flex: 1,
+                              background: 'rgba(255,255,255,0.08)',
+                              border: '1px solid rgba(255,255,255,0.12)',
+                              color: '#fff',
+                              borderRadius: '6px',
+                              padding: '5px 0',
+                              fontSize: '10.5px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                            title="Shift lyrics 0.1s later"
+                          >
+                            +0.1s
+                          </button>
+                        </div>
+                        {/* Coarse Jumps */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <button
+                            type="button"
+                            onClick={() => setLyricsOffsetMs(prev => prev - 1000)}
+                            style={{
+                              flex: 1,
+                              background: 'rgba(255,255,255,0.05)',
+                              border: '1px solid rgba(255,255,255,0.08)',
+                              color: 'rgba(255,255,255,0.7)',
+                              borderRadius: '6px',
+                              padding: '4px 0',
+                              fontSize: '10px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            -1.0s
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setLyricsOffsetMs(prev => prev - 500)}
+                            style={{
+                              flex: 1,
+                              background: 'rgba(255,255,255,0.05)',
+                              border: '1px solid rgba(255,255,255,0.08)',
+                              color: 'rgba(255,255,255,0.7)',
+                              borderRadius: '6px',
+                              padding: '4px 0',
+                              fontSize: '10px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            -0.5s
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setLyricsOffsetMs(prev => prev + 500)}
+                            style={{
+                              flex: 1,
+                              background: 'rgba(255,255,255,0.05)',
+                              border: '1px solid rgba(255,255,255,0.08)',
+                              color: 'rgba(255,255,255,0.7)',
+                              borderRadius: '6px',
+                              padding: '4px 0',
+                              fontSize: '10px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            +0.5s
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setLyricsOffsetMs(prev => prev + 1000)}
+                            style={{
+                              flex: 1,
+                              background: 'rgba(255,255,255,0.05)',
+                              border: '1px solid rgba(255,255,255,0.08)',
+                              color: 'rgba(255,255,255,0.7)',
+                              borderRadius: '6px',
+                              padding: '4px 0',
+                              fontSize: '10px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            +1.0s
                           </button>
                         </div>
                       </motion.div>
