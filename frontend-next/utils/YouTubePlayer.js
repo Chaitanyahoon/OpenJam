@@ -26,12 +26,9 @@ export default class YouTubePlayer {
   constructor(options = {}) {
     if (typeof window === 'undefined') return;
 
-    this.playerA = new Audio();
-    this.playerA.preload = "auto";
-    this.playerB = new Audio();
-    this.playerB.preload = "auto";
-    this.activePlayer = this.playerA;
-    this.player = this.activePlayer;
+    this.player = new Audio();
+    this.player.preload = "auto";
+    this.activePlayer = this.player;
     this.fadePlayer = null;
     this.fadeOutInterval = null;
     this.fadeInInterval = null;
@@ -80,8 +77,7 @@ export default class YouTubePlayer {
   }
 
   _initAudio() {
-    this._setupAudioListeners(this.playerA, 'playerA');
-    this._setupAudioListeners(this.playerB, 'playerB');
+    this._setupAudioListeners(this.player, 'player');
   }
 
   _setupAudioListeners(audioElement, name) {
@@ -373,27 +369,14 @@ export default class YouTubePlayer {
     this._userUnlocked = true;
     this._hideOverlay();
 
-    // Pre-unlock both players under the user gesture context
+    // Pre-unlock player under the user gesture context
     try {
-      if (!this.playerA.src) {
-        this.playerA.src = SILENT_WAV_B64;
+      if (!this.player.src) {
+        this.player.src = SILENT_WAV_B64;
       }
-      this.playerA.play().then(() => {
-        if (this.activePlayer !== this.playerA) {
-          this.playerA.pause();
-        }
-      }).catch(() => {});
-
-      if (!this.playerB.src) {
-        this.playerB.src = SILENT_WAV_B64;
-      }
-      this.playerB.play().then(() => {
-        if (this.activePlayer !== this.playerB) {
-          this.playerB.pause();
-        }
-      }).catch(() => {});
+      this.player.play().catch(() => {});
     } catch (e) {
-      console.warn("Failed to pre-unlock audio elements:", e);
+      console.warn("Failed to pre-unlock audio element:", e);
     }
 
     if (this._pendingPlayAfterUnlock) {
@@ -416,27 +399,14 @@ export default class YouTubePlayer {
     this._userUnlocked = true;
     this._hideOverlay();
 
-    // Pre-unlock both players under the user gesture context
+    // Pre-unlock player under the user gesture context
     try {
-      if (!this.playerA.src) {
-        this.playerA.src = SILENT_WAV_B64;
+      if (!this.player.src) {
+        this.player.src = SILENT_WAV_B64;
       }
-      this.playerA.play().then(() => {
-        if (this.activePlayer !== this.playerA) {
-          this.playerA.pause();
-        }
-      }).catch(() => {});
-
-      if (!this.playerB.src) {
-        this.playerB.src = SILENT_WAV_B64;
-      }
-      this.playerB.play().then(() => {
-        if (this.activePlayer !== this.playerB) {
-          this.playerB.pause();
-        }
-      }).catch(() => {});
+      this.player.play().catch(() => {});
     } catch (e) {
-      console.warn("Failed to pre-unlock audio elements:", e);
+      console.warn("Failed to pre-unlock audio element:", e);
     }
 
     if (this._pendingPlayAfterUnlock) {
@@ -628,31 +598,10 @@ export default class YouTubePlayer {
         }
       }
       
-      // Swap players if we already have an active track playing
-      if (this.currentVideoId && !this._useIFrame) {
-        if (this.fadePlayer) {
-          try {
-            this.fadePlayer.pause();
-            this.fadePlayer.src = '';
-          } catch (e) {}
-        }
-        this.fadePlayer = this.activePlayer;
-        this.activePlayer = (this.activePlayer === this.playerA) ? this.playerB : this.playerA;
-        this.player = this.activePlayer;
-        
-        this.startFadeOut(this.fadePlayer);
-      } else {
-        this.stopCrossfade();
-        try {
-          this.playerA.pause();
-          this.playerA.src = '';
-          this.playerB.pause();
-          this.playerB.src = '';
-        } catch (e) {}
-        this.activePlayer = this.playerA;
-        this.player = this.activePlayer;
-        this.fadePlayer = null;
-      }
+      // Immediately pause existing audio before loading new track to avoid any double audio
+      try {
+        this.player.pause();
+      } catch (e) {}
     }
 
     this.currentVideoId = videoId;
@@ -984,8 +933,8 @@ export default class YouTubePlayer {
     this.stop();
     this.stopCrossfade();
     try {
-      this.playerA.src = '';
-      this.playerB.src = '';
+      this.player.pause();
+      this.player.src = '';
     } catch (e) {}
     if (this._useIFrame && this.ytPlayer) {
       try { this.ytPlayer.destroy(); } catch(e) {}

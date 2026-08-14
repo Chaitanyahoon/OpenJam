@@ -3352,26 +3352,11 @@ export default function RoomClient({ roomId }) {
                       <button
                         type="button"
                         onClick={handleSaveQueueToPlaylist}
-                        style={{
-                          background: 'rgba(255, 159, 28, 0.08)',
-                          border: '1px solid rgba(255, 159, 28, 0.22)',
-                          color: 'var(--amber)',
-                          borderRadius: '8px',
-                          padding: '4px 10px',
-                          fontSize: '11px',
-                          fontWeight: '600',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          transition: 'all 0.2s ease'
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255, 159, 28, 0.16)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 159, 28, 0.08)'; }}
+                        className="queue-action-btn"
                         title="Save active queue as a new playlist on your profile"
                       >
-                        <Bookmark size={12} />
-                        Save Playlist
+                        <Bookmark size={13} style={{ color: 'var(--amber, #ff9f1c)' }} />
+                        <span>Save Playlist</span>
                       </button>
                     )}
                   </div>
@@ -3562,31 +3547,33 @@ export default function RoomClient({ roomId }) {
                                             style={{
                                               position: 'absolute',
                                               right: 0,
-                                              top: '100%',
-                                              marginTop: '6px',
+                                              top: idx >= Math.max(1, queue.length - 2) ? 'auto' : '100%',
+                                              bottom: idx >= Math.max(1, queue.length - 2) ? '100%' : 'auto',
+                                              marginTop: idx >= Math.max(1, queue.length - 2) ? 0 : '6px',
+                                              marginBottom: idx >= Math.max(1, queue.length - 2) ? '6px' : 0,
                                               background: 'rgba(15, 15, 22, 0.98)',
-                                              backdropFilter: 'blur(12px)',
-                                              WebkitBackdropFilter: 'blur(12px)',
-                                              border: '1px solid rgba(255, 255, 255, 0.08)',
+                                              backdropFilter: 'blur(16px)',
+                                              WebkitBackdropFilter: 'blur(16px)',
+                                              border: '1px solid rgba(255, 255, 255, 0.12)',
                                               borderRadius: '12px',
                                               padding: '6px 0',
-                                              minWidth: '170px',
+                                              minWidth: '180px',
                                               zIndex: 991,
-                                              boxShadow: '0 12px 32px rgba(0,0,0,0.5)',
+                                              boxShadow: '0 12px 32px rgba(0,0,0,0.6)',
                                               display: 'flex',
                                               flexDirection: 'column'
                                             }}
                                           >
                                             <div style={{
                                               fontSize: '10px',
-                                              color: 'rgba(255,255,255,0.4)',
-                                              padding: '6px 12px 6px 12px',
-                                              borderBottom: '1px solid rgba(255,255,255,0.05)',
+                                              color: 'rgba(255,255,255,0.45)',
+                                              padding: '6px 14px',
+                                              borderBottom: '1px solid rgba(255,255,255,0.06)',
                                               fontWeight: 700,
                                               textTransform: 'uppercase',
                                               letterSpacing: '0.08em'
                                             }}>Add to Playlist</div>
-                                            <div style={{ maxHeight: '150px', overflowY: 'auto', padding: '4px 0' }}>
+                                            <div style={{ maxHeight: '160px', overflowY: 'auto', padding: '4px 0', scrollbarWidth: 'none' }}>
                                               {playlists.map(p => (
                                                 <button
                                                   key={p.id}
@@ -3598,44 +3585,51 @@ export default function RoomClient({ roomId }) {
                                                         method: 'POST',
                                                         headers: { 'Content-Type': 'application/json' },
                                                         body: JSON.stringify({
-                                                          track_uri: item.track_uri,
+                                                          track_uri: item.track_uri || item.id,
                                                           track_name: item.track_name,
                                                           artist: item.artist,
                                                           album_art_url: item.album_art_url,
                                                           duration_ms: item.duration_ms || 240000
-                                                        })
+                                                        }),
+                                                        credentials: 'include'
                                                       });
                                                       if (res.ok) {
                                                         triggerToast(`Added to "${p.name}"!`, 'success');
                                                       } else {
-                                                        triggerToast('Failed to add to playlist', 'error');
+                                                        triggerToast('Failed to add track', 'error');
                                                       }
                                                     } catch (err) {
-                                                      triggerToast('Error adding to playlist', 'error');
+                                                      triggerToast('Connection error', 'error');
                                                     }
                                                   }}
                                                   style={{
                                                     width: '100%',
-                                                    textAlign: 'left',
-                                                    padding: '8px 12px',
                                                     background: 'none',
                                                     border: 'none',
-                                                    color: 'rgba(255,255,255,0.8)',
+                                                    color: 'rgba(255,255,255,0.85)',
+                                                    textAlign: 'left',
+                                                    padding: '7px 14px',
                                                     fontSize: '12px',
+                                                    fontWeight: 500,
                                                     cursor: 'pointer',
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     gap: '8px',
+                                                    transition: 'all 0.15s',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                    whiteSpace: 'nowrap'
                                                   }}
                                                   onMouseEnter={(e) => {
-                                                    e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                                                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
                                                     e.currentTarget.style.color = '#fff';
                                                   }}
                                                   onMouseLeave={(e) => {
                                                     e.currentTarget.style.background = 'none';
-                                                    e.currentTarget.style.color = 'rgba(255,255,255,0.8)';
+                                                    e.currentTarget.style.color = 'rgba(255,255,255,0.85)';
                                                   }}
                                                 >
+                                                  <Bookmark size={12} style={{ color: 'var(--amber, #ff9f1c)', flexShrink: 0 }} />
                                                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
                                                 </button>
                                               ))}
