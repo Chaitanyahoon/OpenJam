@@ -216,10 +216,6 @@ export default function RoomClient({ roomId }) {
 
   const handleTogglePlayRef = useRef(null);
   const handleNextTrackRef = useRef(null);
-  useEffect(() => {
-    handleTogglePlayRef.current = handleTogglePlay;
-    handleNextTrackRef.current = handleNextTrack;
-  }, [handleTogglePlay, handleNextTrack]);
 
   useEffect(() => {
     if (typeof document !== 'undefined') {
@@ -613,15 +609,13 @@ export default function RoomClient({ roomId }) {
         setIsStageMode((prev) => !prev);
       } else if (e.key === ' ' || e.key === 'k' || e.key === 'K') {
         e.preventDefault();
-        if (handleTogglePlayRef.current) handleTogglePlayRef.current();
-        else handleTogglePlay();
+        handleTogglePlayRef.current?.();
       } else if (e.key === 'm' || e.key === 'M') {
         e.preventDefault();
         setIsMuted((prev) => !prev);
       } else if (e.shiftKey && (e.key === 'ArrowRight' || e.key === 'n' || e.key === 'N')) {
         e.preventDefault();
-        if (handleNextTrackRef.current) handleNextTrackRef.current();
-        else handleNextTrack();
+        handleNextTrackRef.current?.();
       }
     };
 
@@ -1506,6 +1500,7 @@ export default function RoomClient({ roomId }) {
       });
     }
   };
+  handleTogglePlayRef.current = handleTogglePlay;
 
   const handleShuffleClick = () => {
     if (!isHost || !socket) return;
@@ -1623,6 +1618,7 @@ export default function RoomClient({ roomId }) {
     if (!isHost || !socket) return;
     socket.emit('next_track', { room_id: roomId });
   };
+  handleNextTrackRef.current = handleNextTrack;
 
   const handleVoteSkip = () => {
     if (!socket) return;
