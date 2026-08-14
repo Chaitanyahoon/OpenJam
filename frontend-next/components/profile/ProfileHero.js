@@ -85,6 +85,7 @@ export default function ProfileHero({
   const bannerPreset = profile?.banner_color || 'default';
 
   const [editedUsername, setEditedUsername] = useState(profile?.username || '');
+  const [editedAvatarUrl, setEditedAvatarUrl] = useState(profile?.avatar_url || '');
   const [usernameError, setUsernameError] = useState('');
   const [usernameAvailable, setUsernameAvailable] = useState(null);
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
@@ -115,9 +116,12 @@ export default function ProfileHero({
     setEditedName(profile?.display_name || '');
     setEditedBio(profile?.bio || '');
     setCustomBannerUrl(profile?.banner_url || '');
+    setPreviewBannerUrl(profile?.banner_url || '');
+    setPreviewBannerPreset(profile?.banner_color || 'default');
     setBannerPosition(profile?.banner_position || '50%');
     setBannerScale(profile?.banner_scale || '100%');
     setEditedUsername(profile?.username || '');
+    setEditedAvatarUrl(profile?.avatar_url || '');
     setAvatarError(false);
   }, [profile]);
 
@@ -130,6 +134,10 @@ export default function ProfileHero({
       setPreviewBannerScale(profile?.banner_scale || '100%');
       setPreviewBannerPosition(profile?.banner_position || '50%');
       setCustomBannerUrl(profile?.banner_url || '');
+      setEditedName(profile?.display_name || '');
+      setEditedBio(profile?.bio || '');
+      setEditedUsername(profile?.username || '');
+      setEditedAvatarUrl(profile?.avatar_url || '');
     }
   }, [showSettings, profile]);
 
@@ -271,6 +279,8 @@ export default function ProfileHero({
     setPreviewBannerPreset('default');
     setPreviewBannerPosition('50%');
     setPreviewBannerScale('100%');
+    setBannerPosition('50%');
+    setBannerScale('100%');
   };
 
   // Cropper drag-to-pan start handler
@@ -333,15 +343,21 @@ export default function ProfileHero({
   };
 
   const handleSaveSettings = async () => {
+    const cleanName = (editedName || '').trim() || profile?.display_name || 'User';
+    const cleanBanner = (previewBannerUrl || '').trim();
+    const cleanAvatar = (editedAvatarUrl || '').trim();
+    const cleanUsername = (editedUsername || '').trim().toLowerCase() || profile?.username || null;
+
     await onUpdateProfile({
-      display_name: editedName,
+      display_name: cleanName,
       bio: editedBio,
       profile_theme: previewTheme,
       banner_color: previewBannerPreset,
-      banner_url: previewBannerUrl || null,
+      banner_url: cleanBanner || null,
       banner_position: previewBannerPosition,
       banner_scale: previewBannerScale,
-      username: profile?.username || null
+      avatar_url: cleanAvatar || profile?.avatar_url || null,
+      username: cleanUsername
     });
     setShowSettings(false);
     if (addToast) {
@@ -438,18 +454,24 @@ export default function ProfileHero({
             onClick={(e) => e.stopPropagation()}
             style={{
               border: `1px solid ${THEME_COLORS[theme]?.color}22`,
-              maxWidth: '480px',
+              maxWidth: '520px',
+              width: '100%',
               background: '#131316',
               overflow: 'hidden',
+              maxHeight: '88vh',
+              display: 'flex',
+              flexDirection: 'column',
+              borderRadius: '24px',
+              boxShadow: '0 24px 60px rgba(0,0,0,0.7)'
             }}
           >
-            {/* Full-bleed Banner Preview (no padding, no label) */}
+            {/* Full-bleed Banner Preview Header */}
             <div style={{ 
               position: 'relative', 
               width: '100%', 
               height: '140px', 
               overflow: 'hidden',
-              cursor: (previewBannerPreset === 'custom' && previewBannerUrl) ? 'pointer' : 'default',
+              cursor: (previewBannerUrl) ? 'pointer' : 'default',
               flexShrink: 0
             }}
               onClick={() => {
@@ -484,7 +506,7 @@ export default function ProfileHero({
               <div style={{
                 position: 'absolute',
                 inset: 0,
-                background: 'linear-gradient(to bottom, rgba(19,19,22,0) 50%, rgba(19,19,22,0.95) 100%)'
+                background: 'linear-gradient(to bottom, rgba(19,19,22,0) 40%, rgba(19,19,22,0.95) 100%)'
               }} />
               {/* Close button on top right */}
               <div 
@@ -503,7 +525,8 @@ export default function ProfileHero({
                   justifyContent: 'center',
                   cursor: 'pointer',
                   transition: 'background 0.2s',
-                  border: '1px solid rgba(255,255,255,0.08)'
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  zIndex: 5
                 }}
                 onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.8)'}
                 onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.55)'}
@@ -517,10 +540,11 @@ export default function ProfileHero({
                 left: '20px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '12px'
+                gap: '12px',
+                zIndex: 4
               }}>
                 <img 
-                  src={profile?.avatar_url || "/default-avatar.png"} 
+                  src={editedAvatarUrl || profile?.avatar_url || "/default-avatar.png"} 
                   alt="" 
                   style={{ 
                     width: '48px', 
@@ -528,16 +552,21 @@ export default function ProfileHero({
                     borderRadius: '50%', 
                     border: '3px solid #131316',
                     background: '#131316',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.4)'
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+                    objectFit: 'cover'
                   }} 
                 />
                 <div>
-                  <div style={{ fontSize: '14px', fontWeight: 800, color: '#fff', textShadow: '0 1px 6px rgba(0,0,0,0.8)' }}>{profile?.display_name}</div>
-                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)', textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>@{profile?.username || profile?.discord_username || 'user'}</div>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: '#fff', textShadow: '0 1px 6px rgba(0,0,0,0.8)' }}>
+                    {editedName || profile?.display_name || 'User'}
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)', textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>
+                    @{editedUsername || profile?.username || profile?.discord_username || 'user'}
+                  </div>
                 </div>
               </div>
               {/* Click-to-edit hint for banner */}
-              {profile?.banner_url && (
+              {previewBannerUrl && (
                 <div style={{
                   position: 'absolute',
                   top: '12px',
@@ -553,20 +582,82 @@ export default function ProfileHero({
                   alignItems: 'center',
                   gap: '4px',
                   border: '1px solid rgba(255,255,255,0.06)',
-                  pointerEvents: 'none'
+                  pointerEvents: 'none',
+                  zIndex: 5
                 }}>
                   <Move size={10} />
-                  Click to adjust
+                  Click to adjust position
                 </div>
               )}
             </div>
 
-            {/* Body Content */}
-            <div style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {/* Scrollable Body Content */}
+            <div style={{ 
+              padding: '20px 24px', 
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: '16px',
+              overflowY: 'auto',
+              flex: 1,
+              scrollbarWidth: 'thin'
+            }}>
+
+              {/* Display Name Input */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '11px', color: '#888', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Display Name</div>
+                  <span style={{ fontSize: '10px', color: '#555', fontWeight: 600 }}>{editedName.length}/50</span>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Your display name"
+                  maxLength={50}
+                  value={editedName}
+                  onChange={(e) => setEditedName(e.target.value)}
+                  style={{
+                    width: '100%',
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    borderRadius: '10px',
+                    padding: '10px 14px',
+                    color: '#fff',
+                    fontSize: '13px',
+                    outline: 'none',
+                    transition: 'border-color 0.2s'
+                  }}
+                />
+              </div>
+
+              {/* Bio Textarea */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '11px', color: '#888', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Bio & Musical Identity</div>
+                  <span style={{ fontSize: '10px', color: '#555', fontWeight: 600 }}>{editedBio.length}/300</span>
+                </div>
+                <textarea
+                  placeholder="Tell the community about your musical taste, favourite artists, or vibe..."
+                  maxLength={300}
+                  rows={3}
+                  value={editedBio}
+                  onChange={(e) => setEditedBio(e.target.value)}
+                  style={{
+                    width: '100%',
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    borderRadius: '10px',
+                    padding: '10px 14px',
+                    color: '#fff',
+                    fontSize: '13px',
+                    outline: 'none',
+                    resize: 'none',
+                    transition: 'border-color 0.2s'
+                  }}
+                />
+              </div>
 
               {/* Vanity Username Input */}
               <div>
-                <div style={{ fontSize: '11px', color: '#666', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Vanity Username</div>
+                <div style={{ fontSize: '11px', color: '#888', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Vanity Username</div>
                 <div style={{ display: 'flex', gap: '8px', position: 'relative', alignItems: 'center' }}>
                   <span style={{ position: 'absolute', left: '12px', color: '#666', fontSize: '13px', fontWeight: 600 }}>@</span>
                   <input
@@ -616,13 +707,13 @@ export default function ProfileHero({
                   <div style={{ color: '#2ed573', fontSize: '10px', marginTop: '6px', fontWeight: 600 }}>✓ Username is available!</div>
                 )}
                 <div style={{ color: '#555', fontSize: '10px', marginTop: '6px', lineHeight: 1.3 }}>
-                  This creates your personal vanity link: openjam.fun/profile/@{editedUsername || 'username'}
+                  Your public link: openjam.fun/profile/@{editedUsername || 'username'}
                 </div>
               </div>
 
               {/* Theme Color Selection */}
               <div>
-                <div style={{ fontSize: '11px', color: '#666', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Profile Theme Accent</div>
+                <div style={{ fontSize: '11px', color: '#888', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Profile Theme Accent</div>
                 <div style={{ display: 'flex', gap: '12px', padding: '4px 0' }}>
                   {Object.entries(THEME_COLORS).map(([key, item]) => (
                     <button
@@ -645,14 +736,54 @@ export default function ProfileHero({
                 </div>
               </div>
 
-
+              {/* Custom Avatar URL Input */}
+              <div>
+                <div style={{ fontSize: '11px', color: '#888', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Custom Profile Picture URL</div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    placeholder="Paste image URL for avatar..."
+                    value={editedAvatarUrl}
+                    onChange={(e) => setEditedAvatarUrl(e.target.value)}
+                    style={{
+                      flex: 1,
+                      background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                      borderRadius: '10px',
+                      padding: '10px 14px',
+                      color: '#fff',
+                      fontSize: '13px',
+                      outline: 'none',
+                      transition: 'border-color 0.2s'
+                    }}
+                  />
+                  {editedAvatarUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setEditedAvatarUrl('')}
+                      style={{
+                        background: 'rgba(255,255,255,0.04)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        color: '#aaa',
+                        padding: '8px 12px',
+                        borderRadius: '10px',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
 
               {/* Banner URL Input */}
               {(() => {
                 const isUrlInvalid = customBannerUrl.trim().length > 0 && !isValidImageUrl(customBannerUrl);
                 return (
                   <div>
-                    <div style={{ fontSize: '11px', color: '#666', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Custom Banner Image URL</div>
+                    <div style={{ fontSize: '11px', color: '#888', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Custom Banner Image URL</div>
                     <div className="profile-banner-input-row" style={{ display: 'flex', gap: '8px' }}>
                       <input
                         type="text"
@@ -700,7 +831,7 @@ export default function ProfileHero({
                         Supports direct image links (.png, .jpg, .gif, .webp), Discord CDN, Pinterest pins, and animated GIFs.
                       </div>
                     )}
-                    <div style={{ marginTop: '8px' }}>
+                    <div style={{ marginTop: '10px' }}>
                       <div style={{ fontSize: '10px', color: '#666', fontWeight: 700, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Preset Banner Images</div>
                       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                         {PRESET_BANNER_IMAGES.map((preset) => (
@@ -769,7 +900,7 @@ export default function ProfileHero({
                     style={{
                       flex: 1,
                       background: 'none',
-                      border: '1px solid rgba(255,71,87,0.12)',
+                      border: '1px solid rgba(255,71,87,0.18)',
                       color: '#ff4757',
                       padding: '8px 0',
                       borderRadius: '10px',
@@ -782,18 +913,36 @@ export default function ProfileHero({
                       gap: '6px',
                       transition: 'all 0.2s'
                     }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,71,87,0.08)'; e.currentTarget.style.borderColor = 'rgba(255,71,87,0.25)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.borderColor = 'rgba(255,71,87,0.12)'; }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,71,87,0.08)'; e.currentTarget.style.borderColor = 'rgba(255,71,87,0.35)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.borderColor = 'rgba(255,71,87,0.18)'; }}
                   >
                     <Trash2 size={13} />
-                    Remove Image
+                    Remove Banner
                   </button>
                 </div>
               )}
             </div>
 
             {/* Footer */}
-            <div style={{ padding: '14px 24px', borderTop: '1px solid rgba(255,255,255,0.04)', display: 'flex', justifyContent: 'flex-end' }}>
+            <div style={{ padding: '14px 24px', borderTop: '1px solid rgba(255,255,255,0.04)', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                onClick={() => setShowSettings(false)}
+                style={{
+                  background: 'none',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  color: '#aaa',
+                  padding: '8px 20px',
+                  borderRadius: '20px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#fff'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = '#aaa'; }}
+              >
+                Cancel
+              </button>
               <button
                 onClick={handleSaveSettings}
                 style={{

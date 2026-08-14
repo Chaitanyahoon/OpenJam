@@ -236,16 +236,27 @@ export default function ProfileClient() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedFields),
+        credentials: 'include'
       });
       if (res.ok) {
         const data = await res.json();
         setProfile(data.user);
+        if (data.user?.display_name) {
+          localStorage.setItem('openjam_display_name', data.user.display_name);
+        }
+        if (data.user?.avatar_url) {
+          localStorage.setItem('openjam_avatar_url', data.user.avatar_url);
+        }
         addToast('Profile updated successfully!', 'success');
+        return data.user;
       } else {
-        addToast('Failed to update profile details', 'error');
+        const err = await res.json().catch(() => ({}));
+        addToast(err.detail || 'Failed to update profile details', 'error');
+        return null;
       }
     } catch (err) {
       addToast('Connection error', 'error');
+      return null;
     }
   };
 

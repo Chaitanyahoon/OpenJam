@@ -15,11 +15,12 @@ router = APIRouter(prefix="/profile", tags=["profile"])
 class UpdateProfileRequest(BaseModel):
     display_name: str = Field(..., min_length=1, max_length=50)
     profile_theme: Optional[str] = Field("amber", pattern="^(amber|cobalt|rose|emerald|violet)$")
-    bio: Optional[str] = Field(None, max_length=200)
+    bio: Optional[str] = Field(None, max_length=300)
     banner_color: Optional[str] = Field("default", max_length=50)
     banner_url: Optional[str] = Field(None, max_length=1000)
     banner_position: Optional[str] = Field("50%", max_length=10)
     banner_scale: Optional[str] = Field("100%", max_length=10)
+    avatar_url: Optional[str] = Field(None, max_length=1000)
     username: Optional[str] = Field(None, min_length=3, max_length=20, pattern="^[a-zA-Z0-9_]+$")
 
 
@@ -94,29 +95,44 @@ async def update_my_profile(
     user.display_name = update_req.display_name
     if update_req.profile_theme:
         user.profile_theme = update_req.profile_theme
+        
+    # Bio: allow clearing or setting
     if update_req.bio is not None:
-        user.bio = update_req.bio
+        clean_bio = update_req.bio.strip()
+        user.bio = clean_bio if clean_bio else None
+        
     if update_req.banner_color:
         user.banner_color = update_req.banner_color
-    if update_req.banner_url is not None:
-        user.banner_url = update_req.banner_url
+        
+    # Banner URL: if empty or cleared, set to None so default gradient takes over
+    clean_banner = (update_req.banner_url or "").strip()
+    user.banner_url = clean_banner if clean_banner else None
+    
     if update_req.banner_position is not None:
         user.banner_position = update_req.banner_position
     if update_req.banner_scale is not None:
         user.banner_scale = update_req.banner_scale
         
+    if update_req.avatar_url is not None:
+        clean_avatar = (update_req.avatar_url or "").strip()
+        if clean_avatar:
+            user.avatar_url = clean_avatar
+        
     if update_req.username is not None:
         new_username = update_req.username.strip().lower()
-        if len(new_username) < 3 or len(new_username) > 20:
-            raise HTTPException(status_code=400, detail="Username must be between 3 and 20 characters")
-        if not re.match(r"^[a-zA-Z0-9_]+$", new_username):
-            raise HTTPException(status_code=400, detail="Username can only contain alphanumeric characters and underscores")
-        
-        # Check uniqueness
-        existing = db.query(User).filter(User.username == new_username, User.id != user_id).first()
-        if existing:
-            raise HTTPException(status_code=400, detail="Username is already taken")
-        user.username = new_username
+        if new_username:
+            if len(new_username) < 3 or len(new_username) > 20:
+                raise HTTPException(status_code=400, detail="Username must be between 3 and 20 characters")
+            if not re.match(r"^[a-zA-Z0-9_]+$", new_username):
+                raise HTTPException(status_code=400, detail="Username can only contain alphanumeric characters and underscores")
+            
+            # Check uniqueness
+            existing = db.query(User).filter(User.username == new_username, User.id != user_id).first()
+            if existing:
+                raise HTTPException(status_code=400, detail="Username is already taken")
+            user.username = new_username
+        else:
+            user.username = None
         
     db.commit()
     db.refresh(user)
