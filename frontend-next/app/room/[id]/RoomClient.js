@@ -120,17 +120,21 @@ export default function RoomClient({ roomId }) {
   const lastReactionSentRef = useRef(0);
   const colorsRef = useRef(['#ff9f1c', '#8b5cf6', '#ec4899']);
 
-  // Sync Stage Mode lyrics auto-scrolling
+  const userScrolledLyricsRef = useRef(false);
+  const userScrollTimerRef = useRef(null);
+
+  // Sync Stage Mode lyrics auto-scrolling into the middle focal region
   useEffect(() => {
     if (!isStageMode || lyricsActiveIdx === -1 || !stageLyricsScrollRef.current) return;
+    if (userScrolledLyricsRef.current) return; // User is manually browsing lyrics
+
     const activeEl = document.getElementById(`stage-lyr-${lyricsActiveIdx}`);
-    if (activeEl) {
+    if (activeEl && stageLyricsScrollRef.current) {
       const container = stageLyricsScrollRef.current;
-      const parentRect = container.getBoundingClientRect();
-      const elementRect = activeEl.getBoundingClientRect();
-      const relativeTop = elementRect.top - parentRect.top;
+      // Center the active singing line at ~38% from the top (golden reading focus)
+      const targetScroll = activeEl.offsetTop - (container.clientHeight * 0.38) + (activeEl.clientHeight / 2);
       container.scrollTo({
-        top: container.scrollTop + relativeTop - (parentRect.height / 2) + (activeEl.clientHeight / 2),
+        top: Math.max(0, targetScroll),
         behavior: 'smooth'
       });
     }
@@ -4606,12 +4610,44 @@ export default function RoomClient({ roomId }) {
               }}
             />
 
+            {/* Global Top Center Close (X) Button */}
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.15, background: 'rgba(0, 0, 0, 0.75)' }}
+              whileTap={{ scale: 0.9 }}
+              onClick={() => setIsStageMode(false)}
+              style={{
+                position: 'absolute',
+                top: '24px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: '40px',
+                height: '40px',
+                borderRadius: '50%',
+                background: 'rgba(0, 0, 0, 0.45)',
+                backdropFilter: 'blur(20px)',
+                WebkitBackdropFilter: 'blur(20px)',
+                border: '1px solid rgba(255, 255, 255, 0.22)',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                zIndex: 100,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+              }}
+              aria-label="Exit Fullscreen (Esc)"
+              title="Exit Fullscreen (Esc)"
+            >
+              <X size={18} />
+            </motion.button>
+
             {/* Main Split Grid Stage — Always Split 2 Columns */}
             <div
               className="stage-view-grid"
               style={{
                 display: 'grid',
-                gap: '64px',
+                gap: '56px',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flex: 1,
@@ -4622,26 +4658,29 @@ export default function RoomClient({ roomId }) {
                 boxSizing: 'border-box',
               }}
             >
-              {/* Left Column: Artwork Card, Spinning Disc & Track Controls */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '22px', width: '100%', maxWidth: '480px', margin: '0 auto' }}>
+              {/* Left Column: Artwork Card, Built-in Floating Controls & Track Meta */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', maxWidth: '420px', margin: '0 auto' }}>
                 
-                {/* Artwork Outer Container with Spinning Vinyl Disc Peek Effect */}
+                {/* Artwork Outer Container with Interactive Spinning Vinyl Disc Peek Effect */}
                 <div
-                  style={{ position: 'relative', width: '100%', maxWidth: '480px', margin: '0 auto' }}
+                  style={{ position: 'relative', width: '100%', maxWidth: '420px', margin: '0 auto' }}
                   onMouseEnter={() => setArtHovered(true)}
                   onMouseLeave={() => setArtHovered(false)}
                 >
                   
-                  {/* Spinning Vinyl Record Disc */}
+                  {/* Spinning Vinyl Record Disc with Deep Grooves & Center Album Label */}
                   <motion.div
                     animate={{
-                      rotate: playbackState.isPlaying ? 360 : 0,
-                      x: playbackState.isPlaying ? (artHovered ? 48 : 34) : (artHovered ? 24 : 0),
+                      rotate: playbackState.isPlaying ? 360 : (artHovered ? 20 : 0),
+                      x: artHovered ? 120 : (playbackState.isPlaying ? 40 : 0),
+                      scale: artHovered ? 1.03 : 1,
                     }}
                     transition={{
-                      rotate: { duration: 5, repeat: Infinity, ease: 'linear' },
-                      x: { duration: 0.4, ease: [0.16, 1, 0.3, 1] },
+                      rotate: { duration: 4.5, repeat: playbackState.isPlaying ? Infinity : 0, ease: 'linear' },
+                      x: { type: 'spring', damping: 18, stiffness: 140 },
+                      scale: { duration: 0.3, ease: 'easeOut' },
                     }}
+                    onClick={handleTogglePlay}
                     style={{
                       position: 'absolute',
                       right: '0px',
@@ -4649,40 +4688,88 @@ export default function RoomClient({ roomId }) {
                       width: '90%',
                       aspectRatio: '1/1',
                       borderRadius: '50%',
-                      background: 'radial-gradient(circle, #050505 0%, #181818 28%, #080808 50%, #222222 68%, #050505 100%)',
-                      boxShadow: '0 16px 36px rgba(0,0,0,0.85), inset 0 0 0 2px rgba(255,255,255,0.08)',
+                      background: 'radial-gradient(circle, #08080c 0%, #15151c 16%, #0a0a0f 24%, #1a1a24 32%, #0d0d14 42%, #1e1e2c 54%, #0a0a10 66%, #1a1a24 78%, #08080c 90%, #040406 100%)',
+                      boxShadow: artHovered
+                        ? '0 24px 60px rgba(0,0,0,0.95), 0 0 30px rgba(255, 159, 28, 0.3), inset 0 0 0 2px rgba(255,255,255,0.15)'
+                        : '0 16px 36px rgba(0,0,0,0.85), inset 0 0 0 2px rgba(255,255,255,0.08)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       zIndex: 1,
-                      pointerEvents: 'none',
+                      cursor: 'pointer',
+                      overflow: 'hidden',
                     }}
+                    title={`Vinyl Record (${playbackState.isPlaying ? 'Playing' : 'Paused'}) - Click to ${playbackState.isPlaying ? 'Pause' : 'Play'}`}
                   >
-                    {/* Vinyl Center Label */}
+                    {/* Vinyl Conical Light Reflection Sheen */}
                     <div
                       style={{
-                        width: '34%',
-                        height: '34%',
+                        position: 'absolute',
+                        inset: 0,
                         borderRadius: '50%',
-                        background: 'radial-gradient(circle, var(--theme-accent, #ff9f1c) 0%, #111115 100%)',
+                        background: 'conic-gradient(from 45deg, transparent 0deg, rgba(255,255,255,0.08) 35deg, transparent 70deg, transparent 180deg, rgba(255,255,255,0.08) 215deg, transparent 250deg)',
+                        pointerEvents: 'none',
+                      }}
+                    />
+
+                    {/* Vinyl Center Label with miniature Album Artwork */}
+                    <div
+                      style={{
+                        width: '36%',
+                        height: '36%',
+                        borderRadius: '50%',
+                        background: 'radial-gradient(circle, #1a1a24 0%, #0c0c10 100%)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        border: '2px solid rgba(0,0,0,0.6)',
-                        boxShadow: '0 0 16px rgba(0,0,0,0.7)',
+                        border: '3px solid rgba(255, 159, 28, 0.45)',
+                        boxShadow: '0 0 20px rgba(0,0,0,0.85)',
+                        position: 'relative',
+                        overflow: 'hidden',
                       }}
                     >
-                      <Disc size={22} style={{ color: '#ffffff', opacity: 0.9 }} />
+                      {nowPlaying?.album_art_url ? (
+                        <img
+                          src={nowPlaying.album_art_url}
+                          alt=""
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                            opacity: 0.88,
+                          }}
+                        />
+                      ) : (
+                        <Disc size={24} style={{ color: 'var(--theme-accent, #ff9f1c)' }} />
+                      )}
+
+                      {/* Center Spindle Hole */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          width: '18%',
+                          height: '18%',
+                          borderRadius: '50%',
+                          background: '#040406',
+                          border: '2px solid rgba(255, 255, 255, 0.4)',
+                          boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.9)',
+                          zIndex: 3,
+                        }}
+                      />
                     </div>
                   </motion.div>
 
-                  {/* Artwork Card with 3D Depth & Scroll Wheel Volume */}
+                  {/* Artwork Card with 3D Depth, Floating Controls & Hover Effects */}
                   <motion.div
                     className="stage-art-card"
                     animate={{
                       scale: artHovered ? 1.02 : 1,
+                      x: artHovered ? -10 : 0,
                     }}
-                    transition={{ duration: 0.3, ease: 'easeOut' }}
+                    transition={{
+                      scale: { duration: 0.3, ease: [0.16, 1, 0.3, 1] },
+                      x: { type: 'spring', damping: 18, stiffness: 140 },
+                    }}
                     onWheel={(e) => {
                       e.preventDefault();
                       const step = e.deltaY < 0 ? 5 : -5;
@@ -4693,17 +4780,16 @@ export default function RoomClient({ roomId }) {
                     style={{
                       position: 'relative',
                       width: '100%',
-                      maxWidth: '480px',
-                      maxHeight: '480px',
+                      maxWidth: '420px',
+                      maxHeight: '420px',
                       aspectRatio: '1/1',
-                      borderRadius: '24px',
+                      borderRadius: '28px',
                       overflow: 'hidden',
                       boxShadow: artHovered
-                        ? '0 36px 90px rgba(0, 0, 0, 0.9), 0 0 35px rgba(255, 159, 28, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.15)'
-                        : '0 30px 80px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.08)',
+                        ? '0 36px 90px rgba(0, 0, 0, 0.95), 0 0 45px rgba(255, 159, 28, 0.25), inset 0 1px 2px rgba(255, 255, 255, 0.3)'
+                        : '0 28px 75px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.1)',
                       background: '#121218',
                       zIndex: 2,
-                      cursor: 'default',
                     }}
                   >
                     {/* Background Cover Image or Clean Placeholder */}
@@ -4716,6 +4802,8 @@ export default function RoomClient({ roomId }) {
                           height: '100%',
                           objectFit: 'cover',
                           display: 'block',
+                          transition: 'transform 0.4s ease',
+                          transform: artHovered ? 'scale(1.03)' : 'scale(1)',
                         }}
                       />
                     ) : (
@@ -4735,212 +4823,199 @@ export default function RoomClient({ roomId }) {
                       </div>
                     )}
 
-                    {/* Top Floating Glass Pill Toolbar Overlay inside Artwork */}
+                    {/* Translucent Center Heart / Watermark Overlay */}
                     <div
                       style={{
                         position: 'absolute',
-                        top: '16px',
-                        left: '16px',
-                        right: '16px',
+                        top: '50%',
+                        left: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        width: '160px',
+                        height: '160px',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'space-between',
+                        justifyContent: 'center',
+                        pointerEvents: 'none',
+                        zIndex: 4,
+                        opacity: 0.8,
+                      }}
+                    >
+                      <svg viewBox="0 0 24 24" width="140" height="140" fill="rgba(255, 255, 255, 0.15)" stroke="rgba(255, 255, 255, 0.4)" strokeWidth="0.75" style={{ filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.5))' }}>
+                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                      </svg>
+                    </div>
+
+                    {/* Top Floating Glass Pill Toolbar Overlay */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '14px',
+                        left: '14px',
+                        right: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        padding: '4px 8px',
+                        background: 'rgba(0, 0, 0, 0.45)',
+                        backdropFilter: 'blur(18px)',
+                        WebkitBackdropFilter: 'blur(18px)',
+                        border: '1px solid rgba(255, 255, 255, 0.18)',
+                        borderRadius: '99px',
+                        boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
                         zIndex: 10,
                       }}
                     >
-                      {/* Left Exit Button */}
+                      {/* Lyrics Timing Sync Calibrator Button */}
                       <motion.button
                         type="button"
-                        whileHover={{ scale: 1.12, background: 'rgba(0, 0, 0, 0.75)' }}
+                        whileHover={{ scale: 1.15 }}
                         whileTap={{ scale: 0.9 }}
-                        onClick={() => setIsStageMode(false)}
+                        onClick={() => setShowLyricsSyncPanel(prev => !prev)}
                         style={{
-                          width: '38px',
-                          height: '38px',
+                          width: '32px',
+                          height: '32px',
                           borderRadius: '50%',
-                          background: 'rgba(0, 0, 0, 0.5)',
-                          backdropFilter: 'blur(18px)',
-                          WebkitBackdropFilter: 'blur(18px)',
-                          border: '1px solid rgba(255, 255, 255, 0.22)',
+                          background: showLyricsSyncPanel || lyricsOffsetMs !== 0 ? 'rgba(255, 159, 28, 0.3)' : 'transparent',
+                          border: 'none',
+                          color: showLyricsSyncPanel || lyricsOffsetMs !== 0 ? 'var(--theme-accent, #ff9f1c)' : '#ffffff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                        }}
+                        title={`Lyrics Sync Calibration (${lyricsOffsetMs > 0 ? `+${lyricsOffsetMs}ms` : `${lyricsOffsetMs}ms`})`}
+                      >
+                        <Clock size={16} />
+                      </motion.button>
+
+                      {/* Queue Drawer Toggle Button */}
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: 1.15 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => setShowStageQueue(prev => !prev)}
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '50%',
+                          background: showStageQueue ? 'rgba(255, 159, 28, 0.3)' : 'transparent',
+                          border: 'none',
+                          color: showStageQueue ? 'var(--theme-accent, #ff9f1c)' : '#ffffff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                        }}
+                        title="Toggle Queue Drawer"
+                      >
+                        <List size={16} />
+                      </motion.button>
+
+                      {/* Add to Playlist */}
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: 1.15 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => {
+                          if (nowPlaying) {
+                            setShowBulkAdd(true);
+                          }
+                        }}
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '50%',
+                          background: 'transparent',
+                          border: 'none',
                           color: '#ffffff',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           cursor: 'pointer',
-                          boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
                         }}
-                        aria-label="Exit Stage Mode"
-                        title="Exit Stage Mode (Esc)"
+                        title="Add to Playlist"
                       >
-                        <X size={17} />
+                        <ListPlus size={16} />
                       </motion.button>
 
-                      {/* Right Quick Action Icons Group */}
-                      <div
+                      {/* Native Browser Fullscreen Toggle */}
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: 1.15 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => {
+                          if (document.fullscreenElement) {
+                            document.exitFullscreen().catch(() => {});
+                          } else {
+                            document.documentElement.requestFullscreen().catch(() => {});
+                          }
+                        }}
                         style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '50%',
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#ffffff',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '6px',
-                          padding: '4px 8px',
-                          background: 'rgba(0, 0, 0, 0.5)',
-                          backdropFilter: 'blur(18px)',
-                          WebkitBackdropFilter: 'blur(18px)',
-                          border: '1px solid rgba(255, 255, 255, 0.2)',
-                          borderRadius: '99px',
-                          boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
                         }}
+                        title="Toggle Native Fullscreen"
                       >
-                        {/* Lyrics Timing Sync Calibrator Button */}
-                        <motion.button
-                          type="button"
-                          whileHover={{ scale: 1.15 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => setShowLyricsSyncPanel(prev => !prev)}
-                          style={{
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: '50%',
-                            background: showLyricsSyncPanel || lyricsOffsetMs !== 0 ? 'rgba(255, 159, 28, 0.3)' : 'transparent',
-                            border: 'none',
-                            color: showLyricsSyncPanel || lyricsOffsetMs !== 0 ? 'var(--theme-accent, #ff9f1c)' : '#ffffff',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                          }}
-                          title={`Lyrics Sync Calibration (${lyricsOffsetMs > 0 ? `+${lyricsOffsetMs}ms` : `${lyricsOffsetMs}ms`})`}
-                        >
-                          <Clock size={16} />
-                        </motion.button>
+                        <Maximize2 size={15} />
+                      </motion.button>
 
-                        {/* Queue Drawer Toggle Button */}
-                        <motion.button
-                          type="button"
-                          whileHover={{ scale: 1.15 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => setShowStageQueue(prev => !prev)}
-                          style={{
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: '50%',
-                            background: showStageQueue ? 'rgba(255, 159, 28, 0.3)' : 'transparent',
-                            border: 'none',
-                            color: showStageQueue ? 'var(--theme-accent, #ff9f1c)' : '#ffffff',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                          }}
-                          title="Toggle Queue Drawer"
-                        >
-                          <List size={16} />
-                        </motion.button>
+                      {/* Heart / Like Toggle */}
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: 1.2 }}
+                        whileTap={{ scale: 0.8 }}
+                        onClick={handleLikeToggle}
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '50%',
+                          background: 'transparent',
+                          border: 'none',
+                          color: favourites.some(f => f.track_uri === nowPlaying?.track_uri) ? '#f43f5e' : '#ffffff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                        }}
+                        title={favourites.some(f => f.track_uri === nowPlaying?.track_uri) ? 'Unlike' : 'Like'}
+                      >
+                        <Heart
+                          size={16}
+                          fill={favourites.some(f => f.track_uri === nowPlaying?.track_uri) ? '#f43f5e' : 'none'}
+                        />
+                      </motion.button>
 
-                        {/* Add to Playlist */}
-                        <motion.button
-                          type="button"
-                          whileHover={{ scale: 1.15 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => {
-                            if (nowPlaying) {
-                              setShowBulkAdd(true);
-                            }
-                          }}
-                          style={{
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: '50%',
-                            background: 'transparent',
-                            border: 'none',
-                            color: '#ffffff',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                          }}
-                          title="Add to Playlist"
-                        >
-                          <ListPlus size={16} />
-                        </motion.button>
-
-                        {/* Native Browser Fullscreen Toggle */}
-                        <motion.button
-                          type="button"
-                          whileHover={{ scale: 1.15 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => {
-                            if (document.fullscreenElement) {
-                              document.exitFullscreen().catch(() => {});
-                            } else {
-                              document.documentElement.requestFullscreen().catch(() => {});
-                            }
-                          }}
-                          style={{
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: '50%',
-                            background: 'transparent',
-                            border: 'none',
-                            color: '#ffffff',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                          }}
-                          title="Toggle Native Fullscreen"
-                        >
-                          <Maximize2 size={15} />
-                        </motion.button>
-
-                        {/* Heart / Like Toggle */}
-                        <motion.button
-                          type="button"
-                          whileHover={{ scale: 1.2 }}
-                          whileTap={{ scale: 0.8 }}
-                          onClick={handleLikeToggle}
-                          style={{
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: '50%',
-                            background: 'transparent',
-                            border: 'none',
-                            color: favourites.some(f => f.track_uri === nowPlaying?.track_uri) ? '#f43f5e' : '#ffffff',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                          }}
-                          title={favourites.some(f => f.track_uri === nowPlaying?.track_uri) ? 'Unlike' : 'Like'}
-                        >
-                          <Heart
-                            size={16}
-                            fill={favourites.some(f => f.track_uri === nowPlaying?.track_uri) ? '#f43f5e' : 'none'}
-                          />
-                        </motion.button>
-
-                        {/* Room Settings */}
-                        <motion.button
-                          type="button"
-                          whileHover={{ scale: 1.15 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => setShowSettings(true)}
-                          style={{
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: '50%',
-                            background: 'transparent',
-                            border: 'none',
-                            color: '#ffffff',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                          }}
-                          title="Room Settings"
-                        >
-                          <Settings size={15} />
-                        </motion.button>
-                      </div>
+                      {/* Room Settings */}
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: 1.15 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => setShowSettings(true)}
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '50%',
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#ffffff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                        }}
+                        title="Room Settings"
+                      >
+                        <Settings size={15} />
+                      </motion.button>
                     </div>
 
                     {/* Floating Lyrics Timing Calibrator Sub-Panel */}
@@ -4952,8 +5027,8 @@ export default function RoomClient({ roomId }) {
                           exit={{ opacity: 0, y: -10 }}
                           style={{
                             position: 'absolute',
-                            top: '64px',
-                            right: '16px',
+                            top: '56px',
+                            right: '14px',
                             zIndex: 15,
                             background: 'rgba(10, 10, 15, 0.85)',
                             backdropFilter: 'blur(20px)',
@@ -5045,11 +5120,11 @@ export default function RoomClient({ roomId }) {
                       )}
                     </AnimatePresence>
 
-                    {/* Right Interactive Vertical Volume Slider — Always Visible */}
+                    {/* Right Interactive Vertical Volume Slider Inside Artwork Card */}
                     <div
                       style={{
                         position: 'absolute',
-                        right: '14px',
+                        right: '12px',
                         top: '50%',
                         transform: 'translateY(-50%)',
                         display: 'flex',
@@ -5089,9 +5164,9 @@ export default function RoomClient({ roomId }) {
                         onMouseEnter={() => setStageVolHovered(true)}
                         onMouseLeave={() => { if (!isDraggingStageVolRef.current) setStageVolHovered(false); }}
                         style={{
-                          width: stageVolHovered || isDraggingStageVolRef.current ? '14px' : '10px',
-                          height: '110px',
-                          background: 'rgba(255, 255, 255, 0.2)',
+                          width: stageVolHovered || isDraggingStageVolRef.current ? '12px' : '8px',
+                          height: '90px',
+                          background: 'rgba(255, 255, 255, 0.22)',
                           backdropFilter: 'blur(12px)',
                           borderRadius: '99px',
                           overflow: 'hidden',
@@ -5118,7 +5193,7 @@ export default function RoomClient({ roomId }) {
                             background: '#ffffff',
                             borderRadius: '99px',
                             transition: isDraggingStageVolRef.current ? 'none' : 'height 0.1s ease-out',
-                            boxShadow: '0 0 8px rgba(255, 255, 255, 0.5)',
+                            boxShadow: '0 0 8px rgba(255, 255, 255, 0.6)',
                           }}
                         />
                       </div>
@@ -5139,14 +5214,167 @@ export default function RoomClient({ roomId }) {
                         aria-label={isMuted ? 'Unmute' : 'Mute'}
                         title={isMuted ? 'Unmute' : 'Mute'}
                       >
-                        {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                        {isMuted ? <VolumeX size={13} /> : <Volume2 size={13} />}
                       </motion.button>
                     </div>
+
+                    {/* Bottom Floating Transport Controls Inside Artwork Card */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        bottom: '14px',
+                        left: '14px',
+                        right: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '18px',
+                        padding: '6px 12px',
+                        zIndex: 10,
+                      }}
+                    >
+                      {/* Shuffle Button */}
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: isHost ? 1.18 : 1 }}
+                        whileTap={{ scale: isHost ? 0.88 : 1 }}
+                        onClick={() => {
+                          if (isHost) handleShuffleClick();
+                          else triggerToast('Only the host can shuffle', 'info');
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: isHost ? 'rgba(255, 255, 255, 0.85)' : 'rgba(255, 255, 255, 0.3)',
+                          cursor: isHost ? 'pointer' : 'not-allowed',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '4px',
+                        }}
+                        aria-label="Shuffle Queue"
+                        title={isHost ? 'Shuffle Queue' : 'Only the host can shuffle'}
+                      >
+                        <Shuffle size={18} />
+                      </motion.button>
+
+                      {/* Previous Track Button */}
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: isHost ? 1.15 : 1, x: isHost ? -2 : 0 }}
+                        whileTap={{ scale: isHost ? 0.88 : 1 }}
+                        onClick={() => {
+                          if (isHost) handlePreviousTrack();
+                          else triggerToast('Only the host can skip tracks', 'info');
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#ffffff',
+                          cursor: isHost ? 'pointer' : 'not-allowed',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '4px',
+                        }}
+                        aria-label="Previous Track"
+                        title={isHost ? 'Previous Track' : 'Only the host can control playback'}
+                      >
+                        <SkipBack size={22} fill="#ffffff" />
+                      </motion.button>
+
+                      {/* Play/Pause Button */}
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: isHost ? 1.15 : 1 }}
+                        whileTap={{ scale: isHost ? 0.9 : 1 }}
+                        onClick={() => {
+                          if (isHost) handleTogglePlay();
+                          else triggerToast('Only the host can control playback', 'info');
+                        }}
+                        style={{
+                          width: '46px',
+                          height: '46px',
+                          borderRadius: '50%',
+                          background: 'rgba(255, 255, 255, 0.25)',
+                          backdropFilter: 'blur(12px)',
+                          border: '1px solid rgba(255, 255, 255, 0.4)',
+                          color: '#ffffff',
+                          cursor: isHost ? 'pointer' : 'not-allowed',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+                        }}
+                        aria-label={playbackState.isPlaying ? 'Pause' : 'Play'}
+                        title={isHost ? (playbackState.isPlaying ? 'Pause' : 'Play') : 'Only the host can control playback'}
+                      >
+                        {playbackState.isPlaying
+                          ? <Pause size={22} fill="#ffffff" />
+                          : <Play size={22} fill="#ffffff" style={{ marginLeft: '2px' }} />}
+                      </motion.button>
+
+                      {/* Next Track Button */}
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: 1.15, x: 2 }}
+                        whileTap={{ scale: 0.88 }}
+                        onClick={isHost ? handleNextTrack : handleVoteSkip}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#ffffff',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '4px',
+                        }}
+                        aria-label={isHost ? 'Next Track' : 'Vote to Skip'}
+                        title={isHost ? 'Next Track' : 'Vote to Skip'}
+                      >
+                        <SkipForward size={22} fill="#ffffff" />
+                      </motion.button>
+
+                      {/* Repeat Button */}
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: isHost ? 1.18 : 1 }}
+                        whileTap={{ scale: isHost ? 0.88 : 1 }}
+                        onClick={() => {
+                          if (isHost) handleRepeatToggle();
+                          else triggerToast('Only the host can toggle repeat', 'info');
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: isHost
+                            ? (playbackState.loop ? 'var(--theme-accent, #ff9f1c)' : 'rgba(255,255,255,0.85)')
+                            : 'rgba(255,255,255,0.25)',
+                          cursor: isHost ? 'pointer' : 'not-allowed',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '4px',
+                        }}
+                        aria-label="Toggle Repeat"
+                        title={isHost ? 'Toggle Repeat' : 'Only the host can toggle repeat'}
+                      >
+                        <Repeat size={18} />
+                      </motion.button>
+                    </div>
+
                   </motion.div>
                 </div>
 
-                {/* Progress Bar Timeline below Artwork with Hover Preview Tooltip */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
+                {/* Progress Bar Timeline below Artwork with Side Timestamps */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', width: '100%', marginTop: '4px' }}>
+                  {/* Elapsed Time */}
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(255, 255, 255, 0.75)', fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
+                    {formatTime(playbackState.positionMs)}
+                  </span>
+
+                  {/* Progress Seekbar */}
                   <div
                     ref={stageSeekBarRef}
                     onMouseDown={handleStageSeekDown}
@@ -5162,7 +5390,7 @@ export default function RoomClient({ roomId }) {
                       setSeekHoverTimeMs(Math.round(ratio * playbackState.durationMs));
                     }}
                     style={{
-                      width: '100%',
+                      flex: 1,
                       height: stageSeekHovered || isDraggingStageSeekRef.current ? '8px' : '5px',
                       borderRadius: '99px',
                       background: 'rgba(255, 255, 255, 0.22)',
@@ -5211,11 +5439,11 @@ export default function RoomClient({ roomId }) {
                       style={{
                         width: `${playbackState.durationMs ? Math.min(100, (playbackState.positionMs / playbackState.durationMs) * 100) : 0}%`,
                         height: '100%',
-                        background: 'linear-gradient(90deg, var(--theme-accent, #ff9f1c) 0%, #ffc837 100%)',
+                        background: '#ffffff',
                         borderRadius: '99px',
                         position: 'relative',
                         transition: isDraggingStageSeekRef.current ? 'none' : 'width 0.1s linear',
-                        boxShadow: '0 0 10px rgba(255, 159, 28, 0.4)',
+                        boxShadow: '0 0 10px rgba(255, 255, 255, 0.5)',
                       }}
                     >
                       {/* Scrub thumb */}
@@ -5238,28 +5466,25 @@ export default function RoomClient({ roomId }) {
                       )}
                     </div>
                   </div>
-                  
-                  {/* Timestamps */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 600, color: 'rgba(255, 255, 255, 0.7)', fontFamily: 'var(--font-mono)', letterSpacing: '0.02em' }}>
-                    <span>{formatTime(playbackState.positionMs)}</span>
-                    <span
-                      onClick={() => setShowTimeRemaining(prev => !prev)}
-                      style={{ cursor: 'pointer', userSelect: 'none' }}
-                      title="Click to toggle total duration / time remaining"
-                    >
-                      {showTimeRemaining && playbackState.durationMs
-                        ? `-${formatTime(Math.max(0, playbackState.durationMs - playbackState.positionMs))}`
-                        : formatTime(playbackState.durationMs)}
-                    </span>
-                  </div>
+
+                  {/* Total Duration */}
+                  <span
+                    onClick={() => setShowTimeRemaining(prev => !prev)}
+                    style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(255, 255, 255, 0.75)', fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', cursor: 'pointer', userSelect: 'none', flexShrink: 0 }}
+                    title="Click to toggle total duration / time remaining"
+                  >
+                    {showTimeRemaining && playbackState.durationMs
+                      ? `-${formatTime(Math.max(0, playbackState.durationMs - playbackState.positionMs))}`
+                      : formatTime(playbackState.durationMs)}
+                  </span>
                 </div>
 
-                {/* Track Title, Artist & Live Equalizer Waveform */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                {/* Centered Track Title, Artist & Waveform */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '4px', marginTop: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', width: '100%' }}>
                     <h2 style={{
                       fontFamily: 'var(--font-display-next), Outfit, system-ui, sans-serif',
-                      fontSize: '24px',
+                      fontSize: '28px',
                       fontWeight: 800,
                       color: '#ffffff',
                       margin: 0,
@@ -5267,16 +5492,16 @@ export default function RoomClient({ roomId }) {
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
-                      flex: 1
+                      maxWidth: '90%',
                     }}>
                       {nowPlaying?.track_name || 'No Track Playing'}
                     </h2>
                     {playbackState.isPlaying && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0, padding: '4px 8px', background: 'rgba(255, 159, 28, 0.15)', borderRadius: '8px', border: '1px solid rgba(255, 159, 28, 0.25)' }}>
-                        <div className="queue-wave" style={{ height: '14px', width: '3px', animationDelay: '0s', background: 'var(--theme-accent, #ff9f1c)' }}></div>
-                        <div className="queue-wave" style={{ height: '14px', width: '3px', animationDelay: '0.15s', background: 'var(--theme-accent, #ff9f1c)' }}></div>
-                        <div className="queue-wave" style={{ height: '14px', width: '3px', animationDelay: '0.3s', background: 'var(--theme-accent, #ff9f1c)' }}></div>
-                        <div className="queue-wave" style={{ height: '14px', width: '3px', animationDelay: '0.45s', background: 'var(--theme-accent, #ff9f1c)' }}></div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
+                        <div className="queue-wave" style={{ height: '14px', width: '3px', animationDelay: '0s', background: '#ffffff' }}></div>
+                        <div className="queue-wave" style={{ height: '14px', width: '3px', animationDelay: '0.15s', background: '#ffffff' }}></div>
+                        <div className="queue-wave" style={{ height: '14px', width: '3px', animationDelay: '0.3s', background: '#ffffff' }}></div>
+                        <div className="queue-wave" style={{ height: '14px', width: '3px', animationDelay: '0.45s', background: '#ffffff' }}></div>
                       </div>
                     )}
                   </div>
@@ -5284,176 +5509,17 @@ export default function RoomClient({ roomId }) {
                     fontFamily: 'var(--font-ui-next), sans-serif',
                     fontSize: '15px',
                     fontWeight: 500,
-                    color: 'rgba(255, 255, 255, 0.65)',
+                    color: 'rgba(255, 255, 255, 0.7)',
                     margin: 0,
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
+                    whiteSpace: 'nowrap',
+                    maxWidth: '90%',
                   }}>
                     {nowPlaying?.artist || 'Idle Room'}
                   </p>
                 </div>
 
-                {/* Highly Interactive Stage Mode Transport Controls */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '24px',
-                    padding: '10px 0 4px 0',
-                    width: '100%',
-                  }}
-                >
-                  {/* Shuffle Button */}
-                  <motion.button
-                    type="button"
-                    whileHover={{ scale: isHost ? 1.18 : 1, background: isHost ? 'rgba(255,255,255,0.15)' : 'rgba(255, 255, 255, 0)' }}
-                    whileTap={{ scale: isHost ? 0.88 : 1 }}
-                    onClick={() => {
-                      if (isHost) handleShuffleClick();
-                      else triggerToast('Only the host can shuffle', 'info');
-                    }}
-                    style={{
-                      width: '42px',
-                      height: '42px',
-                      borderRadius: '50%',
-                      background: 'rgba(255, 255, 255, 0)',
-                      border: 'none',
-                      color: isHost ? 'rgba(255, 255, 255, 0.85)' : 'rgba(255, 255, 255, 0.25)',
-                      cursor: isHost ? 'pointer' : 'not-allowed',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      transition: 'background 0.2s, color 0.2s',
-                    }}
-                    aria-label="Shuffle Queue"
-                    title={isHost ? 'Shuffle Queue' : 'Only the host can shuffle'}
-                  >
-                    <Shuffle size={20} />
-                  </motion.button>
-
-                  {/* Previous Track Button */}
-                  <motion.button
-                    type="button"
-                    whileHover={{ scale: isHost ? 1.15 : 1, x: isHost ? -3 : 0, background: isHost ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.06)' }}
-                    whileTap={{ scale: isHost ? 0.88 : 1 }}
-                    onClick={() => {
-                      if (isHost) handlePreviousTrack();
-                      else triggerToast('Only the host can skip tracks', 'info');
-                    }}
-                    style={{
-                      width: '46px',
-                      height: '46px',
-                      borderRadius: '50%',
-                      background: 'rgba(255, 255, 255, 0.1)',
-                      backdropFilter: 'blur(12px)',
-                      border: '1px solid rgba(255, 255, 255, 0.18)',
-                      color: isHost ? '#ffffff' : 'rgba(255, 255, 255, 0.3)',
-                      cursor: isHost ? 'pointer' : 'not-allowed',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      transition: 'all 0.2s',
-                      boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
-                    }}
-                    aria-label="Previous Track"
-                    title={isHost ? 'Previous Track' : 'Only the host can control playback'}
-                  >
-                    <SkipBack size={21} fill={isHost ? '#ffffff' : 'rgba(255,255,255,0.3)'} />
-                  </motion.button>
-
-                  {/* Play/Pause Hero Button with Pulsing Glow Ring */}
-                  <motion.button
-                    type="button"
-                    whileHover={{
-                      scale: isHost ? 1.14 : 1,
-                      boxShadow: isHost ? '0 0 32px var(--theme-accent, #ff9f1c), 0 8px 24px rgba(0,0,0,0.6)' : 'none',
-                    }}
-                    whileTap={{ scale: isHost ? 0.9 : 1 }}
-                    onClick={() => {
-                      if (isHost) handleTogglePlay();
-                      else triggerToast('Only the host can control playback', 'info');
-                    }}
-                    style={{
-                      width: '56px',
-                      height: '56px',
-                      borderRadius: '50%',
-                      background: isHost ? '#ffffff' : 'rgba(255, 255, 255, 0.15)',
-                      color: isHost ? '#09090b' : 'rgba(255,255,255,0.3)',
-                      cursor: isHost ? 'pointer' : 'not-allowed',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      boxShadow: isHost ? '0 4px 20px rgba(0,0,0,0.5), 0 0 20px rgba(255, 159, 28, 0.3)' : 'none',
-                      border: 'none',
-                      transition: 'all 0.2s ease',
-                    }}
-                    aria-label={playbackState.isPlaying ? 'Pause' : 'Play'}
-                    title={isHost ? (playbackState.isPlaying ? 'Pause' : 'Play') : 'Only the host can control playback'}
-                  >
-                    {playbackState.isPlaying
-                      ? <Pause size={26} fill={isHost ? '#09090b' : 'rgba(255,255,255,0.3)'} />
-                      : <Play size={26} fill={isHost ? '#09090b' : 'rgba(255,255,255,0.3)'} style={{ marginLeft: '3px' }} />}
-                  </motion.button>
-
-                  {/* Next / Vote Skip Button */}
-                  <motion.button
-                    type="button"
-                    whileHover={{ scale: 1.15, x: 3, background: 'rgba(255,255,255,0.22)' }}
-                    whileTap={{ scale: 0.88 }}
-                    onClick={isHost ? handleNextTrack : handleVoteSkip}
-                    style={{
-                      width: '46px',
-                      height: '46px',
-                      borderRadius: '50%',
-                      background: 'rgba(255, 255, 255, 0.1)',
-                      backdropFilter: 'blur(12px)',
-                      border: '1px solid rgba(255, 255, 255, 0.18)',
-                      color: '#ffffff',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      transition: 'all 0.2s',
-                      boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
-                    }}
-                    aria-label={isHost ? 'Next Track' : 'Vote to Skip'}
-                    title={isHost ? 'Next Track' : 'Vote to Skip'}
-                  >
-                    <SkipForward size={21} fill="#ffffff" />
-                  </motion.button>
-
-                  {/* Repeat Button */}
-                  <motion.button
-                    type="button"
-                    whileHover={{ scale: isHost ? 1.18 : 1, background: isHost ? 'rgba(255,255,255,0.15)' : 'rgba(255, 255, 255, 0)' }}
-                    whileTap={{ scale: isHost ? 0.88 : 1 }}
-                    onClick={() => {
-                      if (isHost) handleRepeatToggle();
-                      else triggerToast('Only the host can toggle repeat', 'info');
-                    }}
-                    style={{
-                      width: '42px',
-                      height: '42px',
-                      borderRadius: '50%',
-                      background: isHost && playbackState.loop ? 'rgba(255, 159, 28, 0.25)' : 'rgba(255, 255, 255, 0)',
-                      border: isHost && playbackState.loop ? '1px solid rgba(255, 159, 28, 0.4)' : 'none',
-                      color: isHost
-                        ? (playbackState.loop ? 'var(--theme-accent, #ff9f1c)' : 'rgba(255,255,255,0.85)')
-                        : 'rgba(255,255,255,0.25)',
-                      cursor: isHost ? 'pointer' : 'not-allowed',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      transition: 'background 0.2s, color 0.2s',
-                    }}
-                    aria-label="Repeat Track"
-                    title={isHost ? 'Repeat Track' : 'Only the host can toggle repeat'}
-                  >
-                    <Repeat size={20} />
-                  </motion.button>
-                </div>
               </div>
 
               {/* Right Column: Apple Music Style Kinetic Lyrics Display OR Up Next Queue Drawer */}
@@ -5585,51 +5651,37 @@ export default function RoomClient({ roomId }) {
               ) : lyricsText.length > 0 ? (
                 /* Kinetic Multi-Language Karaoke Lyrics Display */
                 <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-                  {/* Floating Close (x) button on top right of lyrics panel */}
-                  <motion.button
-                    type="button"
-                    whileHover={{ scale: 1.15, background: 'rgba(255, 255, 255, 0.25)' }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => setIsStageMode(false)}
-                    style={{
-                      position: 'absolute',
-                      top: '-12px',
-                      right: '0px',
-                      width: '38px',
-                      height: '38px',
-                      borderRadius: '50%',
-                      background: 'rgba(255, 255, 255, 0.12)',
-                      backdropFilter: 'blur(12px)',
-                      border: '1px solid rgba(255, 255, 255, 0.2)',
-                      color: '#ffffff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                      zIndex: 25,
-                      boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-                    }}
-                    title="Exit Stage Mode (Esc)"
-                  >
-                    <X size={18} />
-                  </motion.button>
-
                   <div
                     ref={stageLyricsScrollRef}
+                    onWheel={() => {
+                      userScrolledLyricsRef.current = true;
+                      if (userScrollTimerRef.current) clearTimeout(userScrollTimerRef.current);
+                      userScrollTimerRef.current = setTimeout(() => {
+                        userScrolledLyricsRef.current = false;
+                      }, 3400);
+                    }}
+                    onTouchMove={() => {
+                      userScrolledLyricsRef.current = true;
+                      if (userScrollTimerRef.current) clearTimeout(userScrollTimerRef.current);
+                      userScrollTimerRef.current = setTimeout(() => {
+                        userScrolledLyricsRef.current = false;
+                      }, 3400);
+                    }}
                     style={{
                       height: '100%',
                       maxHeight: 'calc(100vh - 90px)',
                       overflowY: 'auto',
                       paddingRight: '28px',
-                      paddingTop: '24px',
-                      paddingBottom: '80px',
-                      maskImage: 'linear-gradient(to bottom, transparent 0%, black 6%, black 90%, transparent 100%)',
-                      WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 6%, black 90%, transparent 100%)',
+                      paddingTop: '35vh',
+                      paddingBottom: '50vh',
+                      maskImage: 'linear-gradient(to bottom, transparent 0%, black 12%, black 85%, transparent 100%)',
+                      WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 12%, black 85%, transparent 100%)',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '36px',
                       scrollbarWidth: 'none',
                       fontFamily: 'var(--font-display-next), var(--font-ui-next), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", sans-serif',
+                      scrollBehavior: 'smooth',
                     }}
                   >
                     {lyricsText.map((item, idx) => {

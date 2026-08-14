@@ -2243,3 +2243,190 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   PREMIUM MUSIC PLAYER UI & TIMELINE FIXES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.mp-container {
+  width: 100% !important;
+  max-width: 440px;
+  margin: 0 auto !important;
+  box-sizing: border-box !important;
+}
+
+.mp-container.lyrics-open {
+  max-width: 1080px !important;
+}
+
+.mp-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  border-radius: 28px !important;
+}
+
+/* Fix lyrics-hidden width so it uses the full 440px width and never cramps */
+.mp-theater-body {
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.mp-theater-body.lyrics-hidden .mp-theater-left {
+  flex: 1 1 100% !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  border-right: none !important;
+  padding: 24px 28px !important;
+  background: transparent !important;
+}
+
+.mp-theater-body.lyrics-visible .mp-theater-left {
+  flex: 0 0 340px !important;
+  width: 340px !important;
+  max-width: 340px !important;
+  padding: 20px 24px !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.mp-artwork-container {
+  width: 100% !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  margin-bottom: 20px !important;
+}
+
+.mp-artwork-wrapper {
+  width: 100% !important;
+  max-width: 330px !important;
+  aspect-ratio: 1 / 1 !important;
+  border-radius: 22px !important;
+  overflow: hidden !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
+  background: #101015 !important;
+}
+
+.mp-meta-container {
+  width: 100% !important;
+  text-align: center !important;
+  margin-bottom: 18px !important;
+  padding: 0 4px !important;
+  box-sizing: border-box !important;
+}
+
+.mp-track-title {
+  font-family: var(--font-display-next), Outfit, system-ui, sans-serif !important;
+  font-size: 21px !important;
+  font-weight: 800 !important;
+  color: #ffffff !important;
+  max-width: 88% !important;
+  letter-spacing: -0.025em !important;
+}
+
+.mp-track-artist {
+  font-family: var(--font-ui-next), sans-serif !important;
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  color: rgba(255, 255, 255, 0.65) !important;
+  margin: 4px 0 0 !important;
+}
+
+/* Fix timeline and timestamp truncation */
+.mp-progress-section {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  margin-bottom: 14px !important;
+  padding: 0 2px !important;
+}
+
+.mp-times {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  width: 100% !important;
+  margin-top: 8px !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+  font-family: var(--font-mono, monospace) !important;
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+  color: rgba(255, 255, 255, 0.65) !important;
+  font-variant-numeric: tabular-nums !important;
+  letter-spacing: 0.02em !important;
+}
+
+.mp-times span {
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+}
+
+/* Controls row spacing */
+.mp-controls-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 20px !important;
+  width: 100% !important;
+  margin: 12px 0 16px !important;
+  box-sizing: border-box !important;
+}
+
+/* Utility toolbar */
+.mp-utility-toolbar {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+  padding: 14px 4px 0 !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+  margin-top: 12px !important;
+  box-sizing: border-box !important;
+}
+
+.mp-util-volume-box {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-radius: 99px !important;
+  padding: 4px 12px !important;
+  height: 34px !important;
+  box-sizing: border-box !important;
+}
+
+input[type="range"].mp-util-volume-slider {
+  width: 68px !important;
+}
+
+.mp-util-volume-box:hover input[type="range"].mp-util-volume-slider {
+  width: 78px !important;
+}
+
+/* Vinyl disc spin animation */
+.mp-vinyl-disc.spinning {
+  animation: mp-vinyl-spin 4.5s linear infinite;
+}
+
+@keyframes mp-vinyl-spin {
+  from {
+    transform: translateX(22px) rotate(0deg);
+  }
+  to {
+    transform: translateX(22px) rotate(360deg);
+  }
+}
+
+.mp-artwork-outer:hover .mp-vinyl-disc.spinning {
+  animation: mp-vinyl-spin-hover 4.5s linear infinite !important;
+}
+
+@keyframes mp-vinyl-spin-hover {
+  from {
+    transform: translateX(48px) rotate(0deg);
+  }
+  to {
+    transform: translateX(48px) rotate(360deg);
+  }
+}
+
+

@@ -137,6 +137,7 @@ export const MusicPlayer = ({
   const [activeQueueTab, setActiveQueueTab] = useState("queue"); // queue, history
   const [hoverTime, setHoverTime] = useState(null);
   const [equalizerBars, setEqualizerBars] = useState(Array(10).fill(0));
+  const [artworkHovered, setArtworkHovered] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
   
   const progressRef = useRef(null);
@@ -146,17 +147,20 @@ export const MusicPlayer = ({
     setMounted(true);
   }, []);
 
-  // Sync lyrics scrolling in theater mode
+  const userScrolledPlayerLyricsRef = useRef(false);
+  const userPlayerScrollTimerRef = useRef(null);
+
+  // Sync lyrics scrolling in theater mode into the golden focal region
   useEffect(() => {
     if (lyricsActiveIdx === -1 || !lyricsScrollRef.current || !lyricsText || lyricsText.length === 0) return;
+    if (userScrolledPlayerLyricsRef.current) return;
+
     const activeEl = document.getElementById(`mp-lyr-${lyricsActiveIdx}`);
-    if (activeEl) {
+    if (activeEl && lyricsScrollRef.current) {
       const container = lyricsScrollRef.current;
-      const parentRect = container.getBoundingClientRect();
-      const elementRect = activeEl.getBoundingClientRect();
-      const relativeTop = elementRect.top - parentRect.top;
+      const targetScroll = activeEl.offsetTop - (container.clientHeight * 0.38) + (activeEl.clientHeight / 2);
       container.scrollTo({
-        top: container.scrollTop + relativeTop - (parentRect.height / 2) + (activeEl.clientHeight / 2),
+        top: Math.max(0, targetScroll),
         behavior: 'smooth'
       });
     }
@@ -262,40 +266,132 @@ export const MusicPlayer = ({
 
   const containerStyle = lyricsVisible
     ? { maxWidth: '1080px', margin: '0 auto', width: '100%', height: '100%', transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }
-    : { maxWidth: '440px', margin: '12px auto 0', width: '100%', height: 'auto', alignSelf: 'center', transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)' };
-
+    : { maxWidth: '440px', width: '100%', margin: '0 auto', transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)' };
 
   return (
-    <div className={`mp-container ${className}`} style={containerStyle}>
+    <div className={`mp-container ${className} ${lyricsVisible ? 'lyrics-open' : ''}`} style={containerStyle}>
       {/* Background ambient color bleed */}
       <div 
         className="mp-ambient-glow" 
-        style={{ backgroundImage: track.artwork ? `url(${track.artwork})` : "none", width: '100%', height: '100%', opacity: 0.15 }}
+        style={{ backgroundImage: track.artwork ? `url(${track.artwork})` : "none", width: '100%', height: '100%', opacity: 0.18 }}
       />
       
-      <div className={`mp-card ${theme}`} style={{ height: lyricsVisible ? '100%' : 'auto', borderRadius: '24px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div className={`mp-card ${theme}`} style={{ height: lyricsVisible ? '100%' : 'auto', width: '100%', borderRadius: '28px', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxSizing: 'border-box' }}>
         
         {/* ══ Theater Body (Artwork + Lyrics Grid) ══ */}
-        <div className={`mp-theater-body ${lyricsVisible ? 'lyrics-visible' : 'lyrics-hidden'}`} style={{ height: '100%' }}>
+        <div className={`mp-theater-body ${lyricsVisible ? 'lyrics-visible' : 'lyrics-hidden'}`} style={{ height: '100%', width: '100%', boxSizing: 'border-box' }}>
           {/* Left Side: Turntable Controls */}
           <div className="mp-theater-left">
-            {/* Album artwork container */}
+            {/* Album artwork container with Interactive Spinning Vinyl Record */}
             <div className="mp-artwork-container">
-              <div className="mp-artwork-wrapper">
-                {track.artwork ? (
-                  <img decoding="async" loading="lazy" draggable="false" src={track.artwork} alt="" className="mp-artwork-img" />
-                ) : (
-                  <div className="mp-artwork-fallback">
-                    <Music className="h-12 w-12" />
+              <div
+                className="mp-artwork-outer"
+                onMouseEnter={() => setArtworkHovered(true)}
+                onMouseLeave={() => setArtworkHovered(false)}
+                onClick={togglePlay}
+                style={{ position: 'relative', width: '100%', maxWidth: '330px', margin: '0 auto', cursor: 'pointer' }}
+                title={`Click to ${isPlaying ? 'Pause' : 'Play'}`}
+              >
+                {/* Spinning Vinyl Record Disc Peek */}
+                <div
+                  className={`mp-vinyl-disc ${isPlaying ? 'spinning' : ''}`}
+                  style={{
+                    position: 'absolute',
+                    right: '0px',
+                    top: '5%',
+                    width: '90%',
+                    aspectRatio: '1/1',
+                    borderRadius: '50%',
+                    background: 'radial-gradient(circle, #08080c 0%, #15151c 16%, #0a0a0f 24%, #1a1a24 32%, #0d0d14 42%, #1e1e2c 54%, #0a0a10 66%, #1a1a24 78%, #08080c 90%, #040406 100%)',
+                    boxShadow: artworkHovered
+                      ? '0 20px 48px rgba(0,0,0,0.95), 0 0 24px rgba(255, 159, 28, 0.3), inset 0 0 0 2px rgba(255,255,255,0.15)'
+                      : '0 16px 36px rgba(0,0,0,0.85), inset 0 0 0 2px rgba(255,255,255,0.08)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1,
+                    transform: artworkHovered
+                      ? 'translateX(48px) rotate(18deg)'
+                      : (isPlaying ? 'translateX(22px) rotate(0deg)' : 'translateX(0px) rotate(0deg)'),
+                    transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease',
+                    overflow: 'hidden',
+                  }}
+                >
+                  {/* Vinyl Conical Sheen */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      borderRadius: '50%',
+                      background: 'conic-gradient(from 45deg, transparent 0deg, rgba(255,255,255,0.08) 35deg, transparent 70deg, transparent 180deg, rgba(255,255,255,0.08) 215deg, transparent 250deg)',
+                    }}
+                  />
+                  {/* Vinyl Center label */}
+                  <div
+                    style={{
+                      width: '36%',
+                      height: '36%',
+                      borderRadius: '50%',
+                      background: '#121218',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '2px solid rgba(255, 159, 28, 0.4)',
+                      boxShadow: '0 0 12px rgba(0,0,0,0.8)',
+                      position: 'relative',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {track.artwork ? (
+                      <img src={track.artwork} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.9 }} />
+                    ) : (
+                      <Music className="h-4 w-4" style={{ color: 'var(--theme-accent, #ff9f1c)' }} />
+                    )}
+                    <div style={{ position: 'absolute', width: '18%', height: '18%', borderRadius: '50%', background: '#040406', border: '1.5px solid rgba(255,255,255,0.4)', zIndex: 3 }} />
                   </div>
-                )}
-                <div className="mp-artwork-glass" />
+                </div>
+
+                {/* Album Cover Art Sleeve */}
+                <div
+                  className="mp-artwork-wrapper"
+                  style={{
+                    position: 'relative',
+                    zIndex: 2,
+                    transform: artworkHovered ? 'scale(1.02) translateX(-8px)' : 'scale(1)',
+                    transition: 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s ease',
+                    boxShadow: artworkHovered
+                      ? '0 24px 60px rgba(0,0,0,0.85), 0 0 30px rgba(255,159,28,0.25), inset 0 1px 2px rgba(255,255,255,0.3)'
+                      : '0 20px 50px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.1)',
+                  }}
+                >
+                  {track.artwork ? (
+                    <img decoding="async" loading="lazy" draggable="false" src={track.artwork} alt="" className="mp-artwork-img" />
+                  ) : (
+                    <div className="mp-artwork-fallback">
+                      <Music className="h-12 w-12" />
+                    </div>
+                  )}
+                  <div className="mp-artwork-glass" />
+                  {/* Holographic light sheen sweep */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      background: 'linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.15) 50%, transparent 80%)',
+                      opacity: artworkHovered ? 1 : 0,
+                      transform: artworkHovered ? 'translateX(0%)' : 'translateX(-100%)',
+                      transition: 'opacity 0.35s ease, transform 0.6s ease',
+                      pointerEvents: 'none',
+                      zIndex: 5,
+                    }}
+                  />
+                </div>
               </div>
             </div>
 
             {/* Unified Track Info & Equalizer */}
             <div className="mp-meta-container">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', minWidth: 0, padding: '0 8px', boxSizing: 'border-box' }}>
                 <h2 className="mp-track-title" data-presence="track-name">
                   {track.title}
                 </h2>
@@ -325,7 +421,7 @@ export const MusicPlayer = ({
             </div>
             
             {/* Progress timeline bar */}
-            <div className="mp-progress-section" style={{ width: '100%', marginBottom: '16px' }}>
+            <div className="mp-progress-section" style={{ width: '100%', marginBottom: '14px', boxSizing: 'border-box' }}>
               <div
                 ref={progressRef}
                 className="mp-progress-bar"
@@ -351,7 +447,7 @@ export const MusicPlayer = ({
                   </div>
                 )}
               </div>
-              <div className="mp-times" style={{ marginTop: '6px', display: 'flex', justifyContent: 'space-between', width: '100%', padding: '0 2px' }}>
+              <div className="mp-times" style={{ marginTop: '8px', display: 'flex', justifyContent: 'space-between', width: '100%', boxSizing: 'border-box', fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--font-mono, monospace)', fontSize: '11.5px', color: 'rgba(255, 255, 255, 0.65)' }}>
                 <span>{formatTime(Math.min(currentTime, track.duration))}</span>
                 <span>{formatTime(track.duration)}</span>
               </div>
@@ -483,6 +579,20 @@ export const MusicPlayer = ({
               <div 
                 ref={lyricsScrollRef}
                 className="mp-lyrics-scroll-container"
+                onWheel={() => {
+                  userScrolledPlayerLyricsRef.current = true;
+                  if (userPlayerScrollTimerRef.current) clearTimeout(userPlayerScrollTimerRef.current);
+                  userPlayerScrollTimerRef.current = setTimeout(() => {
+                    userScrolledPlayerLyricsRef.current = false;
+                  }, 3400);
+                }}
+                onTouchMove={() => {
+                  userScrolledPlayerLyricsRef.current = true;
+                  if (userPlayerScrollTimerRef.current) clearTimeout(userPlayerScrollTimerRef.current);
+                  userPlayerScrollTimerRef.current = setTimeout(() => {
+                    userScrolledPlayerLyricsRef.current = false;
+                  }, 3400);
+                }}
               >
                 <div style={{ height: '30%' }}></div>
                 {lyricsLoading ? (
