@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import YouTubePlayer from '@/utils/YouTubePlayer';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { MusicPlayer } from '@/components/ui/music-player';
-import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart, CheckCircle, AlertCircle, AlertTriangle, Info, Download, Check, Flame, Smile, Save, RefreshCw, ListPlus, Maximize2, Minimize2, SkipForward, SkipBack, Shuffle, Repeat, List, Disc, Clock, Sliders, GripVertical, HelpCircle } from 'lucide-react';
+import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart, CheckCircle, AlertCircle, AlertTriangle, Info, Download, Check, Flame, Smile, Save, RefreshCw, ListPlus, Maximize2, Minimize2, SkipForward, SkipBack, Shuffle, Repeat, List, Disc, Clock, Sliders, GripVertical, HelpCircle, Bookmark, Crown } from 'lucide-react';
 import PwaInstallPrompt from '@/components/PwaInstallPrompt';
 import { offlineDb } from '@/utils/offlineDb';
 import EmojiPicker from '@/components/EmojiPicker';
@@ -584,22 +584,26 @@ export default function RoomClient({ roomId }) {
     }
   }, [isConnected, isReady]);
 
-  // Clock synchronization loop
+  // Clock synchronization loop with rapid convergence burst
   useEffect(() => {
     if (!socket || !isConnected) return;
     
-    // Initial burst to get quick convergence
+    // Quick burst of pings in the first 2 seconds for instant NTP convergence
     syncClock();
-    const interval1 = setInterval(syncClock, 1000);
-    const timeout = setTimeout(() => clearInterval(interval1), 5000);
+    const t1 = setTimeout(syncClock, 200);
+    const t2 = setTimeout(syncClock, 600);
+    const t3 = setTimeout(syncClock, 1200);
+    const t4 = setTimeout(syncClock, 2400);
     
-    // Regular keep-alive sync every 15 seconds
-    const interval15 = setInterval(syncClock, 15000);
+    // Regular keep-alive sync every 12 seconds
+    const interval12 = setInterval(syncClock, 12000);
     
     return () => {
-      clearInterval(interval1);
-      clearTimeout(timeout);
-      clearInterval(interval15);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      clearTimeout(t4);
+      clearInterval(interval12);
     };
   }, [socket, isConnected]);
 
@@ -665,9 +669,15 @@ export default function RoomClient({ roomId }) {
       const rtt = (t3 - t0) - (t2 - t1);
       const offset = ((t1 - t0) + (t2 - t3)) / 2;
       
-      const newHistory = [...clockStatsRef.current.history, { rtt, offset }].slice(-10);
-      const avgOffset = newHistory.reduce((sum, item) => sum + item.offset, 0) / newHistory.length;
-      const avgRtt = newHistory.reduce((sum, item) => sum + item.rtt, 0) / newHistory.length;
+      // Filter out extreme cold-start / sleep outliers
+      if (rtt < 0 || rtt > 1800) return;
+      
+      const newHistory = [...clockStatsRef.current.history, { rtt, offset }].slice(-12);
+      // Cristian's NTP algorithm: Sort by RTT and average top 50% lowest-latency measurements
+      const sorted = [...newHistory].sort((a, b) => a.rtt - b.rtt);
+      const bestSamples = sorted.slice(0, Math.max(1, Math.ceil(sorted.length / 2)));
+      const avgOffset = bestSamples.reduce((sum, item) => sum + item.offset, 0) / bestSamples.length;
+      const avgRtt = bestSamples.reduce((sum, item) => sum + item.rtt, 0) / bestSamples.length;
       
       clockStatsRef.current = {
         offset: avgOffset,
@@ -675,7 +685,7 @@ export default function RoomClient({ roomId }) {
         history: newHistory
       };
       
-      setSyncLatency(Math.round(avgRtt / 2));
+      setSyncLatency(Math.max(4, Math.round(avgRtt / 2)));
     });
 
     socket.on('join_success', (data) => {
@@ -813,33 +823,33 @@ export default function RoomClient({ roomId }) {
         el.className = 'floating-emoji';
         el.textContent = data.emoji;
         
-        const x = Math.random() * 60 + 20;
+        const x = Math.random() * 65 + 15;
         const swayDirection = Math.random() > 0.5 ? 1 : -1;
-        const swayOffset = Math.random() * 8 + 4;
-        const finalRotation = Math.random() * 90 - 45;
+        const swayOffset = Math.random() * 50 + 20;
+        const finalRotation = Math.random() * 50 - 25;
         
         el.style.position = 'absolute';
         el.style.left = `${x}vw`;
-        el.style.bottom = '-50px';
+        el.style.bottom = '80px';
         el.style.pointerEvents = 'none';
-        el.style.fontSize = '32px';
-        el.style.zIndex = '1000';
-        el.style.setProperty('--sway-offset', `${swayDirection * swayOffset}vw`);
+        el.style.fontSize = '38px';
+        el.style.zIndex = '10000';
+        el.style.setProperty('--wobble-x', `${swayDirection * swayOffset}px`);
         el.style.setProperty('--final-rotation', `${finalRotation}deg`);
         
         reactionContainerRef.current.appendChild(el);
         
         setTimeout(() => {
           el.remove();
-        }, 3000);
+        }, 2500);
       }
 
-      // Append reaction system message to chat messages list
+      // Append reaction message to chat messages list
       setChatMsgs((prev) => [
         ...prev,
         {
           id: `reaction-${id}-${Date.now()}`,
-          type: 'system',
+          type: 'reaction',
           user_name: data.display_name,
           user_avatar: data.avatar_url,
           content: data.emoji,
@@ -1792,6 +1802,64 @@ export default function RoomClient({ roomId }) {
       if (next > 0 && isMuted) setIsMuted(false);
       return next;
     });
+  };
+
+  // 💾 Save Current Room Queue as User Playlist
+  const handleSaveQueueToPlaylist = async () => {
+    if (!queue || queue.length === 0) {
+      triggerToast('Queue is empty', 'warning');
+      return;
+    }
+    if (!me || !me.is_registered) {
+      triggerToast('Please sign in to save playlists', 'warning');
+      return;
+    }
+
+    triggerToast('Saving queue to your playlists…', 'info');
+    try {
+      const plName = `${room?.name || 'Jam Room'} Queue (${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`;
+      const res = await fetch('/playlists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: plName,
+          is_private: false
+        })
+      });
+
+      if (!res.ok) {
+        triggerToast('Failed to create playlist', 'error');
+        return;
+      }
+
+      const resData = await res.json();
+      const plId = resData.playlist.id;
+
+      const tracksPayload = queue.map(t => ({
+        track_uri: t.track_uri || t.id,
+        track_name: t.track_name || t.title,
+        artist: t.artist || '',
+        album_art_url: t.album_art_url || t.artwork || '',
+        duration_ms: t.duration_ms || 240000
+      }));
+
+      const addTracksRes = await fetch(`/playlists/${plId}/tracks/bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(tracksPayload)
+      });
+
+      if (addTracksRes.ok) {
+        triggerToast(`Saved ${tracksPayload.length} tracks to playlist!`, 'success');
+        if (typeof fetchPlaylists === 'function') fetchPlaylists();
+      } else {
+        triggerToast('Playlist created!', 'success');
+      }
+    } catch (e) {
+      triggerToast('Connection error while saving playlist', 'error');
+    }
   };
 
   // ↕️ Drag-to-Reorder Queue Tracks with Framer Motion
@@ -3216,6 +3284,32 @@ export default function RoomClient({ roomId }) {
                         </button>
                       )}
                     </div>
+                    {activeQueueTab === 'queue' && queue.length > 0 && me && me.is_registered && (
+                      <button
+                        type="button"
+                        onClick={handleSaveQueueToPlaylist}
+                        style={{
+                          background: 'rgba(255, 159, 28, 0.08)',
+                          border: '1px solid rgba(255, 159, 28, 0.22)',
+                          color: 'var(--amber)',
+                          borderRadius: '8px',
+                          padding: '4px 10px',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255, 159, 28, 0.16)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 159, 28, 0.08)'; }}
+                        title="Save active queue as a new playlist on your profile"
+                      >
+                        <Bookmark size={12} />
+                        Save Playlist
+                      </button>
+                    )}
                   </div>
 
                   {activeQueueTab === 'queue' ? (
@@ -3893,7 +3987,17 @@ export default function RoomClient({ roomId }) {
 
                 <div className="chat-messages" id="chat-msgs">
                   {chatMsgs.length > 0 ? (
-                    chatMsgs.filter(msg => msg.type !== 'system').map((msg) => {
+                    chatMsgs.map((msg) => {
+                      if (msg.type === 'reaction') {
+                        return (
+                          <div key={msg.id} className="chat-reaction-item">
+                            <div className="chat-reaction-pill">
+                              <span className="chat-reaction-user">{msg.user_name}</span> reacted with <span className="chat-reaction-emoji">{msg.content}</span>
+                            </div>
+                          </div>
+                        );
+                      }
+                      if (msg.type === 'system') return null;
                       const isSelf = me && msg.user_id === me.id;
                       return (
                         <div key={msg.id} className={`chat-message ${isSelf ? 'self' : ''}`}>
@@ -4101,70 +4205,192 @@ export default function RoomClient({ roomId }) {
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.15, ease: 'easeOut' }}
                 className="members-list"
-                style={{ display: 'block', height: '100%' }}
+                style={{ display: 'flex', flexDirection: 'column', gap: '16px', height: '100%', padding: '4px 2px' }}
               >
-                {listeners.map((user, idx) => {
-                  const uid = user.user_id || user.id || `user-${idx}`;
+                {/* Header counter */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 8px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-3)' }}>
+                    In Room — {listeners.length}
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#10b981' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', display: 'inline-block', boxShadow: '0 0 6px #10b981' }} />
+                    Live
+                  </div>
+                </div>
+
+                {/* Host Section */}
+                {(() => {
+                  const hostUser = listeners.find(u => {
+                    const uid = u.user_id || u.id;
+                    return room && room.host_user_id === uid;
+                  }) || (room ? { display_name: room.host_display_name || 'Room Host', user_id: room.host_user_id, is_host: true } : null);
+
+                  if (!hostUser) return null;
+                  const hostUid = hostUser.user_id || hostUser.id;
+                  const isSelf = me && hostUid === me.id;
+
                   return (
-                    <div 
-                      key={uid} 
-                      className={`member-item ${user.is_registered ? 'is-registered' : ''}`}
-                      onClick={() => {
-                        if (user.is_registered) {
-                          window.open(`/profile/${uid}`, '_blank');
-                        }
-                      }}
-                    >
-                      {user.avatar_url ? (
-                        <img 
-                          decoding="async" 
-                          loading="lazy" 
-                          className="avatar avatar-sm" 
-                          src={user.avatar_url} 
-                          alt="" 
-                          style={{ 
-                            width: '24px', 
-                            height: '24px', 
-                            borderRadius: '50%', 
-                            objectFit: 'cover',
-                            border: room && room.host_user_id === uid ? '1.5px solid var(--amber, #ff9f1c)' : 'none',
-                            boxShadow: room && room.host_user_id === uid ? '0 0 6px rgba(255, 159, 28, 0.4)' : 'none'
-                          }} 
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                            const fallback = e.currentTarget.parentElement.querySelector('.listener-avatar-fallback');
-                            if (fallback) fallback.style.display = 'flex';
-                          }}
-                        />
-                      ) : null}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <span style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--amber)', paddingLeft: '8px' }}>
+                        👑 Room Host
+                      </span>
                       <div 
-                        className="avatar avatar-sm listener-avatar-fallback"
-                        style={{ 
-                          backgroundColor: nameColor(user.display_name), 
-                          width: '24px', 
-                          height: '24px', 
-                          borderRadius: '50%', 
-                          display: user.avatar_url ? 'none' : 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'center', 
-                          fontSize: '11px', 
-                          fontWeight: 'bold',
-                          border: room && room.host_user_id === uid ? '1.5px solid var(--amber, #ff9f1c)' : 'none',
-                          boxShadow: room && room.host_user_id === uid ? '0 0 6px rgba(255, 159, 28, 0.4)' : 'none'
+                        className={`member-item is-host-card ${hostUser.is_registered ? 'is-registered' : ''}`}
+                        style={{
+                          background: 'rgba(255, 159, 28, 0.08)',
+                          border: '1px solid rgba(255, 159, 28, 0.28)',
+                          borderRadius: '14px',
+                          padding: '10px 14px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          cursor: hostUser.is_registered ? 'pointer' : 'default'
+                        }}
+                        onClick={() => {
+                          if (hostUser.is_registered && hostUid) {
+                            window.open(`/profile/${hostUid}`, '_blank');
+                          }
                         }}
                       >
-                        {initials(user.display_name)}
+                        {hostUser.avatar_url ? (
+                          <img 
+                            decoding="async" 
+                            loading="lazy" 
+                            className="avatar" 
+                            src={hostUser.avatar_url} 
+                            alt="" 
+                            style={{ 
+                              width: '32px', 
+                              height: '32px', 
+                              borderRadius: '50%', 
+                              objectFit: 'cover',
+                              border: '2px solid var(--amber, #ff9f1c)',
+                              boxShadow: '0 0 10px rgba(255, 159, 28, 0.4)'
+                            }} 
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              const fallback = e.currentTarget.parentElement.querySelector('.host-avatar-fallback');
+                              if (fallback) fallback.style.display = 'flex';
+                            }}
+                          />
+                        ) : null}
+                        <div 
+                          className="avatar host-avatar-fallback"
+                          style={{ 
+                            backgroundColor: nameColor(hostUser.display_name), 
+                            width: '32px', 
+                            height: '32px', 
+                            borderRadius: '50%', 
+                            display: hostUser.avatar_url ? 'none' : 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center', 
+                            fontSize: '12px', 
+                            fontWeight: 'bold',
+                            border: '2px solid var(--amber, #ff9f1c)',
+                            boxShadow: '0 0 10px rgba(255, 159, 28, 0.4)'
+                          }}
+                        >
+                          {initials(hostUser.display_name)}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {hostUser.display_name}
+                            {isSelf && <span style={{ color: 'var(--amber)', fontSize: '11px', fontWeight: 600 }}> (you)</span>}
+                          </div>
+                          <div style={{ fontSize: '10px', color: 'rgba(255, 159, 28, 0.85)', fontWeight: 600 }}>DJ & Session Host</div>
+                        </div>
+                        <span className="badge badge-host" style={{ padding: '3px 8px', fontSize: '10px' }}>Host</span>
                       </div>
-                      <span className="member-name">
-                        {user.display_name}
-                        {me && uid === me.id && <span className="member-you"> (you)</span>}
-                      </span>
-                      {room && room.host_user_id === uid && (
-                        <span className="badge badge-host">Host</span>
-                      )}
                     </div>
                   );
-                })}
+                })()}
+
+                {/* Other Listeners Section */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <span style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)', paddingLeft: '8px' }}>
+                    Listeners ({listeners.filter(u => !room || (u.user_id || u.id) !== room.host_user_id).length})
+                  </span>
+                  {listeners.filter(u => !room || (u.user_id || u.id) !== room.host_user_id).length > 0 ? (
+                    listeners
+                      .filter(u => !room || (u.user_id || u.id) !== room.host_user_id)
+                      .map((user, idx) => {
+                        const uid = user.user_id || user.id || `user-${idx}`;
+                        const isSelf = me && uid === me.id;
+                        return (
+                          <div 
+                            key={uid} 
+                            className={`member-item ${user.is_registered ? 'is-registered' : ''}`}
+                            style={{
+                              background: 'rgba(255, 255, 255, 0.02)',
+                              border: '1px solid rgba(255, 255, 255, 0.04)',
+                              borderRadius: '12px',
+                              padding: '8px 12px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '10px',
+                              cursor: user.is_registered ? 'pointer' : 'default',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onClick={() => {
+                              if (user.is_registered) {
+                                window.open(`/profile/${uid}`, '_blank');
+                              }
+                            }}
+                          >
+                            {user.avatar_url ? (
+                              <img 
+                                decoding="async" 
+                                loading="lazy" 
+                                className="avatar avatar-sm" 
+                                src={user.avatar_url} 
+                                alt="" 
+                                style={{ 
+                                  width: '26px', 
+                                  height: '26px', 
+                                  borderRadius: '50%', 
+                                  objectFit: 'cover'
+                                }} 
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  const fallback = e.currentTarget.parentElement.querySelector('.listener-avatar-fallback');
+                                  if (fallback) fallback.style.display = 'flex';
+                                }}
+                              />
+                            ) : null}
+                            <div 
+                              className="avatar avatar-sm listener-avatar-fallback"
+                              style={{ 
+                                backgroundColor: nameColor(user.display_name), 
+                                width: '26px', 
+                                height: '26px', 
+                                borderRadius: '50%', 
+                                display: user.avatar_url ? 'none' : 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center', 
+                                fontSize: '11px', 
+                                fontWeight: 'bold'
+                              }}
+                            >
+                              {initials(user.display_name)}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <span className="member-name" style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-1)' }}>
+                                {user.display_name}
+                                {isSelf && <span className="member-you" style={{ color: 'var(--amber)', fontSize: '11px' }}> (you)</span>}
+                              </span>
+                            </div>
+                            <span style={{ fontSize: '10px', color: 'var(--text-3)', background: 'rgba(255,255,255,0.04)', padding: '2px 6px', borderRadius: '6px' }}>
+                              {user.is_registered ? 'Member' : 'Guest'}
+                            </span>
+                          </div>
+                        );
+                      })
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '16px 0', fontSize: '11px', color: 'var(--text-3)' }}>
+                      No other listeners yet. Invite friends to jam!
+                    </div>
+                  )}
+                </div>
               </motion.div>
             )}
             </AnimatePresence>
@@ -5647,87 +5873,131 @@ export default function RoomClient({ roomId }) {
                       scrollBehavior: 'smooth',
                     }}
                   >
+                    {/* Intro Rhythm Dots */}
+                    {lyricsActiveIdx === -1 && playbackState.isPlaying && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '14px', margin: '16px 0 28px 0' }}
+                      >
+                        <div className="stage-rhythm-dots">
+                          <span className="stage-rhythm-dot" />
+                          <span className="stage-rhythm-dot" />
+                          <span className="stage-rhythm-dot" />
+                        </div>
+                        <span style={{ fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255, 255, 255, 0.65)' }}>
+                          Instrumental Intro
+                        </span>
+                      </motion.div>
+                    )}
+
                     {lyricsText.map((item, idx) => {
                       const isActive = idx === lyricsActiveIdx;
 
                       // Word-by-word natural singing cadence calculation for active line
                       let words = (item.text || '').split(' ');
                       let activeWordIdx = -1;
+                      let estimatedSingTime = 3000;
+                      let isInterlude = false;
+
                       if (isActive && item.timeMs !== undefined && item.timeMs >= 0) {
                         const nextTime = (lyricsText[idx + 1] && lyricsText[idx + 1].timeMs > 0)
                           ? lyricsText[idx + 1].timeMs
                           : item.timeMs + 4000;
                         const rawGap = Math.max(800, nextTime - item.timeMs);
-                        // Natural singing cadence: ~360ms per word + lead buffer, capped at the gap before next line
-                        const estimatedSingTime = Math.min(rawGap, Math.max(900, words.length * 360 + 300));
+                        estimatedSingTime = Math.min(rawGap, Math.max(900, words.length * 360 + 300));
                         const effectivePos = (playbackState.positionMs || 0) + lyricsOffsetMs + 80;
                         const elapsed = Math.max(0, effectivePos - item.timeMs);
                         const ratio = Math.min(1, elapsed / estimatedSingTime);
                         activeWordIdx = Math.floor(ratio * words.length);
                         if (elapsed >= estimatedSingTime) {
-                          activeWordIdx = words.length - 1; // Finished singing line: all words illuminated
+                          activeWordIdx = words.length - 1; // Finished singing line
+                        }
+
+                        // If gap to next line is > 5s and singing is finished, show interlude rhythm dots
+                        if (lyricsText[idx + 1] && rawGap > 5000 && elapsed >= estimatedSingTime + 600) {
+                          isInterlude = true;
                         }
                       }
 
                       return (
-                        <motion.div
-                          key={idx}
-                          id={`stage-lyr-${idx}`}
-                          animate={{
-                            scale: isActive ? 1.05 : 1,
-                            opacity: isActive ? 1 : (idx < lyricsActiveIdx ? 0.5 : 0.22),
-                            x: isActive ? 16 : 0,
-                          }}
-                          transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                          style={{
-                            fontSize: isActive ? 'clamp(32px, 4.2vw, 54px)' : 'clamp(20px, 2.6vw, 34px)',
-                            fontWeight: isActive ? 800 : 600,
-                            margin: 0,
-                            cursor: isHost ? 'pointer' : 'default',
-                            color: isActive ? '#ffffff' : (idx < lyricsActiveIdx ? 'rgba(255, 255, 255, 0.7)' : 'rgba(255, 255, 255, 0.3)'),
-                            lineHeight: 1.32,
-                            transformOrigin: 'left center',
-                            letterSpacing: '-0.025em',
-                            wordBreak: 'break-word',
-                            filter: isActive ? 'none' : 'blur(0.35px)',
-                            textShadow: isActive ? '0 0 28px rgba(255, 255, 255, 0.45), 0 0 50px var(--theme-accent, #ff9f1c)' : 'none',
-                            transition: 'filter 0.3s ease, font-size 0.3s ease',
-                          }}
-                          onClick={() => {
-                            if (item.timeMs > 0 && isHost && playerRef.current) {
-                              setPlaybackState(prev => ({ ...prev, positionMs: item.timeMs }));
-                              playerRef.current.syncPosition(item.timeMs, playbackState.isPlaying);
-                              triggerToast(`Jumped to ${formatTime(item.timeMs)}`, 'info');
-                            }
-                          }}
-                        >
-                          {isActive && words.length > 1 ? (
-                            words.map((word, wIdx) => {
-                              const isWordSung = wIdx <= activeWordIdx;
-                              const isCurrentWord = wIdx === activeWordIdx;
-                              return (
-                                <span
-                                  key={wIdx}
-                                  style={{
-                                    display: 'inline-block',
-                                    marginRight: '14px',
-                                    color: isWordSung ? '#ffffff' : 'rgba(255, 255, 255, 0.38)',
-                                    fontWeight: isCurrentWord ? 900 : (isWordSung ? 800 : 700),
-                                    textShadow: isCurrentWord
-                                      ? '0 0 32px #ffffff, 0 0 60px var(--theme-accent, #ff9f1c)'
-                                      : (isWordSung ? '0 0 16px rgba(255,255,255,0.6)' : 'none'),
-                                    transform: isCurrentWord ? 'scale(1.06)' : 'scale(1)',
-                                    transition: 'all 0.12s ease-out',
-                                  }}
-                                >
-                                  {word}
-                                </span>
-                              );
-                            })
-                          ) : (
-                            item.text
+                        <React.Fragment key={idx}>
+                          <motion.div
+                            id={`stage-lyr-${idx}`}
+                            animate={{
+                              scale: isActive ? 1.05 : 1,
+                              opacity: isActive ? 1 : (idx < lyricsActiveIdx ? 0.5 : 0.22),
+                              x: isActive ? 16 : 0,
+                            }}
+                            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                            style={{
+                              fontSize: isActive ? 'clamp(32px, 4.2vw, 54px)' : 'clamp(20px, 2.6vw, 34px)',
+                              fontWeight: isActive ? 800 : 600,
+                              margin: 0,
+                              cursor: isHost ? 'pointer' : 'default',
+                              color: isActive ? '#ffffff' : (idx < lyricsActiveIdx ? 'rgba(255, 255, 255, 0.7)' : 'rgba(255, 255, 255, 0.3)'),
+                              lineHeight: 1.32,
+                              transformOrigin: 'left center',
+                              letterSpacing: '-0.025em',
+                              wordBreak: 'break-word',
+                              filter: isActive ? 'none' : 'blur(0.35px)',
+                              textShadow: isActive ? '0 0 28px rgba(255, 255, 255, 0.45), 0 0 50px var(--theme-accent, #ff9f1c)' : 'none',
+                              transition: 'filter 0.3s ease, font-size 0.3s ease',
+                            }}
+                            onClick={() => {
+                              if (item.timeMs > 0 && isHost && playerRef.current) {
+                                setPlaybackState(prev => ({ ...prev, positionMs: item.timeMs }));
+                                playerRef.current.syncPosition(item.timeMs, playbackState.isPlaying);
+                                triggerToast(`Jumped to ${formatTime(item.timeMs)}`, 'info');
+                              }
+                            }}
+                          >
+                            {isActive && words.length > 1 ? (
+                              words.map((word, wIdx) => {
+                                const isWordSung = wIdx <= activeWordIdx;
+                                const isCurrentWord = wIdx === activeWordIdx;
+                                return (
+                                  <span
+                                    key={wIdx}
+                                    style={{
+                                      display: 'inline-block',
+                                      marginRight: '14px',
+                                      color: isWordSung ? '#ffffff' : 'rgba(255, 255, 255, 0.38)',
+                                      fontWeight: isCurrentWord ? 900 : (isWordSung ? 800 : 700),
+                                      textShadow: isCurrentWord
+                                        ? '0 0 32px #ffffff, 0 0 60px var(--theme-accent, #ff9f1c)'
+                                        : (isWordSung ? '0 0 16px rgba(255,255,255,0.6)' : 'none'),
+                                      transform: isCurrentWord ? 'scale(1.06)' : 'scale(1)',
+                                      transition: 'all 0.12s ease-out',
+                                    }}
+                                  >
+                                    {word}
+                                  </span>
+                                );
+                              })
+                            ) : (
+                              item.text
+                            )}
+                          </motion.div>
+
+                          {/* Interlude Rhythm Dots between long pauses */}
+                          {isInterlude && (
+                            <motion.div
+                              initial={{ opacity: 0, scale: 0.9 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              style={{ margin: '8px 0 8px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}
+                            >
+                              <div className="stage-rhythm-dots">
+                                <span className="stage-rhythm-dot" />
+                                <span className="stage-rhythm-dot" />
+                                <span className="stage-rhythm-dot" />
+                              </div>
+                              <span style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(255, 255, 255, 0.45)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                Instrumental Break
+                              </span>
+                            </motion.div>
                           )}
-                        </motion.div>
+                        </React.Fragment>
                       );
                     })}
                   </div>
