@@ -868,7 +868,7 @@ export default class YouTubePlayer {
 
       this.updateDisplay();
       this._updateMediaSessionPositionState();
-    }, 250);
+    }, 60);
   }
 
   stopProgressTimer() {

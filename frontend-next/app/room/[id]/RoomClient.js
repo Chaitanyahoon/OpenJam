@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import YouTubePlayer from '@/utils/YouTubePlayer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MusicPlayer } from '@/components/ui/music-player';
-import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart, CheckCircle, AlertCircle, AlertTriangle, Info, Download, Check, Flame, Smile, Save, RefreshCw, ListPlus, Maximize2, Minimize2, SkipForward, SkipBack, Shuffle, Repeat, List, Disc } from 'lucide-react';
+import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart, CheckCircle, AlertCircle, AlertTriangle, Info, Download, Check, Flame, Smile, Save, RefreshCw, ListPlus, Maximize2, Minimize2, SkipForward, SkipBack, Shuffle, Repeat, List, Disc, Clock, Sliders } from 'lucide-react';
 import PwaInstallPrompt from '@/components/PwaInstallPrompt';
 import { offlineDb } from '@/utils/offlineDb';
 import EmojiPicker from '@/components/EmojiPicker';
@@ -96,6 +96,11 @@ export default function RoomClient({ roomId }) {
   const [stageSeekHovered, setStageSeekHovered] = useState(false);
   const [showStageQueue, setShowStageQueue] = useState(false);
   const [showTimeRemaining, setShowTimeRemaining] = useState(false);
+  const [lyricsOffsetMs, setLyricsOffsetMs] = useState(0);
+  const [showLyricsSyncPanel, setShowLyricsSyncPanel] = useState(false);
+  const [seekHoverTimeMs, setSeekHoverTimeMs] = useState(null);
+  const [seekHoverXRatio, setSeekHoverXRatio] = useState(0);
+  const [artHovered, setArtHovered] = useState(false);
   const isDraggingStageVolRef = useRef(false);
   const isDraggingStageSeekRef = useRef(false);
   const stageVolPillRef = useRef(null);
@@ -1317,24 +1322,24 @@ export default function RoomClient({ roomId }) {
       setLyricsActiveIdx(-1);
       return;
     }
-    const currentMs = playbackState.positionMs;
+    const effectiveMs = (playbackState.positionMs || 0) + lyricsOffsetMs + 80;
     let newIdx = -1;
     for (let i = 0; i < lyricsText.length; i++) {
       if (lyricsText[i].timeMs !== undefined && lyricsText[i].timeMs >= 0) {
-        if (lyricsText[i].timeMs <= currentMs + 250) {
+        if (lyricsText[i].timeMs <= effectiveMs) {
           newIdx = i;
         } else {
           break;
         }
       }
     }
-    if (newIdx === -1 && playbackState.isPlaying) {
+    if (newIdx === -1 && playbackState.isPlaying && lyricsText.length > 0 && effectiveMs >= (lyricsText[0]?.timeMs || 0)) {
       newIdx = 0;
     }
     if (newIdx !== lyricsActiveIdx) {
       setLyricsActiveIdx(newIdx);
     }
-  }, [playbackState.positionMs, playbackState.isPlaying, lyricsText?.length, lyricsActiveIdx]);
+  }, [playbackState.positionMs, playbackState.isPlaying, lyricsText?.length, lyricsActiveIdx, lyricsOffsetMs]);
 
 
   // Typing Cleanup on Unmount
@@ -4574,20 +4579,24 @@ export default function RoomClient({ roomId }) {
               }}
             >
               {/* Left Column: Artwork Card, Spinning Disc & Track Controls */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', maxWidth: '480px', margin: '0 auto' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '22px', width: '100%', maxWidth: '480px', margin: '0 auto' }}>
                 
                 {/* Artwork Outer Container with Spinning Vinyl Disc Peek Effect */}
-                <div style={{ position: 'relative', width: '100%', maxWidth: '480px', margin: '0 auto' }}>
+                <div
+                  style={{ position: 'relative', width: '100%', maxWidth: '480px', margin: '0 auto' }}
+                  onMouseEnter={() => setArtHovered(true)}
+                  onMouseLeave={() => setArtHovered(false)}
+                >
                   
                   {/* Spinning Vinyl Record Disc */}
                   <motion.div
                     animate={{
                       rotate: playbackState.isPlaying ? 360 : 0,
-                      x: playbackState.isPlaying ? 32 : 0,
+                      x: playbackState.isPlaying ? (artHovered ? 48 : 34) : (artHovered ? 24 : 0),
                     }}
                     transition={{
-                      rotate: { duration: 6, repeat: Infinity, ease: 'linear' },
-                      x: { duration: 0.5, ease: 'easeOut' },
+                      rotate: { duration: 5, repeat: Infinity, ease: 'linear' },
+                      x: { duration: 0.4, ease: [0.16, 1, 0.3, 1] },
                     }}
                     style={{
                       position: 'absolute',
@@ -4596,8 +4605,8 @@ export default function RoomClient({ roomId }) {
                       width: '90%',
                       aspectRatio: '1/1',
                       borderRadius: '50%',
-                      background: 'radial-gradient(circle, #080808 0%, #151515 30%, #050505 50%, #202020 70%, #080808 100%)',
-                      boxShadow: '0 10px 30px rgba(0,0,0,0.8), inset 0 0 0 2px rgba(255,255,255,0.06)',
+                      background: 'radial-gradient(circle, #050505 0%, #181818 28%, #080808 50%, #222222 68%, #050505 100%)',
+                      boxShadow: '0 16px 36px rgba(0,0,0,0.85), inset 0 0 0 2px rgba(255,255,255,0.08)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -4611,32 +4620,46 @@ export default function RoomClient({ roomId }) {
                         width: '34%',
                         height: '34%',
                         borderRadius: '50%',
-                        background: 'radial-gradient(circle, var(--theme-accent, #ff9f1c) 0%, #111 100%)',
+                        background: 'radial-gradient(circle, var(--theme-accent, #ff9f1c) 0%, #111115 100%)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         border: '2px solid rgba(0,0,0,0.6)',
-                        boxShadow: '0 0 12px rgba(0,0,0,0.6)',
+                        boxShadow: '0 0 16px rgba(0,0,0,0.7)',
                       }}
                     >
-                      <Disc size={20} style={{ color: '#ffffff', opacity: 0.8 }} />
+                      <Disc size={22} style={{ color: '#ffffff', opacity: 0.9 }} />
                     </div>
                   </motion.div>
 
-                  {/* Artwork Card */}
-                  <div
+                  {/* Artwork Card with 3D Depth & Scroll Wheel Volume */}
+                  <motion.div
                     className="stage-art-card"
+                    animate={{
+                      scale: artHovered ? 1.02 : 1,
+                    }}
+                    transition={{ duration: 0.3, ease: 'easeOut' }}
+                    onWheel={(e) => {
+                      e.preventDefault();
+                      const step = e.deltaY < 0 ? 5 : -5;
+                      const next = Math.max(0, Math.min(100, (volume || 0) + step));
+                      setVolume(next);
+                      if (next > 0 && isMuted) setIsMuted(false);
+                    }}
                     style={{
                       position: 'relative',
                       width: '100%',
                       maxWidth: '480px',
                       maxHeight: '480px',
                       aspectRatio: '1/1',
-                      borderRadius: '20px',
+                      borderRadius: '24px',
                       overflow: 'hidden',
-                      boxShadow: '0 30px 80px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.08)',
+                      boxShadow: artHovered
+                        ? '0 36px 90px rgba(0, 0, 0, 0.9), 0 0 35px rgba(255, 159, 28, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.15)'
+                        : '0 30px 80px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.08)',
                       background: '#121218',
                       zIndex: 2,
+                      cursor: 'default',
                     }}
                   >
                     {/* Background Cover Image or Clean Placeholder */}
@@ -4684,27 +4707,28 @@ export default function RoomClient({ roomId }) {
                       {/* Left Exit Button */}
                       <motion.button
                         type="button"
-                        whileHover={{ scale: 1.12, background: 'rgba(0, 0, 0, 0.7)' }}
+                        whileHover={{ scale: 1.12, background: 'rgba(0, 0, 0, 0.75)' }}
                         whileTap={{ scale: 0.9 }}
                         onClick={() => setIsStageMode(false)}
                         style={{
-                          width: '36px',
-                          height: '36px',
+                          width: '38px',
+                          height: '38px',
                           borderRadius: '50%',
-                          background: 'rgba(0, 0, 0, 0.45)',
-                          backdropFilter: 'blur(16px)',
-                          WebkitBackdropFilter: 'blur(16px)',
-                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          background: 'rgba(0, 0, 0, 0.5)',
+                          backdropFilter: 'blur(18px)',
+                          WebkitBackdropFilter: 'blur(18px)',
+                          border: '1px solid rgba(255, 255, 255, 0.22)',
                           color: '#ffffff',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           cursor: 'pointer',
+                          boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
                         }}
                         aria-label="Exit Stage Mode"
                         title="Exit Stage Mode (Esc)"
                       >
-                        <X size={16} />
+                        <X size={17} />
                       </motion.button>
 
                       {/* Right Quick Action Icons Group */}
@@ -4714,13 +4738,60 @@ export default function RoomClient({ roomId }) {
                           alignItems: 'center',
                           gap: '6px',
                           padding: '4px 8px',
-                          background: 'rgba(0, 0, 0, 0.45)',
-                          backdropFilter: 'blur(16px)',
-                          WebkitBackdropFilter: 'blur(16px)',
+                          background: 'rgba(0, 0, 0, 0.5)',
+                          backdropFilter: 'blur(18px)',
+                          WebkitBackdropFilter: 'blur(18px)',
                           border: '1px solid rgba(255, 255, 255, 0.2)',
                           borderRadius: '99px',
+                          boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
                         }}
                       >
+                        {/* Lyrics Timing Sync Calibrator Button */}
+                        <motion.button
+                          type="button"
+                          whileHover={{ scale: 1.15 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => setShowLyricsSyncPanel(prev => !prev)}
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            background: showLyricsSyncPanel || lyricsOffsetMs !== 0 ? 'rgba(255, 159, 28, 0.3)' : 'transparent',
+                            border: 'none',
+                            color: showLyricsSyncPanel || lyricsOffsetMs !== 0 ? 'var(--theme-accent, #ff9f1c)' : '#ffffff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                          }}
+                          title={`Lyrics Sync Calibration (${lyricsOffsetMs > 0 ? `+${lyricsOffsetMs}ms` : `${lyricsOffsetMs}ms`})`}
+                        >
+                          <Clock size={16} />
+                        </motion.button>
+
+                        {/* Queue Drawer Toggle Button */}
+                        <motion.button
+                          type="button"
+                          whileHover={{ scale: 1.15 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => setShowStageQueue(prev => !prev)}
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            background: showStageQueue ? 'rgba(255, 159, 28, 0.3)' : 'transparent',
+                            border: 'none',
+                            color: showStageQueue ? 'var(--theme-accent, #ff9f1c)' : '#ffffff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                          }}
+                          title="Toggle Queue Drawer"
+                        >
+                          <List size={16} />
+                        </motion.button>
+
                         {/* Add to Playlist */}
                         <motion.button
                           type="button"
@@ -4780,8 +4851,8 @@ export default function RoomClient({ roomId }) {
                         {/* Heart / Like Toggle */}
                         <motion.button
                           type="button"
-                          whileHover={{ scale: 1.15 }}
-                          whileTap={{ scale: 0.85 }}
+                          whileHover={{ scale: 1.2 }}
+                          whileTap={{ scale: 0.8 }}
                           onClick={handleLikeToggle}
                           style={{
                             width: '32px',
@@ -4827,6 +4898,108 @@ export default function RoomClient({ roomId }) {
                         </motion.button>
                       </div>
                     </div>
+
+                    {/* Floating Lyrics Timing Calibrator Sub-Panel */}
+                    <AnimatePresence>
+                      {showLyricsSyncPanel && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          style={{
+                            position: 'absolute',
+                            top: '64px',
+                            right: '16px',
+                            zIndex: 15,
+                            background: 'rgba(10, 10, 15, 0.85)',
+                            backdropFilter: 'blur(20px)',
+                            WebkitBackdropFilter: 'blur(20px)',
+                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                            borderRadius: '16px',
+                            padding: '10px 14px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '8px',
+                            boxShadow: '0 12px 30px rgba(0,0,0,0.6)',
+                          }}
+                        >
+                          <div style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.7)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>Lyrics Sync Offset</span>
+                            <span style={{ color: 'var(--theme-accent, #ff9f1c)', fontFamily: 'var(--font-mono)' }}>
+                              {lyricsOffsetMs > 0 ? `+${(lyricsOffsetMs/1000).toFixed(1)}s` : `${(lyricsOffsetMs/1000).toFixed(1)}s`}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setLyricsOffsetMs(prev => {
+                                  const n = prev - 500;
+                                  try { localStorage.setItem('openjam_lyrics_offset', n.toString()); } catch(e){}
+                                  return n;
+                                });
+                                triggerToast('Lyrics shifted -0.5s', 'info');
+                              }}
+                              style={{
+                                padding: '4px 8px',
+                                borderRadius: '8px',
+                                background: 'rgba(255,255,255,0.1)',
+                                border: '1px solid rgba(255,255,255,0.12)',
+                                color: '#ffffff',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              -0.5s
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setLyricsOffsetMs(0);
+                                try { localStorage.setItem('openjam_lyrics_offset', '0'); } catch(e){}
+                                triggerToast('Lyrics sync reset', 'info');
+                              }}
+                              style={{
+                                padding: '4px 8px',
+                                borderRadius: '8px',
+                                background: 'rgba(255,255,255,0.06)',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                                color: 'rgba(255,255,255,0.6)',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Reset
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setLyricsOffsetMs(prev => {
+                                  const n = prev + 500;
+                                  try { localStorage.setItem('openjam_lyrics_offset', n.toString()); } catch(e){}
+                                  return n;
+                                });
+                                triggerToast('Lyrics shifted +0.5s', 'info');
+                              }}
+                              style={{
+                                padding: '4px 8px',
+                                borderRadius: '8px',
+                                background: 'rgba(255,255,255,0.1)',
+                                border: '1px solid rgba(255,255,255,0.12)',
+                                color: '#ffffff',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              +0.5s
+                            </button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
 
                     {/* Right Interactive Vertical Volume Slider — Always Visible */}
                     <div
@@ -4914,7 +5087,7 @@ export default function RoomClient({ roomId }) {
                         style={{
                           background: 'transparent',
                           border: 'none',
-                          color: 'rgba(255,255,255,0.8)',
+                          color: 'rgba(255,255,255,0.85)',
                           cursor: 'pointer',
                           padding: 0,
                           display: 'flex',
@@ -4925,25 +5098,36 @@ export default function RoomClient({ roomId }) {
                         {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
                       </motion.button>
                     </div>
-                  </div>
+                  </motion.div>
                 </div>
 
-                {/* Progress Bar Timeline below Artwork */}
+                {/* Progress Bar Timeline below Artwork with Hover Preview Tooltip */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
                   <div
                     ref={stageSeekBarRef}
                     onMouseDown={handleStageSeekDown}
                     onTouchStart={handleStageSeekDown}
+                    onMouseEnter={() => setStageSeekHovered(true)}
+                    onMouseLeave={() => { setStageSeekHovered(false); setSeekHoverTimeMs(null); }}
+                    onMouseMove={(e) => {
+                      const rect = stageSeekBarRef.current?.getBoundingClientRect();
+                      if (!rect || !playbackState.durationMs) return;
+                      const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+                      const ratio = x / rect.width;
+                      setSeekHoverXRatio(ratio);
+                      setSeekHoverTimeMs(Math.round(ratio * playbackState.durationMs));
+                    }}
                     style={{
                       width: '100%',
-                      height: '5px',
+                      height: stageSeekHovered || isDraggingStageSeekRef.current ? '8px' : '5px',
                       borderRadius: '99px',
-                      background: 'rgba(255, 255, 255, 0.2)',
+                      background: 'rgba(255, 255, 255, 0.22)',
                       position: 'relative',
                       cursor: isHost ? 'pointer' : 'default',
                       overflow: 'visible',
                       touchAction: 'none',
                       userSelect: 'none',
+                      transition: 'height 0.15s ease',
                     }}
                     role="slider"
                     aria-label="Seek"
@@ -4951,15 +5135,43 @@ export default function RoomClient({ roomId }) {
                     aria-valuemax={playbackState.durationMs || 0}
                     aria-valuenow={playbackState.positionMs || 0}
                   >
+                    {/* Hover timestamp tooltip */}
+                    {stageSeekHovered && seekHoverTimeMs !== null && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          bottom: '14px',
+                          left: `${seekHoverXRatio * 100}%`,
+                          transform: 'translateX(-50%)',
+                          background: 'rgba(10, 10, 15, 0.92)',
+                          backdropFilter: 'blur(12px)',
+                          border: '1px solid rgba(255, 255, 255, 0.15)',
+                          borderRadius: '6px',
+                          padding: '3px 7px',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          fontFamily: 'var(--font-mono)',
+                          color: '#ffffff',
+                          pointerEvents: 'none',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                          whiteSpace: 'nowrap',
+                          zIndex: 20,
+                        }}
+                      >
+                        {formatTime(seekHoverTimeMs)}
+                      </div>
+                    )}
+
                     {/* Filled progress */}
                     <div
                       style={{
                         width: `${playbackState.durationMs ? Math.min(100, (playbackState.positionMs / playbackState.durationMs) * 100) : 0}%`,
                         height: '100%',
-                        background: 'linear-gradient(90deg, var(--theme-accent, #ff9f1c) 0%, #ffb703 100%)',
+                        background: 'linear-gradient(90deg, var(--theme-accent, #ff9f1c) 0%, #ffc837 100%)',
                         borderRadius: '99px',
                         position: 'relative',
-                        transition: isDraggingStageSeekRef.current ? 'none' : 'width 0.15s linear',
+                        transition: isDraggingStageSeekRef.current ? 'none' : 'width 0.1s linear',
+                        boxShadow: '0 0 10px rgba(255, 159, 28, 0.4)',
                       }}
                     >
                       {/* Scrub thumb */}
@@ -4970,12 +5182,13 @@ export default function RoomClient({ roomId }) {
                             right: '-6px',
                             top: '50%',
                             transform: 'translateY(-50%)',
-                            width: '12px',
-                            height: '12px',
+                            width: stageSeekHovered || isDraggingStageSeekRef.current ? '14px' : '11px',
+                            height: stageSeekHovered || isDraggingStageSeekRef.current ? '14px' : '11px',
                             borderRadius: '50%',
                             background: '#ffffff',
-                            boxShadow: '0 0 6px rgba(255,255,255,0.6), 0 2px 8px rgba(0,0,0,0.4)',
+                            boxShadow: '0 0 8px rgba(255,255,255,0.8), 0 2px 8px rgba(0,0,0,0.5)',
                             pointerEvents: 'none',
+                            transition: 'width 0.15s ease, height 0.15s ease',
                           }}
                         />
                       )}
@@ -4983,7 +5196,7 @@ export default function RoomClient({ roomId }) {
                   </div>
                   
                   {/* Timestamps */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600, color: 'rgba(255, 255, 255, 0.65)', fontFamily: 'var(--font-mono)', letterSpacing: '0.02em' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 600, color: 'rgba(255, 255, 255, 0.7)', fontFamily: 'var(--font-mono)', letterSpacing: '0.02em' }}>
                     <span>{formatTime(playbackState.positionMs)}</span>
                     <span
                       onClick={() => setShowTimeRemaining(prev => !prev)}
@@ -4998,51 +5211,72 @@ export default function RoomClient({ roomId }) {
                 </div>
 
                 {/* Track Title, Artist & Live Equalizer Waveform */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                    <h2 style={{ fontSize: '22px', fontWeight: 800, color: '#ffffff', margin: 0, letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                    <h2 style={{
+                      fontFamily: 'var(--font-display-next), Outfit, system-ui, sans-serif',
+                      fontSize: '24px',
+                      fontWeight: 800,
+                      color: '#ffffff',
+                      margin: 0,
+                      letterSpacing: '-0.025em',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      flex: 1
+                    }}>
                       {nowPlaying?.track_name || 'No Track Playing'}
                     </h2>
                     {playbackState.isPlaying && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0, padding: '4px 8px', background: 'rgba(255, 159, 28, 0.15)', borderRadius: '8px', border: '1px solid rgba(255, 159, 28, 0.25)' }}>
                         <div className="queue-wave" style={{ height: '14px', width: '3px', animationDelay: '0s', background: 'var(--theme-accent, #ff9f1c)' }}></div>
                         <div className="queue-wave" style={{ height: '14px', width: '3px', animationDelay: '0.15s', background: 'var(--theme-accent, #ff9f1c)' }}></div>
                         <div className="queue-wave" style={{ height: '14px', width: '3px', animationDelay: '0.3s', background: 'var(--theme-accent, #ff9f1c)' }}></div>
+                        <div className="queue-wave" style={{ height: '14px', width: '3px', animationDelay: '0.45s', background: 'var(--theme-accent, #ff9f1c)' }}></div>
                       </div>
                     )}
                   </div>
-                  <p style={{ fontSize: '14px', fontWeight: 500, color: 'rgba(255, 255, 255, 0.65)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <p style={{
+                    fontFamily: 'var(--font-ui-next), sans-serif',
+                    fontSize: '15px',
+                    fontWeight: 500,
+                    color: 'rgba(255, 255, 255, 0.65)',
+                    margin: 0,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}>
                     {nowPlaying?.artist || 'Idle Room'}
                   </p>
                 </div>
 
-                {/* Clean, Non-Cluttered Stage Mode Transport Controls */}
+                {/* Highly Interactive Stage Mode Transport Controls */}
                 <div
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '24px',
-                    padding: '12px 0 4px 0',
+                    padding: '10px 0 4px 0',
                     width: '100%',
                   }}
                 >
                   {/* Shuffle Button */}
                   <motion.button
                     type="button"
-                    whileHover={{ scale: isHost ? 1.15 : 1, background: isHost ? 'rgba(255,255,255,0.12)' : 'transparent' }}
-                    whileTap={{ scale: isHost ? 0.9 : 1 }}
+                    whileHover={{ scale: isHost ? 1.18 : 1, background: isHost ? 'rgba(255,255,255,0.15)' : 'transparent' }}
+                    whileTap={{ scale: isHost ? 0.88 : 1 }}
                     onClick={() => {
                       if (isHost) handleShuffleClick();
                       else triggerToast('Only the host can shuffle', 'info');
                     }}
                     style={{
-                      width: '40px',
-                      height: '40px',
+                      width: '42px',
+                      height: '42px',
                       borderRadius: '50%',
                       background: 'transparent',
                       border: 'none',
-                      color: isHost ? 'rgba(255, 255, 255, 0.8)' : 'rgba(255, 255, 255, 0.25)',
+                      color: isHost ? 'rgba(255, 255, 255, 0.85)' : 'rgba(255, 255, 255, 0.25)',
                       cursor: isHost ? 'pointer' : 'not-allowed',
                       display: 'flex',
                       alignItems: 'center',
@@ -5052,53 +5286,54 @@ export default function RoomClient({ roomId }) {
                     aria-label="Shuffle Queue"
                     title={isHost ? 'Shuffle Queue' : 'Only the host can shuffle'}
                   >
-                    <Shuffle size={19} />
+                    <Shuffle size={20} />
                   </motion.button>
 
                   {/* Previous Track Button */}
                   <motion.button
                     type="button"
-                    whileHover={{ scale: isHost ? 1.15 : 1, x: isHost ? -2 : 0, background: isHost ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.06)' }}
-                    whileTap={{ scale: isHost ? 0.9 : 1 }}
+                    whileHover={{ scale: isHost ? 1.15 : 1, x: isHost ? -3 : 0, background: isHost ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.06)' }}
+                    whileTap={{ scale: isHost ? 0.88 : 1 }}
                     onClick={() => {
                       if (isHost) handlePreviousTrack();
                       else triggerToast('Only the host can skip tracks', 'info');
                     }}
                     style={{
-                      width: '44px',
-                      height: '44px',
+                      width: '46px',
+                      height: '46px',
                       borderRadius: '50%',
                       background: 'rgba(255, 255, 255, 0.1)',
                       backdropFilter: 'blur(12px)',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      border: '1px solid rgba(255, 255, 255, 0.18)',
                       color: isHost ? '#ffffff' : 'rgba(255, 255, 255, 0.3)',
                       cursor: isHost ? 'pointer' : 'not-allowed',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      transition: 'background 0.2s',
+                      transition: 'all 0.2s',
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
                     }}
                     aria-label="Previous Track"
                     title={isHost ? 'Previous Track' : 'Only the host can control playback'}
                   >
-                    <SkipBack size={20} fill={isHost ? '#ffffff' : 'rgba(255,255,255,0.3)'} />
+                    <SkipBack size={21} fill={isHost ? '#ffffff' : 'rgba(255,255,255,0.3)'} />
                   </motion.button>
 
-                  {/* Play/Pause Center Hero Circle */}
+                  {/* Play/Pause Hero Button with Pulsing Glow Ring */}
                   <motion.button
                     type="button"
                     whileHover={{
-                      scale: isHost ? 1.12 : 1,
-                      boxShadow: isHost ? '0 0 28px var(--theme-accent, #ff9f1c), 0 8px 24px rgba(0,0,0,0.5)' : 'none',
+                      scale: isHost ? 1.14 : 1,
+                      boxShadow: isHost ? '0 0 32px var(--theme-accent, #ff9f1c), 0 8px 24px rgba(0,0,0,0.6)' : 'none',
                     }}
-                    whileTap={{ scale: isHost ? 0.92 : 1 }}
+                    whileTap={{ scale: isHost ? 0.9 : 1 }}
                     onClick={() => {
                       if (isHost) handleTogglePlay();
                       else triggerToast('Only the host can control playback', 'info');
                     }}
                     style={{
-                      width: '52px',
-                      height: '52px',
+                      width: '56px',
+                      height: '56px',
                       borderRadius: '50%',
                       background: isHost ? '#ffffff' : 'rgba(255, 255, 255, 0.15)',
                       color: isHost ? '#09090b' : 'rgba(255,255,255,0.3)',
@@ -5106,7 +5341,7 @@ export default function RoomClient({ roomId }) {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      boxShadow: isHost ? '0 4px 18px rgba(0,0,0,0.4)' : 'none',
+                      boxShadow: isHost ? '0 4px 20px rgba(0,0,0,0.5), 0 0 20px rgba(255, 159, 28, 0.3)' : 'none',
                       border: 'none',
                       transition: 'all 0.2s ease',
                     }}
@@ -5114,53 +5349,54 @@ export default function RoomClient({ roomId }) {
                     title={isHost ? (playbackState.isPlaying ? 'Pause' : 'Play') : 'Only the host can control playback'}
                   >
                     {playbackState.isPlaying
-                      ? <Pause size={24} fill={isHost ? '#09090b' : 'rgba(255,255,255,0.3)'} />
-                      : <Play size={24} fill={isHost ? '#09090b' : 'rgba(255,255,255,0.3)'} style={{ marginLeft: '3px' }} />}
+                      ? <Pause size={26} fill={isHost ? '#09090b' : 'rgba(255,255,255,0.3)'} />
+                      : <Play size={26} fill={isHost ? '#09090b' : 'rgba(255,255,255,0.3)'} style={{ marginLeft: '3px' }} />}
                   </motion.button>
 
                   {/* Next / Vote Skip Button */}
                   <motion.button
                     type="button"
-                    whileHover={{ scale: 1.15, x: 2, background: 'rgba(255,255,255,0.2)' }}
-                    whileTap={{ scale: 0.9 }}
+                    whileHover={{ scale: 1.15, x: 3, background: 'rgba(255,255,255,0.22)' }}
+                    whileTap={{ scale: 0.88 }}
                     onClick={isHost ? handleNextTrack : handleVoteSkip}
                     style={{
-                      width: '44px',
-                      height: '44px',
+                      width: '46px',
+                      height: '46px',
                       borderRadius: '50%',
                       background: 'rgba(255, 255, 255, 0.1)',
                       backdropFilter: 'blur(12px)',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      border: '1px solid rgba(255, 255, 255, 0.18)',
                       color: '#ffffff',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      transition: 'background 0.2s',
+                      transition: 'all 0.2s',
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
                     }}
                     aria-label={isHost ? 'Next Track' : 'Vote to Skip'}
                     title={isHost ? 'Next Track' : 'Vote to Skip'}
                   >
-                    <SkipForward size={20} fill="#ffffff" />
+                    <SkipForward size={21} fill="#ffffff" />
                   </motion.button>
 
                   {/* Repeat Button */}
                   <motion.button
                     type="button"
-                    whileHover={{ scale: isHost ? 1.15 : 1, background: isHost ? 'rgba(255,255,255,0.12)' : 'transparent' }}
-                    whileTap={{ scale: isHost ? 0.9 : 1 }}
+                    whileHover={{ scale: isHost ? 1.18 : 1, background: isHost ? 'rgba(255,255,255,0.15)' : 'transparent' }}
+                    whileTap={{ scale: isHost ? 0.88 : 1 }}
                     onClick={() => {
                       if (isHost) handleRepeatToggle();
                       else triggerToast('Only the host can toggle repeat', 'info');
                     }}
                     style={{
-                      width: '40px',
-                      height: '40px',
+                      width: '42px',
+                      height: '42px',
                       borderRadius: '50%',
-                      background: isHost && playbackState.loop ? 'rgba(255, 159, 28, 0.2)' : 'transparent',
+                      background: isHost && playbackState.loop ? 'rgba(255, 159, 28, 0.25)' : 'transparent',
                       border: isHost && playbackState.loop ? '1px solid rgba(255, 159, 28, 0.4)' : 'none',
                       color: isHost
-                        ? (playbackState.loop ? 'var(--theme-accent, #ff9f1c)' : 'rgba(255,255,255,0.8)')
+                        ? (playbackState.loop ? 'var(--theme-accent, #ff9f1c)' : 'rgba(255,255,255,0.85)')
                         : 'rgba(255,255,255,0.25)',
                       cursor: isHost ? 'pointer' : 'not-allowed',
                       display: 'flex',
@@ -5171,7 +5407,7 @@ export default function RoomClient({ roomId }) {
                     aria-label="Repeat Track"
                     title={isHost ? 'Repeat Track' : 'Only the host can toggle repeat'}
                   >
-                    <Repeat size={19} />
+                    <Repeat size={20} />
                   </motion.button>
                 </div>
               </div>
@@ -5187,27 +5423,37 @@ export default function RoomClient({ roomId }) {
                   style={{
                     height: '100%',
                     maxHeight: '580px',
-                    background: 'rgba(15, 15, 22, 0.65)',
-                    backdropFilter: 'blur(16px)',
-                    WebkitBackdropFilter: 'blur(16px)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    background: 'rgba(15, 15, 22, 0.75)',
+                    backdropFilter: 'blur(20px)',
+                    WebkitBackdropFilter: 'blur(20px)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
                     borderRadius: '24px',
                     padding: '24px',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '16px',
                     overflow: 'hidden',
+                    boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#ffffff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <List size={18} style={{ color: 'var(--theme-accent, #ff9f1c)' }} /> Up Next Queue
+                    <h3 style={{
+                      fontFamily: 'var(--font-display-next), Outfit, sans-serif',
+                      fontSize: '19px',
+                      fontWeight: 800,
+                      color: '#ffffff',
+                      margin: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}>
+                      <List size={19} style={{ color: 'var(--theme-accent, #ff9f1c)' }} /> Up Next Queue ({queue.length})
                     </h3>
                     <motion.button
                       type="button"
                       whileTap={{ scale: 0.9 }}
                       onClick={() => setShowStageQueue(false)}
-                      style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', padding: 0 }}
+                      style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', padding: 0 }}
                     >
                       <X size={18} />
                     </motion.button>
@@ -5234,24 +5480,24 @@ export default function RoomClient({ roomId }) {
                             display: 'flex',
                             alignItems: 'center',
                             gap: '12px',
-                            padding: '10px 12px',
+                            padding: '10px 14px',
                             borderRadius: '14px',
-                            background: item.status === 'playing' ? 'rgba(255, 159, 28, 0.15)' : 'rgba(255, 255, 255, 0.04)',
-                            border: item.status === 'playing' ? '1px solid rgba(255, 159, 28, 0.3)' : '1px solid rgba(255, 255, 255, 0.05)',
+                            background: item.status === 'playing' ? 'rgba(255, 159, 28, 0.18)' : 'rgba(255, 255, 255, 0.05)',
+                            border: item.status === 'playing' ? '1px solid rgba(255, 159, 28, 0.35)' : '1px solid rgba(255, 255, 255, 0.06)',
                             transition: 'all 0.2s',
                           }}
                         >
                           <img
                             src={item.album_art_url || '/placeholder.svg'}
                             alt=""
-                            style={{ width: '38px', height: '38px', borderRadius: '8px', objectFit: 'cover' }}
+                            style={{ width: '40px', height: '40px', borderRadius: '10px', objectFit: 'cover' }}
                             onError={(e) => { e.target.style.display = 'none'; }}
                           />
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: '13px', fontWeight: 600, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <div style={{ fontSize: '14px', fontWeight: 700, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {item.track_name}
                             </div>
-                            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.65)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {item.artist}
                             </div>
                           </div>
@@ -5271,16 +5517,16 @@ export default function RoomClient({ roomId }) {
                                 }
                               }}
                               style={{
-                                background: 'rgba(255, 159, 28, 0.2)',
+                                background: 'rgba(255, 159, 28, 0.25)',
                                 border: 'none',
                                 color: 'var(--theme-accent, #ff9f1c)',
                                 padding: '6px',
-                                borderRadius: '6px',
+                                borderRadius: '8px',
                                 cursor: 'pointer',
                               }}
                               title="Play Now"
                             >
-                              <Play size={12} fill="currentColor" />
+                              <Play size={14} fill="currentColor" />
                             </button>
                           )}
                         </div>
@@ -5331,31 +5577,37 @@ export default function RoomClient({ roomId }) {
                       maxHeight: 'calc(100vh - 90px)',
                       overflowY: 'auto',
                       paddingRight: '28px',
-                      paddingTop: '20px',
-                      paddingBottom: '60px',
-                      maskImage: 'linear-gradient(to bottom, transparent 0%, black 5%, black 92%, transparent 100%)',
-                      WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 5%, black 92%, transparent 100%)',
+                      paddingTop: '24px',
+                      paddingBottom: '80px',
+                      maskImage: 'linear-gradient(to bottom, transparent 0%, black 6%, black 90%, transparent 100%)',
+                      WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 6%, black 90%, transparent 100%)',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '36px',
                       scrollbarWidth: 'none',
-                      fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", "Noto Sans Devanagari", "Noto Sans CJK KR", "Noto Sans JP", "Noto Sans Arabic", sans-serif',
+                      fontFamily: 'var(--font-display-next), var(--font-ui-next), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", sans-serif',
                     }}
                   >
                     {lyricsText.map((item, idx) => {
                       const isActive = idx === lyricsActiveIdx;
 
-                      // Word-by-word Karaoke timing calculation for active line
+                      // Word-by-word natural singing cadence calculation for active line
                       let words = (item.text || '').split(' ');
                       let activeWordIdx = -1;
                       if (isActive && item.timeMs !== undefined && item.timeMs >= 0) {
                         const nextTime = (lyricsText[idx + 1] && lyricsText[idx + 1].timeMs > 0)
                           ? lyricsText[idx + 1].timeMs
                           : item.timeMs + 4000;
-                        const lineDuration = Math.max(1000, nextTime - item.timeMs);
-                        const elapsed = Math.max(0, playbackState.positionMs - item.timeMs);
-                        const ratio = Math.min(1, elapsed / lineDuration);
+                        const rawGap = Math.max(800, nextTime - item.timeMs);
+                        // Natural singing cadence: ~360ms per word + lead buffer, capped at the gap before next line
+                        const estimatedSingTime = Math.min(rawGap, Math.max(900, words.length * 360 + 300));
+                        const effectivePos = (playbackState.positionMs || 0) + lyricsOffsetMs + 80;
+                        const elapsed = Math.max(0, effectivePos - item.timeMs);
+                        const ratio = Math.min(1, elapsed / estimatedSingTime);
                         activeWordIdx = Math.floor(ratio * words.length);
+                        if (elapsed >= estimatedSingTime) {
+                          activeWordIdx = words.length - 1; // Finished singing line: all words illuminated
+                        }
                       }
 
                       return (
@@ -5363,22 +5615,24 @@ export default function RoomClient({ roomId }) {
                           key={idx}
                           id={`stage-lyr-${idx}`}
                           animate={{
-                            scale: isActive ? 1.06 : 1,
-                            opacity: isActive ? 1 : (idx < lyricsActiveIdx ? 0.6 : 0.28),
-                            x: isActive ? 18 : 0,
+                            scale: isActive ? 1.05 : 1,
+                            opacity: isActive ? 1 : (idx < lyricsActiveIdx ? 0.5 : 0.22),
+                            x: isActive ? 16 : 0,
                           }}
-                          transition={{ duration: 0.35, ease: 'easeOut' }}
+                          transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
                           style={{
-                            fontSize: isActive ? '54px' : '36px',
-                            fontWeight: isActive ? 800 : 700,
+                            fontSize: isActive ? 'clamp(32px, 4.2vw, 54px)' : 'clamp(20px, 2.6vw, 34px)',
+                            fontWeight: isActive ? 800 : 600,
                             margin: 0,
                             cursor: isHost ? 'pointer' : 'default',
-                            color: isActive ? '#ffffff' : (idx < lyricsActiveIdx ? 'rgba(255, 255, 255, 0.75)' : 'rgba(255, 255, 255, 0.35)'),
-                            lineHeight: 1.35,
+                            color: isActive ? '#ffffff' : (idx < lyricsActiveIdx ? 'rgba(255, 255, 255, 0.7)' : 'rgba(255, 255, 255, 0.3)'),
+                            lineHeight: 1.32,
                             transformOrigin: 'left center',
-                            letterSpacing: '-0.02em',
+                            letterSpacing: '-0.025em',
                             wordBreak: 'break-word',
-                            textShadow: isActive ? '0 0 30px rgba(255, 255, 255, 0.5), 0 0 60px var(--theme-accent, #ff9f1c)' : 'none',
+                            filter: isActive ? 'none' : 'blur(0.35px)',
+                            textShadow: isActive ? '0 0 28px rgba(255, 255, 255, 0.45), 0 0 50px var(--theme-accent, #ff9f1c)' : 'none',
+                            transition: 'filter 0.3s ease, font-size 0.3s ease',
                           }}
                           onClick={() => {
                             if (item.timeMs > 0 && isHost && playerRef.current) {
@@ -5398,13 +5652,13 @@ export default function RoomClient({ roomId }) {
                                   style={{
                                     display: 'inline-block',
                                     marginRight: '14px',
-                                    color: isWordSung ? '#ffffff' : 'rgba(255, 255, 255, 0.4)',
+                                    color: isWordSung ? '#ffffff' : 'rgba(255, 255, 255, 0.38)',
                                     fontWeight: isCurrentWord ? 900 : (isWordSung ? 800 : 700),
                                     textShadow: isCurrentWord
                                       ? '0 0 32px #ffffff, 0 0 60px var(--theme-accent, #ff9f1c)'
-                                      : (isWordSung ? '0 0 18px rgba(255,255,255,0.7)' : 'none'),
-                                    transform: isCurrentWord ? 'scale(1.08)' : 'scale(1)',
-                                    transition: 'all 0.15s ease-out',
+                                      : (isWordSung ? '0 0 16px rgba(255,255,255,0.6)' : 'none'),
+                                    transform: isCurrentWord ? 'scale(1.06)' : 'scale(1)',
+                                    transition: 'all 0.12s ease-out',
                                   }}
                                 >
                                   {word}
