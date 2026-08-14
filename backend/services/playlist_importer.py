@@ -4,6 +4,7 @@ import re
 import json
 import logging
 import asyncio
+import urllib.parse
 import httpx
 import yt_dlp
 from fastapi import HTTPException
@@ -19,12 +20,45 @@ def _get_stream_client() -> httpx.AsyncClient:
     return _stream_client
 
 
+async def _enrich_missing_artwork(tracks: list, client: httpx.AsyncClient) -> list:
+    """Ensure every track has a valid high-resolution artwork URL via iTunes / Apple Music."""
+    async def _fetch_single_art(t):
+        if t.get("album_art_url"):
+            return
+        name = t.get("name", "")
+        artist = t.get("artist", "")
+        if not name:
+            return
+        query = f"{name} {artist}".strip()
+        try:
+            url = f"https://itunes.apple.com/search?term={urllib.parse.quote(query)}&entity=song&limit=1"
+            resp = await client.get(url, timeout=3.5)
+            if resp.status_code == 200:
+                data = resp.json()
+                results = data.get("results", [])
+                if results:
+                    art = results[0].get("artworkUrl100") or ""
+                    if art:
+                        t["album_art_url"] = art.replace("100x100bb", "600x600bb")
+        except Exception:
+            pass
+
+    tasks = [_fetch_single_art(t) for t in tracks if not t.get("album_art_url")]
+    if tasks:
+        # Run in parallel chunks of 20
+        for i in range(0, len(tasks), 20):
+            chunk = tasks[i:i + 20]
+            await asyncio.gather(*chunk, return_exceptions=True)
+    return tracks
+
+
 async def import_playlist(url: str):
     """Import tracks from a Spotify or YouTube/YouTube Music playlist."""
     if not url.strip():
         raise HTTPException(status_code=400, detail="URL cannot be empty")
 
     url_clean = url.strip()
+    client = _get_stream_client()
 
     # 1. Spotify Playlist
     if "spotify.com" in url_clean:
@@ -39,7 +73,6 @@ async def import_playlist(url: str):
                 "Accept-Language": "en-US,en;q=0.9",
                 "Referer": "https://open.spotify.com/",
             }
-            client = _get_stream_client()
 
             # ── Tier 1: Parse embed page __NEXT_DATA__ ──
             embed_url = f"https://open.spotify.com/embed/playlist/{playlist_id}"
@@ -72,11 +105,17 @@ async def import_playlist(url: str):
                                     artist = artist.replace("\xa0", " ").strip()
                                     title = title.strip()
                                     
-                                    # Extract cover art URL
+                                    # Extract cover art URL (check all formats)
                                     album_art = None
                                     cover_art = track.get("coverArt", {})
                                     if isinstance(cover_art, dict) and cover_art.get("sources"):
                                         album_art = cover_art["sources"][0].get("url")
+                                    if not album_art and "album" in track and isinstance(track["album"], dict):
+                                        alb_cover = track["album"].get("coverArt", {})
+                                        if isinstance(alb_cover, dict) and alb_cover.get("sources"):
+                                            album_art = alb_cover["sources"][0].get("url")
+                                        elif "images" in track["album"] and track["album"]["images"]:
+                                            album_art = track["album"]["images"][0].get("url")
                                     if not album_art:
                                         album_art = track.get("coverArtUrl") or track.get("thumbnailUrl")
 
@@ -94,7 +133,6 @@ async def import_playlist(url: str):
             if not tracks and embed_had_404:
                 logger.info(f"Spotify embed returned 404 for {playlist_id}, trying anonymous API fallback")
                 try:
-                    # Fetch a known-working embed to extract an anonymous access token
                     seed_url = "https://open.spotify.com/embed/playlist/37i9dQZF1DX4sWSpwq3LiO"
                     seed_r = await client.get(seed_url, headers=sp_headers, follow_redirects=True)
                     token_match = re.search(r'"accessToken"\s*:\s*"([^"]+)"', seed_r.text)
@@ -165,7 +203,9 @@ async def import_playlist(url: str):
                     detail="Could not extract tracks from this playlist. Make sure the playlist is set to Public on Spotify and try again."
                 )
 
-            return {"tracks": deduped[:100]}
+            final_tracks = deduped[:100]
+            await _enrich_missing_artwork(final_tracks, client)
+            return {"tracks": final_tracks}
 
         except HTTPException:
             raise
@@ -230,7 +270,9 @@ async def import_playlist(url: str):
 
         try:
             tracks = await asyncio.to_thread(_extract_yt_playlist, url_clean)
-            return {"tracks": tracks[:100]}
+            final_tracks = tracks[:100]
+            await _enrich_missing_artwork(final_tracks, client)
+            return {"tracks": final_tracks}
         except Exception as e:
             logger.error(f"YouTube playlist import error: {e}")
             raise HTTPException(status_code=500, detail=str(e))

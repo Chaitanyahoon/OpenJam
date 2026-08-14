@@ -44,7 +44,7 @@ export default function PlaylistClient() {
   const loadData = async () => {
     try {
       // Fetch user profile
-      const meRes = await fetch('/auth/me');
+      const meRes = await fetch('/auth/me', { credentials: 'include' });
       let isRegistered = false;
       if (meRes.ok) {
         const meData = await meRes.json();
@@ -56,14 +56,14 @@ export default function PlaylistClient() {
 
       // Fetch likes if registered
       if (isRegistered) {
-        const likesRes = await fetch('/likes');
+        const likesRes = await fetch('/likes', { credentials: 'include' });
         if (likesRes.ok) {
           const likesData = await likesRes.json();
           setLikes(likesData.likes || []);
         }
 
         try {
-          const likedPlaylistsRes = await fetch('/playlists/liked');
+          const likedPlaylistsRes = await fetch('/playlists/liked', { credentials: 'include' });
           if (likedPlaylistsRes.ok) {
             const likedPlaylistsData = await likedPlaylistsRes.json();
             const likedList = likedPlaylistsData.playlists || [];
@@ -75,7 +75,7 @@ export default function PlaylistClient() {
       }
 
       // Fetch playlist
-      const playRes = await fetch(`/playlists/${playlistId}`);
+      const playRes = await fetch(`/playlists/${playlistId}`, { credentials: 'include' });
       if (!playRes.ok) {
         if (playRes.status === 403) {
           setError('This playlist is private');

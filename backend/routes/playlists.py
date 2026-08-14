@@ -23,7 +23,8 @@ async def create_playlist(create_req: CreatePlaylistRequest, db: Session = Depen
     playlist = Playlist(
         name=create_req.name,
         creator_id=user_id,
-        is_private=create_req.is_private
+        is_private=create_req.is_private,
+        import_url=create_req.import_url
     )
     db.add(playlist)
     db.commit()

@@ -266,15 +266,18 @@ export default function ProfileClient() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, is_private: isPrivate }),
+        credentials: 'include'
       });
       if (res.ok) {
         const data = await res.json();
         setPlaylists([data.playlist, ...playlists]);
         setShowCreateModal(false);
         setActivePlaylistId(data.playlist.id);
+        setActivePlaylistData(data.playlist);
         addToast('Playlist created!', 'success');
       } else {
-        addToast('Failed to create playlist', 'error');
+        const err = await res.json().catch(() => ({}));
+        addToast(err.detail || 'Failed to create playlist', 'error');
       }
     } catch (err) {
       addToast('Connection error', 'error');
@@ -285,9 +288,9 @@ export default function ProfileClient() {
     setIsImporting(true);
     addToast('Importing tracks from external playlist...', 'info');
     try {
-      const searchRes = await fetch(`/search/playlist?url=${encodeURIComponent(url)}`);
+      const searchRes = await fetch(`/search/playlist?url=${encodeURIComponent(url)}`, { credentials: 'include' });
       if (!searchRes.ok) {
-        const errData = await searchRes.json();
+        const errData = await searchRes.json().catch(() => ({}));
         addToast(errData.detail || 'Failed to parse external playlist', 'error');
         setIsImporting(false);
         return;
@@ -310,11 +313,13 @@ export default function ProfileClient() {
           name: playlistName,
           is_private: isPrivate,
           import_url: url
-        })
+        }),
+        credentials: 'include'
       });
 
       if (!createRes.ok) {
-        addToast('Failed to create playlist wrapper', 'error');
+        const createErr = await createRes.json().catch(() => ({}));
+        addToast(createErr.detail || 'Failed to create playlist wrapper', 'error');
         setIsImporting(false);
         return;
       }
@@ -333,16 +338,26 @@ export default function ProfileClient() {
             album_art_url: t.album_art_url || t.src || null,
             duration_ms: t.duration_ms || 240000
           }))
-        })
+        }),
+        credentials: 'include'
       });
 
       if (bulkRes.ok) {
-        setPlaylists([newPlaylist, ...playlists]);
+        // Fetch full updated playlist details with populated tracks
+        const detailRes = await fetch(`/playlists/${newPlaylist.id}`, { credentials: 'include' });
+        if (detailRes.ok) {
+          const detailData = await detailRes.json();
+          setActivePlaylistData(detailData.playlist);
+          setPlaylists([detailData.playlist, ...playlists]);
+        } else {
+          setPlaylists([newPlaylist, ...playlists]);
+        }
         setShowCreateModal(false);
         setActivePlaylistId(newPlaylist.id);
         addToast(`Successfully imported ${tracks.length} tracks!`, 'success');
       } else {
-        addToast('Failed to import tracks into playlist', 'error');
+        const bulkErr = await bulkRes.json().catch(() => ({}));
+        addToast(bulkErr.detail || 'Failed to import tracks into playlist', 'error');
       }
     } catch (err) {
       console.error(err);
