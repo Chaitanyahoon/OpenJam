@@ -20,6 +20,7 @@ export default function RoomClient({ roomId }) {
   const playerRef = useRef(null);
   const discordRpcRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const handleSeekRelativeRef = useRef(null);
 
   // States
   const [room, setRoom] = useState(null);
@@ -1662,6 +1663,40 @@ export default function RoomClient({ roomId }) {
     });
   };
 
+  const handleSeekRelative = (deltaMs) => {
+    if (!playbackState.durationMs) return;
+    const currentPos = playerRef.current?.player?.currentTime 
+      ? Math.round(playerRef.current.player.currentTime * 1000)
+      : (playerRef.current?.positionMs || playbackState.positionMs || 0);
+    const targetPos = Math.max(0, Math.min(playbackState.durationMs, currentPos + deltaMs));
+    
+    setPlaybackState(prev => ({ ...prev, positionMs: targetPos }));
+    if (playerRef.current) {
+      if (typeof playerRef.current.seek === 'function') {
+        playerRef.current.seek(targetPos / 1000);
+      } else {
+        playerRef.current.syncPosition(targetPos, playbackState.isPlaying);
+      }
+    }
+
+    if (isHost && socket) {
+      socket.emit('playback_update', {
+        room_id: roomId,
+        track_uri: nowPlaying?.track_uri,
+        track_name: nowPlaying?.track_name,
+        artist: nowPlaying?.artist,
+        album_art_url: nowPlaying?.album_art_url,
+        position_ms: targetPos,
+        duration_ms: playbackState.durationMs,
+        is_playing: playbackState.isPlaying,
+        loop: false,
+        is_buffering: playbackState.isPlaying ? !!streamErrorMsg : false
+      });
+    }
+    triggerToast(`${deltaMs > 0 ? '+5s Forward' : '-5s Rewind'} (${formatTime(targetPos)})`, 'info');
+  };
+  handleSeekRelativeRef.current = handleSeekRelative;
+
   const handlePreviousTrack = () => {
     if (!isHost || !socket) return;
     socket.emit('previous_track', { room_id: roomId });
@@ -1888,25 +1923,15 @@ export default function RoomClient({ roomId }) {
       switch (e.code) {
         case 'Space':
           e.preventDefault();
-          handleTogglePlay();
+          handleTogglePlayRef.current?.();
           break;
         case 'ArrowLeft':
           e.preventDefault();
-          if (isHost && playerRef.current && playbackState.durationMs) {
-            const targetPos = Math.max(0, (playbackState.positionMs || 0) - 5000);
-            setPlaybackState(prev => ({ ...prev, positionMs: targetPos }));
-            playerRef.current.syncPosition(targetPos, playbackState.isPlaying);
-            triggerToast(`Rewound 5s (${formatTime(targetPos)})`, 'info');
-          }
+          handleSeekRelativeRef.current?.(-5000);
           break;
         case 'ArrowRight':
           e.preventDefault();
-          if (isHost && playerRef.current && playbackState.durationMs) {
-            const targetPos = Math.min(playbackState.durationMs, (playbackState.positionMs || 0) + 5000);
-            setPlaybackState(prev => ({ ...prev, positionMs: targetPos }));
-            playerRef.current.syncPosition(targetPos, playbackState.isPlaying);
-            triggerToast(`Forward 5s (${formatTime(targetPos)})`, 'info');
-          }
+          handleSeekRelativeRef.current?.(5000);
           break;
         case 'ArrowUp':
           e.preventDefault();
@@ -5965,16 +5990,18 @@ export default function RoomClient({ roomId }) {
                   <button
                     type="button"
                     className="stage-hud-badge"
-                    onClick={() => {
-                      if (playerRef.current && playbackState.durationMs) {
-                        const targetPos = Math.min(playbackState.durationMs, (playbackState.positionMs || 0) + 5000);
-                        setPlaybackState(prev => ({ ...prev, positionMs: targetPos }));
-                        playerRef.current.syncPosition(targetPos, playbackState.isPlaying);
-                      }
-                    }}
-                    title="Seek 5s (← / →)"
+                    onClick={() => handleSeekRelative(-5000)}
+                    title="Rewind 5s (←)"
                   >
-                    <span className="stage-hud-key">←</span><span className="stage-hud-key">→</span> Seek 5s
+                    <span className="stage-hud-key">←</span> -5s
+                  </button>
+                  <button
+                    type="button"
+                    className="stage-hud-badge"
+                    onClick={() => handleSeekRelative(5000)}
+                    title="Forward 5s (→)"
+                  >
+                    <span className="stage-hud-key">→</span> +5s
                   </button>
                   <div className="stage-hud-divider" />
                   <button

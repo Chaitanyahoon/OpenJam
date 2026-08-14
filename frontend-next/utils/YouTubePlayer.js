@@ -811,6 +811,20 @@ export default class YouTubePlayer {
     this._updateMediaSessionPositionState();
   }
 
+  seek(seconds) {
+    const targetSeconds = Math.max(0, seconds);
+    this.positionMs = Math.round(targetSeconds * 1000);
+    this._suppressStateChange = true;
+    if (this._useIFrame && this.ytPlayer && typeof this.ytPlayer.seekTo === 'function') {
+      this.ytPlayer.seekTo(targetSeconds, true);
+    } else if (this.player) {
+      this.player.currentTime = targetSeconds;
+    }
+    this._updateMediaSessionPositionState();
+    this.updateDisplay();
+    setTimeout(() => { this._suppressStateChange = false; }, 300);
+  }
+
   syncPosition(positionMs, isPlaying) {
     this.isPlaying = isPlaying;
     this.positionMs = positionMs;
