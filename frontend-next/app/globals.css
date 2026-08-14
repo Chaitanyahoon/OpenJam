@@ -4087,24 +4087,25 @@ body:not(.room-page) .navbar {
 .stage-rhythm-dots {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 20px;
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  gap: 10px;
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 99px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), inset 0 0 12px rgba(255, 255, 255, 0.04);
   width: fit-content;
   user-select: none;
 }
 
 .stage-rhythm-dot {
-  width: 12px;
-  height: 12px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.25);
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
-  animation: rhythmDotPulse 1.4s ease-in-out infinite alternate;
+  background: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.15);
+  animation: rhythmDotWave 1.3s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
 }
 
 .stage-rhythm-dot:nth-child(1) {
@@ -4112,28 +4113,25 @@ body:not(.room-page) .navbar {
 }
 
 .stage-rhythm-dot:nth-child(2) {
-  animation-delay: 0.25s;
+  animation-delay: 0.2s;
 }
 
 .stage-rhythm-dot:nth-child(3) {
-  animation-delay: 0.5s;
+  animation-delay: 0.4s;
 }
 
-@keyframes rhythmDotPulse {
-  0% {
-    transform: scale(0.8);
-    background: rgba(255, 255, 255, 0.25);
+@keyframes rhythmDotWave {
+  0%, 100% {
+    transform: scale(0.8) translateY(0);
+    opacity: 0.35;
+    background: rgba(255, 255, 255, 0.4);
     box-shadow: 0 0 4px rgba(255, 255, 255, 0.1);
   }
-  50% {
-    transform: scale(1.35);
-    background: var(--theme-accent, #ff9f1c);
-    box-shadow: 0 0 20px var(--theme-accent, #ff9f1c), 0 0 36px rgba(255, 159, 28, 0.6);
-  }
-  100% {
-    transform: scale(0.9);
-    background: rgba(255, 255, 255, 0.5);
-    box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+  45% {
+    transform: scale(1.35) translateY(-3px);
+    opacity: 1;
+    background: #ffffff;
+    box-shadow: 0 0 16px #ffffff, 0 0 28px var(--theme-accent, #ff9f1c);
   }
 }
 

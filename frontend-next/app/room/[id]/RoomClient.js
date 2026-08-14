@@ -6124,7 +6124,7 @@ export default function RoomClient({ roomId }) {
                     onClick={handleTogglePlay}
                     title="Toggle Play / Pause (Space)"
                   >
-                    <span className="stage-hud-key">Space</span> Play/Pause
+                    <span className="stage-hud-key">Space</span> Play
                   </button>
                   <div className="stage-hud-divider" />
                   <button
@@ -6153,7 +6153,7 @@ export default function RoomClient({ roomId }) {
                     }}
                     title="Volume Up / Down (↑ / ↓)"
                   >
-                    <span className="stage-hud-key">↑</span><span className="stage-hud-key">↓</span> Volume
+                    <span className="stage-hud-key">↑</span><span className="stage-hud-key">↓</span> Vol
                   </button>
                   <div className="stage-hud-divider" />
                   <button
@@ -6198,7 +6198,7 @@ export default function RoomClient({ roomId }) {
                     onClick={() => setShowKeyboardHUD(prev => !prev)}
                     title="Toggle Shortcuts (?)"
                   >
-                    <span className="stage-hud-key">?</span> Shortcuts
+                    <span className="stage-hud-key">?</span> Keys
                   </button>
                   <div className="stage-hud-divider" />
                   <button
