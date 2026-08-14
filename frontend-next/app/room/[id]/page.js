@@ -65,12 +65,15 @@ export async function generateMetadata({ params }) {
         const listenerCount = room.listener_count || 0;
         const inviter = room.host_name || 'Someone';
 
-        let title = `${room.name} — Open Jam`;
-        let description = room.description || `Join the listening room "${room.name}" on Open Jam to stream music together in real-time.`;
+        let title = `${room.name} • OpenJam Live Room`;
+        let description = room.description || `🎧 Live music room hosted by ${inviter}. Stream music together in real-time sync with friends.`;
         
         if (currentTrack) {
-          title = `Now Playing: ${currentTrack.track_name} by ${currentTrack.artist} in ${room.name}`;
-          description = `Listening to "${currentTrack.track_name}" by ${currentTrack.artist} in ${room.name} with ${listenerCount} other listener(s). Join Open Jam to listen along!`;
+          const trackTitle = currentTrack.track_name || 'Music';
+          const artistName = currentTrack.artist || 'Artist';
+          const count = listenerCount > 0 ? listenerCount : 1;
+          title = `${trackTitle} • ${artistName} | OpenJam`;
+          description = `🎧 Live in "${room.name}" (${count} listening) — Tap to tune in and sync music together in real time!`;
         }
 
         const ogParams = new URLSearchParams();
@@ -87,6 +90,7 @@ export async function generateMetadata({ params }) {
         return {
           title,
           description,
+          themeColor: '#ff9f1c',
           robots: !room.is_private
             ? { index: true, follow: true }
             : { index: false, follow: false },
