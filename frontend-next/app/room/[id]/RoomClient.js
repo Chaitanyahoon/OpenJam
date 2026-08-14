@@ -1305,20 +1305,24 @@ export default function RoomClient({ roomId }) {
         if (data.syncedLyrics) {
           const lines = data.syncedLyrics.split('\n');
           const parsed = [];
-          const timeReg = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/;
+          const timeReg = /\[(\d{1,2}):(\d{2})[.:](\d{1,3})\]/;
           for (const line of lines) {
             const match = timeReg.exec(line);
             if (match) {
-              const min = parseInt(match[1]);
-              const sec = parseInt(match[2]);
-              const ms = parseInt(match[3].padEnd(3, '0'));
+              const min = parseInt(match[1], 10);
+              const sec = parseInt(match[2], 10);
+              const rawMs = match[3];
+              const ms = rawMs.length === 2 
+                ? parseInt(rawMs, 10) * 10 
+                : (rawMs.length === 1 ? parseInt(rawMs, 10) * 100 : parseInt(rawMs.slice(0, 3), 10));
               const timeMs = (min * 60 * 1000) + (sec * 1000) + ms;
-              const text = line.replace(timeReg, '').trim();
+              const text = line.replace(/\[\d{1,2}:\d{2}[.:]\d{1,3}\]/g, '').trim();
               if (text) {
                 parsed.push({ timeMs, text });
               }
             }
           }
+          parsed.sort((a, b) => a.timeMs - b.timeMs);
           setLyricsText(parsed);
         } else if (data.plainLyrics) {
           const lines = data.plainLyrics.split('\n');
@@ -5447,14 +5451,14 @@ export default function RoomClient({ roomId }) {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    gap: '8px',
-                    padding: '8px 16px',
-                    background: 'rgba(20, 20, 28, 0.65)',
-                    backdropFilter: 'blur(20px)',
-                    WebkitBackdropFilter: 'blur(20px)',
+                    gap: '10px',
+                    padding: '8px 18px',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    backdropFilter: 'blur(28px)',
+                    WebkitBackdropFilter: 'blur(28px)',
                     border: '1px solid rgba(255, 255, 255, 0.12)',
                     borderRadius: '99px',
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
                     width: '100%',
                     boxSizing: 'border-box',
                     marginTop: '4px',
@@ -5464,24 +5468,26 @@ export default function RoomClient({ roomId }) {
                   {/* Heart / Like Button */}
                   <motion.button
                     type="button"
-                    whileHover={{ scale: 1.18, transition: { type: 'spring', stiffness: 420, damping: 16 } }}
-                    whileTap={{ scale: 0.85 }}
+                    whileHover={{ scale: 1.2, transition: { type: 'spring', stiffness: 420, damping: 16 } }}
+                    whileTap={{ scale: 0.82 }}
                     onClick={handleLikeToggle}
                     style={{
                       background: 'transparent',
                       border: 'none',
-                      color: favourites.some(f => f.track_uri === nowPlaying?.track_uri) ? '#f43f5e' : 'rgba(255,255,255,0.85)',
+                      color: favourites.some(f => f.track_uri === nowPlaying?.track_uri) ? '#ff2a5f' : 'rgba(255, 255, 255, 0.85)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       cursor: 'pointer',
                       padding: '4px',
+                      filter: favourites.some(f => f.track_uri === nowPlaying?.track_uri) ? 'drop-shadow(0 0 8px rgba(255, 42, 95, 0.6))' : 'none',
+                      transition: 'all 0.2s ease',
                     }}
-                    title={favourites.some(f => f.track_uri === nowPlaying?.track_uri) ? 'Unlike' : 'Like'}
+                    title={favourites.some(f => f.track_uri === nowPlaying?.track_uri) ? 'Unlike track' : 'Add to Favorites (L)'}
                   >
                     <Heart
                       size={18}
-                      fill={favourites.some(f => f.track_uri === nowPlaying?.track_uri) ? '#f43f5e' : 'none'}
+                      fill={favourites.some(f => f.track_uri === nowPlaying?.track_uri) ? '#ff2a5f' : 'none'}
                     />
                   </motion.button>
 
@@ -5490,8 +5496,8 @@ export default function RoomClient({ roomId }) {
                     <button
                       type="button"
                       onClick={() => setIsMuted(prev => !prev)}
-                      style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.8)', cursor: 'pointer', padding: 0, display: 'flex' }}
-                      title={isMuted ? "Unmute" : "Mute"}
+                      style={{ background: 'none', border: 'none', color: 'rgba(255, 255, 255, 0.85)', cursor: 'pointer', padding: 0, display: 'flex' }}
+                      title={isMuted ? "Unmute" : "Mute (M)"}
                     >
                       {isMuted || volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
                     </button>
@@ -5499,6 +5505,7 @@ export default function RoomClient({ roomId }) {
                       type="range"
                       min="0"
                       max="100"
+                      className="stage-vol-slider"
                       value={isMuted ? 0 : volume}
                       onChange={(e) => {
                         const newVol = parseInt(e.target.value);
@@ -5506,13 +5513,7 @@ export default function RoomClient({ roomId }) {
                         if (newVol > 0 && isMuted) setIsMuted(false);
                       }}
                       style={{
-                        width: '100%',
-                        height: '4px',
-                        borderRadius: '99px',
-                        appearance: 'none',
-                        outline: 'none',
-                        background: `linear-gradient(to right, var(--theme-accent, #ff9f1c) ${isMuted ? 0 : volume}%, rgba(255, 255, 255, 0.2) ${isMuted ? 0 : volume}%)`,
-                        cursor: 'pointer',
+                        background: `linear-gradient(to right, #ffffff ${isMuted ? 0 : volume}%, rgba(255, 255, 255, 0.18) ${isMuted ? 0 : volume}%)`,
                       }}
                       title={`Volume: ${isMuted ? 0 : volume}%`}
                     />
@@ -5527,7 +5528,7 @@ export default function RoomClient({ roomId }) {
                     style={{
                       background: showLyricsSyncPanel || lyricsOffsetMs !== 0 ? 'rgba(255, 159, 28, 0.25)' : 'transparent',
                       border: 'none',
-                      color: showLyricsSyncPanel || lyricsOffsetMs !== 0 ? 'var(--theme-accent, #ff9f1c)' : 'rgba(255,255,255,0.85)',
+                      color: showLyricsSyncPanel || lyricsOffsetMs !== 0 ? 'var(--theme-accent, #ff9f1c)' : 'rgba(255, 255, 255, 0.85)',
                       borderRadius: '8px',
                       padding: '4px',
                       display: 'flex',
@@ -5536,28 +5537,28 @@ export default function RoomClient({ roomId }) {
                     }}
                     title={`Lyrics Sync Calibration (${lyricsOffsetMs > 0 ? `+${lyricsOffsetMs}ms` : `${lyricsOffsetMs}ms`})`}
                   >
-                    <Clock size={16} />
+                    <Clock size={17} />
                   </motion.button>
 
-                  {/* Queue Drawer Toggle Button */}
+                  {/* Up Next Queue Toggle Button */}
                   <motion.button
                     type="button"
                     whileHover={{ scale: 1.15 }}
                     whileTap={{ scale: 0.9 }}
                     onClick={() => setShowStageQueue(prev => !prev)}
                     style={{
-                      background: showStageQueue ? 'rgba(255, 159, 28, 0.25)' : 'transparent',
+                      background: showStageQueue ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
                       border: 'none',
-                      color: showStageQueue ? 'var(--theme-accent, #ff9f1c)' : 'rgba(255,255,255,0.85)',
+                      color: showStageQueue ? '#ffffff' : 'rgba(255, 255, 255, 0.85)',
                       borderRadius: '8px',
                       padding: '4px',
                       display: 'flex',
                       alignItems: 'center',
                       cursor: 'pointer',
                     }}
-                    title={`Queue (${queue.length})`}
+                    title="Toggle Queue Drawer (Q)"
                   >
-                    <List size={16} />
+                    <List size={17} />
                   </motion.button>
 
                   {/* Room Settings Button */}
@@ -5569,72 +5570,74 @@ export default function RoomClient({ roomId }) {
                     style={{
                       background: 'transparent',
                       border: 'none',
-                      color: 'rgba(255,255,255,0.85)',
+                      color: 'rgba(255, 255, 255, 0.85)',
+                      borderRadius: '8px',
+                      padding: '4px',
                       display: 'flex',
                       alignItems: 'center',
                       cursor: 'pointer',
-                      padding: '4px',
                     }}
-                    title="Settings"
+                    title="Room Settings"
                   >
-                    <Settings size={15} />
+                    <Settings size={17} />
                   </motion.button>
 
                   {/* Floating Lyrics Timing Calibrator Sub-Panel */}
                   <AnimatePresence>
                     {showLyricsSyncPanel && (
                       <motion.div
-                        initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        transition={{ duration: 0.18 }}
                         style={{
                           position: 'absolute',
-                          bottom: 'calc(100% + 12px)',
-                          right: '24px',
-                          zIndex: 30,
-                          background: 'rgba(12, 12, 18, 0.95)',
-                          backdropFilter: 'blur(20px)',
-                          WebkitBackdropFilter: 'blur(20px)',
+                          bottom: '120%',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          background: 'rgba(18, 18, 24, 0.95)',
+                          backdropFilter: 'blur(24px)',
+                          WebkitBackdropFilter: 'blur(24px)',
                           border: '1px solid rgba(255, 255, 255, 0.15)',
                           borderRadius: '16px',
-                          padding: '12px 16px',
+                          padding: '14px 18px',
+                          boxShadow: '0 16px 40px rgba(0, 0, 0, 0.6)',
+                          zIndex: 100,
                           display: 'flex',
                           flexDirection: 'column',
                           gap: '10px',
-                          boxShadow: '0 16px 36px rgba(0,0,0,0.7)',
-                          minWidth: '190px',
+                          width: '260px',
                         }}
                       >
-                        <div style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.7)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', fontWeight: 700, color: '#ffffff' }}>
                           <span>Lyrics Timing Offset</span>
-                          <span style={{ color: 'var(--theme-accent, #ff9f1c)', fontFamily: 'var(--font-mono)' }}>
-                            {lyricsOffsetMs > 0 ? `+${(lyricsOffsetMs/1000).toFixed(1)}s` : `${(lyricsOffsetMs/1000).toFixed(1)}s`}
+                          <span style={{ color: 'var(--theme-accent, #ff9f1c)', fontFamily: 'monospace', fontWeight: 800 }}>
+                            {lyricsOffsetMs > 0 ? `+${(lyricsOffsetMs/1000).toFixed(2)}s` : `${(lyricsOffsetMs/1000).toFixed(2)}s`}
                           </span>
                         </div>
-                        <div style={{ display: 'flex', gap: '6px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <button
                             type="button"
                             onClick={() => {
                               setLyricsOffsetMs(prev => {
-                                const n = prev - 500;
+                                const n = prev - 250;
                                 try { localStorage.setItem('openjam_lyrics_offset', n.toString()); } catch(e){}
                                 return n;
                               });
-                              triggerToast('Lyrics shifted -0.5s', 'info');
                             }}
                             style={{
                               flex: 1,
-                              padding: '5px 8px',
-                              borderRadius: '8px',
-                              background: 'rgba(255,255,255,0.1)',
+                              background: 'rgba(255,255,255,0.08)',
                               border: '1px solid rgba(255,255,255,0.12)',
-                              color: '#ffffff',
+                              color: '#fff',
+                              borderRadius: '8px',
+                              padding: '6px 0',
                               fontSize: '11px',
-                              fontWeight: 600,
+                              fontWeight: 700,
                               cursor: 'pointer',
                             }}
                           >
-                            -0.5s
+                            -0.25s
                           </button>
                           <button
                             type="button"
@@ -5644,13 +5647,14 @@ export default function RoomClient({ roomId }) {
                               triggerToast('Lyrics sync reset', 'info');
                             }}
                             style={{
-                              padding: '5px 10px',
+                              flex: 1,
+                              background: 'rgba(255, 159, 28, 0.15)',
+                              border: '1px solid rgba(255, 159, 28, 0.3)',
+                              color: 'var(--theme-accent, #ff9f1c)',
                               borderRadius: '8px',
-                              background: 'rgba(255,255,255,0.06)',
-                              border: '1px solid rgba(255,255,255,0.08)',
-                              color: 'rgba(255,255,255,0.6)',
+                              padding: '6px 0',
                               fontSize: '11px',
-                              fontWeight: 600,
+                              fontWeight: 700,
                               cursor: 'pointer',
                             }}
                           >
@@ -5660,37 +5664,35 @@ export default function RoomClient({ roomId }) {
                             type="button"
                             onClick={() => {
                               setLyricsOffsetMs(prev => {
-                                const n = prev + 500;
+                                const n = prev + 250;
                                 try { localStorage.setItem('openjam_lyrics_offset', n.toString()); } catch(e){}
                                 return n;
                               });
-                              triggerToast('Lyrics shifted +0.5s', 'info');
                             }}
                             style={{
                               flex: 1,
-                              padding: '5px 8px',
-                              borderRadius: '8px',
-                              background: 'rgba(255,255,255,0.1)',
+                              background: 'rgba(255,255,255,0.08)',
                               border: '1px solid rgba(255,255,255,0.12)',
-                              color: '#ffffff',
+                              color: '#fff',
+                              borderRadius: '8px',
+                              padding: '6px 0',
                               fontSize: '11px',
-                              fontWeight: 600,
+                              fontWeight: 700,
                               cursor: 'pointer',
                             }}
                           >
-                            +0.5s
+                            +0.25s
                           </button>
                         </div>
                       </motion.div>
                     )}
                   </AnimatePresence>
                 </div>
-
               </div>
 
               {/* Right Column: Apple Music Style Kinetic Lyrics Display OR Up Next Queue Drawer */}
               {showStageQueue ? (
-                /* Stage Mode Up Next Queue Drawer Overlay */
+                /* Stage Mode Queue Drawer */
                 <motion.div
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -5698,44 +5700,24 @@ export default function RoomClient({ roomId }) {
                   transition={{ duration: 0.25 }}
                   style={{
                     height: '100%',
-                    maxHeight: '580px',
-                    background: 'rgba(15, 15, 22, 0.75)',
-                    backdropFilter: 'blur(20px)',
-                    WebkitBackdropFilter: 'blur(20px)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
-                    borderRadius: '24px',
-                    padding: '24px',
+                    maxHeight: 'calc(100vh - 90px)',
+                    overflowY: 'auto',
+                    paddingRight: '12px',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '16px',
-                    overflow: 'hidden',
-                    boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
+                    gap: '12px',
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3 style={{
-                      fontFamily: 'var(--font-display-next), Outfit, sans-serif',
-                      fontSize: '19px',
-                      fontWeight: 800,
-                      color: '#ffffff',
-                      margin: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px'
-                    }}>
-                      <List size={19} style={{ color: 'var(--theme-accent, #ff9f1c)' }} /> Up Next Queue ({queue.length})
-                    </h3>
-                    <motion.button
-                      type="button"
-                      whileTap={{ scale: 0.9 }}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#fff', margin: 0 }}>Up Next</h3>
+                    <button
                       onClick={() => setShowStageQueue(false)}
-                      style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', padding: 0 }}
+                      style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}
                     >
-                      <X size={18} />
-                    </motion.button>
+                      Close
+                    </button>
                   </div>
-
-                  <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', scrollbarWidth: 'none' }}>
+                  <div className="stage-queue-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {queue.length > 0 ? (
                       <Reorder.Group
                         axis="y"
@@ -5743,97 +5725,51 @@ export default function RoomClient({ roomId }) {
                         onReorder={handleReorderQueue}
                         style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: 0, margin: 0, listStyle: 'none' }}
                       >
-                        {queue.map((item, idx) => (
+                        {queue.map((track) => (
                           <Reorder.Item
-                            key={item.id}
-                            value={item}
-                            dragListener={isHost && item.status !== 'playing'}
-                            whileDrag={{
-                              scale: 1.025,
-                              boxShadow: '0 16px 36px rgba(0,0,0,0.8), 0 0 20px rgba(255, 159, 28, 0.35)',
-                              zIndex: 100,
-                              cursor: 'grabbing'
-                            }}
-                            onDoubleClick={() => {
-                              if (isHost && socket && item.status !== 'playing') {
-                                socket.emit('play_now', {
-                                  track_uri: item.track_uri || item.id,
-                                  track_name: item.track_name,
-                                  artist: item.artist,
-                                  album_art_url: item.album_art_url,
-                                  duration_ms: item.duration_ms || 240000
-                                });
-                                triggerToast(`Playing "${item.track_name}"!`, 'success');
-                              }
-                            }}
+                            key={track.id}
+                            value={track}
+                            dragListener={isHost && track.status !== 'playing'}
+                            className={`stage-queue-card ${track.status === 'playing' ? 'playing' : ''}`}
                             style={{
                               display: 'flex',
                               alignItems: 'center',
                               gap: '12px',
                               padding: '10px 14px',
-                              borderRadius: '14px',
-                              background: item.status === 'playing' ? 'rgba(255, 159, 28, 0.18)' : 'rgba(255, 255, 255, 0.05)',
-                              border: item.status === 'playing' ? '1px solid rgba(255, 159, 28, 0.35)' : '1px solid rgba(255, 255, 255, 0.06)',
-                              cursor: isHost && item.status !== 'playing' ? 'grab' : 'default',
-                              position: 'relative',
+                              background: track.status === 'playing' ? 'rgba(255, 159, 28, 0.15)' : 'rgba(255,255,255,0.04)',
+                              border: track.status === 'playing' ? '1px solid rgba(255, 159, 28, 0.35)' : '1px solid rgba(255,255,255,0.08)',
+                              borderRadius: '12px',
+                              cursor: isHost && track.status !== 'playing' ? 'grab' : 'default',
                             }}
                           >
-                            {isHost && item.status !== 'playing' && (
-                              <div style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.3)', paddingRight: '2px', cursor: 'grab' }} title="Drag to reorder">
-                                <GripVertical size={14} />
-                              </div>
+                            {isHost && track.status !== 'playing' && (
+                              <GripVertical size={14} style={{ color: 'rgba(255,255,255,0.3)', flexShrink: 0 }} />
                             )}
                             <img
-                              src={item.album_art_url || '/placeholder.svg'}
+                              src={track.album_art_url || '/static/img/logo.png'}
                               alt=""
-                              style={{ width: '40px', height: '40px', borderRadius: '10px', objectFit: 'cover' }}
-                              onError={(e) => { e.target.style.display = 'none'; }}
+                              style={{ width: '40px', height: '40px', borderRadius: '8px', objectFit: 'cover' }}
                             />
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: '14px', fontWeight: 700, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {item.track_name}
+                              <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {track.track_name}
                               </div>
-                              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.65)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {item.artist}
+                              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {track.artist}
                               </div>
                             </div>
-                            {isHost && item.status !== 'playing' && (
-                              <motion.button
-                                type="button"
-                                whileHover={{ scale: 1.15 }}
-                                whileTap={{ scale: 0.9 }}
-                                onClick={() => {
-                                  if (socket) {
-                                    socket.emit('play_now', {
-                                      track_uri: item.track_uri || item.id,
-                                      track_name: item.track_name,
-                                      artist: item.artist,
-                                      album_art_url: item.album_art_url,
-                                      duration_ms: item.duration_ms || 240000
-                                    });
-                                    triggerToast(`Playing "${item.track_name}"!`, 'success');
-                                  }
-                                }}
-                                style={{
-                                  background: 'rgba(255, 159, 28, 0.25)',
-                                  border: 'none',
-                                  color: 'var(--theme-accent, #ff9f1c)',
-                                  padding: '6px',
-                                  borderRadius: '8px',
-                                  cursor: 'pointer',
-                                }}
-                                title="Play Now"
-                              >
-                                <Play size={14} fill="currentColor" />
-                              </motion.button>
+                            {track.status === 'playing' && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                <span className="playing-wave-bar" style={{ height: '14px' }} />
+                                <span className="playing-wave-bar" style={{ height: '8px', animationDelay: '0.2s' }} />
+                                <span className="playing-wave-bar" style={{ height: '12px', animationDelay: '0.4s' }} />
+                              </div>
                             )}
                           </Reorder.Item>
                         ))}
                       </Reorder.Group>
                     ) : (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>
-                        Queue is empty
-                      </div>
+                      <div style={{ padding: '20px', textAlign: 'center', color: 'rgba(255,255,255,0.4)' }}>Queue empty</div>
                     )}
                   </div>
                 </motion.div>
@@ -5873,7 +5809,7 @@ export default function RoomClient({ roomId }) {
                       scrollBehavior: 'smooth',
                     }}
                   >
-                    {/* Intro Rhythm Dots */}
+                    {/* Clean Apple Music Style Intro Rhythm Dots */}
                     {lyricsActiveIdx === -1 && playbackState.isPlaying && (
                       <motion.div
                         initial={{ opacity: 0, y: 10 }}
@@ -5886,7 +5822,7 @@ export default function RoomClient({ roomId }) {
                           <span className="stage-rhythm-dot" />
                         </div>
                         <span style={{ fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255, 255, 255, 0.65)' }}>
-                          Instrumental Intro
+                          Intro
                         </span>
                       </motion.div>
                     )}
@@ -5897,107 +5833,80 @@ export default function RoomClient({ roomId }) {
                       // Word-by-word natural singing cadence calculation for active line
                       let words = (item.text || '').split(' ');
                       let activeWordIdx = -1;
-                      let estimatedSingTime = 3000;
-                      let isInterlude = false;
-
                       if (isActive && item.timeMs !== undefined && item.timeMs >= 0) {
                         const nextTime = (lyricsText[idx + 1] && lyricsText[idx + 1].timeMs > 0)
                           ? lyricsText[idx + 1].timeMs
                           : item.timeMs + 4000;
                         const rawGap = Math.max(800, nextTime - item.timeMs);
-                        estimatedSingTime = Math.min(rawGap, Math.max(900, words.length * 360 + 300));
+                        const estimatedSingTime = Math.min(rawGap, Math.max(900, words.length * 360 + 300));
                         const effectivePos = (playbackState.positionMs || 0) + lyricsOffsetMs + 80;
                         const elapsed = Math.max(0, effectivePos - item.timeMs);
                         const ratio = Math.min(1, elapsed / estimatedSingTime);
                         activeWordIdx = Math.floor(ratio * words.length);
                         if (elapsed >= estimatedSingTime) {
-                          activeWordIdx = words.length - 1; // Finished singing line
-                        }
-
-                        // If gap to next line is > 5s and singing is finished, show interlude rhythm dots
-                        if (lyricsText[idx + 1] && rawGap > 5000 && elapsed >= estimatedSingTime + 600) {
-                          isInterlude = true;
+                          activeWordIdx = words.length - 1;
                         }
                       }
 
                       return (
-                        <React.Fragment key={idx}>
-                          <motion.div
-                            id={`stage-lyr-${idx}`}
-                            animate={{
-                              scale: isActive ? 1.05 : 1,
-                              opacity: isActive ? 1 : (idx < lyricsActiveIdx ? 0.5 : 0.22),
-                              x: isActive ? 16 : 0,
-                            }}
-                            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                            style={{
-                              fontSize: isActive ? 'clamp(32px, 4.2vw, 54px)' : 'clamp(20px, 2.6vw, 34px)',
-                              fontWeight: isActive ? 800 : 600,
-                              margin: 0,
-                              cursor: isHost ? 'pointer' : 'default',
-                              color: isActive ? '#ffffff' : (idx < lyricsActiveIdx ? 'rgba(255, 255, 255, 0.7)' : 'rgba(255, 255, 255, 0.3)'),
-                              lineHeight: 1.32,
-                              transformOrigin: 'left center',
-                              letterSpacing: '-0.025em',
-                              wordBreak: 'break-word',
-                              filter: isActive ? 'none' : 'blur(0.35px)',
-                              textShadow: isActive ? '0 0 28px rgba(255, 255, 255, 0.45), 0 0 50px var(--theme-accent, #ff9f1c)' : 'none',
-                              transition: 'filter 0.3s ease, font-size 0.3s ease',
-                            }}
-                            onClick={() => {
-                              if (item.timeMs > 0 && isHost && playerRef.current) {
-                                setPlaybackState(prev => ({ ...prev, positionMs: item.timeMs }));
-                                playerRef.current.syncPosition(item.timeMs, playbackState.isPlaying);
-                                triggerToast(`Jumped to ${formatTime(item.timeMs)}`, 'info');
-                              }
-                            }}
-                          >
-                            {isActive && words.length > 1 ? (
-                              words.map((word, wIdx) => {
-                                const isWordSung = wIdx <= activeWordIdx;
-                                const isCurrentWord = wIdx === activeWordIdx;
-                                return (
-                                  <span
-                                    key={wIdx}
-                                    style={{
-                                      display: 'inline-block',
-                                      marginRight: '14px',
-                                      color: isWordSung ? '#ffffff' : 'rgba(255, 255, 255, 0.38)',
-                                      fontWeight: isCurrentWord ? 900 : (isWordSung ? 800 : 700),
-                                      textShadow: isCurrentWord
-                                        ? '0 0 32px #ffffff, 0 0 60px var(--theme-accent, #ff9f1c)'
-                                        : (isWordSung ? '0 0 16px rgba(255,255,255,0.6)' : 'none'),
-                                      transform: isCurrentWord ? 'scale(1.06)' : 'scale(1)',
-                                      transition: 'all 0.12s ease-out',
-                                    }}
-                                  >
-                                    {word}
-                                  </span>
-                                );
-                              })
-                            ) : (
-                              item.text
-                            )}
-                          </motion.div>
-
-                          {/* Interlude Rhythm Dots between long pauses */}
-                          {isInterlude && (
-                            <motion.div
-                              initial={{ opacity: 0, scale: 0.9 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              style={{ margin: '8px 0 8px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}
-                            >
-                              <div className="stage-rhythm-dots">
-                                <span className="stage-rhythm-dot" />
-                                <span className="stage-rhythm-dot" />
-                                <span className="stage-rhythm-dot" />
-                              </div>
-                              <span style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(255, 255, 255, 0.45)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                                Instrumental Break
-                              </span>
-                            </motion.div>
+                        <motion.div
+                          key={idx}
+                          id={`stage-lyr-${idx}`}
+                          animate={{
+                            scale: isActive ? 1.05 : 1,
+                            opacity: isActive ? 1 : (idx < lyricsActiveIdx ? 0.5 : 0.22),
+                            x: isActive ? 16 : 0,
+                          }}
+                          transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                          style={{
+                            fontSize: isActive ? 'clamp(32px, 4.2vw, 54px)' : 'clamp(20px, 2.6vw, 34px)',
+                            fontWeight: isActive ? 800 : 600,
+                            margin: 0,
+                            cursor: isHost ? 'pointer' : 'default',
+                            color: isActive ? '#ffffff' : (idx < lyricsActiveIdx ? 'rgba(255, 255, 255, 0.7)' : 'rgba(255, 255, 255, 0.3)'),
+                            lineHeight: 1.32,
+                            transformOrigin: 'left center',
+                            letterSpacing: '-0.025em',
+                            wordBreak: 'break-word',
+                            filter: isActive ? 'none' : 'blur(0.35px)',
+                            textShadow: isActive ? '0 0 28px rgba(255, 255, 255, 0.45), 0 0 50px var(--theme-accent, #ff9f1c)' : 'none',
+                            transition: 'filter 0.3s ease, font-size 0.3s ease',
+                          }}
+                          onClick={() => {
+                            if (item.timeMs > 0 && isHost && playerRef.current) {
+                              setPlaybackState(prev => ({ ...prev, positionMs: item.timeMs }));
+                              playerRef.current.syncPosition(item.timeMs, playbackState.isPlaying);
+                              triggerToast(`Jumped to ${formatTime(item.timeMs)}`, 'info');
+                            }
+                          }}
+                        >
+                          {isActive && words.length > 1 ? (
+                            words.map((word, wIdx) => {
+                              const isWordSung = wIdx <= activeWordIdx;
+                              const isCurrentWord = wIdx === activeWordIdx;
+                              return (
+                                <span
+                                  key={wIdx}
+                                  style={{
+                                    display: 'inline-block',
+                                    marginRight: '14px',
+                                    color: isWordSung ? '#ffffff' : 'rgba(255, 255, 255, 0.38)',
+                                    fontWeight: isCurrentWord ? 900 : (isWordSung ? 800 : 700),
+                                    textShadow: isCurrentWord
+                                      ? '0 0 32px #ffffff, 0 0 60px var(--theme-accent, #ff9f1c)'
+                                      : (isWordSung ? '0 0 16px rgba(255,255,255,0.6)' : 'none'),
+                                    transform: isCurrentWord ? 'scale(1.06)' : 'scale(1)',
+                                    transition: 'all 0.12s ease-out',
+                                  }}
+                                >
+                                  {word}
+                                </span>
+                              );
+                            })
+                          ) : (
+                            item.text
                           )}
-                        </React.Fragment>
+                        </motion.div>
                       );
                     })}
                   </div>
@@ -6034,7 +5943,7 @@ export default function RoomClient({ roomId }) {
               )}
             </div>
 
-            {/* ⌨️ Sleek Stage Mode Keyboard Shortcuts HUD */}
+            {/* ⌨️ Sleek Stage Mode Keyboard Shortcuts HUD (All buttons fully interactive) */}
             <AnimatePresence>
               {(showKeyboardHUD || (stageMouseActive && !showStageQueue)) && (
                 <motion.div
@@ -6044,23 +5953,95 @@ export default function RoomClient({ roomId }) {
                   transition={{ duration: 0.25 }}
                   className="stage-hud-container"
                 >
-                  <div className="stage-hud-badge"><span className="stage-hud-key">Space</span> Play/Pause</div>
+                  <button
+                    type="button"
+                    className="stage-hud-badge"
+                    onClick={handleTogglePlay}
+                    title="Toggle Play / Pause (Space)"
+                  >
+                    <span className="stage-hud-key">Space</span> Play/Pause
+                  </button>
                   <div className="stage-hud-divider" />
-                  <div className="stage-hud-badge"><span className="stage-hud-key">←</span><span className="stage-hud-key">→</span> Seek 5s</div>
+                  <button
+                    type="button"
+                    className="stage-hud-badge"
+                    onClick={() => {
+                      if (playerRef.current && playbackState.durationMs) {
+                        const targetPos = Math.min(playbackState.durationMs, (playbackState.positionMs || 0) + 5000);
+                        setPlaybackState(prev => ({ ...prev, positionMs: targetPos }));
+                        playerRef.current.syncPosition(targetPos, playbackState.isPlaying);
+                      }
+                    }}
+                    title="Seek 5s (← / →)"
+                  >
+                    <span className="stage-hud-key">←</span><span className="stage-hud-key">→</span> Seek 5s
+                  </button>
                   <div className="stage-hud-divider" />
-                  <div className="stage-hud-badge"><span className="stage-hud-key">↑</span><span className="stage-hud-key">↓</span> Volume</div>
+                  <button
+                    type="button"
+                    className="stage-hud-badge"
+                    onClick={() => {
+                      setVolume(prev => Math.min(100, (prev || 80) + 10));
+                      if (isMuted) setIsMuted(false);
+                    }}
+                    title="Volume Up / Down (↑ / ↓)"
+                  >
+                    <span className="stage-hud-key">↑</span><span className="stage-hud-key">↓</span> Volume
+                  </button>
                   <div className="stage-hud-divider" />
-                  <div className="stage-hud-badge"><span className="stage-hud-key">L</span> Like</div>
+                  <button
+                    type="button"
+                    className="stage-hud-badge"
+                    onClick={handleLikeToggle}
+                    title="Favorite Track (L)"
+                  >
+                    <span className="stage-hud-key">L</span> Like
+                  </button>
                   <div className="stage-hud-divider" />
-                  <div className="stage-hud-badge"><span className="stage-hud-key">S</span> Shuffle</div>
+                  <button
+                    type="button"
+                    className="stage-hud-badge"
+                    onClick={handleShuffleClick}
+                    title="Shuffle Queue (S)"
+                  >
+                    <span className="stage-hud-key">S</span> Shuffle
+                  </button>
                   <div className="stage-hud-divider" />
-                  <div className="stage-hud-badge"><span className="stage-hud-key">R</span> Repeat</div>
+                  <button
+                    type="button"
+                    className="stage-hud-badge"
+                    onClick={handleRepeatToggle}
+                    title="Toggle Repeat (R)"
+                  >
+                    <span className="stage-hud-key">R</span> Repeat
+                  </button>
                   <div className="stage-hud-divider" />
-                  <div className="stage-hud-badge"><span className="stage-hud-key">Q</span> Queue</div>
+                  <button
+                    type="button"
+                    className="stage-hud-badge"
+                    onClick={() => setShowStageQueue(prev => !prev)}
+                    title="Toggle Queue (Q)"
+                  >
+                    <span className="stage-hud-key">Q</span> Queue
+                  </button>
                   <div className="stage-hud-divider" />
-                  <div className="stage-hud-badge"><span className="stage-hud-key">?</span> Shortcuts</div>
+                  <button
+                    type="button"
+                    className="stage-hud-badge"
+                    onClick={() => setShowKeyboardHUD(prev => !prev)}
+                    title="Toggle Shortcuts (?)"
+                  >
+                    <span className="stage-hud-key">?</span> Shortcuts
+                  </button>
                   <div className="stage-hud-divider" />
-                  <div className="stage-hud-badge"><span className="stage-hud-key">Esc</span> Exit</div>
+                  <button
+                    type="button"
+                    className="stage-hud-badge"
+                    onClick={() => setIsStageMode(false)}
+                    title="Exit Stage Mode (Esc)"
+                  >
+                    <span className="stage-hud-key">Esc</span> Exit
+                  </button>
                 </motion.div>
               )}
             </AnimatePresence>

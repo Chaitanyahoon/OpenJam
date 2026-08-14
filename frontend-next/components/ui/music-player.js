@@ -603,33 +603,21 @@ export const MusicPlayer = ({
                     )}
                     {lyricsText.map((line, idx) => {
                       const isActive = idx === (lyricsActiveIdx >= 0 ? lyricsActiveIdx : (currentTime > 0 ? 0 : -1));
-                      const nextLine = lyricsText[idx + 1];
-                      const isLongPause = isActive && nextLine && line.timeMs && nextLine.timeMs && (nextLine.timeMs - line.timeMs > 6000) && ((currentTime * 1000) > line.timeMs + 3500);
 
                       return (
-                        <React.Fragment key={idx}>
-                          <div 
-                            id={`mp-lyr-${idx}`}
-                            className={`mp-lyrics-line ${isActive ? 'active' : (lyricsActiveIdx >= 0 && idx < lyricsActiveIdx ? 'sung' : '')}`}
-                            onClick={() => {
-                              if (isHost && onSeek && line.timeMs !== undefined) {
-                                onSeek(line.timeMs / 1000);
-                              }
-                            }}
-                            style={{ cursor: isHost && line.timeMs !== undefined ? 'pointer' : 'default' }}
-                          >
-                            {line.text}
-                          </div>
-                          {isLongPause && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '10px 0 14px 4px' }}>
-                              <div className="stage-rhythm-dots" style={{ padding: '6px 12px', gap: '6px' }}>
-                                <span className="stage-rhythm-dot" style={{ width: '6px', height: '6px' }} />
-                                <span className="stage-rhythm-dot" style={{ width: '6px', height: '6px' }} />
-                                <span className="stage-rhythm-dot" style={{ width: '6px', height: '6px' }} />
-                              </div>
-                            </div>
-                          )}
-                        </React.Fragment>
+                        <div 
+                          key={idx}
+                          id={`mp-lyr-${idx}`}
+                          className={`mp-lyrics-line ${isActive ? 'active' : (lyricsActiveIdx >= 0 && idx < lyricsActiveIdx ? 'sung' : '')}`}
+                          onClick={() => {
+                            if (isHost && onSeek && line.timeMs !== undefined) {
+                              onSeek(line.timeMs / 1000);
+                            }
+                          }}
+                          style={{ cursor: isHost && line.timeMs !== undefined ? 'pointer' : 'default' }}
+                        >
+                          {line.text}
+                        </div>
                       );
                     })}
                   </>
