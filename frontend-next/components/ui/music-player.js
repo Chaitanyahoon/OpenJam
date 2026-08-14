@@ -244,6 +244,18 @@ export const MusicPlayer = ({
     setIsPlaying(!isPlaying);
   }
 
+  const handleExpVolumeScroll = (e) => {
+    e.preventDefault();
+    const delta = -Math.sign(e.deltaY);
+    setVolume(prev => {
+      const current = prev !== undefined ? prev : (propVolume || 0);
+      const step = Math.max(1, Math.round(Math.pow(Math.max(current, 8) / 100, 0.55) * 6));
+      const next = Math.max(0, Math.min(100, current + delta * step));
+      if (next > 0 && isMuted) setIsMuted(false);
+      return next;
+    });
+  };
+
   function handleProgressClick(e) {
     if (!progressRef.current || (!isHost && propCurrentTime !== undefined)) return;
     const { left, width } = progressRef.current.getBoundingClientRect();
@@ -289,8 +301,9 @@ export const MusicPlayer = ({
                 onMouseEnter={() => setArtworkHovered(true)}
                 onMouseLeave={() => setArtworkHovered(false)}
                 onClick={togglePlay}
+                onWheel={handleExpVolumeScroll}
                 style={{ position: 'relative', width: '100%', maxWidth: '330px', margin: '0 auto', cursor: 'pointer' }}
-                title={`Click to ${isPlaying ? 'Pause' : 'Play'}`}
+                title={`Click to ${isPlaying ? 'Pause' : 'Play'} • Scroll for volume`}
               >
                 {/* Spinning Vinyl Record Disc Peek */}
                 <div

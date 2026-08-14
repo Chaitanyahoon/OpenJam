@@ -4,9 +4,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSocket } from '@/contexts/SocketContext';
 import { useRouter } from 'next/navigation';
 import YouTubePlayer from '@/utils/YouTubePlayer';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { MusicPlayer } from '@/components/ui/music-player';
-import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart, CheckCircle, AlertCircle, AlertTriangle, Info, Download, Check, Flame, Smile, Save, RefreshCw, ListPlus, Maximize2, Minimize2, SkipForward, SkipBack, Shuffle, Repeat, List, Disc, Clock, Sliders } from 'lucide-react';
+import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart, CheckCircle, AlertCircle, AlertTriangle, Info, Download, Check, Flame, Smile, Save, RefreshCw, ListPlus, Maximize2, Minimize2, SkipForward, SkipBack, Shuffle, Repeat, List, Disc, Clock, Sliders, GripVertical, HelpCircle } from 'lucide-react';
 import PwaInstallPrompt from '@/components/PwaInstallPrompt';
 import { offlineDb } from '@/utils/offlineDb';
 import EmojiPicker from '@/components/EmojiPicker';
@@ -48,6 +48,33 @@ export default function RoomClient({ roomId }) {
   // Volume & Settings
   const [volume, setVolume] = useState(80);
   const [isMuted, setIsMuted] = useState(false);
+  const [lyricsActiveIdx, setLyricsActiveIdx] = useState(-1);
+  const [lyricsText, setLyricsText] = useState([]);
+  const [lyricsAvailable, setLyricsAvailable] = useState(false);
+  const [draggedIdx, setDraggedIdx] = useState(null);
+  const [dragOverIdx, setDragOverIdx] = useState(null);
+  const [isDraggingOverNP, setIsDraggingOverNP] = useState(false);
+  const [isDraggingOverSidebarNP, setIsDraggingOverSidebarNP] = useState(false);
+  const [isDraggingOverQueue, setIsDraggingOverQueue] = useState(false);
+  const [isStageMode, setIsStageMode] = useState(false);
+  const [stageControlsVisible, setStageControlsVisible] = useState(false);
+  const [stageVolHovered, setStageVolHovered] = useState(false);
+  const [stageSeekHovered, setStageSeekHovered] = useState(false);
+  const [showStageQueue, setShowStageQueue] = useState(false);
+  const [showTimeRemaining, setShowTimeRemaining] = useState(false);
+  const [lyricsOffsetMs, setLyricsOffsetMs] = useState(0);
+  const [showLyricsSyncPanel, setShowLyricsSyncPanel] = useState(false);
+  const [showKeyboardHUD, setShowKeyboardHUD] = useState(false);
+  const [stageMouseActive, setStageMouseActive] = useState(true);
+  const [seekHoverTimeMs, setSeekHoverTimeMs] = useState(null);
+  const [seekHoverXRatio, setSeekHoverXRatio] = useState(0);
+  const [artHovered, setArtHovered] = useState(false);
+  const isDraggingStageVolRef = useRef(false);
+  const isDraggingStageSeekRef = useRef(false);
+  const stageVolPillRef = useRef(null);
+  const stageSeekBarRef = useRef(null);
+  const stageControlsTimerRef = useRef(null);
+  const stageMouseTimerRef = useRef(null);
   const [settingsSound, setSettingsSound] = useState(true);
   const [settingsVisuals, setSettingsVisuals] = useState(true);
   const [settingsHaptics, setSettingsHaptics] = useState(true);
@@ -80,33 +107,10 @@ export default function RoomClient({ roomId }) {
   const [nickname, setNickname] = useState('');
   const [membersExpanded, setMembersExpanded] = useState(false);
   const [lyricsVisible, setLyricsVisible] = useState(false);
-  const [lyricsText, setLyricsText] = useState([]);
   const [lyricsLoading, setLyricsLoading] = useState(false);
-  const [lyricsActiveIdx, setLyricsActiveIdx] = useState(-1);
   const [streamErrorMsg, setStreamErrorMsg] = useState(null);
   const [skipVotes, setSkipVotes] = useState({ votes: 0, required: 0, voted: false });
   const [isReady, setIsReady] = useState(false);
-  const [draggedIdx, setDraggedIdx] = useState(null);
-  const [dragOverIdx, setDragOverIdx] = useState(null);
-  const [isDraggingOverNP, setIsDraggingOverNP] = useState(false);
-  const [isDraggingOverSidebarNP, setIsDraggingOverSidebarNP] = useState(false);
-  const [isDraggingOverQueue, setIsDraggingOverQueue] = useState(false);
-  const [isStageMode, setIsStageMode] = useState(false);
-  const [stageControlsVisible, setStageControlsVisible] = useState(false);
-  const [stageVolHovered, setStageVolHovered] = useState(false);
-  const [stageSeekHovered, setStageSeekHovered] = useState(false);
-  const [showStageQueue, setShowStageQueue] = useState(false);
-  const [showTimeRemaining, setShowTimeRemaining] = useState(false);
-  const [lyricsOffsetMs, setLyricsOffsetMs] = useState(0);
-  const [showLyricsSyncPanel, setShowLyricsSyncPanel] = useState(false);
-  const [seekHoverTimeMs, setSeekHoverTimeMs] = useState(null);
-  const [seekHoverXRatio, setSeekHoverXRatio] = useState(0);
-  const [artHovered, setArtHovered] = useState(false);
-  const isDraggingStageVolRef = useRef(false);
-  const isDraggingStageSeekRef = useRef(false);
-  const stageVolPillRef = useRef(null);
-  const stageSeekBarRef = useRef(null);
-  const stageControlsTimerRef = useRef(null);
 
   // Refs for scrolling and canvas
   const chatEndRef = useRef(null);
@@ -1759,13 +1763,15 @@ export default function RoomClient({ roomId }) {
     document.addEventListener('touchend', handleUp);
   };
 
-  // ── Stage Mode: Hover-to-reveal controls with auto-hide timer ──
+  // ── Stage Mode: Hover-to-reveal controls & Keyboard HUD auto-hide ──
   const showStageControls = () => {
     setStageControlsVisible(true);
+    setStageMouseActive(true);
     if (stageControlsTimerRef.current) clearTimeout(stageControlsTimerRef.current);
     stageControlsTimerRef.current = setTimeout(() => {
       if (!isDraggingStageVolRef.current && !isDraggingStageSeekRef.current) {
         setStageControlsVisible(false);
+        setStageMouseActive(false);
       }
     }, 3500);
   };
@@ -1773,6 +1779,131 @@ export default function RoomClient({ roomId }) {
   const handleStageMouseMove = () => {
     showStageControls();
   };
+
+  // 🔊 Exponential / Logarithmic Volume Curve Scrolling
+  const handleExpVolumeScroll = (e) => {
+    e.preventDefault();
+    const delta = -Math.sign(e.deltaY);
+    setVolume(prev => {
+      const current = prev !== undefined ? prev : 80;
+      // Perceived loudness curve: subtle changes at low volume, larger changes at high volume
+      const step = Math.max(1, Math.round(Math.pow(Math.max(current, 8) / 100, 0.55) * 6));
+      const next = Math.max(0, Math.min(100, current + delta * step));
+      if (next > 0 && isMuted) setIsMuted(false);
+      return next;
+    });
+  };
+
+  // ↕️ Drag-to-Reorder Queue Tracks with Framer Motion
+  const handleReorderQueue = (newOrder) => {
+    if (!isHost) return;
+    setQueue(newOrder);
+    const pendingIds = newOrder.filter(item => item.status !== 'played').map(item => item.id);
+    if (socket && pendingIds.length > 0) {
+      socket.emit('reorder_queue', { room_id: roomId, ordered_ids: pendingIds });
+    }
+  };
+
+  // ⌨️ Stage Mode Fullscreen Keyboard Shortcuts Listener
+  useEffect(() => {
+    if (!isStageMode) return;
+
+    const handleStageKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
+        return;
+      }
+
+      switch (e.code) {
+        case 'Space':
+          e.preventDefault();
+          handleTogglePlay();
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          if (isHost && playerRef.current && playbackState.durationMs) {
+            const targetPos = Math.max(0, (playbackState.positionMs || 0) - 5000);
+            setPlaybackState(prev => ({ ...prev, positionMs: targetPos }));
+            playerRef.current.syncPosition(targetPos, playbackState.isPlaying);
+            triggerToast(`Rewound 5s (${formatTime(targetPos)})`, 'info');
+          }
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          if (isHost && playerRef.current && playbackState.durationMs) {
+            const targetPos = Math.min(playbackState.durationMs, (playbackState.positionMs || 0) + 5000);
+            setPlaybackState(prev => ({ ...prev, positionMs: targetPos }));
+            playerRef.current.syncPosition(targetPos, playbackState.isPlaying);
+            triggerToast(`Forward 5s (${formatTime(targetPos)})`, 'info');
+          }
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          setVolume(prev => {
+            const current = prev !== undefined ? prev : 80;
+            const step = Math.max(1, Math.round(Math.pow(Math.max(current, 8) / 100, 0.55) * 6));
+            const next = Math.min(100, current + step);
+            if (next > 0 && isMuted) setIsMuted(false);
+            return next;
+          });
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          setVolume(prev => {
+            const current = prev !== undefined ? prev : 80;
+            const step = Math.max(1, Math.round(Math.pow(Math.max(current, 8) / 100, 0.55) * 6));
+            const next = Math.max(0, current - step);
+            return next;
+          });
+          break;
+        case 'KeyL':
+          e.preventDefault();
+          handleLikeToggle();
+          break;
+        case 'KeyS':
+          e.preventDefault();
+          if (isHost) handleShuffleClick();
+          break;
+        case 'KeyR':
+          e.preventDefault();
+          if (isHost) handleRepeatToggle();
+          break;
+        case 'KeyQ':
+          e.preventDefault();
+          setShowStageQueue(prev => !prev);
+          break;
+        case 'KeyC':
+          e.preventDefault();
+          setShowLyricsSyncPanel(prev => !prev);
+          break;
+        case 'KeyM':
+          e.preventDefault();
+          setIsMuted(prev => !prev);
+          break;
+        case 'Slash':
+          if (e.shiftKey || e.key === '?') {
+            e.preventDefault();
+            setShowKeyboardHUD(prev => !prev);
+          }
+          break;
+        case 'Escape':
+          e.preventDefault();
+          setIsStageMode(false);
+          setShowKeyboardHUD(false);
+          break;
+        default:
+          if (e.key === '?') {
+            e.preventDefault();
+            setShowKeyboardHUD(prev => !prev);
+          }
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleStageKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleStageKeyDown);
+    };
+  }, [isStageMode, isHost, playbackState.isPlaying, playbackState.positionMs, playbackState.durationMs, isMuted]);
 
 
   const handleExportQueue = async () => {
@@ -3089,289 +3220,290 @@ export default function RoomClient({ roomId }) {
 
                   {activeQueueTab === 'queue' ? (
                     queue.length > 0 ? (
-                      queue.map((item, idx) => (
-                        <div 
-                          key={item.id} 
-                          className={`queue-item ${item.status === 'playing' ? 'playing' : ''}`}
-                          draggable={item.status !== 'playing'}
-                          onDragStart={(e) => handleDragStart(e, idx)}
-                          onDragOver={(e) => handleDragOver(e, idx)}
-                          onDragEnd={handleDragEnd}
-                          onDrop={(e) => handleDrop(e, idx)}
-                          onDoubleClick={() => {
-                            if (isHost && socket && item.status !== 'playing') {
-                              socket.emit('play_now', {
-                                track_uri: item.track_uri || item.id,
-                                track_name: item.track_name,
-                                artist: item.artist,
-                                album_art_url: item.album_art_url,
-                                duration_ms: item.duration_ms || 240000
-                              });
-                              triggerToast(`Playing "${item.track_name}"!`, 'success');
-                            }
-                          }}
-                          title={item.status !== 'playing' ? (isHost ? 'Double click or drag onto player to Play Now' : 'Drag to reorder') : 'Currently playing'}
-                          style={{
-                            cursor: item.status !== 'playing' ? 'grab' : 'default',
-                            borderTop: dragOverIdx === idx ? '2.5px solid var(--theme-accent, #ff9f1c)' : 'none',
-                            opacity: draggedIdx === idx ? 0.4 : 1,
-                            transition: 'all 0.2s ease'
-                          }}
-                        >
-                          {/* Premium Artwork Container with onError fallback */}
-                          <div style={{ width: '46px', height: '46px', position: 'relative', flexShrink: 0 }}>
-                            {item.album_art_url ? (
-                              <img 
-                                decoding="async" 
-                                loading="lazy" 
-                                draggable="false" 
-                                className="q-track-art" 
-                                src={item.album_art_url} 
-                                alt="" 
-                                style={{ width: '100%', height: '100%', borderRadius: '10px', objectFit: 'cover', display: 'block' }}
-                                onError={(e) => {
-                                  e.target.style.display = 'none';
-                                  const placeholder = e.target.parentElement.querySelector('.q-track-art-placeholder');
-                                  if (placeholder) placeholder.style.display = 'flex';
-                                }}
-                              />
-                            ) : null}
-                            <div 
-                              className="q-track-art-placeholder" 
-                              style={{ 
-                                display: item.album_art_url ? 'none' : 'flex', 
-                                width: '100%', 
-                                height: '100%', 
-                                borderRadius: '10px', 
-                                background: 'rgba(255,255,255,0.05)', 
-                                alignItems: 'center', 
-                                justifyContent: 'center',
-                                border: '1px solid rgba(255,255,255,0.08)'
-                              }}
-                            >
-                              <Music size={16} style={{ color: 'rgba(255,255,255,0.4)' }} />
-                            </div>
-                          </div>
+                      <Reorder.Group
+                        axis="y"
+                        values={queue}
+                        onReorder={handleReorderQueue}
+                        style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: 0, margin: 0, listStyle: 'none' }}
+                      >
+                        {queue.map((item, idx) => (
+                          <Reorder.Item 
+                            key={item.id}
+                            value={item}
+                            dragListener={isHost && item.status !== 'playing'}
+                            whileDrag={{
+                              scale: 1.025,
+                              boxShadow: '0 16px 36px rgba(0,0,0,0.8), 0 0 20px rgba(255, 159, 28, 0.35)',
+                              zIndex: 100,
+                              cursor: 'grabbing'
+                            }}
+                            transition={{ duration: 0.2 }}
+                            className={`queue-item reorder-item-card ${item.status === 'playing' ? 'playing' : ''}`}
+                            onDoubleClick={() => {
+                              if (isHost && socket && item.status !== 'playing') {
+                                socket.emit('play_now', {
+                                  track_uri: item.track_uri || item.id,
+                                  track_name: item.track_name,
+                                  artist: item.artist,
+                                  album_art_url: item.album_art_url,
+                                  duration_ms: item.duration_ms || 240000
+                                });
+                                triggerToast(`Playing "${item.track_name}"!`, 'success');
+                              }
+                            }}
+                            title={item.status !== 'playing' ? (isHost ? 'Drag to reorder • Double click to Play Now' : 'Track in queue') : 'Currently playing'}
+                            style={{
+                              cursor: item.status !== 'playing' && isHost ? 'grab' : 'default',
+                              position: 'relative'
+                            }}
+                          >
+                            {/* Reorder drag handle indicator for host on pending tracks */}
+                            {isHost && item.status !== 'playing' && (
+                              <div style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.3)', paddingRight: '2px', cursor: 'grab' }} title="Drag to reorder">
+                                <GripVertical size={15} />
+                              </div>
+                            )}
 
-                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, gap: '2px' }}>
-                            {item.status === 'playing' && (
-                              <span style={{ fontSize: '9px', fontWeight: 'bold', color: 'var(--amber)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '2px' }}>
-                                Now Playing
-                              </span>
-                            )}
-                            <div className="q-track-title" style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '1.3' }}>{item.track_name}</div>
-                            {item.artist && (
-                              <div className="q-track-artist" style={{ fontSize: '11px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '1.3' }}>{item.artist}</div>
-                            )}
-                            <div style={{ fontSize: '10px', color: 'var(--text-4)', lineHeight: '1.2' }}>added by @{item.added_by_name}</div>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                            {item.status === 'playing' ? (
-                              playbackState.isPlaying && (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '3px', paddingRight: '6px' }}>
-                                  <div className="queue-wave" style={{ height: '12px', width: '3px', animationDelay: '0s' }}></div>
-                                  <div className="queue-wave" style={{ height: '12px', width: '3px', animationDelay: '0.15s' }}></div>
-                                  <div className="queue-wave" style={{ height: '12px', width: '3px', animationDelay: '0.3s' }}></div>
-                                </div>
-                              )
-                            ) : (
-                              <>
-                                {/* Host Play Now Button */}
-                                {isHost && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (socket) {
-                                        socket.emit('play_now', {
-                                          track_uri: item.track_uri || item.id,
-                                          track_name: item.track_name,
-                                          artist: item.artist,
-                                          album_art_url: item.album_art_url,
-                                          duration_ms: item.duration_ms || 240000
-                                        });
-                                        triggerToast(`Playing "${item.track_name}"!`, 'success');
-                                      }
-                                    }}
-                                    title="Play Now"
-                                    style={{
-                                      background: 'rgba(255, 159, 28, 0.15)',
-                                      border: '1px solid rgba(255, 159, 28, 0.3)',
-                                      color: 'var(--theme-accent, #ff9f1c)',
-                                      padding: '6px',
-                                      borderRadius: '8px',
-                                      cursor: 'pointer',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      transition: 'all 0.2s'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      e.currentTarget.style.background = 'var(--theme-accent, #ff9f1c)';
-                                      e.currentTarget.style.color = '#000';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      e.currentTarget.style.background = 'rgba(255, 159, 28, 0.15)';
-                                      e.currentTarget.style.color = 'var(--theme-accent, #ff9f1c)';
-                                    }}
-                                  >
-                                    <Play size={13} fill="currentColor" />
-                                  </button>
-                                )}
-                                {me && me.is_registered && playlists.length > 0 && (
-                                  <div 
-                                    style={{ position: 'relative', display: 'flex', alignItems: 'center' }}
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <button
+                            {/* Premium Artwork Container with onError fallback */}
+                            <div style={{ width: '46px', height: '46px', position: 'relative', flexShrink: 0 }}>
+                              {item.album_art_url ? (
+                                <img 
+                                  decoding="async" 
+                                  loading="lazy" 
+                                  draggable="false" 
+                                  className="q-track-art" 
+                                  src={item.album_art_url} 
+                                  alt="" 
+                                  style={{ width: '100%', height: '100%', borderRadius: '10px', objectFit: 'cover', display: 'block' }}
+                                  onError={(e) => {
+                                    e.target.style.display = 'none';
+                                    const placeholder = e.target.parentElement.querySelector('.q-track-art-placeholder');
+                                    if (placeholder) placeholder.style.display = 'flex';
+                                  }}
+                                />
+                              ) : null}
+                              <div 
+                                className="q-track-art-placeholder" 
+                                style={{ 
+                                  display: item.album_art_url ? 'none' : 'flex', 
+                                  width: '100%', 
+                                  height: '100%', 
+                                  borderRadius: '10px', 
+                                  background: 'rgba(255,255,255,0.05)', 
+                                  alignItems: 'center', 
+                                  justifyContent: 'center',
+                                  border: '1px solid rgba(255,255,255,0.08)'
+                                }}
+                              >
+                                <Music size={16} style={{ color: 'rgba(255,255,255,0.4)' }} />
+                              </div>
+                            </div>
+
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, gap: '2px' }}>
+                              {item.status === 'playing' && (
+                                <span style={{ fontSize: '9px', fontWeight: 'bold', color: 'var(--amber)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '2px' }}>
+                                  Now Playing
+                                </span>
+                              )}
+                              <div className="q-track-title" style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '1.3' }}>{item.track_name}</div>
+                              {item.artist && (
+                                <div className="q-track-artist" style={{ fontSize: '11px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '1.3' }}>{item.artist}</div>
+                              )}
+                              <div style={{ fontSize: '10px', color: 'var(--text-4)', lineHeight: '1.2' }}>added by @{item.added_by_name}</div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                              {item.status === 'playing' ? (
+                                playbackState.isPlaying && (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '3px', paddingRight: '6px' }}>
+                                    <div className="queue-wave" style={{ height: '12px', width: '3px', animationDelay: '0s' }}></div>
+                                    <div className="queue-wave" style={{ height: '12px', width: '3px', animationDelay: '0.15s' }}></div>
+                                    <div className="queue-wave" style={{ height: '12px', width: '3px', animationDelay: '0.3s' }}></div>
+                                  </div>
+                                )
+                              ) : (
+                                <>
+                                  {/* Host Play Now Button */}
+                                  {isHost && (
+                                    <motion.button
+                                      type="button"
+                                      whileHover={{ scale: 1.15 }}
+                                      whileTap={{ scale: 0.88 }}
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        setActiveQueueDropdownId(activeQueueDropdownId === item.id ? null : item.id);
+                                        if (socket) {
+                                          socket.emit('play_now', {
+                                            track_uri: item.track_uri || item.id,
+                                            track_name: item.track_name,
+                                            artist: item.artist,
+                                            album_art_url: item.album_art_url,
+                                            duration_ms: item.duration_ms || 240000
+                                          });
+                                          triggerToast(`Playing "${item.track_name}"!`, 'success');
+                                        }
                                       }}
-                                      title="Add to Playlist"
+                                      title="Play Now"
                                       style={{
-                                        background: activeQueueDropdownId === item.id ? 'rgba(255, 159, 28, 0.15)' : 'rgba(255,255,255,0.03)',
-                                        border: '1px solid rgba(255, 255, 255, 0.08)',
-                                        color: activeQueueDropdownId === item.id ? 'var(--theme-accent, #ff9f1c)' : '#aaa',
+                                        background: 'rgba(255, 159, 28, 0.15)',
+                                        border: '1px solid rgba(255, 159, 28, 0.3)',
+                                        color: 'var(--theme-accent, #ff9f1c)',
                                         padding: '6px',
                                         borderRadius: '8px',
                                         cursor: 'pointer',
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        transition: 'all 0.2s'
-                                      }}
-                                      onMouseEnter={(e) => {
-                                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-                                        e.currentTarget.style.color = '#fff';
-                                      }}
-                                      onMouseLeave={(e) => {
-                                        const isActive = activeQueueDropdownId === item.id;
-                                        e.currentTarget.style.background = isActive ? 'rgba(255, 159, 28, 0.15)' : 'rgba(255,255,255,0.03)';
-                                        e.currentTarget.style.color = isActive ? 'var(--theme-accent, #ff9f1c)' : '#aaa';
                                       }}
                                     >
-                                      <ListPlus size={14} />
-                                    </button>
+                                      <Play size={13} fill="currentColor" />
+                                    </motion.button>
+                                  )}
+                                  {me && me.is_registered && playlists.length > 0 && (
+                                    <div 
+                                      style={{ position: 'relative', display: 'flex', alignItems: 'center' }}
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <motion.button
+                                        whileHover={{ scale: 1.15 }}
+                                        whileTap={{ scale: 0.88 }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setActiveQueueDropdownId(activeQueueDropdownId === item.id ? null : item.id);
+                                        }}
+                                        title="Add to Playlist"
+                                        style={{
+                                          background: activeQueueDropdownId === item.id ? 'rgba(255, 159, 28, 0.15)' : 'rgba(255,255,255,0.03)',
+                                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                                          color: activeQueueDropdownId === item.id ? 'var(--theme-accent, #ff9f1c)' : '#aaa',
+                                          padding: '6px',
+                                          borderRadius: '8px',
+                                          cursor: 'pointer',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                        }}
+                                      >
+                                        <ListPlus size={14} />
+                                      </motion.button>
 
-                                    {activeQueueDropdownId === item.id && (
-                                      <>
-                                        <div 
-                                          style={{
-                                            position: 'fixed',
-                                            inset: 0,
-                                            zIndex: 990,
-                                            cursor: 'default'
-                                          }} 
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setActiveQueueDropdownId(null);
-                                          }}
-                                        />
-                                        <div 
-                                          className="glass-card"
-                                          style={{
-                                            position: 'absolute',
-                                            right: 0,
-                                            top: '100%',
-                                            marginTop: '6px',
-                                            background: 'rgba(15, 15, 22, 0.98)',
-                                            backdropFilter: 'blur(12px)',
-                                            WebkitBackdropFilter: 'blur(12px)',
-                                            border: '1px solid rgba(255, 255, 255, 0.08)',
-                                            borderRadius: '12px',
-                                            padding: '6px 0',
-                                            minWidth: '170px',
-                                            zIndex: 991,
-                                            boxShadow: '0 12px 32px rgba(0,0,0,0.5)',
-                                            display: 'flex',
-                                            flexDirection: 'column'
-                                          }}
-                                        >
-                                          <div style={{
-                                            fontSize: '10px',
-                                            color: 'rgba(255,255,255,0.4)',
-                                            padding: '6px 12px 6px 12px',
-                                            borderBottom: '1px solid rgba(255,255,255,0.05)',
-                                            fontWeight: 700,
-                                            textTransform: 'uppercase',
-                                            letterSpacing: '0.08em'
-                                          }}>Add to Playlist</div>
-                                          <div style={{ maxHeight: '150px', overflowY: 'auto', padding: '4px 0' }}>
-                                            {playlists.map(p => (
-                                              <button
-                                                key={p.id}
-                                                onClick={async (e) => {
-                                                  e.stopPropagation();
-                                                  setActiveQueueDropdownId(null);
-                                                  try {
-                                                    const res = await fetch(`/playlists/${p.id}/tracks`, {
-                                                      method: 'POST',
-                                                      headers: { 'Content-Type': 'application/json' },
-                                                      body: JSON.stringify({
-                                                        track_uri: item.track_uri,
-                                                        track_name: item.track_name,
-                                                        artist: item.artist,
-                                                        album_art_url: item.album_art_url,
-                                                        duration_ms: item.duration_ms || 240000
-                                                      })
-                                                    });
-                                                    if (res.ok) {
-                                                      triggerToast('Added to playlist!', 'success');
-                                                    } else {
-                                                      triggerToast('Failed to add track', 'error');
+                                      {activeQueueDropdownId === item.id && (
+                                        <>
+                                          <div 
+                                            style={{
+                                              position: 'fixed',
+                                              inset: 0,
+                                              zIndex: 990,
+                                              cursor: 'default'
+                                            }} 
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setActiveQueueDropdownId(null);
+                                            }}
+                                          />
+                                          <div 
+                                            className="glass-card"
+                                            style={{
+                                              position: 'absolute',
+                                              right: 0,
+                                              top: '100%',
+                                              marginTop: '6px',
+                                              background: 'rgba(15, 15, 22, 0.98)',
+                                              backdropFilter: 'blur(12px)',
+                                              WebkitBackdropFilter: 'blur(12px)',
+                                              border: '1px solid rgba(255, 255, 255, 0.08)',
+                                              borderRadius: '12px',
+                                              padding: '6px 0',
+                                              minWidth: '170px',
+                                              zIndex: 991,
+                                              boxShadow: '0 12px 32px rgba(0,0,0,0.5)',
+                                              display: 'flex',
+                                              flexDirection: 'column'
+                                            }}
+                                          >
+                                            <div style={{
+                                              fontSize: '10px',
+                                              color: 'rgba(255,255,255,0.4)',
+                                              padding: '6px 12px 6px 12px',
+                                              borderBottom: '1px solid rgba(255,255,255,0.05)',
+                                              fontWeight: 700,
+                                              textTransform: 'uppercase',
+                                              letterSpacing: '0.08em'
+                                            }}>Add to Playlist</div>
+                                            <div style={{ maxHeight: '150px', overflowY: 'auto', padding: '4px 0' }}>
+                                              {playlists.map(p => (
+                                                <button
+                                                  key={p.id}
+                                                  onClick={async (e) => {
+                                                    e.stopPropagation();
+                                                    setActiveQueueDropdownId(null);
+                                                    try {
+                                                      const res = await fetch(`/playlists/${p.id}/tracks`, {
+                                                        method: 'POST',
+                                                        headers: { 'Content-Type': 'application/json' },
+                                                        body: JSON.stringify({
+                                                          track_uri: item.track_uri,
+                                                          track_name: item.track_name,
+                                                          artist: item.artist,
+                                                          album_art_url: item.album_art_url,
+                                                          duration_ms: item.duration_ms || 240000
+                                                        })
+                                                      });
+                                                      if (res.ok) {
+                                                        triggerToast(`Added to "${p.name}"!`, 'success');
+                                                      } else {
+                                                        triggerToast('Failed to add to playlist', 'error');
+                                                      }
+                                                    } catch (err) {
+                                                      triggerToast('Error adding to playlist', 'error');
                                                     }
-                                                  } catch (err) {
-                                                    triggerToast('Connection error', 'error');
-                                                  }
-                                                }}
-                                                style={{
-                                                  width: '100%',
-                                                  background: 'none',
-                                                  border: 'none',
-                                                  color: 'rgba(255,255,255,0.8)',
-                                                  textAlign: 'left',
-                                                  padding: '8px 16px',
-                                                  fontSize: '12px',
-                                                  fontWeight: 500,
-                                                  cursor: 'pointer',
-                                                  display: 'flex',
-                                                  alignItems: 'center',
-                                                  gap: '8px',
-                                                  transition: 'all 0.2s',
-                                                  overflow: 'hidden',
-                                                  textOverflow: 'ellipsis',
-                                                  whiteSpace: 'nowrap'
-                                                }}
-                                                onMouseEnter={(e) => {
-                                                  e.currentTarget.style.background = 'rgba(255, 159, 28, 0.1)';
-                                                  e.currentTarget.style.color = 'var(--theme-accent, #ff9f1c)';
-                                                }}
-                                                onMouseLeave={(e) => {
-                                                  e.currentTarget.style.background = 'none';
-                                                  e.currentTarget.style.color = 'rgba(255,255,255,0.8)';
-                                                }}
-                                              >
-                                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
-                                              </button>
-                                            ))}
+                                                  }}
+                                                  style={{
+                                                    width: '100%',
+                                                    textAlign: 'left',
+                                                    padding: '8px 12px',
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    color: 'rgba(255,255,255,0.8)',
+                                                    fontSize: '12px',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '8px',
+                                                  }}
+                                                  onMouseEnter={(e) => {
+                                                    e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                                                    e.currentTarget.style.color = '#fff';
+                                                  }}
+                                                  onMouseLeave={(e) => {
+                                                    e.currentTarget.style.background = 'none';
+                                                    e.currentTarget.style.color = 'rgba(255,255,255,0.8)';
+                                                  }}
+                                                >
+                                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                                                </button>
+                                              ))}
+                                            </div>
                                           </div>
-                                        </div>
-                                      </>
-                                    )}
-                                  </div>
-                                )}
-                                {(isHost || (me && item.added_by_user_id === me.id)) && (
-                                  <button className="btn-remove" onClick={() => handleRemoveQueueTrack(item.id)}>
-                                    ✕
-                                  </button>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      ))
-
+                                        </>
+                                      )}
+                                    </div>
+                                  )}
+                                  {(isHost || (me && item.added_by_user_id === me.id)) && (
+                                    <motion.button
+                                      whileHover={{ scale: 1.2, color: '#ff4d4d' }}
+                                      whileTap={{ scale: 0.85 }}
+                                      className="btn-remove"
+                                      onClick={() => handleRemoveQueueTrack(item.id)}
+                                      style={{ cursor: 'pointer', background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', padding: '4px' }}
+                                    >
+                                      ✕
+                                    </motion.button>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </Reorder.Item>
+                        ))}
+                      </Reorder.Group>
                     ) : (
                       <div className="empty">
                         <div className="empty-illustration">
@@ -4570,6 +4702,7 @@ export default function RoomClient({ roomId }) {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
             transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            onMouseMove={handleStageMouseMove}
             style={{
               position: 'fixed',
               inset: 0,
@@ -4593,12 +4726,34 @@ export default function RoomClient({ roomId }) {
                 backgroundImage: nowPlaying?.album_art_url ? `url(${nowPlaying.album_art_url})` : 'none',
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
-                filter: 'blur(110px) brightness(0.32) saturate(2.0)',
+                filter: 'blur(110px) brightness(0.28) saturate(2.0)',
                 transform: 'scale(1.3)',
                 pointerEvents: 'none',
                 transition: 'background-image 1.2s ease',
               }}
             />
+
+            {/* ✨ Dynamic Ambient Color Bleed & Drifting Bokeh */}
+            <div className="ambient-bokeh-layer">
+              <div
+                className="ambient-blob ambient-blob-1"
+                style={{
+                  background: `radial-gradient(circle, ${colorsRef.current[0] || '#ff9f1c'} 0%, transparent 70%)`
+                }}
+              />
+              <div
+                className="ambient-blob ambient-blob-2"
+                style={{
+                  background: `radial-gradient(circle, ${colorsRef.current[1] || '#8b5cf6'} 0%, transparent 70%)`
+                }}
+              />
+              <div
+                className="ambient-blob ambient-blob-3"
+                style={{
+                  background: `radial-gradient(circle, ${colorsRef.current[2] || '#ec4899'} 0%, transparent 70%)`
+                }}
+              />
+            </div>
 
             {/* Dark Vignette Radial Overlay */}
             <div
@@ -4613,8 +4768,8 @@ export default function RoomClient({ roomId }) {
             {/* Global Top Center Close (X) Button */}
             <motion.button
               type="button"
-              whileHover={{ scale: 1.15, background: 'rgba(0, 0, 0, 0.75)' }}
-              whileTap={{ scale: 0.9 }}
+              whileHover={{ scale: 1.15, background: 'rgba(0, 0, 0, 0.75)', transition: { type: 'spring', stiffness: 420, damping: 16 } }}
+              whileTap={{ scale: 0.9, transition: { type: 'spring', stiffness: 500, damping: 20 } }}
               onClick={() => setIsStageMode(false)}
               style={{
                 position: 'absolute',
@@ -4770,13 +4925,7 @@ export default function RoomClient({ roomId }) {
                       scale: { duration: 0.3, ease: [0.16, 1, 0.3, 1] },
                       x: { type: 'spring', damping: 18, stiffness: 140 },
                     }}
-                    onWheel={(e) => {
-                      e.preventDefault();
-                      const step = e.deltaY < 0 ? 5 : -5;
-                      const next = Math.max(0, Math.min(100, (volume || 0) + step));
-                      setVolume(next);
-                      if (next > 0 && isMuted) setIsMuted(false);
-                    }}
+                    onWheel={handleExpVolumeScroll}
                     style={{
                       position: 'relative',
                       width: '100%',
@@ -5571,76 +5720,99 @@ export default function RoomClient({ roomId }) {
 
                   <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', scrollbarWidth: 'none' }}>
                     {queue.length > 0 ? (
-                      queue.map((item, idx) => (
-                        <div
-                          key={item.id}
-                          onDoubleClick={() => {
-                            if (isHost && socket && item.status !== 'playing') {
-                              socket.emit('play_now', {
-                                track_uri: item.track_uri || item.id,
-                                track_name: item.track_name,
-                                artist: item.artist,
-                                album_art_url: item.album_art_url,
-                                duration_ms: item.duration_ms || 240000
-                              });
-                              triggerToast(`Playing "${item.track_name}"!`, 'success');
-                            }
-                          }}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '12px',
-                            padding: '10px 14px',
-                            borderRadius: '14px',
-                            background: item.status === 'playing' ? 'rgba(255, 159, 28, 0.18)' : 'rgba(255, 255, 255, 0.05)',
-                            border: item.status === 'playing' ? '1px solid rgba(255, 159, 28, 0.35)' : '1px solid rgba(255, 255, 255, 0.06)',
-                            transition: 'all 0.2s',
-                          }}
-                        >
-                          <img
-                            src={item.album_art_url || '/placeholder.svg'}
-                            alt=""
-                            style={{ width: '40px', height: '40px', borderRadius: '10px', objectFit: 'cover' }}
-                            onError={(e) => { e.target.style.display = 'none'; }}
-                          />
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: '14px', fontWeight: 700, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {item.track_name}
+                      <Reorder.Group
+                        axis="y"
+                        values={queue}
+                        onReorder={handleReorderQueue}
+                        style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: 0, margin: 0, listStyle: 'none' }}
+                      >
+                        {queue.map((item, idx) => (
+                          <Reorder.Item
+                            key={item.id}
+                            value={item}
+                            dragListener={isHost && item.status !== 'playing'}
+                            whileDrag={{
+                              scale: 1.025,
+                              boxShadow: '0 16px 36px rgba(0,0,0,0.8), 0 0 20px rgba(255, 159, 28, 0.35)',
+                              zIndex: 100,
+                              cursor: 'grabbing'
+                            }}
+                            onDoubleClick={() => {
+                              if (isHost && socket && item.status !== 'playing') {
+                                socket.emit('play_now', {
+                                  track_uri: item.track_uri || item.id,
+                                  track_name: item.track_name,
+                                  artist: item.artist,
+                                  album_art_url: item.album_art_url,
+                                  duration_ms: item.duration_ms || 240000
+                                });
+                                triggerToast(`Playing "${item.track_name}"!`, 'success');
+                              }
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '12px',
+                              padding: '10px 14px',
+                              borderRadius: '14px',
+                              background: item.status === 'playing' ? 'rgba(255, 159, 28, 0.18)' : 'rgba(255, 255, 255, 0.05)',
+                              border: item.status === 'playing' ? '1px solid rgba(255, 159, 28, 0.35)' : '1px solid rgba(255, 255, 255, 0.06)',
+                              cursor: isHost && item.status !== 'playing' ? 'grab' : 'default',
+                              position: 'relative',
+                            }}
+                          >
+                            {isHost && item.status !== 'playing' && (
+                              <div style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.3)', paddingRight: '2px', cursor: 'grab' }} title="Drag to reorder">
+                                <GripVertical size={14} />
+                              </div>
+                            )}
+                            <img
+                              src={item.album_art_url || '/placeholder.svg'}
+                              alt=""
+                              style={{ width: '40px', height: '40px', borderRadius: '10px', objectFit: 'cover' }}
+                              onError={(e) => { e.target.style.display = 'none'; }}
+                            />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: '14px', fontWeight: 700, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {item.track_name}
+                              </div>
+                              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.65)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {item.artist}
+                              </div>
                             </div>
-                            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.65)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {item.artist}
-                            </div>
-                          </div>
-                          {isHost && item.status !== 'playing' && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (socket) {
-                                  socket.emit('play_now', {
-                                    track_uri: item.track_uri || item.id,
-                                    track_name: item.track_name,
-                                    artist: item.artist,
-                                    album_art_url: item.album_art_url,
-                                    duration_ms: item.duration_ms || 240000
-                                  });
-                                  triggerToast(`Playing "${item.track_name}"!`, 'success');
-                                }
-                              }}
-                              style={{
-                                background: 'rgba(255, 159, 28, 0.25)',
-                                border: 'none',
-                                color: 'var(--theme-accent, #ff9f1c)',
-                                padding: '6px',
-                                borderRadius: '8px',
-                                cursor: 'pointer',
-                              }}
-                              title="Play Now"
-                            >
-                              <Play size={14} fill="currentColor" />
-                            </button>
-                          )}
-                        </div>
-                      ))
+                            {isHost && item.status !== 'playing' && (
+                              <motion.button
+                                type="button"
+                                whileHover={{ scale: 1.15 }}
+                                whileTap={{ scale: 0.9 }}
+                                onClick={() => {
+                                  if (socket) {
+                                    socket.emit('play_now', {
+                                      track_uri: item.track_uri || item.id,
+                                      track_name: item.track_name,
+                                      artist: item.artist,
+                                      album_art_url: item.album_art_url,
+                                      duration_ms: item.duration_ms || 240000
+                                    });
+                                    triggerToast(`Playing "${item.track_name}"!`, 'success');
+                                  }
+                                }}
+                                style={{
+                                  background: 'rgba(255, 159, 28, 0.25)',
+                                  border: 'none',
+                                  color: 'var(--theme-accent, #ff9f1c)',
+                                  padding: '6px',
+                                  borderRadius: '8px',
+                                  cursor: 'pointer',
+                                }}
+                                title="Play Now"
+                              >
+                                <Play size={14} fill="currentColor" />
+                              </motion.button>
+                            )}
+                          </Reorder.Item>
+                        ))}
+                      </Reorder.Group>
                     ) : (
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>
                         Queue is empty
@@ -5801,28 +5973,36 @@ export default function RoomClient({ roomId }) {
               )}
             </div>
 
-            {/* Keyboard shortcut hint — shown briefly */}
-            <motion.div
-              initial={{ opacity: 1 }}
-              animate={{ opacity: 0 }}
-              transition={{ duration: 0.5, delay: 3 }}
-              style={{
-                position: 'absolute',
-                bottom: '16px',
-                right: '24px',
-                zIndex: 10,
-                display: 'flex',
-                gap: '12px',
-                pointerEvents: 'none',
-              }}
-            >
-              <span style={{ fontSize: '11px', fontWeight: 500, color: 'rgba(255,255,255,0.35)', background: 'rgba(0,0,0,0.3)', padding: '4px 8px', borderRadius: '6px' }}>
-                Esc to exit
-              </span>
-              <span style={{ fontSize: '11px', fontWeight: 500, color: 'rgba(255,255,255,0.35)', background: 'rgba(0,0,0,0.3)', padding: '4px 8px', borderRadius: '6px' }}>
-                Space to play/pause
-              </span>
-            </motion.div>
+            {/* ⌨️ Sleek Stage Mode Keyboard Shortcuts HUD */}
+            <AnimatePresence>
+              {(showKeyboardHUD || (stageMouseActive && !showStageQueue)) && (
+                <motion.div
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 15 }}
+                  transition={{ duration: 0.25 }}
+                  className="stage-hud-container"
+                >
+                  <div className="stage-hud-badge"><span className="stage-hud-key">Space</span> Play/Pause</div>
+                  <div className="stage-hud-divider" />
+                  <div className="stage-hud-badge"><span className="stage-hud-key">←</span><span className="stage-hud-key">→</span> Seek 5s</div>
+                  <div className="stage-hud-divider" />
+                  <div className="stage-hud-badge"><span className="stage-hud-key">↑</span><span className="stage-hud-key">↓</span> Volume</div>
+                  <div className="stage-hud-divider" />
+                  <div className="stage-hud-badge"><span className="stage-hud-key">L</span> Like</div>
+                  <div className="stage-hud-divider" />
+                  <div className="stage-hud-badge"><span className="stage-hud-key">S</span> Shuffle</div>
+                  <div className="stage-hud-divider" />
+                  <div className="stage-hud-badge"><span className="stage-hud-key">R</span> Repeat</div>
+                  <div className="stage-hud-divider" />
+                  <div className="stage-hud-badge"><span className="stage-hud-key">Q</span> Queue</div>
+                  <div className="stage-hud-divider" />
+                  <div className="stage-hud-badge"><span className="stage-hud-key">?</span> Shortcuts</div>
+                  <div className="stage-hud-divider" />
+                  <div className="stage-hud-badge"><span className="stage-hud-key">Esc</span> Exit</div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
       </AnimatePresence>

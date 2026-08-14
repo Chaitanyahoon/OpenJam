@@ -2429,4 +2429,169 @@ input[type="range"].mp-util-volume-slider {
   }
 }
 
+/* 🌸 Tactile Spring Hover States & Interactive Physics */
+.mp-btn,
+.mp-btn-hero,
+.mp-icon-btn,
+.mp-theater-btn,
+.stage-spring-btn {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease, box-shadow 0.25s ease, color 0.2s ease !important;
+}
+
+.mp-btn:hover,
+.mp-icon-btn:hover,
+.mp-theater-btn:hover,
+.stage-spring-btn:hover {
+  transform: scale(1.12);
+}
+
+.mp-btn:active,
+.mp-btn-hero:active,
+.mp-icon-btn:active,
+.mp-theater-btn:active,
+.stage-spring-btn:active {
+  transform: scale(0.92);
+}
+
+/* ✨ Dynamic Ambient Bokeh & Drifting Blobs */
+.ambient-bokeh-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.ambient-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.55;
+  mix-blend-mode: screen;
+  will-change: transform, opacity;
+}
+
+.ambient-blob-1 {
+  width: 50vw;
+  height: 50vw;
+  max-width: 600px;
+  max-height: 600px;
+  top: 10%;
+  left: 5%;
+  background: radial-gradient(circle, var(--dynamic-accent-1, #ff9f1c) 0%, transparent 70%);
+  animation: driftBlob1 22s ease-in-out infinite alternate, bokehBreathe 6s ease-in-out infinite alternate;
+}
+
+.ambient-blob-2 {
+  width: 55vw;
+  height: 55vw;
+  max-width: 650px;
+  max-height: 650px;
+  bottom: 5%;
+  right: 5%;
+  background: radial-gradient(circle, var(--dynamic-accent-2, #8b5cf6) 0%, transparent 70%);
+  animation: driftBlob2 26s ease-in-out infinite alternate, bokehBreathe 8s ease-in-out infinite alternate;
+}
+
+.ambient-blob-3 {
+  width: 45vw;
+  height: 45vw;
+  max-width: 500px;
+  max-height: 500px;
+  top: 40%;
+  left: 45%;
+  background: radial-gradient(circle, var(--dynamic-accent-3, #ec4899) 0%, transparent 70%);
+  animation: driftBlob3 18s ease-in-out infinite alternate, bokehBreathe 7s ease-in-out infinite alternate;
+}
+
+@keyframes driftBlob1 {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(60px, 80px) scale(1.18); }
+  100% { transform: translate(-40px, 50px) scale(0.92); }
+}
+
+@keyframes driftBlob2 {
+  0% { transform: translate(0, 0) scale(1.05); }
+  50% { transform: translate(-80px, -60px) scale(0.9); }
+  100% { transform: translate(50px, -40px) scale(1.22); }
+}
+
+@keyframes driftBlob3 {
+  0% { transform: translate(0, 0) scale(0.95); }
+  50% { transform: translate(70px, -70px) scale(1.15); }
+  100% { transform: translate(-60px, 60px) scale(1.05); }
+}
+
+@keyframes bokehBreathe {
+  0% { opacity: 0.45; }
+  50% { opacity: 0.7; }
+  100% { opacity: 0.45; }
+}
+
+/* ⌨️ Stage Mode Keyboard HUD */
+.stage-hud-container {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(12, 12, 18, 0.78);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 99px;
+  padding: 6px 16px;
+  z-index: 60;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6);
+  user-select: none;
+}
+
+.stage-hud-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  white-space: nowrap;
+}
+
+.stage-hud-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 5px;
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  font-weight: 700;
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.stage-hud-divider {
+  width: 1px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.15);
+  margin: 0 2px;
+}
+
+/* ↕️ Reorder Queue Item Styles */
+.reorder-item-card {
+  list-style: none;
+  touch-action: none;
+  cursor: grab;
+}
+
+.reorder-item-card:active {
+  cursor: grabbing;
+}
+
+
 
