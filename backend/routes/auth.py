@@ -297,14 +297,27 @@ async def discord_callback(request: Request, code: str = ""):
 
         db = SessionLocal()
         try:
+            # Check by Discord ID first
             user = db.query(User).filter(User.discord_id == discord_id).first()
+            
+            # Check if current session user exists and can be linked
+            if not user:
+                current_user_data = get_current_user_id(request, include_name=True)
+                if current_user_data and current_user_data.get("id"):
+                    existing_session_user = db.query(User).filter(User.id == current_user_data["id"]).first()
+                    if existing_session_user:
+                        user = existing_session_user
+
             if user:
-                # Update existing user's profile (preserving custom display name and avatar)
+                # Update existing user's profile with fresh Discord details
+                user.discord_id = discord_id
                 user.discord_username = raw_discord_handle
-                if not user.display_name:
+                user.avatar_url = avatar_url  # Always sync latest Discord avatar
+                
+                # If display name was a generic anonymous name or empty, upgrade to Discord name
+                if not user.display_name or user.display_name.startswith("Jammer-") or user.display_name == "Jammer":
                     user.display_name = discord_display_name
-                if not user.avatar_url:
-                    user.avatar_url = avatar_url
+                    
                 if not user.username:
                     import re
                     base_clean = re.sub(r'[^a-zA-Z0-9_]', '', raw_discord_handle).lower()
@@ -319,17 +332,18 @@ async def discord_callback(request: Request, code: str = ""):
                         candidate = f"{base_clean}{suffix}"
                         counter += 1
                     user.username = candidate
+                    
                 db.commit()
+                db.refresh(user)
                 user_id = user.id
-                # Grab updated values to sign into session token
                 display_name = user.display_name
                 avatar_url = user.avatar_url
-                log_auth_event(f"discord_callback: updated existing user in DB (id={user_id})")
+                log_auth_event(f"discord_callback: updated existing user in DB (id={user_id}, handle=@{raw_discord_handle})")
             else:
-                # Create new user
+                # Create new registered user
                 user_id = str(uuid.uuid4())
                 
-                # Generate default username
+                # Generate clean username
                 import re
                 base_clean = re.sub(r'[^a-zA-Z0-9_]', '', raw_discord_handle).lower()
                 if not base_clean or len(base_clean) < 3:
@@ -353,8 +367,9 @@ async def discord_callback(request: Request, code: str = ""):
                 )
                 db.add(user)
                 db.commit()
+                db.refresh(user)
                 display_name = discord_display_name
-                log_auth_event(f"discord_callback: created new user in DB (id={user_id})")
+                log_auth_event(f"discord_callback: created new user in DB (id={user_id}, handle=@{raw_discord_handle})")
         finally:
             db.close()
  

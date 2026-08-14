@@ -59,6 +59,7 @@ export default function RoomClient({ roomId }) {
   const [searchResults, setSearchResults] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [bulkImportText, setBulkImportText] = useState('');
 
   // Modals & Panels
