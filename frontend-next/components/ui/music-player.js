@@ -294,7 +294,7 @@ export const MusicPlayer = ({
         <div className={`mp-theater-body ${lyricsVisible ? 'lyrics-visible' : 'lyrics-hidden'}`} style={{ height: '100%', width: '100%', boxSizing: 'border-box' }}>
           {/* Left Side: Turntable Controls */}
           <div className="mp-theater-left">
-            {/* Album artwork container with Interactive Spinning Vinyl Record */}
+            {/* Album artwork container — Clean, pristine square card with play overlay */}
             <div className="mp-artwork-container">
               <div
                 className="mp-artwork-outer"
@@ -302,89 +302,66 @@ export const MusicPlayer = ({
                 onMouseLeave={() => setArtworkHovered(false)}
                 onClick={togglePlay}
                 onWheel={handleExpVolumeScroll}
-                style={{ position: 'relative', width: '100%', maxWidth: '330px', margin: '0 auto', cursor: 'pointer' }}
+                style={{ position: 'relative', width: '100%', maxWidth: '280px', margin: '0 auto', cursor: 'pointer' }}
                 title={`Click to ${isPlaying ? 'Pause' : 'Play'} • Scroll for volume`}
               >
-                {/* Spinning Vinyl Record Disc Peek */}
-                <div
-                  className={`mp-vinyl-disc ${isPlaying ? 'spinning' : ''}`}
-                  style={{
-                    position: 'absolute',
-                    right: '0px',
-                    top: '5%',
-                    width: '90%',
-                    aspectRatio: '1/1',
-                    borderRadius: '50%',
-                    background: 'radial-gradient(circle, #08080c 0%, #15151c 16%, #0a0a0f 24%, #1a1a24 32%, #0d0d14 42%, #1e1e2c 54%, #0a0a10 66%, #1a1a24 78%, #08080c 90%, #040406 100%)',
-                    boxShadow: artworkHovered
-                      ? '0 20px 48px rgba(0,0,0,0.95), 0 0 24px rgba(255, 159, 28, 0.3), inset 0 0 0 2px rgba(255,255,255,0.15)'
-                      : '0 16px 36px rgba(0,0,0,0.85), inset 0 0 0 2px rgba(255,255,255,0.08)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 1,
-                    transform: artworkHovered
-                      ? 'translateX(48px) rotate(18deg)'
-                      : (isPlaying ? 'translateX(22px) rotate(0deg)' : 'translateX(0px) rotate(0deg)'),
-                    transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease',
-                    overflow: 'hidden',
-                  }}
-                >
-                  {/* Vinyl Conical Sheen */}
-                  <div
-                    style={{
-                      position: 'absolute',
-                      inset: 0,
-                      borderRadius: '50%',
-                      background: 'conic-gradient(from 45deg, transparent 0deg, rgba(255,255,255,0.08) 35deg, transparent 70deg, transparent 180deg, rgba(255,255,255,0.08) 215deg, transparent 250deg)',
-                    }}
-                  />
-                  {/* Vinyl Center label */}
-                  <div
-                    style={{
-                      width: '36%',
-                      height: '36%',
-                      borderRadius: '50%',
-                      background: '#121218',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      border: '2px solid rgba(255, 159, 28, 0.4)',
-                      boxShadow: '0 0 12px rgba(0,0,0,0.8)',
-                      position: 'relative',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    {track.artwork ? (
-                      <img src={track.artwork} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.9 }} />
-                    ) : (
-                      <Music className="h-4 w-4" style={{ color: 'var(--theme-accent, #ff9f1c)' }} />
-                    )}
-                    <div style={{ position: 'absolute', width: '18%', height: '18%', borderRadius: '50%', background: '#040406', border: '1.5px solid rgba(255,255,255,0.4)', zIndex: 3 }} />
-                  </div>
-                </div>
-
                 {/* Album Cover Art Sleeve */}
                 <div
                   className="mp-artwork-wrapper"
                   style={{
                     position: 'relative',
-                    zIndex: 2,
-                    transform: artworkHovered ? 'scale(1.02) translateX(-8px)' : 'scale(1)',
-                    transition: 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s ease',
+                    borderRadius: '22px',
+                    overflow: 'hidden',
+                    transform: artworkHovered ? 'scale(1.025)' : 'scale(1)',
+                    transition: 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease',
                     boxShadow: artworkHovered
-                      ? '0 24px 60px rgba(0,0,0,0.85), 0 0 30px rgba(255,159,28,0.25), inset 0 1px 2px rgba(255,255,255,0.3)'
-                      : '0 20px 50px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.1)',
+                      ? '0 24px 60px rgba(0,0,0,0.85), 0 0 32px rgba(255,159,28,0.25), inset 0 1px 2px rgba(255,255,255,0.3)'
+                      : '0 16px 40px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.1)',
                   }}
                 >
                   {track.artwork ? (
-                    <img decoding="async" loading="lazy" draggable="false" src={track.artwork} alt="" className="mp-artwork-img" />
+                    <img decoding="async" loading="lazy" draggable="false" src={track.artwork} alt="" className="mp-artwork-img" style={{ display: 'block', width: '100%', aspectRatio: '1/1', objectFit: 'cover' }} />
                   ) : (
-                    <div className="mp-artwork-fallback">
+                    <div className="mp-artwork-fallback" style={{ width: '100%', aspectRatio: '1/1' }}>
                       <Music className="h-12 w-12" />
                     </div>
                   )}
                   <div className="mp-artwork-glass" />
+
+                  {/* Clean Hover Play/Pause Overlay Indicator */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      background: 'rgba(0,0,0,0.35)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      opacity: artworkHovered ? 1 : 0,
+                      transition: 'opacity 0.25s ease',
+                      pointerEvents: 'none',
+                      zIndex: 6,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '52px',
+                        height: '52px',
+                        borderRadius: '50%',
+                        background: 'rgba(255, 255, 255, 0.95)',
+                        color: '#0a0a0f',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                        transform: artworkHovered ? 'scale(1)' : 'scale(0.85)',
+                        transition: 'transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                      }}
+                    >
+                      {isPlaying ? <Pause size={22} fill="currentColor" /> : <Play size={22} fill="currentColor" style={{ marginLeft: '3px' }} />}
+                    </div>
+                  </div>
+
                   {/* Holographic light sheen sweep */}
                   <div
                     style={{
