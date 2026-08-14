@@ -327,6 +327,15 @@ async def resolve_youtube(q: str = ""):
     return {"video_id": video_id}
 
 
+@router.get("/search/alternate")
+async def get_alternate_track(q: str = "", exclude: str = ""):
+    """Find an alternate YouTube video ID when a track is restricted in region or unavailable."""
+    if not q.strip():
+        return {"video_id": None}
+    alt_id = await lastfm_service.resolve_alternate_video(q.strip(), exclude_id=exclude.strip() or None)
+    return {"video_id": alt_id}
+
+
 @router.get("/search/recommendations")
 async def get_recommendations():
     """Return trending/popular tracks as search starting suggestions (no key needed)."""

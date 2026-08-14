@@ -43,8 +43,11 @@ class MusicSearchService:
                         logger.error(f"Failed to initialize YTMusic: {e}")
         return self._ytmusic
 
-    async def search_tracks(self, query: str, limit: int = 10) -> list:
-        """Search tracks asynchronously using iTunes API and YouTube Music."""
+    async def search_tracks(self, query: str, limit: int = 12) -> list:
+        """Search tracks asynchronously using iTunes API, YouTube Music, and YouTube search fallback.
+        
+        Runs all 3 providers in parallel for instant, comprehensive results.
+        """
         if not query or not query.strip():
             return []
 
@@ -77,39 +80,77 @@ class MusicSearchService:
             })
             try:
                 url = f"{ITUNES_API}?{params}"
-                async with httpx.AsyncClient(timeout=6.0) as client:
+                async with httpx.AsyncClient(timeout=3.5) as client:
                     resp = await client.get(url, headers={"User-Agent": "OpenJam/1.0"})
-                    resp.raise_for_status()
-                    data = resp.json()
-                results = data.get("results", [])
-                tracks = []
-                for item in results:
-                    if item.get("kind") != "song":
-                        continue
-                    name = item.get("trackName", "Unknown")
-                    artist = item.get("artistName", "Unknown")
-                    artwork = (item.get("artworkUrl100") or "").replace("100x100bb", "600x600bb")
-                    duration_ms = item.get("trackTimeMillis") or 0
-                    youtube_query = f"{name} {artist} official audio"
-                    tracks.append({
-                        "uri": youtube_query,
-                        "name": name,
-                        "artist": artist,
-                        "album_art_url": artwork or None,
-                        "duration_ms": duration_ms,
-                    })
-                return tracks
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        results = data.get("results", [])
+                        tracks = []
+                        for item in results:
+                            if item.get("kind") != "song":
+                                continue
+                            name = item.get("trackName", "Unknown")
+                            artist = item.get("artistName", "Unknown")
+                            artwork = (item.get("artworkUrl100") or "").replace("100x100bb", "600x600bb")
+                            duration_ms = item.get("trackTimeMillis") or 0
+                            youtube_query = f"{name} {artist} official audio"
+                            tracks.append({
+                                "uri": youtube_query,
+                                "name": name,
+                                "artist": artist,
+                                "album_art_url": artwork or None,
+                                "duration_ms": duration_ms,
+                            })
+                        return tracks
             except Exception as e:
-                logger.warning(f"iTunes search failed: {e}")
-                return []
+                logger.debug(f"iTunes search failed: {e}")
+            return []
 
-        # Run both searches in parallel for maximum speed
+        async def _search_youtube_scrape():
+            """Fast YouTube HTML search fallback for remixes, OSTs, and non-Western tracks."""
+            try:
+                encoded = urllib.parse.quote_plus(query.strip())
+                url = f"https://www.youtube.com/results?search_query={encoded}"
+                async with httpx.AsyncClient(timeout=3.5) as client:
+                    resp = await client.get(url, headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                        "Accept-Language": "en-US,en;q=0.9",
+                    })
+                    if resp.status_code == 200:
+                        html = resp.text
+                        tracks = []
+                        # Extract videoId and title blocks
+                        video_matches = re.findall(
+                            r'\"videoRenderer\":\{\"videoId\":\"([a-zA-Z0-9_-]{11})\".*?\"title\":\{\"runs\":\[\{\"text\":\"(.*?)\"\}\].*?\"ownerText\":\{\"runs\":\[\{\"text\":\"(.*?)\"\}\]',
+                            html
+                        )
+                        for vid, title, channel in video_matches[:8]:
+                            # Clean up title
+                            clean_title = title.replace("\\u0026", "&").replace("\\", "")
+                            clean_channel = channel.replace("\\u0026", "&").replace("\\", "")
+                            tracks.append({
+                                "uri": vid,
+                                "name": clean_title,
+                                "artist": clean_channel,
+                                "album_art_url": f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg",
+                                "duration_ms": 210000,
+                            })
+                        return tracks
+            except Exception as e:
+                logger.debug(f"YouTube scrape search failed: {e}")
+            return []
+
+        # Run iTunes, YTMusic, and YouTube scrape in parallel with tight timeouts
         itunes_task = _search_itunes()
         ytmusic_task = asyncio.to_thread(self._search_via_ytmusic, query, limit)
+        yt_scrape_task = _search_youtube_scrape()
 
-        itunes_tracks, ytm_tracks = await asyncio.gather(itunes_task, ytmusic_task)
+        gathered = await asyncio.gather(itunes_task, ytmusic_task, yt_scrape_task, return_exceptions=True)
+        itunes_tracks = gathered[0] if isinstance(gathered[0], list) else []
+        ytm_tracks = gathered[1] if isinstance(gathered[1], list) else []
+        yt_scrape_tracks = gathered[2] if isinstance(gathered[2], list) else []
 
-        # Merge results, prioritizing iTunes (official tracks) first, then YTMusic (remixes/covers/etc.)
+        # Merge results, prioritizing iTunes first, then YTMusic, then Scrape
         tracks = []
         seen = set()
 
@@ -125,21 +166,28 @@ class MusicSearchService:
                 tracks.append(t)
                 seen.add(key)
 
+        for t in yt_scrape_tracks:
+            key = f"{t['name'].lower()}_{t['artist'].lower()}"
+            if key not in seen:
+                tracks.append(t)
+                seen.add(key)
+
         logger.debug(f"Combined search '{query}' → {len(tracks)} results")
 
         final_tracks = tracks[:limit]
-        self._search_cache[cache_key] = final_tracks
-        if len(self._search_cache) > 200:
-            first_key = next(iter(self._search_cache))
-            self._search_cache.pop(first_key, None)
+        if final_tracks:
+            self._search_cache[cache_key] = final_tracks
+            if len(self._search_cache) > 300:
+                first_key = next(iter(self._search_cache))
+                self._search_cache.pop(first_key, None)
 
-        try:
-            from backend.services.redis_store import RedisStore
-            redis_store = RedisStore()
-            if redis_store.client and final_tracks:
-                redis_store.client.setex(f"openjam:search:{cache_key}", 86400, json.dumps(final_tracks))
-        except Exception as e:
-            logger.warning(f"Failed to save search results to Redis: {e}")
+            try:
+                from backend.services.redis_store import RedisStore
+                redis_store = RedisStore()
+                if redis_store.client:
+                    redis_store.client.setex(f"openjam:search:{cache_key}", 86400, json.dumps(final_tracks))
+            except Exception as e:
+                logger.warning(f"Failed to save search results to Redis: {e}")
 
         return final_tracks
 
@@ -155,19 +203,18 @@ class MusicSearchService:
             try:
                 results = ytm.search(query, filter="songs", limit=limit)
             except Exception as e:
-                logger.warning(f"YTMusic filtered search failed: {e}")
+                logger.debug(f"YTMusic filtered search: {e}")
                 
             # If no results, do a general search
             if not results:
                 try:
                     results = ytm.search(query, limit=limit)
                 except Exception as e:
-                    logger.warning(f"YTMusic general search failed: {e}")
+                    logger.debug(f"YTMusic general search: {e}")
                     return []
                     
             tracks = []
             for r in results[:limit]:
-                # We need videoId to resolve it
                 video_id = r.get("videoId")
                 if not video_id:
                     continue
@@ -194,7 +241,7 @@ class MusicSearchService:
                 duration_ms = (duration_seconds * 1000) if duration_seconds else 0
                 
                 tracks.append({
-                    "uri": video_id,  # Set directly to video_id
+                    "uri": video_id,
                     "name": name,
                     "artist": artist,
                     "album_art_url": artwork or None,
@@ -205,6 +252,51 @@ class MusicSearchService:
         except Exception as e:
             logger.error(f"YTMusic search failed for query '{query}': {e}")
             return []
+
+    async def resolve_alternate_video(self, query: str, exclude_id: str = None) -> str | None:
+        """Find an alternate working YouTube video ID (audio / lyric / clean upload) for region-restricted tracks."""
+        if not query or not query.strip():
+            return None
+        
+        clean_q = f"{query.strip()} audio"
+        
+        # 1. Try ytmusicapi first
+        def _find_ytm():
+            try:
+                ytm = self._get_ytmusic()
+                if ytm:
+                    results = ytm.search(clean_q, filter="songs", limit=5) or ytm.search(clean_q, limit=5)
+                    if results:
+                        for r in results:
+                            vid = r.get("videoId")
+                            if vid and vid != exclude_id:
+                                return vid
+            except Exception:
+                pass
+            return None
+        
+        alt_id = await asyncio.to_thread(_find_ytm)
+        if alt_id:
+            return alt_id
+            
+        # 2. Try YouTube HTML Search
+        try:
+            encoded = urllib.parse.quote_plus(f"{query.strip()} lyric video")
+            url = f"https://www.youtube.com/results?search_query={encoded}"
+            async with httpx.AsyncClient(timeout=4.0) as client:
+                resp = await client.get(url, headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "Accept-Language": "en-US,en;q=0.9",
+                })
+                if resp.status_code == 200:
+                    matches = re.findall(r'"videoId":"([a-zA-Z0-9_-]{11})"', resp.text)
+                    for vid in matches:
+                        if vid and vid != exclude_id:
+                            return vid
+        except Exception as e:
+            logger.debug(f"Alternate search scrape failed: {e}")
+            
+        return None
 
     async def resolve_youtube(self, query: str) -> str | None:
         """Resolve a YouTube video ID from a search query asynchronously.

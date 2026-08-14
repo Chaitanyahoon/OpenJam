@@ -260,8 +260,36 @@ export default class YouTubePlayer {
           };
           if (map[e.data]) this._onStateChange(map[e.data]);
         },
-        onError: (e) => {
+        onError: async (e) => {
           console.warn('YouTube IFrame playback notice (code ' + e.data + '): embedding restricted or track unavailable.');
+          
+          // Automatic Region-Restricted Alternate Fallback
+          const trackQuery = `${this.currentTrackName || ''} ${this.currentArtistName || ''}`.trim();
+          const currentVid = this.currentVideoId;
+          
+          if (!this._alternateTriedMap) this._alternateTriedMap = {};
+          
+          if (currentVid && !this._alternateTriedMap[currentVid] && (trackQuery || currentVid)) {
+            this._alternateTriedMap[currentVid] = true;
+            if (this.onStreamFailUpdate) this.onStreamFailUpdate("Bypassing regional restriction…");
+            try {
+              const res = await fetch(`/search/alternate?q=${encodeURIComponent(trackQuery || currentVid)}&exclude=${encodeURIComponent(currentVid)}`);
+              if (res.ok) {
+                const data = await res.json();
+                if (data.video_id && data.video_id !== currentVid) {
+                  console.log(`[Player] Auto-switched region-restricted track ${currentVid} → ${data.video_id}`);
+                  this.toast('Switched to available audio stream for your region', 'info');
+                  const curSec = Math.round((this.positionMs || 0) / 1000);
+                  this._useIFrame = false; // Reset to direct fast stream first for alternate
+                  this._loadVideo(data.video_id, curSec);
+                  return;
+                }
+              }
+            } catch (altErr) {
+              console.warn("[Player] Alternate stream resolution failed:", altErr);
+            }
+          }
+
           if (this.onStreamFailUpdate) this.onStreamFailUpdate("Track restricted by provider");
           if (e.data === 150 || e.data === 101) {
             this.toast('Track restricted from embedded playback. Skipping to next...', 'warning');
@@ -745,6 +773,8 @@ export default class YouTubePlayer {
     }
     const videoId = trackData.track_uri;
     const startSeconds = Math.round((trackData.position_ms || 0) / 1000);
+    this.currentTrackName = trackData.track_name || '';
+    this.currentArtistName = trackData.artist || '';
     this.positionMs = trackData.position_ms || 0;
     this.durationMs = trackData.duration_ms || 0;
     this.isPlaying = trackData.is_playing !== false;
@@ -955,7 +985,7 @@ export default class YouTubePlayer {
 
   /* WakeLock */
   async _requestWakeLock() {
-    if (!('wakeLock' in navigator)) return;
+    if (!('wakeLock' in navigator) || (typeof document !== 'undefined' && document.hidden)) return;
     try {
       if (this._wakeLock) {
         try { await this._wakeLock.release(); } catch (e) {}
@@ -968,7 +998,7 @@ export default class YouTubePlayer {
       });
       console.log('[MediaBG] WakeLock acquired');
     } catch (e) {
-      console.warn('[MediaBG] WakeLock request failed:', e);
+      // Ignored for non-visible page contexts
     }
   }
 

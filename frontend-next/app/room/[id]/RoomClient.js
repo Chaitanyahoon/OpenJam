@@ -1164,27 +1164,52 @@ export default function RoomClient({ roomId }) {
     };
   }, []);
 
-  // 5. Search Sugggestions Debouncer
+  // 5. Fast, Resilient Search Suggestions Engine with In-Flight Cancellation & Cache
+  const searchClientCacheRef = useRef(new Map());
   useEffect(() => {
-    if (!searchQuery.trim()) {
+    const trimmed = searchQuery.trim();
+    if (!trimmed) {
       setSearchResults([]);
+      setSearchLoading(false);
       return;
     }
+
+    // Instant local cache hit
+    if (searchClientCacheRef.current.has(trimmed.toLowerCase())) {
+      setSearchResults(searchClientCacheRef.current.get(trimmed.toLowerCase()));
+      setSearchLoading(false);
+    }
+
+    const controller = new AbortController();
+    setSearchLoading(true);
+
     const delayDebounce = setTimeout(async () => {
       try {
-        const res = await fetch(`/search/tracks?q=${encodeURIComponent(searchQuery)}`, { credentials: 'include' });
+        const res = await fetch(`/search/tracks?q=${encodeURIComponent(trimmed)}`, {
+          credentials: 'include',
+          signal: controller.signal
+        });
         if (res.ok) {
           const data = await res.json();
-          setSearchResults(data.tracks || []);
+          const tracks = data.tracks || [];
+          searchClientCacheRef.current.set(trimmed.toLowerCase(), tracks);
+          setSearchResults(tracks);
         } else {
-          console.error('[search] fetch failed:', res.status);
+          console.debug('[search] fetch status:', res.status);
         }
       } catch (err) {
-        console.error('[search] error:', err);
+        if (err.name !== 'AbortError') {
+          console.debug('[search] error:', err);
+        }
+      } finally {
+        setSearchLoading(false);
       }
-    }, 300);
+    }, 160);
 
-    return () => clearTimeout(delayDebounce);
+    return () => {
+      clearTimeout(delayDebounce);
+      controller.abort();
+    };
   }, [searchQuery]);
 
   // 6. Lyrics Syncing, Multi-Tier Fetcher & Auto-Scroller
@@ -2613,6 +2638,20 @@ export default function RoomClient({ roomId }) {
                         className="input-field" 
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
+                        onKeyDown={async (e) => {
+                          if (e.key === 'Enter' && searchQuery.trim()) {
+                            e.preventDefault();
+                            setSearchLoading(true);
+                            try {
+                              const res = await fetch(`/search/tracks?q=${encodeURIComponent(searchQuery.trim())}`, { credentials: 'include' });
+                              if (res.ok) {
+                                const data = await res.json();
+                                setSearchResults(data.tracks || []);
+                              }
+                            } catch (err) {}
+                            setSearchLoading(false);
+                          }
+                        }}
                         onFocus={() => setSearchFocused(true)}
                         onBlur={() => {
                           setTimeout(() => {
@@ -2625,7 +2664,11 @@ export default function RoomClient({ roomId }) {
                         autoComplete="off" 
                         style={{ width: '100%', paddingLeft: '36px', boxSizing: 'border-box' }}
                       />
-                      <Search className="h-4 w-4" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
+                      {searchLoading ? (
+                        <div className="search-loading-spinner" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', width: '14px', height: '14px', borderWidth: '2px' }} />
+                      ) : (
+                        <Search className="h-4 w-4" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
+                      )}
                       {searchQuery && (
                         <button type="button" className="clear-btn" onClick={() => setSearchQuery('')} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer' }}>
                           <X className="h-4 w-4" />
@@ -5264,7 +5307,7 @@ export default function RoomClient({ roomId }) {
                   {/* Shuffle Button */}
                   <motion.button
                     type="button"
-                    whileHover={{ scale: isHost ? 1.18 : 1, background: isHost ? 'rgba(255,255,255,0.15)' : 'transparent' }}
+                    whileHover={{ scale: isHost ? 1.18 : 1, background: isHost ? 'rgba(255,255,255,0.15)' : 'rgba(255, 255, 255, 0)' }}
                     whileTap={{ scale: isHost ? 0.88 : 1 }}
                     onClick={() => {
                       if (isHost) handleShuffleClick();
@@ -5274,7 +5317,7 @@ export default function RoomClient({ roomId }) {
                       width: '42px',
                       height: '42px',
                       borderRadius: '50%',
-                      background: 'transparent',
+                      background: 'rgba(255, 255, 255, 0)',
                       border: 'none',
                       color: isHost ? 'rgba(255, 255, 255, 0.85)' : 'rgba(255, 255, 255, 0.25)',
                       cursor: isHost ? 'pointer' : 'not-allowed',
@@ -5383,7 +5426,7 @@ export default function RoomClient({ roomId }) {
                   {/* Repeat Button */}
                   <motion.button
                     type="button"
-                    whileHover={{ scale: isHost ? 1.18 : 1, background: isHost ? 'rgba(255,255,255,0.15)' : 'transparent' }}
+                    whileHover={{ scale: isHost ? 1.18 : 1, background: isHost ? 'rgba(255,255,255,0.15)' : 'rgba(255, 255, 255, 0)' }}
                     whileTap={{ scale: isHost ? 0.88 : 1 }}
                     onClick={() => {
                       if (isHost) handleRepeatToggle();
@@ -5393,7 +5436,7 @@ export default function RoomClient({ roomId }) {
                       width: '42px',
                       height: '42px',
                       borderRadius: '50%',
-                      background: isHost && playbackState.loop ? 'rgba(255, 159, 28, 0.25)' : 'transparent',
+                      background: isHost && playbackState.loop ? 'rgba(255, 159, 28, 0.25)' : 'rgba(255, 255, 255, 0)',
                       border: isHost && playbackState.loop ? '1px solid rgba(255, 159, 28, 0.4)' : 'none',
                       color: isHost
                         ? (playbackState.loop ? 'var(--theme-accent, #ff9f1c)' : 'rgba(255,255,255,0.85)')
