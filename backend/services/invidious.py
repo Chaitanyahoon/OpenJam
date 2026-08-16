@@ -391,10 +391,9 @@ async def get_stream_url(video_id: str) -> Optional[str]:
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 "Accept": "application/json",
             }
-            async with httpx.AsyncClient(timeout=3.0, follow_redirects=True) as client:
+            async with httpx.AsyncClient(timeout=3.5, follow_redirects=True) as client:
                 r = await client.get(
                     f"{instance}/api/v1/videos/{video_id}",
-                    params={"fields": "formatStreams,adaptiveFormats"},
                     headers=headers,
                 )
                 if r.status_code != 200:
@@ -405,17 +404,28 @@ async def get_stream_url(video_id: str) -> Optional[str]:
                     return None
 
                 data = r.json()
-                formats = data.get("adaptiveFormats", []) or data.get("formatStreams", []) or []
+                adaptive = data.get("adaptiveFormats") or []
+                muxed = data.get("formatStreams") or []
+                formats = adaptive + muxed
                 audio_formats = [
                     f for f in formats 
                     if (f.get("type", "") and "audio" in f.get("type", ""))
                     or (f.get("mimeType", "") and "audio" in f.get("mimeType", ""))
                     or (f.get("container", "") in ("m4a", "webm", "opus", "mp3"))
                     or (f.get("audioQuality") is not None)
+                    or (f.get("audioSampleRate") is not None)
                 ]
                 if audio_formats:
                     best = max(audio_formats, key=lambda f: f.get("bitrate", 0) or f.get("averageBitrate", 0) or 0)
                     url = best.get("url")
+                    if url:
+                        url = _normalize_stream_url(url, instance)
+                        health = _get_instance_health(instance)
+                        health["score"] = min(100, health.get("score", 100) + 5)
+                        _stream_origin_instances[url] = instance
+                        return url
+                if muxed:
+                    url = muxed[0].get("url")
                     if url:
                         url = _normalize_stream_url(url, instance)
                         health = _get_instance_health(instance)
