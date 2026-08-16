@@ -956,7 +956,7 @@ export default class YouTubePlayer {
           actualMs = Math.round(this.player.currentTime * 1000);
         }
       } catch (e) {}
-      if (actualMs > 0) this.positionMs = actualMs;
+      if (actualMs >= 0) this.positionMs = actualMs;
 
       if (this.durationMs <= 0) {
         try {

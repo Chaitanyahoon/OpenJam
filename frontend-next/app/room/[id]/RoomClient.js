@@ -1305,17 +1305,23 @@ export default function RoomClient({ roomId }) {
 
       const targetDurSec = (nowPlayingRef.current?.duration_ms || playbackStateRef.current?.durationMs || 0) / 1000;
 
-      // Tier 1: Direct LRCLIB get with optional duration
+      // Tier 1: Direct LRCLIB get with optional duration fallback
       let data = null;
       if (cleanTrack && cleanArtist) {
-        let url = `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTrack)}&artist_name=${encodeURIComponent(cleanArtist)}`;
         if (targetDurSec > 10) {
-          url += `&duration=${Math.round(targetDurSec)}`;
+          try {
+            const url = `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTrack)}&artist_name=${encodeURIComponent(cleanArtist)}&duration=${Math.round(targetDurSec)}`;
+            const res = await fetch(url);
+            if (res.ok) data = await res.json();
+          } catch (e) {}
         }
-        try {
-          const res = await fetch(url);
-          if (res.ok) data = await res.json();
-        } catch (e) {}
+        if (!data) {
+          try {
+            const url = `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTrack)}&artist_name=${encodeURIComponent(cleanArtist)}`;
+            const res = await fetch(url);
+            if (res.ok) data = await res.json();
+          } catch (e) {}
+        }
       }
 
       // Tier 2: Combined query search with closest duration matching
