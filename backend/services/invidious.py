@@ -217,9 +217,9 @@ async def _health_check_instances_bg():
                 # 1. Real functional test: can it retrieve metadata for a popular video?
                 try:
                     r = await client.get(f"{url}/api/v1/videos/dQw4w9WgXcQ", headers=headers)
-                    if r.status_code == 200 and "application/json" in r.headers.get("content-type", ""):
+                    if r.status_code == 200:
                         data = r.json()
-                        if data.get("title"):
+                        if data.get("title") or data.get("adaptiveFormats") or data.get("formatStreams"):
                             _instance_health[url] = {
                                 "score": 100,
                                 "failures": 0,
@@ -231,15 +231,18 @@ async def _health_check_instances_bg():
                     pass
 
                 # 2. Status fallback: is the API server online at least?
-                r = await client.get(f"{url}/api/v1/status", headers=headers)
-                if r.status_code == 200 and "application/json" in r.headers.get("content-type", ""):
-                    _instance_health[url] = {
-                        "score": 80,
-                        "failures": 0,
-                        "last_check": now,
-                        "latency_ms": r.elapsed.total_seconds() * 1000,
-                    }
-                    return True
+                try:
+                    r = await client.get(f"{url}/api/v1/status", headers=headers)
+                    if r.status_code == 200:
+                        _instance_health[url] = {
+                            "score": 80,
+                            "failures": 0,
+                            "last_check": now,
+                            "latency_ms": r.elapsed.total_seconds() * 1000,
+                        }
+                        return True
+                except Exception:
+                    pass
         except Exception:
             pass
         health = _get_instance_health(url)
@@ -256,9 +259,9 @@ async def _health_check_instances_bg():
             }
             async with httpx.AsyncClient(timeout=3.5, follow_redirects=True) as client:
                 r = await client.get(f"{url}/streams/dQw4w9WgXcQ", headers=headers)
-                if r.status_code == 200 and "application/json" in r.headers.get("content-type", ""):
+                if r.status_code == 200:
                     data = r.json()
-                    if data.get("audioStreams"):
+                    if data.get("audioStreams") or data.get("title"):
                         _piped_health[url] = {
                             "score": 100,
                             "failures": 0,
@@ -309,6 +312,8 @@ def _get_sorted_instances() -> list[str]:
         jitter = random.uniform(-5, 5)
         score = health.get("score", 100) + jitter
         instances.append((url, score))
+    if not instances:
+        return list(DEFAULT_INV_INSTANCES)
     instances.sort(key=lambda x: x[1], reverse=True)
     return [url for url, _ in instances]
 
@@ -323,6 +328,8 @@ def _get_sorted_piped_instances() -> list[str]:
         jitter = random.uniform(-5, 5)
         score = health.get("score", 100) + jitter
         instances.append((url, score))
+    if not instances:
+        return list(DEFAULT_PIPED_INSTANCES)
     instances.sort(key=lambda x: x[1], reverse=True)
     return [url for url, _ in instances]
 

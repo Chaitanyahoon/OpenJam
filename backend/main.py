@@ -293,6 +293,18 @@ async def lifespan(app):
 app.router.lifespan_context = lifespan
 
 
+@app.get("/")
+@app.head("/")
+async def root():
+    """Root health and status endpoint for Render probes and API discovery."""
+    return JSONResponse({
+        "name": "OpenJam API",
+        "status": "online",
+        "version": "1.0.0",
+        "docs": "/docs"
+    })
+
+
 @app.get("/ping")
 async def ping():
     """Lightweight health check — no DB, no room manager. For uptime monitors."""

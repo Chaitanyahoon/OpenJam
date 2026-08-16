@@ -43,9 +43,13 @@ export default async function sitemap() {
   let playlistEntries = [];
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
     const response = await fetch(`${backendUrl}/rooms?limit=100`, {
+      signal: controller.signal,
       next: { revalidate: 60 },
     });
+    clearTimeout(timeoutId);
 
     if (response.ok) {
       const data = await response.json();
@@ -64,9 +68,13 @@ export default async function sitemap() {
   }
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
     const response = await fetch(`${backendUrl}/playlists?limit=50`, {
+      signal: controller.signal,
       next: { revalidate: 60 },
     });
+    clearTimeout(timeoutId);
 
     if (response.ok) {
       const data = await response.json();

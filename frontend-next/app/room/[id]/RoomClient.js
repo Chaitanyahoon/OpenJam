@@ -24,6 +24,7 @@ export default function RoomClient({ roomId }) {
 
   // States
   const [room, setRoom] = useState(null);
+  const [roomNotFound, setRoomNotFound] = useState(false);
   const [me, setMe] = useState(null);
   const [listeners, setListeners] = useState([]);
   const [queue, setQueue] = useState([]);
@@ -471,6 +472,7 @@ export default function RoomClient({ roomId }) {
     window.addEventListener('resize', handleResize);
 
     const fetchInitialData = async () => {
+      if (!roomId || roomId === 'loading') return;
       try {
         let userResolved = false;
         const rMe = await fetch(`/auth/me?t=${Date.now()}`, { credentials: 'include', cache: 'no-store' });
@@ -526,10 +528,11 @@ export default function RoomClient({ roomId }) {
             setIsReady(true);
           }
         } else {
-          router.push('/404');
+          setRoomNotFound(true);
         }
       } catch (err) {
         console.error('Initial fetch error:', err);
+        setRoomNotFound(true);
       }
     };
     fetchInitialData();
@@ -2454,6 +2457,43 @@ export default function RoomClient({ roomId }) {
     }
   };
 
+
+  if (roomNotFound) {
+    return (
+      <div className="room-loading-screen" style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        background: 'var(--bg-base)',
+        color: 'var(--text-1)',
+        fontFamily: 'var(--font-display)',
+        gap: '20px'
+      }}>
+        <div style={{ fontSize: '48px' }}>📻</div>
+        <h2 style={{ fontSize: '24px', fontWeight: 700, margin: 0 }}>Room Not Found</h2>
+        <p style={{ color: 'var(--text-2)', fontSize: '15px', maxWidth: '400px', textAlign: 'center', margin: 0 }}>
+          This listening room does not exist or has been closed by the host.
+        </p>
+        <button
+          onClick={() => router.push('/')}
+          style={{
+            padding: '10px 24px',
+            background: 'var(--accent)',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '9999px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            marginTop: '8px'
+          }}
+        >
+          Back to Home
+        </button>
+      </div>
+    );
+  }
 
   if (!room) {
     return (
