@@ -55,8 +55,17 @@ export const metadata = {
   ],
   manifest: "/manifest.json",
   icons: {
-    icon: "/static/img/logo.png",
-    apple: "/static/img/icon-192.png",
+    icon: [
+      { url: "/favicon.ico", sizes: "48x48" },
+      { url: "/static/img/logo.png", type: "image/png" }
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180" },
+      { url: "/static/img/icon-192.png", sizes: "192x192" }
+    ],
+  },
+  alternates: {
+    canonical: "./",
   },
   robots: {
     index: true,

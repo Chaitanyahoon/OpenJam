@@ -2,7 +2,7 @@
 import ReactDOM from 'react-dom';
 
 export function PreloadResources() {
-  ReactDOM.preconnect('https://fonts.googleapis.com');
-  ReactDOM.preconnect('https://fonts.gstatic.com', { crossOrigin: 'anonymous' });
+  ReactDOM.preconnect('https://i.ytimg.com');
+  ReactDOM.preconnect('https://www.youtube.com');
   return null;
 }

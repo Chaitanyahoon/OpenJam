@@ -7,24 +7,37 @@ export function JsonLd() {
       {
         "@type": "Organization",
         "@id": `${SITE_URL}/#organization`,
-        name: "Open Jam",
+        name: "OpenJam",
         url: SITE_URL,
         logo: `${SITE_URL}/static/img/logo.png`,
-        sameAs: [],
+        sameAs: ["https://github.com/Chaitanyahoon/OpenJam"],
       },
       {
         "@type": "WebSite",
         "@id": `${SITE_URL}/#website`,
         url: SITE_URL,
-        name: "Open Jam",
+        name: "OpenJam",
         description: "Create and join public listening rooms. Discover music with friends in real-time.",
         publisher: { "@id": `${SITE_URL}/#organization` },
         inLanguage: "en",
+        potentialAction: {
+          "@type": "SearchAction",
+          target: { "@type": "EntryPoint", urlTemplate: `${SITE_URL}/?q={search_term_string}` },
+          "query-input": "required name=search_term_string"
+        }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "@id": `${SITE_URL}/#breadcrumb`,
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
+          { "@type": "ListItem", position: 2, name: "Rooms", item: `${SITE_URL}/#rooms` },
+        ]
       },
       {
         "@type": "SoftwareApplication",
         "@id": `${SITE_URL}/#application`,
-        name: "Open Jam",
+        name: "OpenJam",
         url: SITE_URL,
         image: `${SITE_URL}/static/img/logo.png`,
         applicationCategory: "MusicApplication",
@@ -46,52 +59,6 @@ export function JsonLd() {
           price: "0",
           priceCurrency: "USD"
         }
-      },
-      {
-        "@type": "FAQPage",
-        "@id": `${SITE_URL}/#faq`,
-        mainEntity: [
-          {
-            "@type": "Question",
-            name: "Is OpenJam completely free to use?",
-            acceptedAnswer: {
-              "@type": "Answer",
-              text: "Yes! OpenJam is 100% free with zero monthly subscription fees, paywalls, or hidden charges."
-            }
-          },
-          {
-            "@type": "Question",
-            name: "Do I need a Spotify or YouTube account to listen?",
-            acceptedAnswer: {
-              "@type": "Answer",
-              text: "No! You can join any room as an anonymous guest or host your own session without logging into third-party accounts."
-            }
-          },
-          {
-            "@type": "Question",
-            name: "How does real-time music synchronization work?",
-            acceptedAnswer: {
-              "@type": "Answer",
-              text: "OpenJam uses NTP-style clock offset calculation over WebSockets to measure network round-trip time. It continuously adjusts playback positions so all listeners in a room hear the exact same audio beat at the same millisecond."
-            }
-          },
-          {
-            "@type": "Question",
-            name: "How many friends can join a single jam room?",
-            acceptedAnswer: {
-              "@type": "Answer",
-              text: "There is no strict limit! Dozens of listeners can join a single room simultaneously, chat, send floating emoji reactions, and vote on track skips."
-            }
-          },
-          {
-            "@type": "Question",
-            name: "Can I use OpenJam on my mobile phone?",
-            acceptedAnswer: {
-              "@type": "Answer",
-              text: "Absolutely. OpenJam features a responsive mobile interface with bottom tabs, touch controls, and Progressive Web App (PWA) support so you can install it on iOS and Android."
-            }
-          }
-        ]
       }
     ],
   };

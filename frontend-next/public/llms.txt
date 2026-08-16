@@ -1,0 +1,33 @@
+# OpenJam — Listen to Music with Friends Online Free
+
+> OpenJam is a free, real-time collaborative music listening platform. Create or join virtual music rooms, sync YouTube music playback with friends, and enjoy shared listening experiences with millisecond-accurate synchronization.
+
+## Core Features
+- Real-time synced music playback using NTP-style clock synchronization over WebSockets
+- Create and join public or private listening rooms
+- Collaborative music queue with voting and skip controls
+- Live room chat with floating emoji reactions
+- Profile customization with avatars, banners, and themes
+- Playlist creation, sharing, and import
+- Progressive Web App (PWA) for mobile installation
+- Stage View with kinetic karaoke-style synchronized lyrics
+- Offline music library support
+
+## Technical Stack
+- Frontend: Next.js 16 (React), deployed on Vercel
+- Backend: Python (FastAPI) with Socket.IO for real-time communication
+- Audio: YouTube IFrame API with custom synchronization engine
+- Database: PostgreSQL with SQLAlchemy ORM
+
+## Key URLs
+- Homepage: https://www.openjam.fun
+- Privacy Policy: https://www.openjam.fun/privacy
+- Terms of Service: https://www.openjam.fun/terms
+- API: https://api.openjam.fun
+- GitHub: https://github.com/Chaitanyahoon/OpenJam
+
+## Pricing
+OpenJam is 100% free with zero subscription fees, paywalls, or hidden charges.
+
+## Contact
+- GitHub Issues: https://github.com/Chaitanyahoon/OpenJam/issues

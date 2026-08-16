@@ -9,7 +9,7 @@ export default function robots() {
       },
       {
         userAgent: ['GPTBot', 'ClaudeBot', 'PerplexityBot', 'Google-Extended'],
-        allow: ['/', '/privacy', '/terms', '/room/'],
+        allow: ['/', '/privacy', '/terms', '/room/', '/playlist/', '/profile/'],
         disallow: ['/admin', '/offline', '/_next/'],
       }
     ],

@@ -10,15 +10,21 @@ export default async function sitemap() {
     },
     {
       url: `${baseUrl}/privacy`,
-      lastModified: new Date(),
+      lastModified: new Date('2025-01-01'),
       changeFrequency: 'monthly',
       priority: 0.5,
     },
     {
       url: `${baseUrl}/terms`,
-      lastModified: new Date(),
+      lastModified: new Date('2025-01-01'),
       changeFrequency: 'monthly',
       priority: 0.5,
+    },
+    {
+      url: `${baseUrl}/profile`,
+      lastModified: new Date(),
+      changeFrequency: 'weekly',
+      priority: 0.4,
     },
   ];
 
@@ -32,8 +38,11 @@ export default async function sitemap() {
     return 'https://api.openjam.fun';
   };
 
+  const backendUrl = getBackendUrl();
+  let roomEntries = [];
+  let playlistEntries = [];
+
   try {
-    const backendUrl = getBackendUrl();
     const response = await fetch(`${backendUrl}/rooms?limit=100`, {
       next: { revalidate: 60 },
     });
@@ -43,18 +52,37 @@ export default async function sitemap() {
       const rooms = data?.rooms || [];
       const publicRooms = rooms.filter((r) => r && r.id && !r.is_private);
 
-      const roomEntries = publicRooms.map((room) => ({
+      roomEntries = publicRooms.map((room) => ({
         url: `${baseUrl}/room/${room.id}`,
         lastModified: room.created_at ? new Date(room.created_at) : new Date(),
         changeFrequency: 'hourly',
         priority: 0.8,
       }));
-
-      return [...staticEntries, ...roomEntries];
     }
   } catch (error) {
     console.warn('Sitemap build: Could not fetch active rooms from backend', error?.message || error);
   }
 
-  return staticEntries;
+  try {
+    const response = await fetch(`${backendUrl}/playlists?limit=50`, {
+      next: { revalidate: 60 },
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      const playlists = data?.playlists || [];
+      const publicPlaylists = playlists.filter((p) => p && p.id && !p.is_private);
+
+      playlistEntries = publicPlaylists.map((playlist) => ({
+        url: `${baseUrl}/playlist/${playlist.id}`,
+        lastModified: playlist.updated_at ? new Date(playlist.updated_at) : new Date(),
+        changeFrequency: 'weekly',
+        priority: 0.5,
+      }));
+    }
+  } catch (error) {
+    console.warn('Sitemap build: Could not fetch public playlists from backend', error?.message || error);
+  }
+
+  return [...staticEntries, ...roomEntries, ...playlistEntries];
 }

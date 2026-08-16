@@ -1,0 +1,69 @@
+# OpenJam — Complete Documentation for AI Models
+
+> OpenJam is a free, open-source, real-time collaborative music listening platform where friends can create virtual rooms, queue songs, and experience perfectly synchronized audio playback together.
+
+## What is OpenJam?
+OpenJam allows users to create virtual "jam rooms" where multiple listeners can join and hear the same music at the exact same moment. It uses NTP-style clock offset calculation over WebSocket connections to achieve millisecond-accurate synchronization across all connected clients.
+
+## How does real-time music synchronization work?
+OpenJam measures network round-trip time between each client and the server using WebSocket ping/pong messages. It calculates a clock offset for each listener, then continuously adjusts playback positions so all listeners in a room hear the exact same audio beat at the same millisecond. The sync engine runs every 5 seconds with sub-100ms correction thresholds.
+
+## Features
+
+### Listening Rooms
+- Create public or private rooms with custom names and descriptions
+- Join any public room as an anonymous guest or authenticated user
+- Real-time listener count and presence indicators
+- Room host controls: skip, seek, pause, and queue management
+- Auto-play: rooms automatically play the next queued track
+
+### Music Queue
+- Search and add tracks from YouTube
+- Collaborative queue with democratic skip voting
+- Queue reordering and track removal by room host
+- Import tracks from saved playlists
+
+### Social Features
+- Live room chat with message history
+- Floating emoji reactions visible to all listeners
+- User profiles with avatars, banners, bios, and custom themes
+- Follow other users and discover their playlists
+
+### Playlists
+- Create, name, and organize personal playlists
+- Share playlists via direct link
+- Import entire playlists into a room queue
+- Album art fetched automatically from YouTube thumbnails
+
+### Stage View & Lyrics
+- Full-screen Stage View with animated album art
+- Kinetic karaoke-style synchronized lyrics display
+- Ambient background effects based on album art colors
+
+### Progressive Web App
+- Install on iOS, Android, Windows, macOS, and Linux
+- Offline music library for downloaded tracks
+- Background audio playback support
+
+## Frequently Asked Questions
+
+### Is OpenJam free?
+Yes, OpenJam is completely free with no subscription fees, ads, or paywalls.
+
+### Do I need an account to listen?
+No. You can join any public room as an anonymous guest. Creating an account unlocks profile customization, playlists, and listening history.
+
+### How many people can join a room?
+There is no strict limit. Dozens of listeners can join simultaneously.
+
+### What music sources are supported?
+OpenJam currently supports YouTube as its music source, with plans to expand.
+
+### Can I use OpenJam on mobile?
+Yes. OpenJam has a fully responsive mobile interface and can be installed as a PWA.
+
+## Links
+- Website: https://www.openjam.fun
+- GitHub: https://github.com/Chaitanyahoon/OpenJam
+- Privacy: https://www.openjam.fun/privacy
+- Terms: https://www.openjam.fun/terms
