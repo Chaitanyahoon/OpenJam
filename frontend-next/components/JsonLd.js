@@ -37,7 +37,8 @@ export function JsonLd() {
       {
         "@type": "SoftwareApplication",
         "@id": `${SITE_URL}/#application`,
-        name: "OpenJam",
+        name: "Open Jam",
+        alternateName: "OpenJam",
         url: SITE_URL,
         image: `${SITE_URL}/static/img/logo.png`,
         applicationCategory: "MusicApplication",
@@ -59,6 +60,44 @@ export function JsonLd() {
           price: "0",
           priceCurrency: "USD"
         }
+      },
+      {
+        "@type": "FAQPage",
+        "@id": `${SITE_URL}/#faq`,
+        mainEntity: [
+          {
+            "@type": "Question",
+            name: "What is OpenJam and how does it work?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: "OpenJam is a real-time collaborative music listening platform that lets you create virtual rooms, invite friends, queue YouTube music, and listen together in millisecond-accurate sync across all devices."
+            }
+          },
+          {
+            "@type": "Question",
+            name: "Is OpenJam completely free to use?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: "Yes, OpenJam is 100% free with no subscription fees, hidden paywalls, or feature restrictions. You can create unlimited public or private listening rooms."
+            }
+          },
+          {
+            "@type": "Question",
+            name: "How does real-time music synchronization work on OpenJam?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: "OpenJam uses WebSocket NTP-style clock synchronization to measure network latency and calculate clock offsets, ensuring every listener in the room hears the exact same audio beat simultaneously."
+            }
+          },
+          {
+            "@type": "Question",
+            name: "Do my friends need to create an account to join my room?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: "No, anyone with the room link can join instantly as a guest without signing up. Account creation is optional for saving playlists, listening history, and custom avatars."
+            }
+          }
+        ]
       }
     ],
   };

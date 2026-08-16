@@ -364,17 +364,13 @@ def report_stream_failure(stream_url: str):
         logger.warning(f"Error reporting stream failure for {stream_url}: {e}")
 
 
-def _rewrite_googlevideo_url(url: str, instance: str) -> str:
-    # Rewrite googlevideo URL to proxy through Invidious instance itself
-    if "googlevideo.com" in url:
-        from urllib.parse import urlparse, urlunparse
-        parsed_url = urlparse(url)
-        parsed_instance = urlparse(instance)
-        new_url = parsed_url._replace(
-            scheme=parsed_instance.scheme,
-            netloc=parsed_instance.netloc
-        )
-        return urlunparse(new_url)
+def _normalize_stream_url(url: str, instance: str) -> str:
+    """Ensure relative stream URLs have the full instance domain without mangling googlevideo CDN URLs."""
+    if not url:
+        return ""
+    if url.startswith("/"):
+        from urllib.parse import urljoin
+        return urljoin(instance, url)
     return url
 
 
@@ -388,13 +384,13 @@ async def get_stream_url(video_id: str) -> Optional[str]:
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 "Accept": "application/json",
             }
-            async with httpx.AsyncClient(timeout=2.5, follow_redirects=True) as client:
+            async with httpx.AsyncClient(timeout=3.0, follow_redirects=True) as client:
                 r = await client.get(
                     f"{instance}/api/v1/videos/{video_id}",
                     params={"fields": "formatStreams,adaptiveFormats"},
                     headers=headers,
                 )
-                if r.status_code != 200 or "application/json" not in r.headers.get("content-type", ""):
+                if r.status_code != 200:
                     if r.status_code in (429, 403, 500, 502, 503):
                         health = _get_instance_health(instance)
                         health["failures"] += 1
@@ -403,12 +399,18 @@ async def get_stream_url(video_id: str) -> Optional[str]:
 
                 data = r.json()
                 formats = data.get("adaptiveFormats", []) or data.get("formatStreams", []) or []
-                audio_formats = [f for f in formats if f.get("type", "").startswith("audio")]
+                audio_formats = [
+                    f for f in formats 
+                    if (f.get("type", "") and "audio" in f.get("type", ""))
+                    or (f.get("mimeType", "") and "audio" in f.get("mimeType", ""))
+                    or (f.get("container", "") in ("m4a", "webm", "opus", "mp3"))
+                    or (f.get("audioQuality") is not None)
+                ]
                 if audio_formats:
-                    best = max(audio_formats, key=lambda f: f.get("bitrate", 0))
+                    best = max(audio_formats, key=lambda f: f.get("bitrate", 0) or f.get("averageBitrate", 0) or 0)
                     url = best.get("url")
                     if url:
-                        url = _rewrite_googlevideo_url(url, instance)
+                        url = _normalize_stream_url(url, instance)
                         health = _get_instance_health(instance)
                         health["score"] = min(100, health.get("score", 100) + 5)
                         _stream_origin_instances[url] = instance
@@ -416,7 +418,7 @@ async def get_stream_url(video_id: str) -> Optional[str]:
                 if formats:
                     url = formats[0].get("url")
                     if url:
-                        url = _rewrite_googlevideo_url(url, instance)
+                        url = _normalize_stream_url(url, instance)
                         health = _get_instance_health(instance)
                         health["score"] = min(100, health.get("score", 100) + 5)
                         _stream_origin_instances[url] = instance
@@ -434,9 +436,9 @@ async def get_stream_url(video_id: str) -> Optional[str]:
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 "Accept": "application/json",
             }
-            async with httpx.AsyncClient(timeout=2.5, follow_redirects=True) as client:
+            async with httpx.AsyncClient(timeout=3.0, follow_redirects=True) as client:
                 r = await client.get(f"{instance}/streams/{video_id}", headers=headers)
-                if r.status_code != 200 or "application/json" not in r.headers.get("content-type", ""):
+                if r.status_code != 200:
                     if r.status_code in (429, 403, 500, 502, 503):
                         health = _get_piped_health(instance)
                         health["failures"] += 1
@@ -445,9 +447,10 @@ async def get_stream_url(video_id: str) -> Optional[str]:
                 data = r.json()
                 audio_streams = data.get("audioStreams", [])
                 if audio_streams:
-                    best = max(audio_streams, key=lambda s: s.get("bitrate", 0))
+                    best = max(audio_streams, key=lambda s: s.get("bitrate", 0) or 0)
                     url = best.get("url")
                     if url:
+                        url = _normalize_stream_url(url, instance)
                         health = _get_piped_health(instance)
                         health["score"] = min(100, health.get("score", 100) + 5)
                         _stream_origin_instances[url] = instance

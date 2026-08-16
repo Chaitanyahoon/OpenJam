@@ -128,7 +128,7 @@ export async function generateMetadata({ params }) {
   return {
     title: 'Jam Room — Open Jam',
     description: 'Join a live listening room and discover music together in real-time on OpenJam.',
-    robots: { index: true, follow: true },
+    robots: { index: false, follow: false },
     alternates: { canonical: 'https://www.openjam.fun' },
     openGraph: {
       title: 'Jam Room — OpenJam',
@@ -155,63 +155,10 @@ export async function generateMetadata({ params }) {
   };
 }
 
-export default async function RoomPage({ params }) {
-  const resolvedParams = await params;
-  const id = resolvedParams?.id;
-
-  let roomSchema = null;
-  if (id && id !== 'loading') {
-    try {
-      const getBackendUrl = () => {
-        if (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_BACKEND_URL) {
-          const url = process.env.NEXT_PUBLIC_BACKEND_URL;
-          if (url !== 'undefined' && url !== 'null' && url.trim() !== '') {
-            return url.replace(/\/$/, '');
-          }
-        }
-        return 'https://api.openjam.fun';
-      };
-      const backendUrl = getBackendUrl();
-      const res = await fetch(`${backendUrl}/rooms/${id}`, { next: { revalidate: 30 } });
-      if (res.ok) {
-        const data = await res.json();
-        const room = data?.room;
-        if (room) {
-          roomSchema = {
-            "@context": "https://schema.org",
-            "@type": "BroadcastEvent",
-            "name": `${room.name} — Live Jam Session`,
-            "description": room.description || `Live music listening room hosted by ${room.host_name || 'OpenJam User'}`,
-            "isLiveBroadcast": true,
-            "url": `https://www.openjam.fun/room/${id}`,
-            ...(room.current_track ? {
-              "workPerformed": {
-                "@type": "MusicRecording",
-                "name": room.current_track.track_name || 'Music Track',
-                "byArtist": {
-                  "@type": "MusicGroup",
-                  "name": room.current_track.artist || 'Artist'
-                },
-                ...(room.current_track.album_art_url ? { "image": room.current_track.album_art_url } : {})
-              }
-            } : {})
-          };
-        }
-      }
-    } catch (_) {}
-  }
-
+export default function RoomPage() {
   return (
-    <>
-      {roomSchema && (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(roomSchema) }}
-        />
-      )}
-      <Suspense fallback={<RoomSkeleton />}>
-        <RoomPageClient />
-      </Suspense>
-    </>
+    <Suspense fallback={<RoomSkeleton />}>
+      <RoomPageClient />
+    </Suspense>
   );
 }
