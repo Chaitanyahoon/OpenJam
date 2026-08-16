@@ -1129,7 +1129,7 @@ export default function RoomClient({ roomId }) {
   useEffect(() => {
     if (!playerRef.current) return;
     
-    playerRef.current.onControlEvent((action, extra = {}) => {
+    const controlHandler = (action, extra = {}) => {
       if (action === 'ended' || action === 'nexttrack') {
         if (isHost && socket) {
           socket.emit('next_track', { room_id: roomId });
@@ -1190,7 +1190,13 @@ export default function RoomClient({ roomId }) {
           });
         }
       }
-    });
+    };
+
+    if (typeof playerRef.current.onControlEvent === 'function') {
+      playerRef.current.onControlEvent(controlHandler);
+    } else if (typeof playerRef.current.setControlCallback === 'function') {
+      playerRef.current.setControlCallback(controlHandler);
+    }
   }, [roomId, socket, isHost]);
 
   // 4. Volume Synchronization

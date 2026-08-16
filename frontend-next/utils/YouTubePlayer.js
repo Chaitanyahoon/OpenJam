@@ -426,6 +426,10 @@ export default class YouTubePlayer {
     this._onPlaybackControl = fn;
   }
 
+  onControlEvent(fn) {
+    this._onPlaybackControl = fn;
+  }
+
   unlockAudio() {
     this.unlockAudioContext();
   }
