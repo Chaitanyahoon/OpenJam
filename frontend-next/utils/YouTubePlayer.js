@@ -34,6 +34,8 @@ export default class YouTubePlayer {
     this.fadeInInterval = null;
     this.ytPlayer = null;
     this.currentVideoId = null;
+    this.currentTrackName = '';
+    this.currentArtistName = '';
     this.positionMs = 0;
     this.durationMs = 0;
     this.isPlaying = false;
@@ -53,6 +55,7 @@ export default class YouTubePlayer {
     this._maxStreamFails = 2;
     this.volume = 80;
     this._stallTimers = new Map();
+    this._lastSeekTime = 0;
 
     this._isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     this._wakeLock = null;
@@ -60,20 +63,25 @@ export default class YouTubePlayer {
     this._keepAliveOsc = null;
 
     if (this._isMobile) {
-      this._maxStreamFails = 3;
+      this._maxStreamFails = 2;
     }
 
     this._initAudio();
     this._initMediaSession();
     this._initBackgroundPlayback();
 
+    // Universal gesture unlock handlers (handles mouse, keyboard, touch, and pointer)
     const unlockHandler = () => {
       this.unlockAudioContext();
-      document.removeEventListener('click', unlockHandler);
-      document.removeEventListener('keydown', unlockHandler);
+      window.removeEventListener('click', unlockHandler, true);
+      window.removeEventListener('keydown', unlockHandler, true);
+      window.removeEventListener('touchstart', unlockHandler, true);
+      window.removeEventListener('pointerdown', unlockHandler, true);
     };
-    document.addEventListener('click', unlockHandler, { once: true });
-    document.addEventListener('keydown', unlockHandler, { once: true });
+    window.addEventListener('click', unlockHandler, { once: true, capture: true });
+    window.addEventListener('keydown', unlockHandler, { once: true, capture: true });
+    window.addEventListener('touchstart', unlockHandler, { once: true, capture: true });
+    window.addEventListener('pointerdown', unlockHandler, { once: true, capture: true });
   }
 
   _initAudio() {
@@ -86,27 +94,30 @@ export default class YouTubePlayer {
       if (!audioElement.src || audioElement.src.startsWith('data:')) return;
       this._showLoadIndicator();
     });
+
     audioElement.addEventListener('play', () => {
       if (audioElement !== this.activePlayer) return;
       if (!audioElement.src || audioElement.src.startsWith('data:')) return;
       this._onStateChange('play');
       this._hideLoadIndicator();
       
-      // Trigger fade-in if crossfading is active
       if (this.fadePlayer) {
         this.startFadeIn(audioElement);
       }
     });
+
     audioElement.addEventListener('pause', () => {
       if (audioElement !== this.activePlayer) return;
       if (!audioElement.src || audioElement.src.startsWith('data:')) return;
       this._onStateChange('pause');
     });
+
     audioElement.addEventListener('ended', () => {
       if (audioElement !== this.activePlayer) return;
       if (!audioElement.src || audioElement.src.startsWith('data:')) return;
       this._onStateChange('ended');
     });
+
     audioElement.addEventListener('canplay', () => {
       if (audioElement !== this.activePlayer) return;
       if (!audioElement.src || audioElement.src.startsWith('data:')) return;
@@ -119,7 +130,7 @@ export default class YouTubePlayer {
       if (audioElement !== this.activePlayer) return;
       if (!audioElement.src || audioElement.src.startsWith('data:')) return;
       const err = audioElement.error;
-      if (!err || err.code === 0) return; // Ignore non-errors (autoplay policy blocks)
+      if (!err || err.code === 0) return;
       this._handleAudioError('error_event', audioElement);
     });
 
@@ -133,7 +144,7 @@ export default class YouTubePlayer {
         if (audioElement.readyState < 2 && !audioElement.paused) {
           this._handleAudioError('stalled_timeout', audioElement);
         }
-      }, 2500);
+      }, 3000);
       this._stallTimers.set(audioElement, timer);
     });
 
@@ -147,7 +158,7 @@ export default class YouTubePlayer {
         if (audioElement.readyState < 2 && !audioElement.paused) {
           this._handleAudioError('waiting_timeout', audioElement);
         }
-      }, 2500);
+      }, 3000);
       this._stallTimers.set(audioElement, timer);
     });
   }
@@ -162,7 +173,7 @@ export default class YouTubePlayer {
 
     if (this._streamFailCount >= this._maxStreamFails) {
       if (!this._useIFrame) {
-        if (this.onStreamFailUpdate) this.onStreamFailUpdate(null);
+        if (this.onStreamFailUpdate) this.onStreamFailUpdate("Switching to YouTube player…");
         
         try {
           audioElement.pause();
@@ -185,19 +196,12 @@ export default class YouTubePlayer {
           this._useLowBitrate = true;
           audioElement.src = `${BACKEND_URL}/stream/${this.currentVideoId}?low=true`;
           this.setVolume(this.volume);
-          audioElement.currentTime = Math.round(this.positionMs / 1000);
-          audioElement.play().catch(() => {});
-        } else if (this._streamFailCount === 2 && this.currentVideoId) {
-          if (this.onStreamFailUpdate) this.onStreamFailUpdate("Optimizing connection…");
-          audioElement.src = `${BACKEND_URL}/stream/${this.currentVideoId}?low=true&nocache=true`;
-          this.setVolume(this.volume);
-          audioElement.currentTime = Math.round(this.positionMs / 1000);
-          audioElement.play().catch(() => {});
-        } else if (this._streamFailCount === 3 && this.currentVideoId) {
-          if (this.onStreamFailUpdate) this.onStreamFailUpdate("Retrying audio stream…");
-          audioElement.src = `${BACKEND_URL}/stream/${this.currentVideoId}?nocache=true`;
-          this.setVolume(this.volume);
-          audioElement.currentTime = Math.round(this.positionMs / 1000);
+          const seekSec = Math.round(this.positionMs / 1000);
+          if (seekSec > 0) {
+            audioElement.addEventListener('loadedmetadata', () => {
+              audioElement.currentTime = seekSec;
+            }, { once: true });
+          }
           audioElement.play().catch(() => {});
         }
       }, 300 * this._streamFailCount);
@@ -211,7 +215,8 @@ export default class YouTubePlayer {
     if (!wrapper) {
       wrapper = document.createElement('div');
       wrapper.id = 'yt-fallback-wrapper';
-      wrapper.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;';
+      // Rendered with minimal dimensions and opacity to prevent mobile background throttling
+      wrapper.style.cssText = 'position:fixed;bottom:0;right:0;width:200px;height:200px;opacity:0.001;pointer-events:none;z-index:-1;overflow:hidden;';
       
       const placeholder = document.createElement('div');
       placeholder.id = 'yt-fallback-placeholder';
@@ -259,7 +264,6 @@ export default class YouTubePlayer {
         onError: async (e) => {
           console.warn('YouTube IFrame playback notice (code ' + e.data + '): embedding restricted or track unavailable.');
           
-          // Automatic Region-Restricted Alternate Fallback
           const trackQuery = `${this.currentTrackName || ''} ${this.currentArtistName || ''}`.trim();
           const currentVid = this.currentVideoId;
           
@@ -276,7 +280,7 @@ export default class YouTubePlayer {
                   console.log(`[Player] Auto-switched region-restricted track ${currentVid} → ${data.video_id}`);
                   this.toast('Switched to available audio stream for your region', 'info');
                   const curSec = Math.round((this.positionMs || 0) / 1000);
-                  this._useIFrame = false; // Reset to direct fast stream first for alternate
+                  this._useIFrame = false;
                   this._loadVideo(data.video_id, curSec);
                   return;
                 }
@@ -342,7 +346,6 @@ export default class YouTubePlayer {
           this.player.src = SILENT_WAV_B64;
           this.player.loop = true;
           this.player.play().catch(() => {});
-          console.log('[MediaBG] Playing silent transition audio');
         } catch (e) {}
       } else {
         this._releaseWakeLock();
@@ -366,53 +369,33 @@ export default class YouTubePlayer {
   }
 
   unlockAudio() {
-    this._userUnlocked = true;
-    this._hideOverlay();
-
-    // Pre-unlock player under the user gesture context
-    try {
-      if (!this.player.src) {
-        this.player.src = SILENT_WAV_B64;
-      }
-      this.player.play().catch(() => {});
-    } catch (e) {
-      console.warn("Failed to pre-unlock audio element:", e);
-    }
-
-    if (this._pendingPlayAfterUnlock) {
-      const { videoId } = this._pendingPlayAfterUnlock;
-      this._pendingPlayAfterUnlock = null;
-      const startSeconds = Math.round(this.positionMs / 1000);
-      this._loadVideo(videoId, startSeconds);
-    } else if (this.currentVideoId && this.isPlaying) {
-      if (this._useIFrame && this.ytPlayer && typeof this.ytPlayer.playVideo === 'function') {
-        this.ytPlayer.playVideo();
-      } else if (this.player) {
-        this.player.play().catch(() => {});
-      }
-      this.startProgressTimer();
-    }
+    this.unlockAudioContext();
   }
 
   unlockAudioContext() {
-    if (this._userUnlocked) return;
     this._userUnlocked = true;
     this._hideOverlay();
 
     // Pre-unlock player under the user gesture context
     try {
-      if (!this.player.src) {
+      if (!this.player.src || this.player.src.startsWith('data:')) {
         this.player.src = SILENT_WAV_B64;
       }
-      this.player.play().catch(() => {});
+      const playPromise = this.player.play();
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch(() => {});
+      }
     } catch (e) {
       console.warn("Failed to pre-unlock audio element:", e);
     }
 
+    if (this._keepAliveCtx && this._keepAliveCtx.state === 'suspended') {
+      this._keepAliveCtx.resume().catch(() => {});
+    }
+
     if (this._pendingPlayAfterUnlock) {
-      const { videoId } = this._pendingPlayAfterUnlock;
+      const { videoId, startSeconds } = this._pendingPlayAfterUnlock;
       this._pendingPlayAfterUnlock = null;
-      const startSeconds = Math.round(this.positionMs / 1000);
       this._loadVideo(videoId, startSeconds);
     } else if (this.currentVideoId && this.isPlaying) {
       if (this._useIFrame && this.ytPlayer && typeof this.ytPlayer.playVideo === 'function') {
@@ -433,35 +416,42 @@ export default class YouTubePlayer {
       overlay.style.cssText = `
         position:fixed; inset:0; z-index:9990;
         display:flex; flex-direction:column; align-items:center; justify-content:center;
-        background:rgba(10,9,8,0.82); backdrop-filter:blur(16px);
+        background:rgba(10,9,8,0.85); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
         cursor:pointer; user-select:none;
-        animation: fadeInOverlay 0.4s ease;
+        animation: fadeInOverlay 0.3s ease;
       `;
       overlay.innerHTML = `
         <style>
           @keyframes fadeInOverlay { from { opacity:0; } to { opacity:1; } }
           @keyframes pulseRing {
-            0%   { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(245,158,11,0.5); }
-            70%  { transform: scale(1);   box-shadow: 0 0 0 24px rgba(245,158,11,0); }
-            100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(245,158,11,0); }
+            0%   { transform: scale(0.92); box-shadow: 0 0 0 0 rgba(245,158,11,0.6); }
+            70%  { transform: scale(1.04); box-shadow: 0 0 0 26px rgba(245,158,11,0); }
+            100% { transform: scale(0.92); box-shadow: 0 0 0 0 rgba(245,158,11,0); }
           }
         </style>
         <div style="
-          width:88px; height:88px; border-radius:50%;
-          background:#f59e0b; display:flex; align-items:center; justify-content:center;
-          box-shadow: 0 0 40px rgba(245,158,11,0.35);
+          width:92px; height:92px; border-radius:50%;
+          background:linear-gradient(135deg, #f59e0b, #d97706); display:flex; align-items:center; justify-content:center;
+          box-shadow: 0 0 45px rgba(245,158,11,0.45);
           animation: pulseRing 1.8s ease infinite; margin-bottom:24px;
         ">
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="#000"><path d="M8 5v14l11-7z"/></svg>
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="#000" style="margin-left:4px;"><path d="M8 5v14l11-7z"/></svg>
         </div>
-        <div style="font-family:sans-serif; font-size:20px; font-weight:700; color:#f5f0eb; margin-bottom:8px;">
-          Tap to listen
+        <div style="font-family:system-ui, -apple-system, sans-serif; font-size:22px; font-weight:800; color:#f5f0eb; margin-bottom:8px; letter-spacing:-0.02em;">
+          Tap to Join Live Audio
         </div>
-        <div style="font-size:14px; color:#9e958a; max-width:260px; text-align:center; line-height:1.5;">
-          Your browser needs a tap to unlock audio
+        <div style="font-family:system-ui, -apple-system, sans-serif; font-size:14px; color:#a8a29e; max-width:280px; text-align:center; line-height:1.5;">
+          Tap anywhere to unlock real-time synchronized music with your friends
         </div>`;
       document.body.appendChild(overlay);
-      overlay.addEventListener('click', () => this.unlockAudio(), { once: true });
+      
+      const onUnlockTap = (e) => {
+        if (e) e.stopPropagation();
+        this.unlockAudioContext();
+      };
+      overlay.addEventListener('click', onUnlockTap, { once: true });
+      overlay.addEventListener('touchstart', onUnlockTap, { once: true, passive: true });
+      overlay.addEventListener('pointerdown', onUnlockTap, { once: true });
     }
   }
 
@@ -469,8 +459,8 @@ export default class YouTubePlayer {
     const overlay = document.getElementById('play-unlock-overlay');
     if (overlay) {
       overlay.style.opacity = '0';
-      overlay.style.transition = 'opacity 0.3s ease';
-      setTimeout(() => overlay.remove(), 300);
+      overlay.style.transition = 'opacity 0.25s ease';
+      setTimeout(() => overlay.remove(), 250);
     }
   }
 
@@ -485,21 +475,19 @@ export default class YouTubePlayer {
   startFadeOut(player) {
     if (!player) return;
     
-    const duration = 4000; // 4 seconds
-    const intervalTime = 100; // 100ms
+    const duration = 3000;
+    const intervalTime = 100;
     const steps = duration / intervalTime;
     let currentStep = 0;
-    
     const startVol = player.volume;
     
-    // Clear any existing fade-out interval
     if (this.fadeOutInterval) {
       clearInterval(this.fadeOutInterval);
     }
     
     this.fadeOutInterval = setInterval(() => {
       currentStep++;
-      const ratio = currentStep / steps; // 0 to 1
+      const ratio = currentStep / steps;
       
       try {
         player.volume = Math.max(0, startVol * (1 - ratio));
@@ -522,12 +510,11 @@ export default class YouTubePlayer {
   startFadeIn(player) {
     if (!player) return;
     
-    const duration = 4000; // 4 seconds
-    const intervalTime = 100; // 100ms
+    const duration = 3000;
+    const intervalTime = 100;
     const steps = duration / intervalTime;
     let currentStep = 0;
     
-    // Clear any existing fade-in interval
     if (this.fadeInInterval) {
       clearInterval(this.fadeInInterval);
     }
@@ -536,7 +523,7 @@ export default class YouTubePlayer {
     
     this.fadeInInterval = setInterval(() => {
       currentStep++;
-      const ratio = currentStep / steps; // 0 to 1
+      const ratio = currentStep / steps;
       const targetVol = this.volume / 100;
       
       try {
@@ -547,7 +534,7 @@ export default class YouTubePlayer {
         clearInterval(this.fadeInInterval);
         this.fadeInInterval = null;
         try {
-          player.volume = targetVol;
+          player.volume = this.volume / 100;
         } catch (e) {}
       }
     }, intervalTime);
@@ -576,6 +563,10 @@ export default class YouTubePlayer {
 
   _loadVideo(videoId, startSeconds = 0) {
     if (!videoId) return;
+
+    // Track is immediately registered so room state knows current track
+    this.currentVideoId = videoId;
+
     if (!this._userUnlocked) {
       this._pendingPlayAfterUnlock = { videoId, startSeconds };
       this._showOverlay();
@@ -584,27 +575,22 @@ export default class YouTubePlayer {
 
     this._suppressStateChange = true;
     
-    if (videoId !== this.currentVideoId) {
-      this._streamFailCount = 0;
-      this._useLowBitrate = false;
-      if (this._useIFrame) {
-        this._useIFrame = false;
-        if (this.ytPlayer && typeof this.ytPlayer.stopVideo === 'function') {
-          try {
-            this.ytPlayer.stopVideo();
-          } catch (e) {
-            console.error('Error stopping YT player during transition:', e);
-          }
+    this._streamFailCount = 0;
+    this._useLowBitrate = false;
+    if (this._useIFrame) {
+      this._useIFrame = false;
+      if (this.ytPlayer && typeof this.ytPlayer.stopVideo === 'function') {
+        try {
+          this.ytPlayer.stopVideo();
+        } catch (e) {
+          console.error('Error stopping YT player during transition:', e);
         }
       }
-      
-      // Immediately pause existing audio before loading new track to avoid any double audio
-      try {
-        this.player.pause();
-      } catch (e) {}
     }
-
-    this.currentVideoId = videoId;
+    
+    try {
+      this.player.pause();
+    } catch (e) {}
 
     if (this._useIFrame) {
       if (this.ytPlayer && this._ready && typeof this.ytPlayer.loadVideoById === 'function') {
@@ -613,35 +599,23 @@ export default class YouTubePlayer {
         } catch (err) {
           console.warn("[YouTubePlayer] Failed to loadVideoById:", err);
         }
-        if (this._iframeAutoplayCheck) clearTimeout(this._iframeAutoplayCheck);
-        this._iframeAutoplayCheck = setTimeout(() => {
-          if (this._useIFrame && this.ytPlayer && typeof this.ytPlayer.getPlayerState === 'function') {
-            const state = this.ytPlayer.getPlayerState();
-            if (state !== 1 && state !== 3 && this.isPlaying) {
-              console.warn("YouTube IFrame autoplay blocked (state:", state, "), showing unlock overlay");
-              this._userUnlocked = false;
-              this._pendingPlayAfterUnlock = { videoId, startSeconds: Math.round(this.positionMs / 1000) };
-              this._showOverlay();
-            }
-          }
-        }, 2500);
       } else {
         this._pendingLoad = { videoId, startSeconds };
         if (!this.ytPlayer) {
           this._initIFramePlayer();
         }
       }
-      setTimeout(() => { this._suppressStateChange = false; }, 1000);
+      setTimeout(() => { this._suppressStateChange = false; }, 800);
     } else {
       if (this.onStreamFailUpdate) this.onStreamFailUpdate("Connecting to audio stream…");
 
       if (this._loadTimeout) clearTimeout(this._loadTimeout);
       this._loadTimeout = setTimeout(() => {
         if (this.player.readyState === 0 && this.player.src && !this.player.src.startsWith('data:')) {
-          console.warn('Stream load timeout after 12s');
+          console.warn('Stream load timeout after 10s');
           this.player.dispatchEvent(new Event('error'));
         }
-      }, 12000);
+      }, 10000);
 
       this.player.loop = false;
       
@@ -660,7 +634,6 @@ export default class YouTubePlayer {
           this.player.src = `${BACKEND_URL}/stream/${videoId}`;
         }
         
-        // If crossfading, start new player volume at 0
         if (this.fadePlayer) {
           this.player.volume = 0;
         } else {
@@ -680,10 +653,10 @@ export default class YouTubePlayer {
             this._pendingPlayAfterUnlock = { videoId, startSeconds };
             this._showOverlay();
           } else {
-            console.warn('Playback warning (not autoplay block):', e);
+            console.warn('Playback warning:', e);
           }
         });
-        setTimeout(() => { this._suppressStateChange = false; }, 1000);
+        setTimeout(() => { this._suppressStateChange = false; }, 800);
       }).catch((err) => {
         console.error('[Player] Error checking offline cache:', err);
         this.player.src = `${BACKEND_URL}/stream/${videoId}`;
@@ -706,11 +679,9 @@ export default class YouTubePlayer {
             this._userUnlocked = false;
             this._pendingPlayAfterUnlock = { videoId, startSeconds };
             this._showOverlay();
-          } else {
-            console.warn('Playback warning (not autoplay block):', e);
           }
         });
-        setTimeout(() => { this._suppressStateChange = false; }, 1000);
+        setTimeout(() => { this._suppressStateChange = false; }, 800);
       });
     }
   }
@@ -735,7 +706,7 @@ export default class YouTubePlayer {
         if (this.ytPlayer && this._ready && typeof this.ytPlayer.seekTo === 'function') {
           this.ytPlayer.seekTo(startSeconds, true);
         }
-      } else if (this.player) {
+      } else if (this.player && this.player.readyState >= 2) {
         this.player.currentTime = startSeconds;
       }
     }
@@ -764,6 +735,7 @@ export default class YouTubePlayer {
     const targetSeconds = Math.max(0, seconds);
     this.positionMs = Math.round(targetSeconds * 1000);
     this._suppressStateChange = true;
+    this._lastSeekTime = Date.now();
     if (this._useIFrame && this.ytPlayer && typeof this.ytPlayer.seekTo === 'function') {
       this.ytPlayer.seekTo(targetSeconds, true);
     } else if (this.player) {
@@ -779,45 +751,92 @@ export default class YouTubePlayer {
     this.positionMs = positionMs;
 
     if (!this._userUnlocked) {
+      if (this._pendingPlayAfterUnlock) {
+        this._pendingPlayAfterUnlock.startSeconds = Math.round(positionMs / 1000);
+      }
       if (isPlaying && this.currentVideoId) this._showOverlay();
       this.updateDisplay();
       return;
     }
 
-    if (this._useIFrame && this.ytPlayer && typeof this.ytPlayer.getCurrentTime === 'function') {
-      const actualMs = Math.round((this.ytPlayer.getCurrentTime() || 0) * 1000);
-      const drift = Math.abs(actualMs - positionMs);
-      this._suppressStateChange = true;
-      if (drift > 1200 && typeof this.ytPlayer.seekTo === 'function') this.ytPlayer.seekTo(positionMs / 1000, true);
-      if (isPlaying) { if (typeof this.ytPlayer.playVideo === 'function') this.ytPlayer.playVideo(); this.startProgressTimer(); }
-      else { if (typeof this.ytPlayer.pauseVideo === 'function') this.ytPlayer.pauseVideo(); this.stopProgressTimer(); }
-      setTimeout(() => { this._suppressStateChange = false; }, 500);
-    } else if (this._useIFrame) {
-      this.updateDisplay();
-      return;
-    } else {
-      const actualMs = Math.round((this.player.currentTime || 0) * 1000);
-      const drift = Math.abs(actualMs - positionMs);
-      this._suppressStateChange = true;
-      if (drift > 1200) this.player.currentTime = positionMs / 1000;
-      if (isPlaying) {
-        this.player.play().catch(e => {
-          if (e.name === 'AbortError') return;
-          if (e.name === 'NotAllowedError') {
-            console.error('Autoplay prevented on sync:', e);
-            this._userUnlocked = false;
-            this._pendingPlayAfterUnlock = { videoId: this.currentVideoId, startSeconds: positionMs / 1000 };
-            this._showOverlay();
-          } else {
-            console.warn('Playback warning on sync (not autoplay block):', e);
+    if (this._useIFrame) {
+      if (this.ytPlayer && this._ready && typeof this.ytPlayer.getCurrentTime === 'function') {
+        const actualMs = Math.round((this.ytPlayer.getCurrentTime() || 0) * 1000);
+        const drift = Math.abs(actualMs - positionMs);
+        this._suppressStateChange = true;
+        
+        // Large drift seek with cooldown
+        if (drift > 3000 && Date.now() - (this._lastSeekTime || 0) > 4000 && typeof this.ytPlayer.seekTo === 'function') {
+          this.ytPlayer.seekTo(positionMs / 1000, true);
+          this._lastSeekTime = Date.now();
+        }
+        
+        if (isPlaying) {
+          if (typeof this.ytPlayer.getPlayerState === 'function') {
+            const st = this.ytPlayer.getPlayerState();
+            if (st !== 1 && st !== 3) this.ytPlayer.playVideo();
           }
-        });
+          this.startProgressTimer();
+        } else {
+          if (typeof this.ytPlayer.pauseVideo === 'function') this.ytPlayer.pauseVideo();
+          this.stopProgressTimer();
+        }
+        setTimeout(() => { this._suppressStateChange = false; }, 500);
+      } else if (!this._ready) {
+        this._pendingLoad = { videoId: this.currentVideoId, startSeconds: Math.round(positionMs / 1000) };
+      }
+    } else {
+      // HTML5 Audio Adaptive Synchronization Engine
+      if (isPlaying) {
+        if (this.player.paused && !this.player.seeking) {
+          this.player.play().catch(e => {
+            if (e.name === 'AbortError') return;
+            if (e.name === 'NotAllowedError') {
+              console.error('Autoplay prevented on sync:', e);
+              this._userUnlocked = false;
+              this._pendingPlayAfterUnlock = { videoId: this.currentVideoId, startSeconds: Math.round(positionMs / 1000) };
+              this._showOverlay();
+            }
+          });
+        }
+
+        if (this.player.readyState >= 2) {
+          const actualMs = Math.round((this.player.currentTime || 0) * 1000);
+          const driftSigned = positionMs - actualMs; // positive: local behind, negative: local ahead
+          const driftAbs = Math.abs(driftSigned);
+
+          // Tier 1: Perfect sync deadband (< 200ms)
+          if (driftAbs <= 200) {
+            if (this.player.playbackRate !== 1.0) {
+              this.player.playbackRate = 1.0;
+            }
+          }
+          // Tier 2: Micro-rate drift correction (200ms - 2500ms) — ZERO buffer interruption
+          else if (driftAbs <= 2500) {
+            const targetRate = driftSigned > 0 ? 1.05 : 0.95;
+            if (this.player.playbackRate !== targetRate) {
+              this.player.playbackRate = targetRate;
+            }
+          }
+          // Tier 3: Hard seek for massive drift (> 2500ms) with 4s cooldown
+          else if (driftAbs > 2500 && Date.now() - (this._lastSeekTime || 0) > 4000 && !this.player.seeking) {
+            this._suppressStateChange = true;
+            this.player.currentTime = Math.max(0, positionMs / 1000);
+            this._lastSeekTime = Date.now();
+            this.player.playbackRate = 1.0;
+            setTimeout(() => { this._suppressStateChange = false; }, 500);
+          }
+        }
         this.startProgressTimer();
       } else {
-        this.player.pause();
+        if (!this.player.paused) {
+          this.player.pause();
+        }
         this.stopProgressTimer();
+        if (this.player.playbackRate !== 1.0) {
+          this.player.playbackRate = 1.0;
+        }
       }
-      setTimeout(() => { this._suppressStateChange = false; }, 500);
     }
 
     this.updateDisplay();
@@ -839,7 +858,7 @@ export default class YouTubePlayer {
       } else {
         this.player.pause();
         this.stopProgressTimer();
-        this.stopCrossfade(); // Terminate any ongoing crossfade immediately on pause
+        this.stopCrossfade();
       }
     }
     setTimeout(() => { this._suppressStateChange = false; }, 500);
@@ -892,7 +911,7 @@ export default class YouTubePlayer {
 
   stop() {
     this.stopProgressTimer();
-    this.stopCrossfade(); // Ensure active crossfade is terminated
+    this.stopCrossfade();
     this._hideOverlay();
     this._hideLoadIndicator();
     this.isPlaying = false;
@@ -919,13 +938,12 @@ export default class YouTubePlayer {
   }
 
   setVolume(vol) {
-    this.volume = vol;
-    // Update player volumes, but avoid overriding active fadeInInterval
+    this.volume = Math.max(0, Math.min(100, vol));
     if (!this.fadeInInterval && this.player) {
-      this.player.volume = vol / 100;
+      this.player.volume = this.volume / 100;
     }
     if (this.ytPlayer && this._ready && typeof this.ytPlayer.setVolume === 'function') {
-      this.ytPlayer.setVolume(vol);
+      this.ytPlayer.setVolume(this.volume);
     }
   }
 
@@ -959,10 +977,7 @@ export default class YouTubePlayer {
           this._requestWakeLock();
         }
       });
-      console.log('[MediaBG] WakeLock acquired');
-    } catch (e) {
-      // Ignored for non-visible page contexts
-    }
+    } catch (e) {}
   }
 
   async _releaseWakeLock() {
@@ -970,7 +985,6 @@ export default class YouTubePlayer {
       try {
         await this._wakeLock.release();
         this._wakeLock = null;
-        console.log('[MediaBG] WakeLock released');
       } catch (e) {}
     }
   }
@@ -994,7 +1008,6 @@ export default class YouTubePlayer {
       gain.connect(this._keepAliveCtx.destination);
       osc.start();
       this._keepAliveOsc = osc;
-      console.log('[MediaBG] Silent keepalive started');
     } catch (e) {
       console.warn('[MediaBG] Silent keepalive failed:', e);
     }
@@ -1004,7 +1017,6 @@ export default class YouTubePlayer {
     if (this._keepAliveOsc) {
       try { this._keepAliveOsc.stop(); } catch (e) {}
       this._keepAliveOsc = null;
-      console.log('[MediaBG] Silent keepalive stopped');
     }
   }
 

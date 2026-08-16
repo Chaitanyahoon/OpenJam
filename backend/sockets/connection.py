@@ -479,11 +479,11 @@ def register_connection_handlers(sio: socketio.AsyncServer):
     async def sync_ping(sid, data):
         """Receive ping from client containing their t0 timestamp, reply with server timestamps."""
         import time
-        server_now = int(time.time() * 1000)
-        # Handle dict or raw float/int data
+        t1 = int(time.time() * 1000)
         t0 = data.get("t0") if isinstance(data, dict) else data
+        t2 = int(time.time() * 1000)
         await sio.emit("sync_pong", {
             "t0": t0,
-            "t1": server_now,
-            "t2": server_now
+            "t1": t1,
+            "t2": t2
         }, to=sid)

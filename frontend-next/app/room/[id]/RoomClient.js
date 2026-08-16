@@ -1096,6 +1096,26 @@ export default function RoomClient({ roomId }) {
     };
   }, []);
 
+  // Global user gesture listener for instant browser audio unlocking
+  useEffect(() => {
+    const handleUserGesture = () => {
+      if (playerRef.current) {
+        playerRef.current.unlockAudioContext();
+      }
+    };
+    window.addEventListener('click', handleUserGesture, { capture: true, passive: true });
+    window.addEventListener('touchstart', handleUserGesture, { capture: true, passive: true });
+    window.addEventListener('pointerdown', handleUserGesture, { capture: true, passive: true });
+    window.addEventListener('keydown', handleUserGesture, { capture: true, passive: true });
+
+    return () => {
+      window.removeEventListener('click', handleUserGesture, { capture: true });
+      window.removeEventListener('touchstart', handleUserGesture, { capture: true });
+      window.removeEventListener('pointerdown', handleUserGesture, { capture: true });
+      window.removeEventListener('keydown', handleUserGesture, { capture: true });
+    };
+  }, []);
+
   useEffect(() => {
     if (!playerRef.current) return;
     
