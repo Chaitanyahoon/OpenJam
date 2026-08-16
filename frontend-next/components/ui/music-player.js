@@ -602,7 +602,7 @@ export const MusicPlayer = ({
                       </div>
                     )}
                     {lyricsText.map((line, idx) => {
-                      const isActive = idx === (lyricsActiveIdx >= 0 ? lyricsActiveIdx : (currentTime > 0 ? 0 : -1));
+                      const isActive = idx === lyricsActiveIdx;
 
                       return (
                         <div 

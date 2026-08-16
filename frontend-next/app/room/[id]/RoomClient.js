@@ -1452,7 +1452,7 @@ export default function RoomClient({ roomId }) {
       setLyricsActiveIdx(-1);
       return;
     }
-    const effectiveMs = (playbackState.positionMs || 0) + lyricsOffsetMs + 80;
+    const effectiveMs = (playbackState.positionMs || 0) + lyricsOffsetMs;
     let newIdx = -1;
     for (let i = 0; i < lyricsText.length; i++) {
       if (lyricsText[i].timeMs !== undefined && lyricsText[i].timeMs >= 0) {
@@ -1462,9 +1462,6 @@ export default function RoomClient({ roomId }) {
           break;
         }
       }
-    }
-    if (newIdx === -1 && playbackState.isPlaying && lyricsText.length > 0 && effectiveMs >= (lyricsText[0]?.timeMs || 0)) {
-      newIdx = 0;
     }
     if (newIdx !== lyricsActiveIdx) {
       setLyricsActiveIdx(newIdx);
