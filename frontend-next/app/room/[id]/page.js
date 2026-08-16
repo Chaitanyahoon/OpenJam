@@ -65,8 +65,8 @@ export async function generateMetadata({ params }) {
         const listenerCount = room.listener_count || 0;
         const inviter = room.host_name || 'Someone';
 
-        let title = `${room.name} • OpenJam Live Room`;
-        let description = room.description || `🎧 Live music room hosted by ${inviter}. Stream music together in real-time sync with friends.`;
+        let title = `${room.name} • Live Jam Room | OpenJam`;
+        let description = `📻 Join "${room.name}" hosted by @${inviter} — Queue tracks from YouTube and listen together with friends in real-time sync!`;
         
         if (currentTrack) {
           const trackTitle = currentTrack.track_name || 'Music';
