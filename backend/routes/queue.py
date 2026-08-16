@@ -384,22 +384,23 @@ def _prune_url_cache():
 
 
 async def _is_url_valid(url: str) -> bool:
-    """Validate a cached stream URL with a fast HEAD request to check if it's still alive."""
+    """Validate a stream URL with a fast range GET probe."""
     if not url:
         return False
     try:
         client = _get_stream_client()
-        # Fast HEAD request with a 1.0s timeout to check signature/status
-        r = await client.request("HEAD", url, headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }, timeout=1.0)
-        # Any success or redirect status means the URL is still functional
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Range": "bytes=0-1024"
+        }
+        r = await client.request("GET", url, headers=headers, timeout=2.5)
+        # Any success or partial content status means the stream is live
         if r.status_code in (200, 206, 301, 302):
             return True
-        logger.warning(f"Cached stream URL returned status code {r.status_code} in validation probe")
+        logger.warning(f"Stream URL validation returned status code {r.status_code} for {url[:60]}")
         return False
     except Exception as e:
-        logger.warning(f"Probe validation failed for cached stream URL: {e}")
+        logger.warning(f"Probe validation failed for stream URL: {e}")
         return False
 
 
@@ -481,7 +482,7 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
             try:
                 from backend.services.cobalt import get_cobalt_stream_url
                 res = await asyncio.wait_for(get_cobalt_stream_url(video_id), timeout=6.0)
-                if res and await _is_url_valid(res):
+                if res and (res.startswith("http://") or res.startswith("https://")):
                     logger.info(f"[Resolver Race] Cobalt won for {video_id}")
                     return res
             except Exception as e:
@@ -492,7 +493,7 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
             try:
                 from backend.services.invidious import get_stream_url as get_invidious_stream_url
                 res = await asyncio.wait_for(get_invidious_stream_url(video_id), timeout=6.0)
-                if res and await _is_url_valid(res):
+                if res and (res.startswith("http://") or res.startswith("https://")):
                     logger.info(f"[Resolver Race] Invidious won for {video_id}")
                     return res
             except Exception as e:
@@ -517,7 +518,7 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
                 info = await asyncio.wait_for(loop.run_in_executor(None, extract), timeout=7.0)
                 if info and info.get("url"):
                     res = info.get("url")
-                    if await _is_url_valid(res):
+                    if res and (res.startswith("http://") or res.startswith("https://")):
                         logger.info(f"[Resolver Race] yt-dlp won for {video_id}")
                         return res
             except Exception as e:

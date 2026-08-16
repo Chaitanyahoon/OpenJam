@@ -52,7 +52,7 @@ export default class YouTubePlayer {
     this._useIFrame = false;
     this._useLowBitrate = false;
     this._streamFailCount = 0;
-    this._maxStreamFails = 2;
+    this._maxStreamFails = 1;
     this.volume = 80;
     this._stallTimers = new Map();
     this._lastSeekTime = 0;
@@ -63,7 +63,7 @@ export default class YouTubePlayer {
     this._keepAliveOsc = null;
 
     if (this._isMobile) {
-      this._maxStreamFails = 2;
+      this._maxStreamFails = 1;
     }
 
     this._initAudio();
