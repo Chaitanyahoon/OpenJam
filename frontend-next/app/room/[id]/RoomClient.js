@@ -1120,9 +1120,30 @@ export default function RoomClient({ roomId }) {
     if (!playerRef.current) return;
     
     playerRef.current.setControlCallback((action, extra) => {
-      if (action === 'ended') {
+      if (action === 'ended' || action === 'nexttrack') {
         if (isHost && socket) {
           socket.emit('next_track', { room_id: roomId });
+        }
+      } else if (action === 'previoustrack') {
+        if (isHost && socket) {
+          socket.emit('previous_track', { room_id: roomId });
+        }
+      } else if (action === 'seek') {
+        if (isHost && socket && extra?.position_ms !== undefined) {
+          const currentTrack = nowPlayingRef.current;
+          const currentPlayback = playbackStateRef.current;
+          socket.emit('playback_update', {
+            room_id: roomId,
+            track_uri: currentTrack?.track_uri,
+            track_name: currentTrack?.track_name,
+            artist: currentTrack?.artist,
+            album_art_url: currentTrack?.album_art_url,
+            position_ms: extra.position_ms,
+            duration_ms: currentPlayback.durationMs,
+            is_playing: currentPlayback.isPlaying,
+            loop: false,
+            is_buffering: false
+          });
         }
       } else if (action === 'play') {
         if (isHost && socket) {

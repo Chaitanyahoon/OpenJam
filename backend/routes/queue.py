@@ -22,9 +22,7 @@ from backend.services.queue_manager import queue_manager
 from backend.services.room_manager import room_manager
 from backend.services.music_search import music_search_service as lastfm_service
 
-def report_stream_failure(stream_url: str):
-    """No-op failover reporting for deprecated extractors."""
-    pass
+from backend.services.invidious import report_stream_failure
 from backend.schemas import QueueTrackRequest, PlaylistTrackRequest
 from backend.routes.rooms import check_room_access
 from backend.services.redis_store import RedisStore
@@ -393,12 +391,16 @@ async def _is_url_valid(url: str) -> bool:
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Range": "bytes=0-1024"
         }
-        r = await client.request("GET", url, headers=headers, timeout=2.5)
-        # Any success or partial content status means the stream is live
-        if r.status_code in (200, 206, 301, 302):
-            return True
-        logger.warning(f"Stream URL validation returned status code {r.status_code} for {url[:60]}")
-        return False
+        req = client.build_request("GET", url, headers=headers)
+        r = await client.send(req, stream=True)
+        try:
+            # Any success or partial content status means the stream is live
+            if r.status_code in (200, 206, 301, 302):
+                return True
+            logger.warning(f"Stream URL validation returned status code {r.status_code} for {url[:60]}")
+            return False
+        finally:
+            await r.aclose()
     except Exception as e:
         logger.warning(f"Probe validation failed for stream URL: {e}")
         return False
@@ -408,6 +410,7 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
     """Race all extraction methods — Invidious, Piped, yt-dlp, Cobalt.
     
     Uses whichever resolves first. Results cached in _url_cache.
+    Fails fast when rate-limited or blocked to allow immediate client fallback.
     """
     if not _is_valid_video_id(video_id):
         logger.warning(f"Invalid video_id rejected: {video_id!r}")
@@ -481,7 +484,7 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
         async def _try_cobalt():
             try:
                 from backend.services.cobalt import get_cobalt_stream_url
-                res = await asyncio.wait_for(get_cobalt_stream_url(video_id), timeout=6.0)
+                res = await asyncio.wait_for(get_cobalt_stream_url(video_id), timeout=2.5)
                 if res and (res.startswith("http://") or res.startswith("https://")):
                     logger.info(f"[Resolver Race] Cobalt won for {video_id}")
                     return res
@@ -492,7 +495,7 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
         async def _try_invidious():
             try:
                 from backend.services.invidious import get_stream_url as get_invidious_stream_url
-                res = await asyncio.wait_for(get_invidious_stream_url(video_id), timeout=6.0)
+                res = await asyncio.wait_for(get_invidious_stream_url(video_id), timeout=2.5)
                 if res and (res.startswith("http://") or res.startswith("https://")):
                     logger.info(f"[Resolver Race] Invidious won for {video_id}")
                     return res
@@ -512,12 +515,17 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
                         "nocheckcertificate": True,
                         "ignoreerrors": True,
                         "skip_download": True,
+                        "socket_timeout": 2.5,
                     }
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                         return ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
-                info = await asyncio.wait_for(loop.run_in_executor(None, extract), timeout=7.0)
-                if info and info.get("url"):
+                info = await asyncio.wait_for(loop.run_in_executor(None, extract), timeout=2.5)
+                if info:
                     res = info.get("url")
+                    if not res and "formats" in info:
+                        audio_formats = [f for f in info["formats"] if f.get("acodec") != "none" and f.get("vcodec") == "none"]
+                        if audio_formats:
+                            res = audio_formats[-1].get("url")
                     if res and (res.startswith("http://") or res.startswith("https://")):
                         logger.info(f"[Resolver Race] yt-dlp won for {video_id}")
                         return res
@@ -532,16 +540,30 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
         ]
 
         url = None
-        for coro in asyncio.as_completed(tasks):
-            res = await coro
-            if res:
-                url = res
-                break
-        
-        # Cancel remaining pending tasks once fastest resolver finishes
-        for t in tasks:
-            if not t.done():
-                t.cancel()
+        try:
+            async def _race():
+                nonlocal url
+                for coro in asyncio.as_completed(tasks):
+                    try:
+                        res = await coro
+                        if res:
+                            url = res
+                            break
+                    except Exception:
+                        pass
+            await asyncio.wait_for(_race(), timeout=3.0)
+        except Exception:
+            pass
+        finally:
+            # Cancel remaining pending tasks once fastest resolver finishes or race expires
+            for t in tasks:
+                if not t.done():
+                    t.cancel()
+            if tasks:
+                try:
+                    await asyncio.gather(*tasks, return_exceptions=True)
+                except Exception:
+                    pass
 
         if url:
             _prune_url_cache()
@@ -851,24 +873,20 @@ async def add_multiple_tracks_to_queue(
 
 @router.get("/stream/health")
 async def stream_health():
-    """Diagnostic: test Cobalt extraction method against a known video.
-    
-    Use this to check if Cobalt is working on your deployment.
-    """
+    """Diagnostic: test stream extraction methods against a known video."""
     test_id = "dQw4w9WgXcQ"  # Rick Astley — always available on YouTube
     results = {}
 
-    # Test yt-dlp (Deprecated)
-    results["ytdlp"] = {
-        "status": "deprecated",
-        "error": "yt-dlp is deprecated. Using Cobalt exclusively."
-    }
-
-    # Test Invidious/Piped (Deprecated)
-    results["invidious_piped"] = {
-        "status": "deprecated",
-        "error": "Invidious is deprecated. Using Cobalt exclusively."
-    }
+    # Test Invidious/Piped
+    try:
+        from backend.services.invidious import get_stream_url as get_invidious_stream_url
+        inv_url = await get_invidious_stream_url(test_id)
+        results["invidious_piped"] = {
+            "status": "ok" if inv_url else "no_url",
+            "url_preview": (inv_url[:80] + "...") if inv_url else None,
+        }
+    except Exception as e:
+        results["invidious_piped"] = {"status": "error", "error": str(e)[:200]}
 
     # Test Cobalt
     try:
@@ -887,8 +905,8 @@ async def stream_health():
         "working_methods": working,
         "total_working": len(working),
         "recommendation": (
-            "Cobalt is working properly!" if len(working) == 1
-            else "Cobalt resolution failed. Consider adding COBALT_API_URL env var."
+            "Stream extractors are working properly!" if len(working) > 0
+            else "Resolvers unavailable. Frontend fallback to native YouTube player is active."
         ),
     }
 

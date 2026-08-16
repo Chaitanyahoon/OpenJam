@@ -23,29 +23,28 @@ logger = logging.getLogger(__name__)
 # Known Invidious instances (refreshed 2026). Public instances that
 # generally allow API access for stream URL extraction.
 DEFAULT_INV_INSTANCES = [
-    "https://invidious.fdn.fr",
+    "https://invidious.nerdvpn.de",
+    "https://inv.nadeko.net",
+    "https://invidious.tiekoetter.com",
+    "https://yt.chocolatemoo53.com",
+    "https://invidious.f5.si",
+    "https://iv.ggtyler.dev",
     "https://invidious.private.coffee",
+    "https://yewtu.be",
     "https://inv.tux.pizza",
     "https://invidious.lunar.icu",
-    "https://iv.ggtyler.dev",
-    "https://inv.nadeko.net",
-    "https://invidious.protokolla.fi",
-    "https://iv.datura.network",
-    "https://yewtu.be",
-    "https://invidious.nerdvpn.de",
-    "https://inv.pistasjis.net",
-    "https://invidious.einfachzocken.eu",
 ]
 
 # Piped instances — another YouTube alt-frontend with streaming API
 DEFAULT_PIPED_INSTANCES = [
     "https://pipedapi.kavin.rocks",
     "https://pipedapi.adminforge.de",
-    "https://pipedapi.r4fo.com",
     "https://pipedapi.leptons.xyz",
-    "https://api.piped.projectsegfau.lt",
-    "https://pipedapi.in.projectsegfau.lt",
-    "https://pipedapi.darkness.services",
+    "https://pipedapi.smnz.de",
+    "https://piped-api.lunar.icu",
+    "https://pipedapi.nosebs.ru",
+    "https://pipedapi.astartes.nl",
+    "https://pipedapi.rivo.cc",
 ]
 
 # Mutable instance lists updated dynamically
@@ -106,39 +105,55 @@ async def update_instances_dynamically():
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
-        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=6.0, follow_redirects=True) as client:
             r = await client.get(url, headers=headers)
             if r.status_code == 200:
                 data = r.json()
                 new_inv = []
-                for domain, info in data:
-                    if not info:
+                
+                if isinstance(data, dict):
+                    items = data.items()
+                elif isinstance(data, list):
+                    items = data
+                else:
+                    items = []
+
+                for item in items:
+                    if isinstance(item, (list, tuple)) and len(item) == 2:
+                        domain, info = item
+                    elif isinstance(item, dict):
+                        info = item
+                    else:
                         continue
+
+                    if not isinstance(info, dict):
+                        continue
+
                     uri = info.get("uri")
-                    if not uri:
+                    if not uri or not isinstance(uri, str):
                         continue
                     if not uri.startswith("https://"):
                         continue
                     if any(x in uri for x in [".onion", ".i2p", ".ygg", "localhost"]):
                         continue
                     
-                    monitor = info.get("monitor") or {}
-                    if monitor.get("down", False):
+                    monitor = info.get("monitor")
+                    if isinstance(monitor, dict) and monitor.get("down", False):
                         continue
                     
-                    stats = info.get("stats") or {}
-                    playback = stats.get("playback") or {}
-                    ratio = playback.get("ratio", 0.0)
+                    stats = info.get("stats")
+                    ratio = 0.0
+                    if isinstance(stats, dict):
+                        playback = stats.get("playback")
+                        if isinstance(playback, dict):
+                            ratio = playback.get("ratio", 0.0) or 0.0
                     
                     new_inv.append((uri, ratio))
                 
                 new_inv.sort(key=lambda x: x[1], reverse=True)
                 filtered_uris = [x[0] for x in new_inv]
                 if filtered_uris:
-                    merged = list(filtered_uris)
-                    for x in DEFAULT_INV_INSTANCES:
-                        if x not in merged:
-                            merged.append(x)
+                    merged = list(dict.fromkeys(filtered_uris + DEFAULT_INV_INSTANCES))
                     INV_INSTANCES = merged
                     logger.info(f"Dynamically updated Invidious instances. Active count: {len(INV_INSTANCES)}")
     except Exception as e:
@@ -150,30 +165,30 @@ async def update_instances_dynamically():
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
-        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=6.0, follow_redirects=True) as client:
             r = await client.get(url, headers=headers)
             if r.status_code == 200:
                 data = r.json()
                 new_piped = []
-                for item in data:
+                items = data if isinstance(data, list) else (list(data.values()) if isinstance(data, dict) else [])
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
                     api_url = item.get("api_url")
-                    if not api_url:
+                    if not api_url or not isinstance(api_url, str):
                         continue
                     if not api_url.startswith("https://"):
                         continue
                     if any(x in api_url for x in [".onion", ".i2p", ".ygg", "localhost"]):
                         continue
                     
-                    uptime = item.get("uptime_24h", 0.0)
+                    uptime = item.get("uptime_24h", 0.0) or 0.0
                     new_piped.append((api_url, uptime))
                 
                 new_piped.sort(key=lambda x: x[1], reverse=True)
                 filtered_apis = [x[0] for x in new_piped]
                 if filtered_apis:
-                    merged = list(filtered_apis)
-                    for x in DEFAULT_PIPED_INSTANCES:
-                        if x not in merged:
-                            merged.append(x)
+                    merged = list(dict.fromkeys(filtered_apis + DEFAULT_PIPED_INSTANCES))
                     PIPED_INSTANCES = merged
                     logger.info(f"Dynamically updated Piped instances. Active count: {len(PIPED_INSTANCES)}")
     except Exception as e:
@@ -195,13 +210,14 @@ async def _health_check_instances_bg():
     async def check(url: str):
         try:
             headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "application/json",
             }
-            async with httpx.AsyncClient(timeout=5.5, follow_redirects=True) as client:
+            async with httpx.AsyncClient(timeout=3.5, follow_redirects=True) as client:
                 # 1. Real functional test: can it retrieve metadata for a popular video?
                 try:
                     r = await client.get(f"{url}/api/v1/videos/dQw4w9WgXcQ", headers=headers)
-                    if r.status_code == 200:
+                    if r.status_code == 200 and "application/json" in r.headers.get("content-type", ""):
                         data = r.json()
                         if data.get("title"):
                             _instance_health[url] = {
@@ -216,9 +232,9 @@ async def _health_check_instances_bg():
 
                 # 2. Status fallback: is the API server online at least?
                 r = await client.get(f"{url}/api/v1/status", headers=headers)
-                if r.status_code == 200:
+                if r.status_code == 200 and "application/json" in r.headers.get("content-type", ""):
                     _instance_health[url] = {
-                        "score": 80,  # Slightly lower score since video extraction wasn't verified
+                        "score": 80,
                         "failures": 0,
                         "last_check": now,
                         "latency_ms": r.elapsed.total_seconds() * 1000,
@@ -235,18 +251,21 @@ async def _health_check_instances_bg():
     async def check_piped(url: str):
         try:
             headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "application/json",
             }
-            async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as client:
-                r = await client.get(url, headers=headers)
-                if r.status_code in (200, 404):
-                    _piped_health[url] = {
-                        "score": 100,
-                        "failures": 0,
-                        "last_check": now,
-                        "latency_ms": r.elapsed.total_seconds() * 1000,
-                    }
-                    return True
+            async with httpx.AsyncClient(timeout=3.5, follow_redirects=True) as client:
+                r = await client.get(f"{url}/streams/dQw4w9WgXcQ", headers=headers)
+                if r.status_code == 200 and "application/json" in r.headers.get("content-type", ""):
+                    data = r.json()
+                    if data.get("audioStreams"):
+                        _piped_health[url] = {
+                            "score": 100,
+                            "failures": 0,
+                            "last_check": now,
+                            "latency_ms": r.elapsed.total_seconds() * 1000,
+                        }
+                        return True
         except Exception:
             pass
         health = _get_piped_health(url)
@@ -366,15 +385,16 @@ async def get_stream_url(video_id: str) -> Optional[str]:
     async def _try_instance(instance: str) -> Optional[str]:
         try:
             headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "application/json",
             }
-            async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as client:
+            async with httpx.AsyncClient(timeout=2.5, follow_redirects=True) as client:
                 r = await client.get(
                     f"{instance}/api/v1/videos/{video_id}",
                     params={"fields": "formatStreams,adaptiveFormats"},
                     headers=headers,
                 )
-                if r.status_code != 200:
+                if r.status_code != 200 or "application/json" not in r.headers.get("content-type", ""):
                     if r.status_code in (429, 403, 500, 502, 503):
                         health = _get_instance_health(instance)
                         health["failures"] += 1
@@ -411,11 +431,12 @@ async def get_stream_url(video_id: str) -> Optional[str]:
         """Try to get audio stream URL from a Piped API instance."""
         try:
             headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "application/json",
             }
-            async with httpx.AsyncClient(timeout=6.0, follow_redirects=True) as client:
+            async with httpx.AsyncClient(timeout=2.5, follow_redirects=True) as client:
                 r = await client.get(f"{instance}/streams/{video_id}", headers=headers)
-                if r.status_code != 200:
+                if r.status_code != 200 or "application/json" not in r.headers.get("content-type", ""):
                     if r.status_code in (429, 403, 500, 502, 503):
                         health = _get_piped_health(instance)
                         health["failures"] += 1
@@ -441,27 +462,49 @@ async def get_stream_url(video_id: str) -> Optional[str]:
     # to avoid creating excessive concurrent connections and slamming external APIs.
     instances = _get_sorted_instances()[:3]
     piped_instances = _get_sorted_piped_instances()[:3]
-    all_tasks = [_try_instance(i) for i in instances] + [_try_piped(p) for p in piped_instances]
-    for coro in asyncio.as_completed(all_tasks):
-        result = await coro
-        if result:
-            return result
-
-    return None
+    all_tasks = [asyncio.create_task(_try_instance(i)) for i in instances] + [asyncio.create_task(_try_piped(p)) for p in piped_instances]
+    
+    url = None
+    if all_tasks:
+        try:
+            async def _race():
+                nonlocal url
+                for future in asyncio.as_completed(all_tasks):
+                    try:
+                        res = await future
+                        if res:
+                            url = res
+                            break
+                    except Exception:
+                        pass
+            await asyncio.wait_for(_race(), timeout=3.5)
+        except Exception:
+            pass
+        finally:
+            for t in all_tasks:
+                if not t.done():
+                    t.cancel()
+            if all_tasks:
+                try:
+                    await asyncio.gather(*all_tasks, return_exceptions=True)
+                except Exception:
+                    pass
+    return url
 
 
 async def get_video_info(video_id: str) -> Optional[dict]:
     """Get video metadata (title, duration, etc.) from Invidious."""
     trigger_health_check_if_needed()
 
-    for instance in _get_sorted_instances():
+    for instance in _get_sorted_instances()[:3]:
         try:
             headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "application/json",
             }
-            async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+            async with httpx.AsyncClient(timeout=3.0, follow_redirects=True) as client:
                 r = await client.get(f"{instance}/api/v1/videos/{video_id}", headers=headers)
-                if r.status_code == 200:
+                if r.status_code == 200 and "application/json" in r.headers.get("content-type", ""):
                     data = r.json()
                     return {
                         "title": data.get("title", ""),
