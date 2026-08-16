@@ -151,7 +151,7 @@ export default class YouTubePlayer {
         if (audioElement.readyState < 2 && !audioElement.paused) {
           this._handleAudioError('stalled_timeout', audioElement);
         }
-      }, 3000);
+      }, 2000);
       this._stallTimers.set(audioElement, timer);
     });
 
@@ -165,7 +165,7 @@ export default class YouTubePlayer {
         if (audioElement.readyState < 2 && !audioElement.paused) {
           this._handleAudioError('waiting_timeout', audioElement);
         }
-      }, 3000);
+      }, 2000);
       this._stallTimers.set(audioElement, timer);
     });
   }
@@ -619,10 +619,10 @@ export default class YouTubePlayer {
       if (this._loadTimeout) clearTimeout(this._loadTimeout);
       this._loadTimeout = setTimeout(() => {
         if (this.player.readyState === 0 && this.player.src && !this.player.src.startsWith('data:')) {
-          console.warn('Stream load timeout after 10s');
+          console.warn('Stream load timeout after 4.5s');
           this.player.dispatchEvent(new Event('error'));
         }
-      }, 10000);
+      }, 4500);
 
       this.player.loop = false;
       

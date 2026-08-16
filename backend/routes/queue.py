@@ -475,34 +475,37 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
             except Exception:
                 pass
 
-        logger.info(f"Resolving stream URL using Cobalt for {video_id}")
-        url = None
-        try:
-            from backend.services.cobalt import get_cobalt_stream_url
-            url = await asyncio.wait_for(get_cobalt_stream_url(video_id), timeout=12.0)
-        except asyncio.TimeoutError:
-            logger.warning(f"Cobalt resolution timed out after 12.0s for {video_id}")
-        except Exception as e:
-            logger.warning(f"Cobalt failed for {video_id}: {e}")
+        logger.info(f"Racing Cobalt, Invidious, and yt-dlp stream resolvers in parallel for {video_id}")
+        
+        async def _try_cobalt():
+            try:
+                from backend.services.cobalt import get_cobalt_stream_url
+                res = await asyncio.wait_for(get_cobalt_stream_url(video_id), timeout=6.0)
+                if res and await _is_url_valid(res):
+                    logger.info(f"[Resolver Race] Cobalt won for {video_id}")
+                    return res
+            except Exception as e:
+                logger.debug(f"Cobalt parallel resolver failed for {video_id}: {e}")
+            return None
 
-        # Fallback to Invidious/Piped stream URL resolver if Cobalt fails
-        if not url:
-            logger.info(f"Cobalt failed to resolve stream for {video_id}, falling back to Invidious/Piped...")
+        async def _try_invidious():
             try:
                 from backend.services.invidious import get_stream_url as get_invidious_stream_url
-                url = await asyncio.wait_for(get_invidious_stream_url(video_id), timeout=10.0)
+                res = await asyncio.wait_for(get_invidious_stream_url(video_id), timeout=6.0)
+                if res and await _is_url_valid(res):
+                    logger.info(f"[Resolver Race] Invidious won for {video_id}")
+                    return res
             except Exception as e:
-                logger.warning(f"Invidious/Piped fallback failed for {video_id}: {e}")
+                logger.debug(f"Invidious parallel resolver failed for {video_id}: {e}")
+            return None
 
-        # Fallback to yt-dlp if Invidious and Cobalt both fail
-        if not url:
-            logger.info(f"Invidious/Piped failed to resolve stream for {video_id}, falling back to yt-dlp...")
+        async def _try_ytdlp():
             try:
                 import yt_dlp
                 loop = asyncio.get_running_loop()
                 def extract():
                     ydl_opts = {
-                        "format": "bestaudio/best",
+                        "format": "ba[abr<=128]/ba/b[height<=480]" if low else "bestaudio/best",
                         "quiet": True,
                         "no_warnings": True,
                         "nocheckcertificate": True,
@@ -511,11 +514,33 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
                     }
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                         return ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
-                info = await loop.run_in_executor(None, extract)
-                if info:
-                    url = info.get("url")
+                info = await asyncio.wait_for(loop.run_in_executor(None, extract), timeout=7.0)
+                if info and info.get("url"):
+                    res = info.get("url")
+                    if await _is_url_valid(res):
+                        logger.info(f"[Resolver Race] yt-dlp won for {video_id}")
+                        return res
             except Exception as e:
-                logger.warning(f"yt-dlp extraction fallback failed for {video_id}: {e}")
+                logger.debug(f"yt-dlp parallel resolver failed for {video_id}: {e}")
+            return None
+
+        tasks = [
+            asyncio.create_task(_try_cobalt()),
+            asyncio.create_task(_try_invidious()),
+            asyncio.create_task(_try_ytdlp())
+        ]
+
+        url = None
+        for coro in asyncio.as_completed(tasks):
+            res = await coro
+            if res:
+                url = res
+                break
+        
+        # Cancel remaining pending tasks once fastest resolver finishes
+        for t in tasks:
+            if not t.done():
+                t.cancel()
 
         if url:
             _prune_url_cache()
