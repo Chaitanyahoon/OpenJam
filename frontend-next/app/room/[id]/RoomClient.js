@@ -2495,9 +2495,9 @@ export default function RoomClient({ roomId }) {
               <span className="badge badge-live">
                 <span className="badge-live-dot"></span>LIVE
               </span>
-              <span className="room-bar-name" title={room ? room.name : 'Loading...'}>
+              <h1 className="room-bar-name" title={room ? room.name : 'Loading...'}>
                 {room ? room.name : 'Loading…'}
-              </span>
+              </h1>
             </div>
             
             <div className="room-sub-meta">

@@ -3,8 +3,8 @@ import ProfileClient from './ProfileClient';
 import { ProfileSkeleton } from '@/components/SkeletonLoaders';
 
 export const metadata = {
-  title: 'My Profile — Open Jam',
-  description: 'Manage your playlists, view your musical footprint, liked songs, and connect with other listeners on Open Jam.',
+  title: 'My Profile',
+  description: 'Manage your playlists, view your musical footprint, liked songs, and connect with other listeners on OpenJam.',
   robots: { index: false, follow: false },
 };
 

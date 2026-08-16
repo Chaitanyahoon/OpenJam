@@ -26,7 +26,7 @@ const itemVariants = {
 
 export default function PrivacyPage() {
   return (
-    <div className="policy-page-wrap">
+    <main className="policy-page-wrap">
       {/* Background ambient glows */}
       <div className="landing-bg-glows" aria-hidden="true" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1 }}>
         <div style={{ position: 'absolute', top: '10%', left: '15%', width: '500px', height: '500px', background: 'rgba(255, 159, 28, 0.03)', filter: 'blur(160px)', borderRadius: '50%' }}></div>
@@ -147,6 +147,6 @@ export default function PrivacyPage() {
           </section>
         </motion.div>
       </motion.div>
-    </div>
+    </main>
   );
 }

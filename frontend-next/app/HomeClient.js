@@ -941,7 +941,7 @@ export default function HomePage() {
   }, [offlineTracks, offlinePlaylists, activeOfflinePlaylistId, searchQuery]);
 
   return (
-    <div className="landing-wrapper">
+    <main className="landing-wrapper">
 
       {/* Cursor follower ambient glow */}
       <div 
@@ -1068,6 +1068,8 @@ export default function HomePage() {
                 </svg>
               </span>
               <input
+                id="search-offline-tracks-input"
+                aria-label="Search offline tracks"
                 type="text"
                 className="input-field"
                 value={searchQuery}
@@ -1504,6 +1506,8 @@ export default function HomePage() {
               </svg>
             </span>
             <input
+              id="search-rooms-input"
+              aria-label="Search rooms or genres"
               type="text"
               className="input-field"
               value={searchQuery}
@@ -1903,6 +1907,6 @@ export default function HomePage() {
           </div>
         </div>
       )}
-    </div>
+    </main>
   );
 }

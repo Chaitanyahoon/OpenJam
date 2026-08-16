@@ -329,7 +329,7 @@ const PillNav = ({
               {me.avatar_url ? (
                 <img 
                   src={me.avatar_url} 
-                  alt="Profile" 
+                  alt={`${me.display_name || me.username || 'User'}'s Avatar`} 
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />
               ) : (

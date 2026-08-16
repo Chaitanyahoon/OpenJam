@@ -72,10 +72,55 @@ export async function generateMetadata(props) {
   }
 }
 
-export default function PlaylistPage() {
+export default async function PlaylistPage({ params }) {
+  const resolvedParams = await params;
+  const id = resolvedParams?.id;
+
+  let playlistSchema = null;
+  if (id && id !== 'loading') {
+    try {
+      const backendUrl = getBackendUrl();
+      const res = await fetch(`${backendUrl}/playlists/${id}`, { next: { revalidate: 120 } });
+      if (res.ok) {
+        const data = await res.json();
+        const playlist = data?.playlist || data;
+        if (playlist) {
+          playlistSchema = {
+            "@context": "https://schema.org",
+            "@type": "MusicPlaylist",
+            "name": playlist.name || 'Shared Playlist',
+            "description": playlist.description || `Playlist on OpenJam with ${playlist.tracks?.length || 0} tracks`,
+            "numTracks": playlist.tracks?.length || 0,
+            "url": `https://www.openjam.fun/playlist/${id}`,
+            ...(playlist.cover_url ? { "image": playlist.cover_url } : {}),
+            ...(playlist.tracks && playlist.tracks.length > 0 ? {
+              "track": playlist.tracks.slice(0, 30).map((t, idx) => ({
+                "@type": "MusicRecording",
+                "position": idx + 1,
+                "name": t.track_name || t.title || 'Track',
+                "byArtist": {
+                  "@type": "MusicGroup",
+                  "name": t.artist || 'Artist'
+                }
+              }))
+            } : {})
+          };
+        }
+      }
+    } catch (_) {}
+  }
+
   return (
-    <Suspense fallback={<PlaylistSkeleton />}>
-      <PlaylistPageClient />
-    </Suspense>
+    <>
+      {playlistSchema && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(playlistSchema) }}
+        />
+      )}
+      <Suspense fallback={<PlaylistSkeleton />}>
+        <PlaylistPageClient />
+      </Suspense>
+    </>
   );
 }

@@ -1210,9 +1210,9 @@ export default function ProfileHero({
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'flex-start' }} className="profile-hero-titles-wrap">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <h2 style={{ fontSize: '32px', fontWeight: 800, letterSpacing: '-0.03em', background: 'linear-gradient(135deg, #fff 0%, #ccc 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>
+                  <h1 style={{ fontSize: '32px', fontWeight: 800, letterSpacing: '-0.03em', background: 'linear-gradient(135deg, #fff 0%, #ccc 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>
                     {profile?.display_name}
-                  </h2>
+                  </h1>
                   {isOwnProfile && (
                     <button 
                       onClick={() => setIsEditingName(true)} 
