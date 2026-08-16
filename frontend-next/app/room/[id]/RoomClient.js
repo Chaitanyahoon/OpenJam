@@ -938,21 +938,12 @@ export default function RoomClient({ roomId }) {
             album_art_url: data.album_art_url,
             position_ms: adjustedPosition,
             duration_ms: data.duration_ms,
-            is_playing: data.is_playing && !isBuffering
+            is_playing: data.is_playing
           });
         } else if (!data.track_uri) {
           playerRef.current.stop();
         } else {
-          playerRef.current.syncPosition(adjustedPosition, data.is_playing && !isBuffering);
-        }
-      }
-      if (!isHostUser) {
-        if (isBuffering) {
-          streamErrorMsgRef.current = "Buffering stream…";
-          setStreamErrorMsg("Buffering stream…");
-        } else {
-          streamErrorMsgRef.current = null;
-          setStreamErrorMsg(null);
+          playerRef.current.syncPosition(adjustedPosition, data.is_playing);
         }
       }
     });
@@ -1037,6 +1028,10 @@ export default function RoomClient({ roomId }) {
     const player = new YouTubePlayer({
       toast: (msg, type) => triggerToast(msg, type),
       onProgressUpdate: (pos, dur, playing) => {
+        if (playing && streamErrorMsgRef.current) {
+          streamErrorMsgRef.current = null;
+          setStreamErrorMsg(null);
+        }
         playbackStateRef.current = {
           ...playbackStateRef.current,
           positionMs: pos,
@@ -1047,6 +1042,21 @@ export default function RoomClient({ roomId }) {
           ...prev,
           positionMs: pos,
           durationMs: dur,
+          isPlaying: playing
+        }));
+      },
+      onStateChange: (state) => {
+        const playing = state === 'play';
+        if (playing) {
+          streamErrorMsgRef.current = null;
+          setStreamErrorMsg(null);
+        }
+        playbackStateRef.current = {
+          ...playbackStateRef.current,
+          isPlaying: playing
+        };
+        setPlaybackState((prev) => ({
+          ...prev,
           isPlaying: playing
         }));
       },
@@ -1062,7 +1072,6 @@ export default function RoomClient({ roomId }) {
     if (nowPlayingRef.current) {
       const currentTrack = nowPlayingRef.current;
       const currentPlayback = playbackStateRef.current;
-      const isBuffering = currentPlayback?.isBuffering || currentPlayback?.is_buffering || false;
       const position = currentPlayback?.positionMs ?? currentPlayback?.position_ms ?? 0;
       const duration = currentPlayback?.durationMs ?? currentPlayback?.duration_ms ?? 0;
       const playing = currentPlayback?.isPlaying ?? currentPlayback?.is_playing ?? false;
@@ -1087,7 +1096,7 @@ export default function RoomClient({ roomId }) {
         album_art_url: currentTrack.album_art_url,
         position_ms: adjustedPosition,
         duration_ms: duration,
-        is_playing: playing && !isBuffering
+        is_playing: playing
       });
     }
 
@@ -1116,10 +1125,11 @@ export default function RoomClient({ roomId }) {
     };
   }, []);
 
+  // 3. Media Controls Synchronization (Broadcast on user interaction)
   useEffect(() => {
     if (!playerRef.current) return;
     
-    playerRef.current.setControlCallback((action, extra) => {
+    playerRef.current.onControlEvent((action, extra = {}) => {
       if (action === 'ended' || action === 'nexttrack') {
         if (isHost && socket) {
           socket.emit('next_track', { room_id: roomId });
@@ -1159,7 +1169,7 @@ export default function RoomClient({ roomId }) {
             duration_ms: currentPlayback.durationMs,
             is_playing: true,
             loop: false,
-            is_buffering: !!streamErrorMsgRef.current
+            is_buffering: false
           });
         }
       } else if (action === 'pause') {
@@ -1182,26 +1192,6 @@ export default function RoomClient({ roomId }) {
       }
     });
   }, [roomId, socket, isHost]);
-
-  // 3.5. Buffering Synchronization
-  useEffect(() => {
-    if (isHost && socket && nowPlayingRef.current) {
-      const currentTrack = nowPlayingRef.current;
-      const currentPlayback = playbackStateRef.current;
-      socket.emit('playback_update', {
-        room_id: roomId,
-        track_uri: currentTrack.track_uri,
-        track_name: currentTrack.track_name,
-        artist: currentTrack.artist,
-        album_art_url: currentTrack.album_art_url,
-        position_ms: currentPlayback.positionMs,
-        duration_ms: currentPlayback.durationMs,
-        is_playing: currentPlayback.isPlaying,
-        loop: false,
-        is_buffering: !!streamErrorMsg
-      });
-    }
-  }, [streamErrorMsg, isHost, socket, roomId]);
 
   // 4. Volume Synchronization
   useEffect(() => {

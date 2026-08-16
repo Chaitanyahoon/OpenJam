@@ -120,12 +120,6 @@ export default class YouTubePlayer {
   }
 
   _setupAudioListeners(audioElement, name) {
-    audioElement.addEventListener('loadstart', () => {
-      if (this._isDestroyed || audioElement !== this.activePlayer) return;
-      if (!audioElement.src || audioElement.src.startsWith('data:')) return;
-      this._showLoadIndicator();
-    });
-
     audioElement.addEventListener('play', () => {
       if (this._isDestroyed || audioElement !== this.activePlayer) return;
       if (!audioElement.src || audioElement.src.startsWith('data:')) return;
@@ -141,15 +135,29 @@ export default class YouTubePlayer {
       }
     });
 
+    audioElement.addEventListener('playing', () => {
+      if (this._isDestroyed || audioElement !== this.activePlayer) return;
+      this._hideLoadIndicator();
+    });
+
+    audioElement.addEventListener('timeupdate', () => {
+      if (this._isDestroyed || audioElement !== this.activePlayer) return;
+      if (audioElement.currentTime > 0) {
+        this._hideLoadIndicator();
+      }
+    });
+
     audioElement.addEventListener('pause', () => {
       if (this._isDestroyed || audioElement !== this.activePlayer) return;
       if (!audioElement.src || audioElement.src.startsWith('data:')) return;
+      this._hideLoadIndicator();
       this._onStateChange('pause');
     });
 
     audioElement.addEventListener('ended', () => {
       if (this._isDestroyed || audioElement !== this.activePlayer) return;
       if (!audioElement.src || audioElement.src.startsWith('data:')) return;
+      this._hideLoadIndicator();
       this._onStateChange('ended');
     });
 
@@ -515,7 +523,7 @@ export default class YouTubePlayer {
   }
 
   _showLoadIndicator() {
-    if (this.onStreamFailUpdate) this.onStreamFailUpdate("Buffering stream…");
+    if (this.isPlaying && this.onStreamFailUpdate) this.onStreamFailUpdate("Buffering stream…");
   }
 
   _hideLoadIndicator() {
