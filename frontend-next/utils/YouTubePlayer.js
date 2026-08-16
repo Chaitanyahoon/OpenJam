@@ -98,6 +98,10 @@ export default class YouTubePlayer {
     audioElement.addEventListener('play', () => {
       if (audioElement !== this.activePlayer) return;
       if (!audioElement.src || audioElement.src.startsWith('data:')) return;
+      try {
+        audioElement.defaultPlaybackRate = 1.0;
+        audioElement.playbackRate = 1.0;
+      } catch (e) {}
       this._onStateChange('play');
       this._hideLoadIndicator();
       
@@ -121,6 +125,9 @@ export default class YouTubePlayer {
     audioElement.addEventListener('canplay', () => {
       if (audioElement !== this.activePlayer) return;
       if (!audioElement.src || audioElement.src.startsWith('data:')) return;
+      try {
+        audioElement.playbackRate = 1.0;
+      } catch (e) {}
       const timer = this._stallTimers.get(audioElement);
       if (timer) { clearTimeout(timer); this._stallTimers.delete(audioElement); }
       this._hideLoadIndicator();
@@ -800,30 +807,20 @@ export default class YouTubePlayer {
           });
         }
 
+        // Always ensure natural 1.0x playback speed and pitch
+        if (this.player.playbackRate !== 1.0) {
+          this.player.playbackRate = 1.0;
+        }
+
         if (this.player.readyState >= 2) {
           const actualMs = Math.round((this.player.currentTime || 0) * 1000);
-          const driftSigned = positionMs - actualMs; // positive: local behind, negative: local ahead
-          const driftAbs = Math.abs(driftSigned);
+          const driftAbs = Math.abs(positionMs - actualMs);
 
-          // Tier 1: Perfect sync deadband (< 200ms)
-          if (driftAbs <= 200) {
-            if (this.player.playbackRate !== 1.0) {
-              this.player.playbackRate = 1.0;
-            }
-          }
-          // Tier 2: Micro-rate drift correction (200ms - 2500ms) — ZERO buffer interruption
-          else if (driftAbs <= 2500) {
-            const targetRate = driftSigned > 0 ? 1.05 : 0.95;
-            if (this.player.playbackRate !== targetRate) {
-              this.player.playbackRate = targetRate;
-            }
-          }
-          // Tier 3: Hard seek for massive drift (> 2500ms) with 4s cooldown
-          else if (driftAbs > 2500 && Date.now() - (this._lastSeekTime || 0) > 4000 && !this.player.seeking) {
+          // Hard seek only for genuine large skips (> 2500ms) with 4s debounce
+          if (driftAbs > 2500 && Date.now() - (this._lastSeekTime || 0) > 4000 && !this.player.seeking) {
             this._suppressStateChange = true;
             this.player.currentTime = Math.max(0, positionMs / 1000);
             this._lastSeekTime = Date.now();
-            this.player.playbackRate = 1.0;
             setTimeout(() => { this._suppressStateChange = false; }, 500);
           }
         }
