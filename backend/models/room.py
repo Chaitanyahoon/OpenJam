@@ -17,6 +17,7 @@ class Room(Base):
     queue_mode = Column(String, default="open")  # open or curated
     password_hash = Column(String, nullable=True)
     is_private = Column(Boolean, default=False)
+    allow_guest_controls = Column(Boolean, default=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     
     # Relationship to User (eager loading)
@@ -43,6 +44,7 @@ class Room(Base):
             "is_active": self.is_active,
             "queue_mode": self.queue_mode,
             "is_private": self.is_private or False,
+            "allow_guest_controls": self.allow_guest_controls or False,
             "listener_count": listener_count,
             "current_track": current_track,
             "created_at": created_at_iso,

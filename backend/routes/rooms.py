@@ -122,6 +122,7 @@ async def create_room(request: Request, create_room_req: CreateRoomRequest, db: 
             queue_mode=create_room_req.queue_mode,
             password_hash=password_hash,
             is_private=is_private,
+            allow_guest_controls=create_room_req.allow_guest_controls,
         )
         db.add(room)
         db.commit()

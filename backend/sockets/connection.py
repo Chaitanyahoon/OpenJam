@@ -303,6 +303,8 @@ def register_connection_handlers(sio: socketio.AsyncServer):
                 if room:
                     if room.host_user_id == user_id:
                         room_manager.set_host(room_id, sid)
+                    # Sync guest controls from DB into room state
+                    room_manager.set_guest_controls(room_id, room.allow_guest_controls or False)
                     if not room.is_active:
                         room.is_active = True
                         db.commit()
@@ -339,6 +341,7 @@ def register_connection_handlers(sio: socketio.AsyncServer):
                 "room_id": room_id,
                 "queue": queue,
                 "listeners": room_manager.get_listeners(room_id),
+                "allow_guest_controls": room_manager.get_guest_controls(room_id),
             }
             if playback and playback.get("track_uri"):
                 join_data["now_playing"] = {

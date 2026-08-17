@@ -31,6 +31,7 @@ export default function CreateRoomModal({
   createMode, onCreateModeChange,
   createPrivate, onCreatePrivateChange,
   createPassword, onCreatePasswordChange,
+  allowGuestControls, onAllowGuestControlsChange,
   selectedTags, onToggleTag,
   onSubmit,
   isSubmitting,
@@ -120,6 +121,17 @@ export default function CreateRoomModal({
                   </motion.div>
                 )}
               </AnimatePresence>
+
+              <div className="modal-field modal-checkbox-row">
+                <input
+                  type="checkbox" id="create-guest-controls"
+                  checked={allowGuestControls}
+                  onChange={(e) => onAllowGuestControlsChange(e.target.checked)}
+                />
+                <label htmlFor="create-guest-controls" className="modal-label modal-label-checkbox">
+                  Collaborative Playback (listeners can play/pause/skip)
+                </label>
+              </div>
 
               <div className="modal-field">
                 <label className="modal-label">Genre Tags (Max 3)</label>

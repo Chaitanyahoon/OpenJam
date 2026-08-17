@@ -144,6 +144,29 @@ class RoomManager:
             return room.get("host_sid") == sid
         return False
 
+    def can_control(self, room_id: str, sid: str) -> bool:
+        """Check if SID has playback control: either host or guest controls enabled."""
+        room = self.store.get_room(room_id)
+        if not room:
+            return False
+        if room.get("host_sid") == sid:
+            return True
+        return room.get("allow_guest_controls", False)
+
+    def set_guest_controls(self, room_id: str, allow: bool):
+        """Set whether guests can control playback in this room."""
+        room = self.store.get_room(room_id)
+        if room:
+            room["allow_guest_controls"] = allow
+            self.store.set_room(room_id, room)
+
+    def get_guest_controls(self, room_id: str) -> bool:
+        """Get whether guest controls are enabled for this room."""
+        room = self.store.get_room(room_id)
+        if room:
+            return room.get("allow_guest_controls", False)
+        return False
+
     def get_host_sid(self, room_id: str) -> str | None:
         room = self.store.get_room(room_id)
         if room:

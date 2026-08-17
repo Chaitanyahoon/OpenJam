@@ -362,15 +362,15 @@ def register_playback_handlers(sio: socketio.AsyncServer):
 
     @sio.event
     async def playback_update(sid, data):
-        """Host-only: update playback state for the room."""
+        """Update playback state for the room. Allowed for host or when guest controls are enabled."""
         info = room_manager.get_user_by_sid(sid)
         if not info:
             return
         room_id = info["room_id"]
 
-        # Verify host permissions before allowing playback controls
-        if not room_manager.is_host(room_id, sid):
-            logger.warning(f"Non-host sid {sid} tried to update playback state in room {room_id}")
+        # Verify playback control permissions
+        if not room_manager.can_control(room_id, sid):
+            logger.warning(f"Non-host sid {sid} tried to update playback state in room {room_id} (guest controls disabled)")
             return
 
         room_manager.update_playback(
@@ -415,15 +415,15 @@ def register_playback_handlers(sio: socketio.AsyncServer):
 
     @sio.event
     async def next_track(sid, data):
-        """Host-only: skip to the next track. Guarded by per-room lock."""
+        """Skip to the next track. Allowed for host or when guest controls are enabled."""
         info = room_manager.get_user_by_sid(sid)
         if not info:
             return
         room_id = info["room_id"]
 
-        # Verify host permissions before allowing direct skips
-        if not room_manager.is_host(room_id, sid):
-            logger.warning(f"Non-host sid {sid} tried to skip directly in room {room_id}")
+        # Verify playback control permissions
+        if not room_manager.can_control(room_id, sid):
+            logger.warning(f"Non-host sid {sid} tried to skip directly in room {room_id} (guest controls disabled)")
             return
 
         lock = _get_advance_lock(room_id)
@@ -433,7 +433,7 @@ def register_playback_handlers(sio: socketio.AsyncServer):
 
     @sio.event
     async def toggle_repeat(sid, data):
-        """Host-only: toggle repeat/loop mode for current room playback."""
+        """Toggle repeat/loop mode. Allowed for host or when guest controls are enabled."""
         session = await sio.get_session(sid)
         if not session:
             return
@@ -441,7 +441,7 @@ def register_playback_handlers(sio: socketio.AsyncServer):
         if not info:
             return
         room_id = info["room_id"]
-        if not room_manager.is_host(room_id, sid):
+        if not room_manager.can_control(room_id, sid):
             return
 
         loop = data.get("loop", False)
@@ -462,4 +462,34 @@ def register_playback_handlers(sio: socketio.AsyncServer):
             )
             updated = room_manager.get_playback(room_id)
             await sio.emit("playback_sync", _make_json_safe(updated), room=room_id)
+
+    @sio.event
+    async def toggle_guest_controls(sid, data):
+        """Host-only: toggle whether guests can control playback."""
+        info = room_manager.get_user_by_sid(sid)
+        if not info:
+            return
+        room_id = info["room_id"]
+        if not room_manager.is_host(room_id, sid):
+            return
+
+        allow = bool(data.get("allow", False))
+        room_manager.set_guest_controls(room_id, allow)
+
+        # Persist to database
+        def _update_db_guest_controls(rid, value):
+            from backend.database import SessionLocal
+            db = SessionLocal()
+            try:
+                from backend.models.room import Room
+                room = db.query(Room).filter(Room.id == rid).first()
+                if room:
+                    room.allow_guest_controls = value
+                    db.commit()
+            finally:
+                db.close()
+        await asyncio.to_thread(_update_db_guest_controls, room_id, allow)
+
+        await sio.emit("guest_controls_updated", {"allow_guest_controls": allow}, room=room_id)
+        logger.info(f"Guest controls {'enabled' if allow else 'disabled'} in room {room_id}")
 

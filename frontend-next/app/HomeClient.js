@@ -120,6 +120,7 @@ export default function HomePage() {
   const [createMode, setCreateMode] = useState('open');
   const [createPrivate, setCreatePrivate] = useState(false);
   const [createPassword, setCreatePassword] = useState('');
+  const [allowGuestControls, setAllowGuestControls] = useState(false);
   const [selectedTags, setSelectedTags] = useState(new Set());
 
   // Shuffler & Submission states
@@ -726,7 +727,8 @@ export default function HomePage() {
           description: createDesc.trim(),
           genre_tags: Array.from(selectedTags),
           queue_mode: createMode,
-          password: createPrivate ? createPassword.trim() : null
+          password: createPrivate ? createPassword.trim() : null,
+          allow_guest_controls: allowGuestControls
         }),
         credentials: 'include'
       });
@@ -1697,6 +1699,7 @@ export default function HomePage() {
         createMode={createMode} onCreateModeChange={setCreateMode}
         createPrivate={createPrivate} onCreatePrivateChange={setCreatePrivate}
         createPassword={createPassword} onCreatePasswordChange={setCreatePassword}
+        allowGuestControls={allowGuestControls} onAllowGuestControlsChange={setAllowGuestControls}
         selectedTags={selectedTags} onToggleTag={toggleTag}
         onSubmit={handleCreateRoom}
         isSubmitting={isSubmitting}

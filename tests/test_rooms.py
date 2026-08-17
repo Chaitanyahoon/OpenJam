@@ -526,6 +526,51 @@ async def test_host_ownership_transfer(db_session, test_user):
         db_session.close = original_close
 
 
+def test_create_room_with_allow_guest_controls(client, auth_headers, test_user, db_session):
+    """Test creating a room with allow_guest_controls enabled."""
+    response = client.post(
+        "/rooms",
+        json={
+            "name": "Collab Room",
+            "description": "Anyone can DJ",
+            "genre_tags": ["rock"],
+            "queue_mode": "open",
+            "allow_guest_controls": True,
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["room"]["name"] == "Collab Room"
+    assert data["room"]["allow_guest_controls"] is True
+
+
+def test_room_manager_can_control():
+    """Test room_manager can_control permission logic."""
+    from backend.services.room_manager import room_manager
+    room_id = "test_collab_room_unit"
+    
+    # 1. Host can always control
+    room_manager.join_room(room_id, "user_1", "sid_host", "Host User")
+    room_manager.set_host(room_id, "sid_host")
+    assert room_manager.can_control(room_id, "sid_host") is True
+    
+    # 2. Guest cannot control by default
+    room_manager.join_room(room_id, "user_2", "sid_guest", "Guest User")
+    assert room_manager.can_control(room_id, "sid_guest") is False
+    
+    # 3. When guest controls enabled, guest can control
+    room_manager.set_guest_controls(room_id, True)
+    assert room_manager.can_control(room_id, "sid_guest") is True
+    assert room_manager.get_guest_controls(room_id) is True
+    
+    # 4. When disabled, guest cannot control
+    room_manager.set_guest_controls(room_id, False)
+    assert room_manager.can_control(room_id, "sid_guest") is False
+    assert room_manager.can_control(room_id, "sid_host") is True
+
+
+
 
 
 

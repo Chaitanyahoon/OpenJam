@@ -24,6 +24,7 @@ export default function RoomClient({ roomId }) {
 
   // States
   const [room, setRoom] = useState(null);
+  const [allowGuestControls, setAllowGuestControls] = useState(false);
   const [roomNotFound, setRoomNotFound] = useState(false);
   const [me, setMe] = useState(null);
   const [listeners, setListeners] = useState([]);
@@ -275,6 +276,7 @@ export default function RoomClient({ roomId }) {
   }, [activeTab, nowPlaying]);
 
   const isHost = me && room && room.host_user_id === me.id;
+  const canControl = isHost || allowGuestControls;
 
   const sendDesktopNotification = (title, options = {}) => {
     if (!settingsNotificationsRef.current) return;
@@ -705,6 +707,7 @@ export default function RoomClient({ roomId }) {
         setNowPlaying(data.now_playing);
       }
       setShowPassword(false);
+      setAllowGuestControls(data.allow_guest_controls || false);
 
       if (data.now_playing && playerRef.current) {
         const isBuffering = data.playback?.is_buffering || data.playback?.isBuffering || false;
@@ -1000,6 +1003,10 @@ export default function RoomClient({ roomId }) {
       }, 2000);
     });
 
+    socket.on('guest_controls_updated', (data) => {
+      setAllowGuestControls(data.allow_guest_controls || false);
+    });
+
     return () => {
       socket.off('connect', joinRoom);
       socket.off('sync_pong');
@@ -1134,15 +1141,15 @@ export default function RoomClient({ roomId }) {
     
     const controlHandler = (action, extra = {}) => {
       if (action === 'ended' || action === 'nexttrack') {
-        if (isHost && socket) {
+        if (canControl && socket) {
           socket.emit('next_track', { room_id: roomId });
         }
       } else if (action === 'previoustrack') {
-        if (isHost && socket) {
+        if (canControl && socket) {
           socket.emit('previous_track', { room_id: roomId });
         }
       } else if (action === 'seek') {
-        if (isHost && socket && extra?.position_ms !== undefined) {
+        if (canControl && socket && extra?.position_ms !== undefined) {
           const currentTrack = nowPlayingRef.current;
           const currentPlayback = playbackStateRef.current;
           socket.emit('playback_update', {
@@ -1159,7 +1166,7 @@ export default function RoomClient({ roomId }) {
           });
         }
       } else if (action === 'play') {
-        if (isHost && socket) {
+        if (canControl && socket) {
           const currentTrack = nowPlayingRef.current;
           const currentPlayback = playbackStateRef.current;
           socket.emit('playback_update', {
@@ -1176,7 +1183,7 @@ export default function RoomClient({ roomId }) {
           });
         }
       } else if (action === 'pause') {
-        if (isHost && socket) {
+        if (canControl && socket) {
           const currentTrack = nowPlayingRef.current;
           const currentPlayback = playbackStateRef.current;
           socket.emit('playback_update', {
@@ -1200,7 +1207,7 @@ export default function RoomClient({ roomId }) {
     } else if (typeof playerRef.current.setControlCallback === 'function') {
       playerRef.current.setControlCallback(controlHandler);
     }
-  }, [roomId, socket, isHost]);
+  }, [roomId, socket, canControl]);
 
   // 4. Volume Synchronization
   useEffect(() => {
@@ -1614,7 +1621,7 @@ export default function RoomClient({ roomId }) {
 
   // UI Event Handlers
   const handleTogglePlay = () => {
-    if (!isHost || !playerRef.current) return;
+    if (!canControl || !playerRef.current) return;
     const playing = !playbackState.isPlaying;
     playerRef.current.setPlayState(playing);
     if (socket) {
@@ -1641,7 +1648,7 @@ export default function RoomClient({ roomId }) {
   };
 
   const handleRepeatToggle = () => {
-    if (!isHost || !socket) return;
+    if (!canControl || !socket) return;
     const nextLoop = !playbackState.loop;
     socket.emit('toggle_repeat', { room_id: roomId, loop: nextLoop });
   };
@@ -1715,7 +1722,7 @@ export default function RoomClient({ roomId }) {
   };
 
   const handleSeek = (e) => {
-    if (!isHost || !playbackState.durationMs || !socket || !playerRef.current) return;
+    if (!canControl || !playbackState.durationMs || !socket || !playerRef.current) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const width = rect.width;
@@ -1757,7 +1764,7 @@ export default function RoomClient({ roomId }) {
       }
     }
 
-    if (isHost && socket) {
+    if (canControl && socket) {
       socket.emit('playback_update', {
         room_id: roomId,
         track_uri: nowPlaying?.track_uri,
@@ -1776,12 +1783,12 @@ export default function RoomClient({ roomId }) {
   handleSeekRelativeRef.current = handleSeekRelative;
 
   const handlePreviousTrack = () => {
-    if (!isHost || !socket) return;
+    if (!canControl || !socket) return;
     socket.emit('previous_track', { room_id: roomId });
   };
 
   const handleNextTrack = () => {
-    if (!isHost || !socket) return;
+    if (!canControl || !socket) return;
     socket.emit('next_track', { room_id: roomId });
   };
   handleNextTrackRef.current = handleNextTrack;
@@ -1839,7 +1846,7 @@ export default function RoomClient({ roomId }) {
   };
 
   const handleStageSeekDown = (e) => {
-    if (!isHost || !playbackState.durationMs || !playerRef.current) return;
+    if (!canControl || !playbackState.durationMs || !playerRef.current) return;
     e.preventDefault();
     isDraggingStageSeekRef.current = true;
     const rect = stageSeekBarRef.current?.getBoundingClientRect();
@@ -2040,7 +2047,7 @@ export default function RoomClient({ roomId }) {
           break;
         case 'KeyR':
           e.preventDefault();
-          if (isHost) handleRepeatToggle();
+          if (canControl) handleRepeatToggle();
           break;
         case 'KeyQ':
           e.preventDefault();
@@ -2078,7 +2085,7 @@ export default function RoomClient({ roomId }) {
     return () => {
       window.removeEventListener('keydown', handleStageKeyDown);
     };
-  }, [isStageMode, isHost, playbackState.isPlaying, playbackState.positionMs, playbackState.durationMs, isMuted]);
+  }, [isStageMode, isHost, canControl, playbackState.isPlaying, playbackState.positionMs, playbackState.durationMs, isMuted]);
 
 
   const handleExportQueue = async () => {
@@ -2879,7 +2886,7 @@ export default function RoomClient({ roomId }) {
             isPlaying={playbackState.isPlaying}
             volume={volume}
             isMuted={isMuted}
-            isHost={isHost}
+            isHost={canControl}
             showEqualizer={true}
             searchQuery={searchQuery}
             searchResults={searchResults}
@@ -2896,7 +2903,7 @@ export default function RoomClient({ roomId }) {
             repeatMode={playbackState.loop ? 'one' : 'off'}
             onRepeatModeChange={handleRepeatToggle}
             onSeek={(seconds) => {
-              if (!isHost || !playbackState.durationMs || !socket || !playerRef.current) return;
+              if (!canControl || !playbackState.durationMs || !socket || !playerRef.current) return;
               const newPositionMs = seconds * 1000;
               setPlaybackState(prev => ({ ...prev, positionMs: newPositionMs }));
               playerRef.current.syncPosition(newPositionMs, playbackState.isPlaying);
@@ -2913,7 +2920,7 @@ export default function RoomClient({ roomId }) {
                 is_buffering: playbackState.isPlaying ? !!streamErrorMsg : false
               });
             }}
-            onNext={isHost ? handleNextTrack : handleVoteSkip}
+            onNext={canControl ? handleNextTrack : handleVoteSkip}
             onVolumeChange={(newVolume) => {
               setVolume(newVolume);
               if (newVolume > 0 && isMuted) {
@@ -2933,8 +2940,8 @@ export default function RoomClient({ roomId }) {
             bufferingMsg={streamErrorMsg}
           />
 
-          {/* Skip Vote count display */}
-          {!isHost && skipVotes.required > 0 && (
+          {/* Skip Vote count display (only shown for guests when direct controls are disabled) */}
+          {!canControl && skipVotes.required > 0 && (
             <div className="np-skip-votes" style={{ marginTop: '16px', textAlign: 'center', fontSize: '13px', color: 'rgba(255,255,255,0.6)' }}>
               Skip Votes: <strong>{skipVotes.votes}</strong> / {skipVotes.required}
             </div>
@@ -4805,6 +4812,31 @@ export default function RoomClient({ roomId }) {
                     <span className="toggle-switch-slider"></span>
                   </label>
                 </div>
+
+                {/* Host-only toggle for live collaborative playback controls */}
+                {isHost && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-1)' }}>Collaborative Controls</div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-3)', marginTop: '2px' }}>Allow listeners to play, pause, seek, and skip tracks</div>
+                    </div>
+                    <label className="toggle-switch">
+                      <input 
+                        type="checkbox" 
+                        checked={allowGuestControls} 
+                        onChange={(e) => {
+                          const newVal = e.target.checked;
+                          setAllowGuestControls(newVal);
+                          if (socket) {
+                            socket.emit('toggle_guest_controls', { allow: newVal });
+                          }
+                          triggerToast(newVal ? 'Collaborative playback enabled' : 'Collaborative playback disabled (Host Only)', 'info');
+                        }}
+                      />
+                      <span className="toggle-switch-slider"></span>
+                    </label>
+                  </div>
+                )}
               </div>
             </motion.div>
           </div>
@@ -5202,13 +5234,13 @@ export default function RoomClient({ roomId }) {
                     aspectRatio: '1/1',
                     borderRadius: '26px',
                     overflow: 'hidden',
-                    cursor: isHost ? 'pointer' : 'default',
+                    cursor: canControl ? 'pointer' : 'default',
                     boxShadow: artHovered
                       ? '0 32px 80px rgba(0, 0, 0, 0.95), 0 0 36px rgba(255, 159, 28, 0.25), inset 0 1px 2px rgba(255, 255, 255, 0.3)'
                       : '0 24px 60px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.1)',
                     background: '#121218',
                   }}
-                  title={isHost ? `Click to ${playbackState.isPlaying ? 'Pause' : 'Play'} • Scroll for volume` : 'Scroll for volume'}
+                  title={canControl ? `Click to ${playbackState.isPlaying ? 'Pause' : 'Play'} • Scroll for volume` : 'Scroll for volume'}
                 >
                   {/* Background Cover Image or Clean Placeholder */}
                   {nowPlaying?.album_art_url ? (
@@ -5252,7 +5284,7 @@ export default function RoomClient({ roomId }) {
                   />
 
                   {/* Play/Pause Hover Overlay Icon */}
-                  {isHost && (
+                  {canControl && (
                     <div
                       style={{
                         position: 'absolute',
@@ -5363,7 +5395,7 @@ export default function RoomClient({ roomId }) {
                       borderRadius: '99px',
                       background: 'rgba(255, 255, 255, 0.22)',
                       position: 'relative',
-                      cursor: isHost ? 'pointer' : 'default',
+                      cursor: canControl ? 'pointer' : 'default',
                       overflow: 'visible',
                       touchAction: 'none',
                       userSelect: 'none',
@@ -5415,7 +5447,7 @@ export default function RoomClient({ roomId }) {
                       }}
                     >
                       {/* Scrub thumb */}
-                      {isHost && (
+                      {canControl && (
                         <div
                           style={{
                             position: 'absolute',
@@ -5477,24 +5509,24 @@ export default function RoomClient({ roomId }) {
                   {/* Previous Track Button */}
                   <motion.button
                     type="button"
-                    whileHover={{ scale: isHost ? 1.15 : 1, x: isHost ? -2 : 0, transition: { type: 'spring', stiffness: 420, damping: 16 } }}
-                    whileTap={{ scale: isHost ? 0.88 : 1 }}
+                    whileHover={{ scale: canControl ? 1.15 : 1, x: canControl ? -2 : 0, transition: { type: 'spring', stiffness: 420, damping: 16 } }}
+                    whileTap={{ scale: canControl ? 0.88 : 1 }}
                     onClick={() => {
-                      if (isHost) handlePreviousTrack();
-                      else triggerToast('Only the host can control playback', 'info');
+                      if (canControl) handlePreviousTrack();
+                      else triggerToast('Playback control is host-only in this room', 'info');
                     }}
                     style={{
                       background: 'transparent',
                       border: 'none',
                       color: '#ffffff',
-                      cursor: isHost ? 'pointer' : 'not-allowed',
+                      cursor: canControl ? 'pointer' : 'not-allowed',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       padding: '8px',
                     }}
                     aria-label="Previous Track"
-                    title={isHost ? 'Previous Track' : 'Only the host can control playback'}
+                    title={canControl ? 'Previous Track' : 'Playback control is host-only in this room'}
                   >
                     <SkipBack size={24} fill="#ffffff" />
                   </motion.button>
@@ -5502,11 +5534,11 @@ export default function RoomClient({ roomId }) {
                   {/* Hero Play/Pause Button */}
                   <motion.button
                     type="button"
-                    whileHover={{ scale: isHost ? 1.1 : 1, transition: { type: 'spring', stiffness: 420, damping: 16 } }}
-                    whileTap={{ scale: isHost ? 0.9 : 1 }}
+                    whileHover={{ scale: canControl ? 1.1 : 1, transition: { type: 'spring', stiffness: 420, damping: 16 } }}
+                    whileTap={{ scale: canControl ? 0.9 : 1 }}
                     onClick={() => {
-                      if (isHost) handleTogglePlay();
-                      else triggerToast('Only the host can control playback', 'info');
+                      if (canControl) handleTogglePlay();
+                      else triggerToast('Playback control is host-only in this room', 'info');
                     }}
                     style={{
                       width: '54px',
@@ -5515,14 +5547,14 @@ export default function RoomClient({ roomId }) {
                       background: '#ffffff',
                       border: 'none',
                       color: '#08080c',
-                      cursor: isHost ? 'pointer' : 'not-allowed',
+                      cursor: canControl ? 'pointer' : 'not-allowed',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       boxShadow: '0 8px 24px rgba(255,255,255,0.25), 0 4px 12px rgba(0,0,0,0.5)',
                     }}
                     aria-label={playbackState.isPlaying ? 'Pause' : 'Play'}
-                    title={isHost ? (playbackState.isPlaying ? 'Pause' : 'Play') : 'Only the host can control playback'}
+                    title={canControl ? (playbackState.isPlaying ? 'Pause' : 'Play') : 'Playback control is host-only in this room'}
                   >
                     {playbackState.isPlaying
                       ? <Pause size={24} fill="#08080c" />
@@ -5534,7 +5566,7 @@ export default function RoomClient({ roomId }) {
                     type="button"
                     whileHover={{ scale: 1.15, x: 2, transition: { type: 'spring', stiffness: 420, damping: 16 } }}
                     whileTap={{ scale: 0.88 }}
-                    onClick={isHost ? handleNextTrack : handleVoteSkip}
+                    onClick={canControl ? handleNextTrack : handleVoteSkip}
                     style={{
                       background: 'transparent',
                       border: 'none',
@@ -5545,8 +5577,8 @@ export default function RoomClient({ roomId }) {
                       justifyContent: 'center',
                       padding: '8px',
                     }}
-                    aria-label={isHost ? 'Next Track' : 'Vote to Skip'}
-                    title={isHost ? 'Next Track' : 'Vote to Skip'}
+                    aria-label={canControl ? 'Next Track' : 'Vote to Skip'}
+                    title={canControl ? 'Next Track' : 'Vote to Skip'}
                   >
                     <SkipForward size={24} fill="#ffffff" />
                   </motion.button>
@@ -5554,26 +5586,26 @@ export default function RoomClient({ roomId }) {
                   {/* Repeat Button */}
                   <motion.button
                     type="button"
-                    whileHover={{ scale: isHost ? 1.15 : 1, transition: { type: 'spring', stiffness: 420, damping: 16 } }}
-                    whileTap={{ scale: isHost ? 0.88 : 1 }}
+                    whileHover={{ scale: canControl ? 1.15 : 1, transition: { type: 'spring', stiffness: 420, damping: 16 } }}
+                    whileTap={{ scale: canControl ? 0.88 : 1 }}
                     onClick={() => {
-                      if (isHost) handleRepeatToggle();
+                      if (canControl) handleRepeatToggle();
                       else triggerToast('Only the host can toggle repeat', 'info');
                     }}
                     style={{
                       background: 'transparent',
                       border: 'none',
-                      color: isHost
+                      color: canControl
                         ? (playbackState.loop ? 'var(--theme-accent, #ff9f1c)' : 'rgba(255,255,255,0.8)')
                         : 'rgba(255,255,255,0.25)',
-                      cursor: isHost ? 'pointer' : 'not-allowed',
+                      cursor: canControl ? 'pointer' : 'not-allowed',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       padding: '8px',
                     }}
                     aria-label="Toggle Repeat"
-                    title={isHost ? 'Toggle Repeat' : 'Only the host can toggle repeat'}
+                    title={canControl ? 'Toggle Repeat' : 'Only the host can toggle repeat'}
                   >
                     <Repeat size={20} />
                   </motion.button>
@@ -6101,7 +6133,7 @@ export default function RoomClient({ roomId }) {
                             fontSize: isActive ? 'clamp(32px, 4.2vw, 54px)' : 'clamp(20px, 2.6vw, 34px)',
                             fontWeight: isActive ? 800 : 600,
                             margin: 0,
-                            cursor: isHost ? 'pointer' : 'default',
+                            cursor: canControl ? 'pointer' : 'default',
                             color: isActive ? '#ffffff' : (idx < lyricsActiveIdx ? 'rgba(255, 255, 255, 0.7)' : 'rgba(255, 255, 255, 0.3)'),
                             lineHeight: 1.32,
                             transformOrigin: 'left center',
@@ -6112,9 +6144,23 @@ export default function RoomClient({ roomId }) {
                             transition: 'filter 0.3s ease, font-size 0.3s ease',
                           }}
                           onClick={() => {
-                            if (item.timeMs > 0 && isHost && playerRef.current) {
+                            if (item.timeMs > 0 && canControl && playerRef.current) {
                               setPlaybackState(prev => ({ ...prev, positionMs: item.timeMs }));
                               playerRef.current.syncPosition(item.timeMs, playbackState.isPlaying);
+                              if (socket) {
+                                socket.emit('playback_update', {
+                                  room_id: roomId,
+                                  track_uri: nowPlaying?.track_uri,
+                                  track_name: nowPlaying?.track_name,
+                                  artist: nowPlaying?.artist,
+                                  album_art_url: nowPlaying?.album_art_url,
+                                  position_ms: item.timeMs,
+                                  duration_ms: playbackState.durationMs,
+                                  is_playing: playbackState.isPlaying,
+                                  loop: false,
+                                  is_buffering: playbackState.isPlaying ? !!streamErrorMsg : false
+                                });
+                              }
                               triggerToast(`Jumped to ${formatTime(item.timeMs)}`, 'info');
                             }
                           }}
