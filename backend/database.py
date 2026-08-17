@@ -205,6 +205,22 @@ def init_db():
         except Exception as e:
             print(f"Failed to auto-migrate rooms.is_private: {e}")
 
+    # Check for allow_guest_controls in rooms
+    allow_guest_controls_exists = True
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("SELECT allow_guest_controls FROM rooms LIMIT 1"))
+        except Exception:
+            allow_guest_controls_exists = False
+
+    if not allow_guest_controls_exists:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE rooms ADD COLUMN allow_guest_controls BOOLEAN NOT NULL DEFAULT FALSE"))
+            print("Successfully added allow_guest_controls column to rooms table.")
+        except Exception as e:
+            print(f"Failed to auto-migrate rooms.allow_guest_controls: {e}")
+
     # Auto-migration: Discord OAuth2 columns in 'users' table
     discord_id_exists = True
     discord_username_exists = True
