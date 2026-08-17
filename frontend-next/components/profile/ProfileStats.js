@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   BarChart2, Clock, Music, MessageSquare, ThumbsUp, RefreshCw, 
-  Disc, Award, Play, Globe, Share2, Download, Copy, X
+  Disc, Award, Play, Globe, Share2, Download, Copy, X,
+  Compass, Heart, Radio, Crown, CheckCircle2, Lock, Sparkles, Headphones
 } from 'lucide-react';
 
 export default function ProfileStats({
@@ -17,6 +18,7 @@ export default function ProfileStats({
   const [showShareModal, setShowShareModal] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showAllHistory, setShowAllHistory] = useState(false);
+  const [hoveredDayIdx, setHoveredDayIdx] = useState(null);
 
   const handleCopyLink = () => {
     const link = profile?.username 
@@ -58,6 +60,7 @@ export default function ProfileStats({
     };
     image.src = blobURL;
   };
+
   if (loading && !stats) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '100px 0', color: '#888', gap: '16px' }}>
@@ -94,6 +97,80 @@ export default function ProfileStats({
       </div>
     );
   }
+
+  const activityChartData = stats.activity_chart || [];
+  const maxActivityMinutes = Math.max(1, ...activityChartData.map(d => d.minutes || 0));
+
+  const getTierStyles = (tier) => {
+    switch (tier) {
+      case 'diamond':
+        return {
+          border: '1px solid rgba(168, 85, 247, 0.4)',
+          background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.12) 0%, rgba(59, 130, 246, 0.08) 100%)',
+          glow: '0 0 20px rgba(168, 85, 247, 0.25)',
+          tagBg: 'rgba(168, 85, 247, 0.2)',
+          tagColor: '#c084fc',
+          accent: '#a855f7'
+        };
+      case 'gold':
+        return {
+          border: '1px solid rgba(234, 179, 8, 0.4)',
+          background: 'linear-gradient(135deg, rgba(234, 179, 8, 0.12) 0%, rgba(249, 115, 22, 0.08) 100%)',
+          glow: '0 0 20px rgba(234, 179, 8, 0.25)',
+          tagBg: 'rgba(234, 179, 8, 0.2)',
+          tagColor: '#fde047',
+          accent: '#eab308'
+        };
+      case 'silver':
+        return {
+          border: '1px solid rgba(148, 163, 184, 0.35)',
+          background: 'linear-gradient(135deg, rgba(148, 163, 184, 0.1) 0%, rgba(100, 116, 139, 0.05) 100%)',
+          glow: '0 0 16px rgba(148, 163, 184, 0.2)',
+          tagBg: 'rgba(148, 163, 184, 0.15)',
+          tagColor: '#e2e8f0',
+          accent: '#94a3b8'
+        };
+      case 'bronze':
+      default:
+        return {
+          border: '1px solid rgba(217, 119, 6, 0.35)',
+          background: 'linear-gradient(135deg, rgba(217, 119, 6, 0.1) 0%, rgba(180, 83, 9, 0.05) 100%)',
+          glow: '0 0 16px rgba(217, 119, 6, 0.2)',
+          tagBg: 'rgba(217, 119, 6, 0.15)',
+          tagColor: '#fdba74',
+          accent: '#d97706'
+        };
+    }
+  };
+
+  const getBadgeIcon = (iconName, accent) => {
+    const props = { size: 22, color: accent || '#ff9f1c' };
+    switch (iconName) {
+      case 'Headphones':
+        return <Headphones {...props} />;
+      case 'Radio':
+        return <Radio {...props} />;
+      case 'Compass':
+        return <Compass {...props} />;
+      case 'Disc':
+        return <Disc {...props} />;
+      case 'Crown':
+        return <Crown {...props} />;
+      case 'MessageSquare':
+        return <MessageSquare {...props} />;
+      case 'Award':
+      default:
+        return <Award {...props} />;
+    }
+  };
+
+  const genreColors = [
+    { bg: 'rgba(255, 159, 28, 0.15)', border: 'rgba(255, 159, 28, 0.3)', text: '#ff9f1c' },
+    { bg: 'rgba(139, 92, 246, 0.15)', border: 'rgba(139, 92, 246, 0.3)', text: '#a855f7' },
+    { bg: 'rgba(59, 130, 246, 0.15)', border: 'rgba(59, 130, 246, 0.3)', text: '#3b82f6' },
+    { bg: 'rgba(16, 185, 129, 0.15)', border: 'rgba(16, 185, 129, 0.3)', text: '#10b981' },
+    { bg: 'rgba(244, 63, 94, 0.15)', border: 'rgba(244, 63, 94, 0.3)', text: '#f43f5e' }
+  ];
 
   return (
     <div>
@@ -152,15 +229,23 @@ export default function ProfileStats({
         </div>
       </div>
 
-      {/* Primary Music Footprint Grid */}
-      <div className="profile-stats-primary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+      {/* Primary Music Footprint Grid (4 Cards: Listening Time, Rooms Visited, Songs Queued, Favorites) */}
+      <div className="profile-stats-primary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
         <div className="profile-stat-card">
           <Clock size={20} style={{ color: 'var(--theme-accent, #ff9f1c)', marginBottom: '12px' }} />
           <div style={{ color: '#666', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Listening Time</div>
           <div style={{ fontSize: '28px', fontWeight: 800, color: '#fff', marginTop: '4px' }}>
             {stats.listening_time_mins > 60 
               ? `${Math.floor(stats.listening_time_mins / 60)}h ${stats.listening_time_mins % 60}m` 
-              : `${stats.listening_time_mins}m`}
+              : `${stats.listening_time_mins || 0}m`}
+          </div>
+        </div>
+
+        <div className="profile-stat-card">
+          <Compass size={20} style={{ color: '#10b981', marginBottom: '12px' }} />
+          <div style={{ color: '#666', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Rooms Visited</div>
+          <div style={{ fontSize: '28px', fontWeight: 800, color: '#fff', marginTop: '4px' }}>
+            {stats.total_rooms_visited || 0}
           </div>
         </div>
 
@@ -168,11 +253,17 @@ export default function ProfileStats({
           <Music size={20} style={{ color: '#3b82f6', marginBottom: '12px' }} />
           <div style={{ color: '#666', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Songs Queued</div>
           <div style={{ fontSize: '28px', fontWeight: 800, color: '#fff', marginTop: '4px' }}>
-            {stats.total_queued}
+            {stats.total_queued || 0}
           </div>
         </div>
 
-
+        <div className="profile-stat-card">
+          <Heart size={20} style={{ color: '#ec4899', marginBottom: '12px' }} />
+          <div style={{ color: '#666', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Favorites & Likes</div>
+          <div style={{ fontSize: '28px', fontWeight: 800, color: '#fff', marginTop: '4px' }}>
+            {stats.total_likes || 0}
+          </div>
+        </div>
       </div>
 
       {/* Secondary Engagement Bar */}
@@ -192,12 +283,12 @@ export default function ProfileStats({
         <span style={{ fontWeight: 700, textTransform: 'uppercase', fontSize: '10px', color: '#555', letterSpacing: '0.05em' }}>Activity Engagement:</span>
         <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <MessageSquare size={13} style={{ color: '#8b5cf6' }} />
-          <strong>{stats.total_chats}</strong> chat messages sent
+          <strong>{stats.total_chats || 0}</strong> chat messages sent
         </span>
         <span className="divider-pipe" style={{ color: '#333' }}>|</span>
         <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <ThumbsUp size={13} style={{ color: '#10b981' }} />
-          <strong>{stats.total_votes}</strong> skip votes cast
+          <strong>{stats.total_votes || 0}</strong> skip votes cast
         </span>
         <span className="divider-pipe" style={{ color: '#333' }}>|</span>
         <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -206,7 +297,261 @@ export default function ProfileStats({
         </span>
       </div>
 
-      {/* Grid for lists */}
+      {/* 7-Day Activity & Genre Distribution Row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', marginBottom: '32px' }}>
+        
+        {/* 7-Day Activity Rhythm Bar Chart */}
+        <div className="glass-card" style={{ padding: '24px', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h4 style={{ fontSize: '15px', fontWeight: 800, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Clock size={16} style={{ color: 'var(--theme-accent, #ff9f1c)' }} />
+              7-Day Listening Activity
+            </h4>
+            <span style={{ fontSize: '11px', color: '#666', fontWeight: 600 }}>Daily Minutes</span>
+          </div>
+
+          <div style={{ position: 'relative', height: '140px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '8px', padding: '0 8px 8px' }}>
+            {activityChartData.length === 0 ? (
+              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555', fontSize: '13px' }}>
+                No recent activity recorded
+              </div>
+            ) : (
+              activityChartData.map((d, idx) => {
+                const heightPct = maxActivityMinutes > 0 ? Math.max(8, (d.minutes / maxActivityMinutes) * 100) : 8;
+                const isHovered = hoveredDayIdx === idx;
+
+                return (
+                  <div
+                    key={d.date || idx}
+                    onMouseEnter={() => setHoveredDayIdx(idx)}
+                    onMouseLeave={() => setHoveredDayIdx(null)}
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      height: '100%',
+                      justifyContent: 'flex-end',
+                      position: 'relative',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {/* Tooltip on Hover */}
+                    <AnimatePresence>
+                      {isHovered && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 5, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: 5, scale: 0.95 }}
+                          transition={{ duration: 0.15 }}
+                          style={{
+                            position: 'absolute',
+                            bottom: `${heightPct + 12}%`,
+                            background: '#1a1a24',
+                            border: '1px solid rgba(255, 159, 28, 0.4)',
+                            borderRadius: '8px',
+                            padding: '4px 8px',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            color: '#fff',
+                            whiteSpace: 'nowrap',
+                            pointerEvents: 'none',
+                            zIndex: 10,
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
+                          }}
+                        >
+                          <span style={{ color: 'var(--theme-accent, #ff9f1c)' }}>{d.minutes}m</span> ({d.day})
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Bar */}
+                    <div
+                      style={{
+                        width: '100%',
+                        maxWidth: '32px',
+                        height: `${heightPct}%`,
+                        borderRadius: '6px 6px 2px 2px',
+                        background: isHovered
+                          ? 'linear-gradient(180deg, #ffb703 0%, #ff9f1c 100%)'
+                          : 'linear-gradient(180deg, rgba(255, 159, 28, 0.7) 0%, rgba(255, 159, 28, 0.2) 100%)',
+                        boxShadow: isHovered ? '0 0 16px rgba(255, 159, 28, 0.4)' : 'none',
+                        transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+                      }}
+                    />
+
+                    {/* Day label */}
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: isHovered ? '#fff' : '#666', marginTop: '8px', transition: 'color 0.2s' }}>
+                      {d.day}
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Visual Genre Breakdown */}
+        <div className="glass-card" style={{ padding: '24px', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column' }}>
+          <h4 style={{ fontSize: '15px', fontWeight: 800, color: '#fff', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Disc size={16} style={{ color: '#ec4899' }} />
+            Top Genre Footprint
+          </h4>
+
+          {(!stats.top_genres || stats.top_genres.length === 0) ? (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555', fontSize: '13px' }}>
+              Explore genres to build your musical taste profile
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1, justifyContent: 'center' }}>
+              {stats.top_genres.map((g, i) => {
+                const color = genreColors[i % genreColors.length];
+                const pct = g.percentage !== undefined ? g.percentage : 0;
+
+                return (
+                  <div key={g.genre || i} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                      <span style={{ fontWeight: 700, color: '#e5e5e5', textTransform: 'capitalize' }}>
+                        {g.genre}
+                      </span>
+                      <span style={{ fontWeight: 800, color: color.text, fontFamily: 'var(--font-mono, monospace)' }}>
+                        {pct}% <span style={{ color: '#555', fontWeight: 500, fontSize: '11px' }}>({g.count} tracks)</span>
+                      </span>
+                    </div>
+                    {/* Distribution Bar */}
+                    <div style={{ width: '100%', height: '6px', borderRadius: '3px', background: 'rgba(255,255,255,0.05)', overflow: 'hidden' }}>
+                      <div 
+                        style={{ 
+                          width: `${pct}%`, 
+                          height: '100%', 
+                          borderRadius: '3px', 
+                          background: color.text,
+                          boxShadow: `0 0 8px ${color.text}44`,
+                          transition: 'width 0.5s ease'
+                        }} 
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      {/* Milestone Badges Achievement Showcase */}
+      <div style={{ marginBottom: '32px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+          <h4 style={{ fontSize: '16px', fontWeight: 800, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Sparkles size={18} style={{ color: '#ffd700' }} />
+            Milestone Badges & Achievements
+          </h4>
+          <span style={{ fontSize: '12px', color: '#888', fontWeight: 600 }}>
+            {stats.milestone_badges?.filter(b => b.unlocked).length || 0} of {stats.milestone_badges?.length || 0} Unlocked
+          </span>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
+          {(stats.milestone_badges || []).map((badge) => {
+            const styles = getTierStyles(badge.tier);
+            const isUnlocked = !!badge.unlocked;
+            const progress = badge.progress !== undefined ? badge.progress : 0;
+            const target = badge.target || 1;
+            const progressPct = Math.min(100, Math.round((progress / target) * 100));
+
+            return (
+              <div
+                key={badge.id}
+                style={{
+                  background: styles.background,
+                  border: styles.border,
+                  borderRadius: '16px',
+                  padding: '16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                  boxShadow: isUnlocked ? styles.glow : 'none',
+                  opacity: isUnlocked ? 1 : 0.75,
+                  transition: 'all 0.25s ease'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div
+                      style={{
+                        width: '42px',
+                        height: '42px',
+                        borderRadius: '12px',
+                        background: isUnlocked ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.2)',
+                        border: `1px solid ${styles.accent}44`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      {getBadgeIcon(badge.icon, styles.accent)}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: 800, color: '#fff' }}>
+                        {badge.title}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>
+                        {badge.description}
+                      </div>
+                    </div>
+                  </div>
+
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 800,
+                      textTransform: 'uppercase',
+                      padding: '3px 8px',
+                      borderRadius: '8px',
+                      background: styles.tagBg,
+                      color: styles.tagColor,
+                      letterSpacing: '0.05em'
+                    }}
+                  >
+                    {badge.tier}
+                  </span>
+                </div>
+
+                {/* Progress bar or Unlocked indicator */}
+                {isUnlocked ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981', fontSize: '12px', fontWeight: 700 }}>
+                    <CheckCircle2 size={14} />
+                    <span>Unlocked ({progress} / {target})</span>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#777', fontWeight: 600 }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Lock size={11} /> In Progress
+                      </span>
+                      <span>{progress} / {target}</span>
+                    </div>
+                    <div style={{ width: '100%', height: '5px', borderRadius: '3px', background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          width: `${progressPct}%`,
+                          height: '100%',
+                          background: styles.accent,
+                          borderRadius: '3px',
+                          transition: 'width 0.3s ease'
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Grid for top tracks & recently played lists */}
       <div className="profile-stats-secondary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '32px', marginBottom: '32px' }}>
         
         {/* Top Tracks */}
@@ -339,6 +684,7 @@ export default function ProfileStats({
         </div>
 
       </div>
+
       {/* Shareable Music Footprint Card Modal */}
       <AnimatePresence>
         {showShareModal && (
@@ -507,12 +853,12 @@ export default function ProfileStats({
                   <text x="40" y="262" fill="#ff9f1c" className="outfit-font" fontSize="24" fontWeight="900">
                     {stats.listening_time_mins > 60 
                       ? `${Math.floor(stats.listening_time_mins / 60)}h ${stats.listening_time_mins % 60}m` 
-                      : `${stats.listening_time_mins}m`}
+                      : `${stats.listening_time_mins || 0}m`}
                   </text>
 
                   {/* Stats Block 2: SONGS QUEUED */}
                   <text x="210" y="235" fill="rgba(255,255,255,0.3)" className="outfit-font" fontSize="10" fontWeight="800" letterSpacing="0.8">SONGS QUEUED</text>
-                  <text x="210" y="262" fill="#3b82f6" className="outfit-font" fontSize="24" fontWeight="900">{stats.total_queued}</text>
+                  <text x="210" y="262" fill="#3b82f6" className="outfit-font" fontSize="24" fontWeight="900">{stats.total_queued || 0}</text>
 
                   <line x1="40" y1="295" x2="360" y2="295" stroke="rgba(255,255,255,0.05)" strokeWidth="1"/>
 

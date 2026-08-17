@@ -305,13 +305,17 @@ async def get_user_social_details(user_id: str, db: Session = Depends(get_db), c
 
 def get_user_stats_internal(db: Session, user_id: str):
     from sqlalchemy import func, desc
+    from datetime import datetime, timezone, timedelta
+    import json
     from backend.models.queue_item import QueueItem
     from backend.models.like import UserLike
     from backend.models.playlist import Playlist
     from backend.models.chat_message import ChatMessage
     from backend.models.vote import Vote
     from backend.models.room import Room
-    import json
+    from backend.models.listening_history import UserListeningHistory
+    from backend.models.room_visit import UserRoomVisit
+    from backend.database import safe_isoformat
 
     # 1. Base counts
     total_queued = db.query(QueueItem).filter(QueueItem.added_by_user_id == user_id).count()
@@ -319,63 +323,170 @@ def get_user_stats_internal(db: Session, user_id: str):
     total_playlists = db.query(Playlist).filter(Playlist.creator_id == user_id).count()
     total_chats = db.query(ChatMessage).filter(ChatMessage.user_id == user_id).count()
     total_votes = db.query(Vote).filter(Vote.user_id == user_id).count()
+    rooms_hosted = db.query(Room).filter(Room.host_user_id == user_id).count()
 
-    # 2. Total listening time (for songs added by this user that reached status='played')
-    total_duration_ms = db.query(
+    # 2. Total rooms visited (distinct rooms visited + rooms hosted)
+    visited_room_ids = {r[0] for r in db.query(UserRoomVisit.room_id).filter(UserRoomVisit.user_id == user_id).all() if r[0]}
+    hosted_room_ids = {r[0] for r in db.query(Room.id).filter(Room.host_user_id == user_id).all() if r[0]}
+    total_rooms_visited = len(visited_room_ids | hosted_room_ids)
+
+    # 3. Total listening time (incorporating both UserListeningHistory and played QueueItem durations)
+    history_duration_ms = db.query(
+        func.sum(UserListeningHistory.duration_ms)
+    ).filter(
+        UserListeningHistory.user_id == user_id
+    ).scalar() or 0
+
+    queue_duration_ms = db.query(
         func.sum(QueueItem.duration_ms)
     ).filter(
         QueueItem.added_by_user_id == user_id,
         QueueItem.status == "played"
     ).scalar() or 0
+
+    total_duration_ms = history_duration_ms + queue_duration_ms
     listening_time_mins = int(total_duration_ms // 60000)
 
-    # 3. Top 5 tracks queued
-    top_tracks_query = db.query(
+    # 4. 7-Day Activity Chart (daily listening minutes time-series)
+    now_utc = datetime.now(timezone.utc)
+    today_midnight = datetime(now_utc.year, now_utc.month, now_utc.day, tzinfo=timezone.utc)
+    start_cutoff = today_midnight - timedelta(days=6)
+
+    days_map = {}
+    chart_days = []
+    for i in range(7):
+        d = start_cutoff + timedelta(days=i)
+        d_str = d.strftime("%Y-%m-%d")
+        day_name = d.strftime("%a")
+        days_map[d_str] = 0
+        chart_days.append((d_str, day_name))
+
+    history_recent = db.query(
+        UserListeningHistory.created_at,
+        UserListeningHistory.duration_ms
+    ).filter(
+        UserListeningHistory.user_id == user_id,
+        UserListeningHistory.created_at >= start_cutoff
+    ).all()
+
+    for created_at, dur in history_recent:
+        if created_at:
+            d_str = created_at[:10] if isinstance(created_at, str) else created_at.strftime("%Y-%m-%d")
+            if d_str in days_map:
+                days_map[d_str] += (dur or 0)
+
+    queue_recent = db.query(
+        QueueItem.created_at,
+        QueueItem.duration_ms
+    ).filter(
+        QueueItem.added_by_user_id == user_id,
+        QueueItem.status == "played",
+        QueueItem.created_at >= start_cutoff
+    ).all()
+
+    for created_at, dur in queue_recent:
+        if created_at:
+            d_str = created_at[:10] if isinstance(created_at, str) else created_at.strftime("%Y-%m-%d")
+            if d_str in days_map:
+                days_map[d_str] += (dur or 0)
+
+    activity_chart = [
+        {
+            "date": d_str,
+            "day": day_name,
+            "minutes": int(days_map[d_str] // 60000)
+        }
+        for d_str, day_name in chart_days
+    ]
+
+    # 5. Top 5 tracks (from QueueItem and UserListeningHistory)
+    track_counts = {}
+    queue_tracks = db.query(
         QueueItem.track_name,
         QueueItem.artist,
         QueueItem.album_art_url,
-        func.count(QueueItem.id).label('cnt')
+        func.count(QueueItem.id)
     ).filter(
         QueueItem.added_by_user_id == user_id
     ).group_by(
         QueueItem.track_name,
         QueueItem.artist,
         QueueItem.album_art_url
-    ).order_by(
-        desc('cnt')
-    ).limit(5).all()
+    ).all()
 
+    for t_name, artist, art, cnt in queue_tracks:
+        if t_name and artist:
+            key = (t_name, artist, art or "")
+            track_counts[key] = track_counts.get(key, 0) + cnt
+
+    history_tracks = db.query(
+        UserListeningHistory.track_name,
+        UserListeningHistory.artist,
+        UserListeningHistory.album_art_url,
+        func.count(UserListeningHistory.id)
+    ).filter(
+        UserListeningHistory.user_id == user_id
+    ).group_by(
+        UserListeningHistory.track_name,
+        UserListeningHistory.artist,
+        UserListeningHistory.album_art_url
+    ).all()
+
+    for t_name, artist, art, cnt in history_tracks:
+        if t_name and artist:
+            key = (t_name, artist, art or "")
+            track_counts[key] = track_counts.get(key, 0) + cnt
+
+    sorted_tracks = sorted(track_counts.items(), key=lambda x: x[1], reverse=True)[:5]
     top_tracks = [
         {
-            "track_name": row[0],
-            "artist": row[1],
-            "album_art_url": row[2],
-            "count": row[3]
+            "track_name": k[0],
+            "artist": k[1],
+            "album_art_url": k[2] if k[2] else None,
+            "count": cnt
         }
-        for row in top_tracks_query
+        for k, cnt in sorted_tracks
     ]
 
-    # 4. Top 5 artists queued
-    top_artists_query = db.query(
+    # 6. Top 5 artists (from QueueItem and UserListeningHistory)
+    artist_counts = {}
+    queue_artists = db.query(
         QueueItem.artist,
-        func.count(QueueItem.id).label('cnt')
+        func.count(QueueItem.id)
     ).filter(
         QueueItem.added_by_user_id == user_id
     ).group_by(
         QueueItem.artist
-    ).order_by(
-        desc('cnt')
-    ).limit(5).all()
+    ).all()
 
+    for artist, cnt in queue_artists:
+        if artist:
+            artist_counts[artist] = artist_counts.get(artist, 0) + cnt
+
+    history_artists = db.query(
+        UserListeningHistory.artist,
+        func.count(UserListeningHistory.id)
+    ).filter(
+        UserListeningHistory.user_id == user_id
+    ).group_by(
+        UserListeningHistory.artist
+    ).all()
+
+    for artist, cnt in history_artists:
+        if artist:
+            artist_counts[artist] = artist_counts.get(artist, 0) + cnt
+
+    sorted_artists = sorted(artist_counts.items(), key=lambda x: x[1], reverse=True)[:5]
     top_artists = [
         {
-            "artist": row[0],
-            "count": row[1]
+            "artist": artist,
+            "count": cnt
         }
-        for row in top_artists_query
+        for artist, cnt in sorted_artists
     ]
 
-    # 5. Top genres (based on room tags where the user has queued songs)
+    # 7. Top genres with percentage distribution
+    genre_counts = {}
     rooms_genres = db.query(
         Room.genre_tags,
         func.count(QueueItem.id)
@@ -387,7 +498,6 @@ def get_user_stats_internal(db: Session, user_id: str):
         Room.genre_tags
     ).all()
 
-    genre_counts = {}
     for raw_tags, count in rooms_genres:
         if not raw_tags:
             continue
@@ -395,40 +505,164 @@ def get_user_stats_internal(db: Session, user_id: str):
             tags = json.loads(raw_tags)
             if isinstance(tags, list):
                 for tag in tags:
-                    tag_clean = tag.strip().lower()
+                    tag_clean = str(tag).strip().lower()
                     if tag_clean:
                         genre_counts[tag_clean] = genre_counts.get(tag_clean, 0) + count
         except Exception:
             pass
 
+    history_genres = db.query(
+        UserListeningHistory.genre,
+        func.count(UserListeningHistory.id)
+    ).filter(
+        UserListeningHistory.user_id == user_id,
+        UserListeningHistory.genre.isnot(None)
+    ).group_by(
+        UserListeningHistory.genre
+    ).all()
+
+    for genre, count in history_genres:
+        if genre:
+            g_clean = str(genre).strip().lower()
+            if g_clean:
+                genre_counts[g_clean] = genre_counts.get(g_clean, 0) + count
+
     sorted_genres = sorted(genre_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+    total_top_counts = sum(c for _, c in sorted_genres)
     top_genres = [
         {
             "genre": g,
-            "count": c
+            "count": c,
+            "percentage": round((c / total_top_counts) * 100) if total_top_counts > 0 else 0
         }
         for g, c in sorted_genres
     ]
 
-    # 6. Additional info: rooms hosted and recently played
-    rooms_hosted = db.query(Room).filter(Room.host_user_id == user_id).count()
+    # 8. Recently played (combined from QueueItem and UserListeningHistory)
+    recent_history = db.query(UserListeningHistory).filter(
+        UserListeningHistory.user_id == user_id
+    ).order_by(UserListeningHistory.created_at.desc()).limit(10).all()
 
-    recent_query = db.query(QueueItem).filter(
+    recent_queue = db.query(QueueItem).filter(
         QueueItem.added_by_user_id == user_id,
         QueueItem.status == "played"
     ).order_by(QueueItem.created_at.desc()).limit(10).all()
-    
-    from backend.database import safe_isoformat
+
+    all_recent = []
+    for h in recent_history:
+        all_recent.append({
+            "id": h.id,
+            "track_name": h.track_name,
+            "artist": h.artist,
+            "album_art_url": h.album_art_url,
+            "duration_ms": h.duration_ms,
+            "played_at": safe_isoformat(h.created_at),
+            "_raw_dt": h.created_at
+        })
+    for q in recent_queue:
+        all_recent.append({
+            "id": q.id,
+            "track_name": q.track_name,
+            "artist": q.artist,
+            "album_art_url": q.album_art_url,
+            "duration_ms": q.duration_ms,
+            "played_at": safe_isoformat(q.created_at),
+            "_raw_dt": q.created_at
+        })
+
+    def _sort_key(item):
+        dt = item["_raw_dt"]
+        if dt is None:
+            return ""
+        if isinstance(dt, str):
+            return dt
+        return dt.isoformat()
+
+    all_recent.sort(key=_sort_key, reverse=True)
     recently_played = [
+        {k: v for k, v in item.items() if k != "_raw_dt"}
+        for item in all_recent[:10]
+    ]
+
+    # 9. Dynamic milestone badges evaluation engine
+    milestone_badges = [
         {
-            "id": r.id,
-            "track_name": r.track_name,
-            "artist": r.artist,
-            "album_art_url": r.album_art_url,
-            "duration_ms": r.duration_ms,
-            "played_at": safe_isoformat(r.created_at)
-        }
-        for r in recent_query
+            "id": "listener_100",
+            "title": "Audiophile Novice",
+            "description": "Listen to 100+ minutes of live music",
+            "icon": "Headphones",
+            "tier": "bronze",
+            "category": "listening",
+            "unlocked": listening_time_mins >= 100,
+            "progress": listening_time_mins,
+            "target": 100,
+        },
+        {
+            "id": "listener_500",
+            "title": "Sound Voyager",
+            "description": "Listen to 500+ minutes of live music",
+            "icon": "Radio",
+            "tier": "silver",
+            "category": "listening",
+            "unlocked": listening_time_mins >= 500,
+            "progress": listening_time_mins,
+            "target": 500,
+        },
+        {
+            "id": "listener_2000",
+            "title": "Audiophile Master",
+            "description": "Listen to 2,000+ minutes of live music",
+            "icon": "Award",
+            "tier": "diamond",
+            "category": "listening",
+            "unlocked": listening_time_mins >= 2000,
+            "progress": listening_time_mins,
+            "target": 2000,
+        },
+        {
+            "id": "rooms_10",
+            "title": "Room Hopper",
+            "description": "Explore 10 or more unique Jam Rooms",
+            "icon": "Compass",
+            "tier": "silver",
+            "category": "exploration",
+            "unlocked": total_rooms_visited >= 10,
+            "progress": total_rooms_visited,
+            "target": 10,
+        },
+        {
+            "id": "dj_curator",
+            "title": "Vibe Selector",
+            "description": "Queue 20 or more songs in live rooms",
+            "icon": "Disc",
+            "tier": "silver",
+            "category": "curation",
+            "unlocked": total_queued >= 20,
+            "progress": total_queued,
+            "target": 20,
+        },
+        {
+            "id": "host_pioneer",
+            "title": "Stage Master",
+            "description": "Host your own Jam Room session",
+            "icon": "Crown",
+            "tier": "bronze",
+            "category": "hosting",
+            "unlocked": rooms_hosted >= 1,
+            "progress": rooms_hosted,
+            "target": 1,
+        },
+        {
+            "id": "chat_spark",
+            "title": "Community Voice",
+            "description": "Send 50+ chat messages during live jams",
+            "icon": "MessageSquare",
+            "tier": "bronze",
+            "category": "social",
+            "unlocked": total_chats >= 50,
+            "progress": total_chats,
+            "target": 50,
+        },
     ]
 
     return {
@@ -439,11 +673,14 @@ def get_user_stats_internal(db: Session, user_id: str):
             "total_chats": total_chats,
             "total_votes": total_votes,
             "listening_time_mins": listening_time_mins,
+            "total_rooms_visited": total_rooms_visited,
             "rooms_hosted": rooms_hosted,
             "recently_played": recently_played,
             "top_tracks": top_tracks,
             "top_artists": top_artists,
-            "top_genres": top_genres
+            "top_genres": top_genres,
+            "activity_chart": activity_chart,
+            "milestone_badges": milestone_badges,
         }
     }
 

@@ -6,11 +6,17 @@ import { useRouter } from 'next/navigation';
 import YouTubePlayer from '@/utils/YouTubePlayer';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { MusicPlayer } from '@/components/ui/music-player';
-import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart, CheckCircle, AlertCircle, AlertTriangle, Info, Download, Check, Flame, Smile, Save, RefreshCw, ListPlus, Maximize2, Minimize2, SkipForward, SkipBack, Shuffle, Repeat, List, Disc, Clock, Sliders, GripVertical, HelpCircle, Bookmark, Crown } from 'lucide-react';
+import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart, CheckCircle, AlertCircle, AlertTriangle, Info, Download, Check, Flame, Smile, Save, RefreshCw, ListPlus, Maximize2, Minimize2, SkipForward, SkipBack, Shuffle, Repeat, List, Disc, Clock, Sliders, GripVertical, HelpCircle, Bookmark, Crown, Trophy, Share2 } from 'lucide-react';
 import PwaInstallPrompt from '@/components/PwaInstallPrompt';
 import { offlineDb } from '@/utils/offlineDb';
 import EmojiPicker from '@/components/EmojiPicker';
 import { extractColors } from '@/utils/colorExtractor';
+import TriviaOverlay from '@/components/trivia/TriviaOverlay';
+import JamCardModal from '@/components/modals/JamCardModal';
+import MentionPopover from '@/components/chat/MentionPopover';
+import TenorGifPicker from '@/components/chat/TenorGifPicker';
+import SyncPrecisionBadge from '@/components/ui/SyncPrecisionBadge';
+import { audioPrecache } from '@/utils/audioPrecache';
 
 import DiscordRPC from '@/utils/DiscordRPC';
 
@@ -47,6 +53,18 @@ export default function RoomClient({ roomId }) {
   const [playerSize, setPlayerSize] = useState(280);
   const [activeRoomPlaylist, setActiveRoomPlaylist] = useState(null);
   const [isLoadingPlaylist, setIsLoadingPlaylist] = useState(false);
+
+  // Trivia & Jam Card States
+  const [showJamCardModal, setShowJamCardModal] = useState(false);
+  const [triviaActive, setTriviaActive] = useState(false);
+  const [triviaRound, setTriviaRound] = useState(null);
+  const [triviaResult, setTriviaResult] = useState(null);
+
+  // Rich Chat & Mention Suite States
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [showGifPicker, setShowGifPicker] = useState(false);
+  const [showMentionPopover, setShowMentionPopover] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
   
   // Volume & Settings
   const [volume, setVolume] = useState(80);
@@ -230,6 +248,21 @@ export default function RoomClient({ roomId }) {
   useEffect(() => {
     roomPasswordRef.current = roomPassword;
   }, [roomPassword]);
+
+  // Background pre-caching of upcoming tracks into IndexedDB for sub-50ms cutover
+  useEffect(() => {
+    if (queue && queue.length > 0) {
+      const currentIdx = queue.findIndex(q => (q.track_uri || q.id) === (nowPlaying?.track_uri || nowPlaying?.id));
+      audioPrecache.precacheQueue(queue, currentIdx, 3);
+    }
+  }, [queue, nowPlaying]);
+
+  // Clear unread chat count when chat tab becomes active
+  useEffect(() => {
+    if (activeTab === 'chat') {
+      setUnreadChatCount(0);
+    }
+  }, [activeTab]);
 
   const handleTogglePlayRef = useRef(null);
   const handleNextTrackRef = useRef(null);
@@ -812,7 +845,22 @@ export default function RoomClient({ roomId }) {
       if (!isSelf && msg.type !== 'system') {
         const isWindowBackground = typeof document !== 'undefined' && (document.visibilityState === 'hidden' || !document.hasFocus());
         const isChatNotVisible = activeTabRef.current !== 'chat';
-        if (isWindowBackground || isChatNotVisible) {
+        
+        if (isChatNotVisible) {
+          setUnreadChatCount((prev) => prev + 1);
+        }
+
+        const myDisplayName = meRef.current?.display_name || '';
+        const isMentioned = myDisplayName && msg.content && msg.content.toLowerCase().includes(`@${myDisplayName.toLowerCase()}`);
+
+        if (isMentioned && isWindowBackground) {
+          sendDesktopNotification(`@${msg.user_name || 'Someone'} mentioned you in ${roomRef.current?.name || 'OpenJam'}!`, {
+            body: msg.content,
+            tag: 'chat-mention',
+            renotify: true
+          });
+          playAlertSound('info');
+        } else if (isWindowBackground || isChatNotVisible) {
           sendDesktopNotification(msg.user_name || 'New Message', {
             body: msg.content,
             tag: 'chat-message',
@@ -1007,6 +1055,28 @@ export default function RoomClient({ roomId }) {
       setAllowGuestControls(data.allow_guest_controls || false);
     });
 
+    socket.on('trivia_round_started', (data) => {
+      setTriviaRound(data);
+      setTriviaResult(null);
+      setTriviaActive(true);
+      triggerToast(`Music Trivia Round ${data.round_number || 1} started!`, 'info');
+    });
+
+    socket.on('trivia_round_ended', (data) => {
+      setTriviaResult(data);
+    });
+
+    socket.on('trivia_session_ended', (data) => {
+      setTriviaActive(false);
+      setTriviaRound(null);
+      setTriviaResult(null);
+      triggerToast('Music Trivia session ended.', 'info');
+    });
+
+    socket.on('trivia_error', (data) => {
+      triggerToast(data.message || 'Trivia error', 'error');
+    });
+
     return () => {
       socket.off('connect', joinRoom);
       socket.off('sync_pong');
@@ -1027,6 +1097,11 @@ export default function RoomClient({ roomId }) {
       socket.off('user_typing');
       socket.off('user_stop_typing');
       socket.off('room_closed');
+      socket.off('guest_controls_updated');
+      socket.off('trivia_round_started');
+      socket.off('trivia_round_ended');
+      socket.off('trivia_session_ended');
+      socket.off('trivia_error');
       socket.emit('leave_room', { room_id: roomId });
     };
   }, [socket, isReady, roomId]);
@@ -2187,7 +2262,21 @@ export default function RoomClient({ roomId }) {
   };
 
   const handleTyping = (e) => {
-    setChatInput(e.target.value);
+    const value = e.target.value;
+    setChatInput(value);
+
+    // Detect @mention trigger from cursor position
+    const cursor = e.target.selectionStart || value.length;
+    const textBeforeCursor = value.slice(0, cursor);
+    const mentionMatch = /(?:^|\s)@([a-zA-Z0-9_\s]{0,20})$/.exec(textBeforeCursor);
+    
+    if (mentionMatch) {
+      setMentionQuery(mentionMatch[1] || '');
+      setShowMentionPopover(true);
+    } else {
+      setShowMentionPopover(false);
+    }
+
     if (!socket) return;
     if (!isTyping) {
       setIsTyping(true);
@@ -2206,6 +2295,86 @@ export default function RoomClient({ roomId }) {
     if (socket) {
       socket.emit('stop_typing', { room_id: roomId });
     }
+  };
+
+  const handleSelectMention = (user) => {
+    const textarea = document.getElementById('chat-input');
+    const cursor = textarea?.selectionStart || chatInput.length;
+    const textBefore = chatInput.slice(0, cursor);
+    const textAfter = chatInput.slice(cursor);
+    
+    const replacedBefore = textBefore.replace(/(?:^|\s)@([a-zA-Z0-9_\s]{0,20})$/, (match) => {
+      const prefix = match.startsWith(' ') ? ' ' : '';
+      return `${prefix}@${user.display_name} `;
+    });
+    
+    const nextInput = replacedBefore + textAfter;
+    setChatInput(nextInput);
+    setShowMentionPopover(false);
+    setMentionQuery('');
+    
+    setTimeout(() => {
+      if (textarea) {
+        textarea.focus();
+        const newPos = replacedBefore.length;
+        textarea.selectionStart = textarea.selectionEnd = newPos;
+      }
+    }, 0);
+  };
+
+  const handleSelectGif = (gifUrl) => {
+    if (!gifUrl || !socket) return;
+    const tempId = Math.random().toString(36).slice(2, 10);
+    socket.emit('send_chat', {
+      room_id: roomId,
+      message: gifUrl,
+      type: 'gif',
+      temp_id: tempId
+    });
+    setShowGifPicker(false);
+  };
+
+  const renderMessageContent = (content = '') => {
+    if (!content) return null;
+
+    const isGifUrl = /(https?:\/\/[^\s]+\.(?:gif|webp|png|jpg|jpeg)(?:\?[^\s]*)?|https?:\/\/(?:media\.tenor\.com|c\.tenor\.com|media\.giphy\.com)[^\s]+)/i.test(content.trim());
+    
+    if (isGifUrl && content.trim().startsWith('http')) {
+      return (
+        <img
+          src={content.trim()}
+          alt="GIF"
+          className="chat-gif-media"
+          loading="lazy"
+          onError={(e) => {
+            e.currentTarget.style.display = 'none';
+          }}
+        />
+      );
+    }
+
+    const myName = me?.display_name || '';
+    const parts = content.split(/(@[a-zA-Z0-9_\s]{1,25})/g);
+
+    return (
+      <span>
+        {parts.map((part, idx) => {
+          if (part.startsWith('@')) {
+            const mentionedName = part.slice(1).trim();
+            const isMe = myName && mentionedName.toLowerCase() === myName.toLowerCase();
+            return (
+              <span
+                key={idx}
+                className={`chat-mention ${isMe ? 'chat-mention-me' : ''}`}
+              >
+                {part}
+              </span>
+            );
+          }
+          return part;
+        })}
+      </span>
+    );
   };
 
   const handleInsertChatEmoji = (emoji) => {
@@ -2246,6 +2415,7 @@ export default function RoomClient({ roomId }) {
     });
     
     setChatInput('');
+    setShowMentionPopover(false);
     handleStopTyping();
   };
 
@@ -2467,6 +2637,20 @@ export default function RoomClient({ roomId }) {
     }
   };
 
+  const handleStartTrivia = () => {
+    if (!socket) {
+      triggerToast('Not connected to room server', 'error');
+      return;
+    }
+    socket.emit('start_trivia_round', { room_id: roomId });
+  };
+
+  const handleEndTrivia = () => {
+    if (!socket) return;
+    socket.emit('end_trivia_session', { room_id: roomId });
+  };
+
+
 
   if (roomNotFound) {
     return (
@@ -2641,6 +2825,24 @@ export default function RoomClient({ roomId }) {
             >
               <Maximize2 size={16} />
             </button>
+            <button 
+              className="btn btn-secondary room-bar-icon-btn" 
+              onClick={() => setShowJamCardModal(true)} 
+              title="Export Shareable Jam Card"
+            >
+              <Share2 size={16} />
+            </button>
+            {isHost && (
+              <button 
+                className="btn btn-secondary room-bar-trivia-btn" 
+                onClick={handleStartTrivia} 
+                title="Start Real-Time Music Trivia"
+                style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
+              >
+                <Trophy size={14} style={{ color: '#ff9f1c' }} />
+                <span className="room-bar-btn-label">Trivia</span>
+              </button>
+            )}
             <button className="btn btn-secondary room-bar-icon-btn" onClick={() => setShowSettings(true)} title="Room Settings">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
             </button>
@@ -2938,6 +3140,10 @@ export default function RoomClient({ roomId }) {
             size={playerSize}
             isBuffering={!!streamErrorMsg}
             bufferingMsg={streamErrorMsg}
+            ntpOffset={clockStatsRef.current?.offset || 0}
+            ntpRtt={clockStatsRef.current?.rtt || (syncLatency ? syncLatency * 2 : 0)}
+            isSynced={isConnected}
+            showSyncBadge={true}
           />
 
           {/* Skip Vote count display (only shown for guests when direct controls are disabled) */}
@@ -2961,9 +3167,16 @@ export default function RoomClient({ roomId }) {
             </button>
             <button 
               className={`sidebar-tab ${currentSidebarTab === 'chat' ? 'active' : ''}`} 
-              onClick={() => setActiveTab('chat')}
+              onClick={() => {
+                setActiveTab('chat');
+                setUnreadChatCount(0);
+              }}
+              style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
             >
-              Chat ({listeners.length})
+              <span>Chat ({listeners.length})</span>
+              {unreadChatCount > 0 && (
+                <span className="chat-unread-badge">{unreadChatCount}</span>
+              )}
             </button>
             <button 
               className={`sidebar-tab ${currentSidebarTab === 'members' ? 'active' : ''}`} 
@@ -4178,7 +4391,7 @@ export default function RoomClient({ roomId }) {
                                   <span className="badge-host">Host</span>
                                 )}
                               </div>
-                              <div className="chat-msg-text">{msg.content}</div>
+                              <div className="chat-msg-text">{renderMessageContent(msg.content)}</div>
                             </div>
                           </div>
                         </div>
@@ -4261,6 +4474,19 @@ export default function RoomClient({ roomId }) {
 
                 {/* Chat text input */}
                 <div className="chat-input-wrap" style={{ position: 'relative' }}>
+                  {/* Mention Autocomplete Popover */}
+                  {showMentionPopover && (
+                    <MentionPopover
+                      listeners={listeners}
+                      query={mentionQuery}
+                      me={me}
+                      hostId={room?.host_user_id}
+                      onSelect={handleSelectMention}
+                      onClose={() => setShowMentionPopover(false)}
+                    />
+                  )}
+
+                  {/* Emoji Picker Popover */}
                   {showChatEmojiPicker && (
                     <>
                       <div 
@@ -4288,6 +4514,16 @@ export default function RoomClient({ roomId }) {
                       />
                     </>
                   )}
+
+                  {/* Tenor GIF Picker Modal */}
+                  {showGifPicker && (
+                    <TenorGifPicker
+                      isModal={true}
+                      onSelectGif={handleSelectGif}
+                      onClose={() => setShowGifPicker(false)}
+                    />
+                  )}
+
                   <div className="chat-input-main">
                     <textarea 
                       className="input-field" 
@@ -4301,7 +4537,7 @@ export default function RoomClient({ roomId }) {
                           handleSendChat(e);
                         }
                       }}
-                      placeholder="Say something…" 
+                      placeholder="Say something… (type @ to mention)" 
                       maxLength="500" 
                       rows="1"
                       style={{ flex: 1, resize: 'none', height: '40px', boxSizing: 'border-box' }}
@@ -4310,7 +4546,35 @@ export default function RoomClient({ roomId }) {
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
+                        setShowGifPicker(!showGifPicker);
+                        setShowChatEmojiPicker(false);
+                        setShowReactionEmojiPicker(false);
+                      }}
+                      style={{
+                        background: showGifPicker ? 'rgba(255, 159, 28, 0.15)' : 'none',
+                        border: showGifPicker ? '1px solid rgba(255, 159, 28, 0.3)' : 'none',
+                        borderRadius: '8px',
+                        color: showGifPicker ? 'var(--amber)' : 'var(--text-3)',
+                        cursor: 'pointer',
+                        padding: '6px 8px',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.2s',
+                        outline: 'none'
+                      }}
+                      title="Add GIF from Tenor"
+                    >
+                      GIF
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setShowChatEmojiPicker(!showChatEmojiPicker);
+                        setShowGifPicker(false);
                         setShowReactionEmojiPicker(false);
                       }}
                       style={{
@@ -4337,7 +4601,7 @@ export default function RoomClient({ roomId }) {
                       <Send className="h-4 w-4" />
                     </button>
                   </div>
-                  <div className="chat-input-hint">Enter = send · Shift+Enter = new line</div>
+                  <div className="chat-input-hint">Enter = send · Shift+Enter = new line · @ to mention</div>
                 </div>
               </motion.div>
             )}
@@ -4577,9 +4841,19 @@ export default function RoomClient({ roomId }) {
           <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '20px', height: '20px' }}><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h16v2H4v-2z"/></svg>
           <span className="mob-tab-label">Queue</span>
         </button>
-        <button className={`mob-tab ${activeTab === 'chat' ? 'active' : ''}`} onClick={() => setActiveTab('chat')}>
+        <button 
+          className={`mob-tab ${activeTab === 'chat' ? 'active' : ''}`} 
+          onClick={() => {
+            setActiveTab('chat');
+            setUnreadChatCount(0);
+          }}
+          style={{ position: 'relative' }}
+        >
           <Send className="h-5 w-5" />
           <span className="mob-tab-label">Chat</span>
+          {unreadChatCount > 0 && (
+            <span className="mob-unread-badge">{unreadChatCount}</span>
+          )}
         </button>
         <button className={`mob-tab ${activeTab === 'members' ? 'active' : ''}`} onClick={() => setActiveTab('members')}>
           <Users className="h-5 w-5" />
@@ -5160,6 +5434,17 @@ export default function RoomClient({ roomId }) {
                 pointerEvents: 'none',
               }}
             />
+
+            {/* Top Left NTP Sync Precision Badge */}
+            <div style={{ position: 'absolute', top: '28px', left: '36px', zIndex: 100, display: 'flex', alignItems: 'center' }}>
+              <SyncPrecisionBadge
+                offset={clockStatsRef.current?.offset || 0}
+                rtt={clockStatsRef.current?.rtt || (syncLatency ? syncLatency * 2 : 0)}
+                isSynced={isConnected}
+                compact={false}
+                showDetails={true}
+              />
+            </div>
 
             {/* Top Right Exit Fullscreen Button */}
             <motion.button
@@ -6335,6 +6620,33 @@ export default function RoomClient({ roomId }) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ══ REAL-TIME MUSIC TRIVIA OVERLAY ══════════════════════ */}
+      {triviaActive && (
+        <TriviaOverlay
+          socket={socket}
+          roomId={roomId}
+          isHost={isHost}
+          me={me}
+          triviaRound={triviaRound}
+          triviaResult={triviaResult}
+          onClose={() => setTriviaActive(false)}
+          onStartNextRound={handleStartTrivia}
+          onEndSession={handleEndTrivia}
+        />
+      )}
+
+      {/* ══ SHAREABLE JAM CARD MODAL ═════════════════════════════ */}
+      {showJamCardModal && (
+        <JamCardModal
+          isOpen={showJamCardModal}
+          onClose={() => setShowJamCardModal(false)}
+          room={room}
+          nowPlaying={nowPlaying}
+          listenerCount={listeners.length || (room?.listener_count || 1)}
+          triggerToast={triggerToast}
+        />
+      )}
 
       <PwaInstallPrompt />
     </div>

@@ -11963,4 +11963,89 @@ div:hover > .play-hover-btn,
   }
 }
 
+/* ---- Rich Chat & Tenor GIF Suite Animations ---- */
+@keyframes popover-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes tenor-pop {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.chat-gif-media {
+  max-width: 100%;
+  max-height: 220px;
+  border-radius: 12px;
+  margin-top: 4px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.tab-unread-badge,
+.chat-unread-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #ff9f1c 0%, #f43f5e 100%);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  margin-left: 6px;
+  box-shadow: 0 2px 8px rgba(244, 63, 94, 0.5);
+  animation: popover-in 0.2s ease-out;
+}
+
+.mob-unread-badge {
+  position: absolute;
+  top: 4px;
+  right: calc(50% - 18px);
+  background: linear-gradient(135deg, #ff9f1c 0%, #f43f5e 100%);
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 800;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #08080a;
+  box-shadow: 0 2px 6px rgba(244, 63, 94, 0.6);
+  animation: popover-in 0.2s ease-out;
+}
+
+.chat-mention {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(255, 159, 28, 0.15);
+  color: var(--amber, #ff9f1c);
+  font-weight: 600;
+  margin: 0 1px;
+  border: 1px solid rgba(255, 159, 28, 0.3);
+  transition: all 0.15s ease;
+}
+
+.chat-mention.chat-mention-me {
+  background: linear-gradient(135deg, rgba(255, 159, 28, 0.3), rgba(244, 63, 94, 0.25));
+  color: #ffd23f;
+  border: 1px solid rgba(255, 159, 28, 0.55);
+  box-shadow: 0 0 10px rgba(255, 159, 28, 0.25);
+  font-weight: 700;
+}
+
+
 

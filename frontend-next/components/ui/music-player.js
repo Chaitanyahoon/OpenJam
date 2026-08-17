@@ -19,6 +19,7 @@ import {
   Trash2,
 } from "lucide-react";
 import "./music-player.css";
+import SyncPrecisionBadge from "./SyncPrecisionBadge";
 
 const defaultTrack = {
   id: "default",
@@ -77,6 +78,10 @@ export const MusicPlayer = ({
   onShuffleToggle,
   repeatMode: propRepeatMode,
   onRepeatModeChange,
+  ntpOffset = 0,
+  ntpRtt = 0,
+  isSynced = true,
+  showSyncBadge = true,
 }) => {
   const track = currentTrack || defaultTrack;
   
@@ -541,7 +546,15 @@ export const MusicPlayer = ({
                 />
               </div>
 
-              <div className="mp-util-right-group">
+              <div className="mp-util-right-group" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {showSyncBadge && (
+                  <SyncPrecisionBadge
+                    offset={ntpOffset}
+                    rtt={ntpRtt}
+                    isSynced={isSynced}
+                    compact={true}
+                  />
+                )}
                 {onLyricsToggle && (
                   <button
                     type="button"

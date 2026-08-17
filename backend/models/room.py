@@ -20,8 +20,10 @@ class Room(Base):
     allow_guest_controls = Column(Boolean, default=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     
-    # Relationship to User (eager loading)
+    # Relationships
     host = relationship("User", foreign_keys=[host_user_id])
+    room_visits = relationship("UserRoomVisit", backref="room", cascade="all, delete-orphan")
+    listening_history = relationship("UserListeningHistory", backref="room")
 
     def to_dict(self, listener_count=0, current_track=None, host_name=None, host_avatar_url=None):
         import json

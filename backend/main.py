@@ -23,10 +23,12 @@ from backend.routes.admin import router as admin_router
 from backend.routes.likes import router as likes_router
 from backend.routes.playlists import router as playlists_router
 from backend.routes.profile import router as profile_router
+from backend.routes.proxy import router as proxy_router
 from backend.sockets.connection import register_connection_handlers
 from backend.sockets.chat import register_chat_handlers
 from backend.sockets.playback import register_playback_handlers
 from backend.sockets.queue import register_queue_handlers
+from backend.sockets.trivia import register_trivia_handlers
 
 # Initialize logging
 setup_logging()
@@ -95,11 +97,13 @@ app.include_router(admin_router)
 app.include_router(likes_router)
 app.include_router(playlists_router)
 app.include_router(profile_router)
+app.include_router(proxy_router)
 
 register_connection_handlers(sio)
 register_chat_handlers(sio)
 register_playback_handlers(sio)
 register_queue_handlers(sio)
+register_trivia_handlers(sio)
 
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app, socketio_path="/socket.io")
 

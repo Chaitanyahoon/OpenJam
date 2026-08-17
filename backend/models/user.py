@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import Column, String, DateTime, Boolean
+from sqlalchemy.orm import relationship
 from backend.database import Base
 
 
@@ -25,6 +26,10 @@ class User(Base):
     banner_position = Column(String, default="50%", nullable=False)
     banner_scale = Column(String, default="100%", nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    # Cascade relationships
+    listening_history = relationship("UserListeningHistory", backref="user", cascade="all, delete-orphan")
+    room_visits = relationship("UserRoomVisit", backref="user", cascade="all, delete-orphan")
 
     def to_dict(self):
         from backend.database import safe_isoformat
