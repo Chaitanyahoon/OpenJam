@@ -98,6 +98,49 @@ export function JsonLd() {
             }
           }
         ]
+      },
+      {
+        "@type": "HowTo",
+        "@id": `${SITE_URL}/#howto`,
+        name: "How to Listen to Music with Friends Online in Sync",
+        description: "A step-by-step guide to creating a virtual music room, queuing tracks, and listening together in real-time on OpenJam.",
+        totalTime: "PT1M",
+        step: [
+          {
+            "@type": "HowToStep",
+            position: 1,
+            name: "Create or Join a Room",
+            text: "Click 'Create Instant Room' or enter a public jam session from the rooms directory.",
+            url: `${SITE_URL}/#rooms`
+          },
+          {
+            "@type": "HowToStep",
+            position: 2,
+            name: "Search and Queue Tracks",
+            text: "Use the YouTube search bar or paste Spotify/YouTube playlist links to queue your favorite songs.",
+            url: `${SITE_URL}/#rooms`
+          },
+          {
+            "@type": "HowToStep",
+            position: 3,
+            name: "Share the Room Link",
+            text: "Copy and send the room invite link to your friends. Everyone hears the music simultaneously with sub-100ms sync.",
+            url: `${SITE_URL}/#rooms`
+          }
+        ]
+      },
+      {
+        "@type": "ItemList",
+        "@id": `${SITE_URL}/#sitelinks`,
+        name: "Explore OpenJam",
+        itemListElement: [
+          { "@type": "SiteNavigationElement", position: 1, name: "Live Jam Rooms", url: `${SITE_URL}/#rooms` },
+          { "@type": "SiteNavigationElement", position: 2, name: "Stage Mode & Lyrics", url: `${SITE_URL}/#stage` },
+          { "@type": "SiteNavigationElement", position: 3, name: "Create Room", url: `${SITE_URL}/#create` },
+          { "@type": "SiteNavigationElement", position: 4, name: "Frequently Asked Questions", url: `${SITE_URL}/#faq` },
+          { "@type": "SiteNavigationElement", position: 5, name: "Privacy Policy", url: `${SITE_URL}/privacy` },
+          { "@type": "SiteNavigationElement", position: 6, name: "Terms of Service", url: `${SITE_URL}/terms` }
+        ]
       }
     ],
   };

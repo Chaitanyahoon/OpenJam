@@ -51,7 +51,12 @@ export const metadata = {
     "synced music playback",
     "real-time music sync",
     "collaborative music queue",
-    "listen together free"
+    "listen together free",
+    "watch2gether alternative free",
+    "spotify jam without premium",
+    "virtual listening party app",
+    "karaoke stage view lyrics online",
+    "listen to youtube together in sync"
   ],
   manifest: "/manifest.json",
   icons: {

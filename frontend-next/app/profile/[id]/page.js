@@ -72,10 +72,50 @@ export async function generateMetadata(props) {
   }
 }
 
-export default function ProfilePage() {
+export default async function ProfilePage(props) {
+  const resolvedParams = await props.params;
+  const id = resolvedParams?.id;
+
+  let profileSchema = null;
+  if (id && id !== 'loading') {
+    try {
+      const backendUrl = getBackendUrl();
+      const res = await fetch(`${backendUrl}/profile/${id}`, { next: { revalidate: 60 } });
+      if (res.ok) {
+        const data = await res.json();
+        const user = data.user;
+        if (user) {
+          const displayName = user.display_name || user.username || 'User';
+          profileSchema = {
+            "@context": "https://schema.org",
+            "@type": "ProfilePage",
+            "name": `${displayName} (@${user.username || id}) • OpenJam Profile`,
+            "url": `https://www.openjam.fun/profile/${id}`,
+            "mainEntity": {
+              "@type": "Person",
+              "name": displayName,
+              "alternateName": user.username ? `@${user.username}` : undefined,
+              "description": user.bio || undefined,
+              "image": user.avatar_url || undefined,
+              "url": `https://www.openjam.fun/profile/${id}`
+            }
+          };
+        }
+      }
+    } catch (_) {}
+  }
+
   return (
-    <Suspense fallback={<ProfileSkeleton />}>
-      <ProfilePageClient />
-    </Suspense>
+    <>
+      {profileSchema && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(profileSchema) }}
+        />
+      )}
+      <Suspense fallback={<ProfileSkeleton />}>
+        <ProfilePageClient />
+      </Suspense>
+    </>
   );
 }
