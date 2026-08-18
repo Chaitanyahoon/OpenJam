@@ -29,12 +29,13 @@ export default function SyncPrecisionBadge({
 }) {
   const [isHovered, setIsHovered] = useState(false);
 
-  // Normalize absolute offset in milliseconds
+  // Normalize absolute offset and round RTT
   const absOffset = Math.round(Math.abs(offset || 0));
   const roundedRtt = Math.round(rtt || 0);
+  const oneWayLatency = Math.max(1, Math.round(roundedRtt / 2));
 
-  // Tier determination
-  let tierColor = '#10b981'; // Green
+  // Tier determination based on true network latency (RTT)
+  let tierColor = '#10b981'; // Green (Ultra Precision)
   let tierBg = 'rgba(16, 185, 129, 0.12)';
   let tierBorder = 'rgba(16, 185, 129, 0.3)';
   let tierGlow = '0 0 10px rgba(16, 185, 129, 0.3)';
@@ -45,14 +46,14 @@ export default function SyncPrecisionBadge({
     tierBg = 'rgba(148, 163, 184, 0.1)';
     tierBorder = 'rgba(148, 163, 184, 0.25)';
     tierGlow = 'none';
-    statusText = 'Syncing...';
-  } else if (absOffset >= 100) {
+    statusText = 'Syncing…';
+  } else if (roundedRtt >= 180) {
     tierColor = '#f43f5e'; // Rose / Orange-Red
     tierBg = 'rgba(244, 63, 94, 0.12)';
     tierBorder = 'rgba(244, 63, 94, 0.35)';
     tierGlow = '0 0 10px rgba(244, 63, 94, 0.35)';
-    statusText = 'High Latency';
-  } else if (absOffset >= 30) {
+    statusText = 'High Ping';
+  } else if (roundedRtt >= 80) {
     tierColor = '#f59e0b'; // Amber
     tierBg = 'rgba(245, 158, 11, 0.12)';
     tierBorder = 'rgba(245, 158, 11, 0.35)';
@@ -106,7 +107,7 @@ export default function SyncPrecisionBadge({
 
         {/* Text / Metric */}
         <span>
-          {isSynced ? `${statusText} • ${absOffset}ms` : statusText}
+          {isSynced ? `${statusText} • ${oneWayLatency}ms` : statusText}
         </span>
 
         {showDetails && isSynced && (
@@ -133,7 +134,7 @@ export default function SyncPrecisionBadge({
             whiteSpace: 'nowrap',
             display: 'flex',
             flexDirection: 'column',
-            gap: '3px',
+            gap: '4px',
             fontSize: '11px',
             color: '#eee',
             pointerEvents: 'none'
@@ -144,13 +145,13 @@ export default function SyncPrecisionBadge({
             <span>NTP Precision Clock</span>
           </div>
           <div style={{ color: '#aaa', fontSize: '10.5px' }}>
-            Offset: <strong style={{ color: '#fff' }}>{offset > 0 ? `+${absOffset}` : `-${absOffset}`}ms</strong>
+            Network Latency: <strong style={{ color: '#fff' }}>{oneWayLatency}ms</strong> <span style={{ color: '#777' }}>({roundedRtt}ms RTT)</span>
           </div>
           <div style={{ color: '#aaa', fontSize: '10.5px' }}>
-            Round-Trip Latency: <strong style={{ color: '#fff' }}>{roundedRtt}ms</strong>
+            Clock Drift (Compensated): <strong style={{ color: '#fff' }}>{offset > 0 ? `+${absOffset}` : `-${absOffset}`}ms</strong>
           </div>
           <div style={{ color: '#666', fontSize: '9.5px', marginTop: '2px' }}>
-            Cristian's Algorithm Sync
+            Cristian's Algorithm Continuous Sync
           </div>
         </div>
       )}

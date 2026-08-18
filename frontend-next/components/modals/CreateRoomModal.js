@@ -85,12 +85,35 @@ export default function CreateRoomModal({
                 />
               </div>
               <div className="modal-field">
-                <label className="modal-label">Queue Mode</label>
+                <label className="modal-label">Room Mode</label>
                 <select className="input-field" value={createMode} onChange={(e) => onCreateModeChange(e.target.value)}>
-                  <option value="open">Open Party (Anyone can add tracks)</option>
-                  <option value="curated">DJ Only (Only host can add tracks)</option>
+                  <option value="open">🎵 Open Party (Collaborative music queue)</option>
+                  <option value="curated">🎧 DJ Curated (Only host queues tracks)</option>
+                  <option value="trivia">🎮 Music Trivia Battle (Real-time song guessing game)</option>
                 </select>
               </div>
+              {createMode === 'trivia' && (
+                <div style={{
+                  background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(124, 58, 237, 0.08) 100%)',
+                  border: '1px solid rgba(168, 85, 247, 0.35)',
+                  borderRadius: '12px',
+                  padding: '12px 16px',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  fontSize: '12.5px',
+                  color: '#f3e8ff'
+                }}>
+                  <span style={{ fontSize: '24px' }}>🎮</span>
+                  <div>
+                    <strong style={{ color: '#fff', fontSize: '13px' }}>Music Trivia Battle Mode!</strong>
+                    <div style={{ opacity: 0.85, fontSize: '11.5px', marginTop: '2px', lineHeight: 1.4 }}>
+                      10-second snippet rounds, 4-choice fast answers, latency speed bonuses, and live podium leaderboards with all room listeners.
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="modal-field modal-checkbox-row">
                 <input
                   type="checkbox" id="create-private"

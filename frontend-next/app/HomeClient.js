@@ -825,6 +825,44 @@ export default function HomePage() {
     }
   };
 
+  const handleInstantTrivia = async () => {
+    // If active trivia room exists with users, join it
+    const activeTriviaRooms = rooms.filter(r => r.queue_mode === 'trivia' && !r.is_private);
+    if (activeTriviaRooms.length > 0) {
+      const sorted = [...activeTriviaRooms].sort((a, b) => (b.listener_count || 0) - (a.listener_count || 0));
+      const targetRoom = sorted[0];
+      triggerToast(`🎮 Joining Trivia Arena: ${targetRoom.name}`, 'success');
+      setTimeout(() => { router.push(`/room/${targetRoom.id}?trivia=true`); }, 800);
+      return;
+    }
+
+    triggerToast(`🎮 Starting a new Music Trivia Battle...`, 'info');
+    const triviaNames = ['Beat Busters Arena', 'Pop Trivia Showdown', 'Synthwave Soundclash', 'Hit Guessers Lounge', 'Decibel Duel', 'Chart Masters'];
+    const rName = triviaNames[Math.floor(Math.random() * triviaNames.length)] + ' #' + Math.floor(Math.random() * 90 + 10);
+    try {
+      const r = await fetch('/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: rName,
+          description: '🎮 Live Multiplayer Music Trivia Battle! Guess the track in 10s and race for top podium points.',
+          genre_tags: ['trivia', 'pop', 'hits'],
+          queue_mode: 'trivia',
+          password: null
+        }),
+        credentials: 'include'
+      });
+      if (r.ok) {
+        const data = await r.json();
+        setTimeout(() => { router.push(`/room/${data.room.id}?created=true&trivia=true`); }, 800);
+      } else {
+        triggerToast('Failed to create trivia battle room', 'error');
+      }
+    } catch (err) {
+      triggerToast('Failed to create trivia battle room', 'error');
+    }
+  };
+
   const toggleTag = (tag) => {
     const updated = new Set(selectedTags);
     if (updated.has(tag)) {
@@ -1021,6 +1059,7 @@ export default function HomePage() {
       <HeroSection
         me={me}
         onInstantJam={handleInstantJam}
+        onInstantTrivia={handleInstantTrivia}
         onDiscordLogin={() => { window.location.href = '/auth/discord'; }}
         onJoinGuest={() => setShowJoinModal(true)}
         onCreateRoom={() => setShowCreateModal(true)}

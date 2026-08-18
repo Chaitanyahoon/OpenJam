@@ -116,6 +116,7 @@ export default function RoomClient({ roomId }) {
   const [showChatEmojiPicker, setShowChatEmojiPicker] = useState(false);
   const [showReactionEmojiPicker, setShowReactionEmojiPicker] = useState(false);
   const [syncLatency, setSyncLatency] = useState(null);
+  const [clockStats, setClockStats] = useState({ offset: 0, rtt: 0 });
   const clockStatsRef = useRef({ offset: 0, rtt: 0, history: [] });
   const [showSettings, setShowSettings] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
@@ -724,6 +725,7 @@ export default function RoomClient({ roomId }) {
         history: newHistory
       };
       
+      setClockStats({ offset: avgOffset, rtt: avgRtt });
       setSyncLatency(Math.max(4, Math.round(avgRtt / 2)));
     });
 
@@ -738,6 +740,12 @@ export default function RoomClient({ roomId }) {
       if (data.now_playing) {
         nowPlayingRef.current = data.now_playing;
         setNowPlaying(data.now_playing);
+      }
+      if (data.trivia) {
+        setTriviaActive(true);
+        setTriviaRound(data.trivia);
+      } else if (data.room?.queue_mode === 'trivia' || (typeof window !== 'undefined' && window.location.search.includes('trivia=true'))) {
+        setTriviaActive(true);
       }
       setShowPassword(false);
       setAllowGuestControls(data.allow_guest_controls || false);
@@ -2806,11 +2814,13 @@ export default function RoomClient({ roomId }) {
                 <span style={{ opacity: 0.8, marginLeft: '2px' }}>listening</span>
               </div>
 
-              {syncLatency !== null && (
-                <div className="room-sync-status" title={`Clock synchronization RTT: ${syncLatency * 2}ms`}>
-                  <div className="room-sync-dot"></div>
-                  <span className="room-sync-text">⚡ Synced ({syncLatency}ms)</span>
-                </div>
+              {isConnected && (
+                <SyncPrecisionBadge
+                  offset={clockStats.offset}
+                  rtt={clockStats.rtt}
+                  isSynced={isConnected}
+                  compact={true}
+                />
               )}
             </div>
           </div>
@@ -3140,8 +3150,8 @@ export default function RoomClient({ roomId }) {
             size={playerSize}
             isBuffering={!!streamErrorMsg}
             bufferingMsg={streamErrorMsg}
-            ntpOffset={clockStatsRef.current?.offset || 0}
-            ntpRtt={clockStatsRef.current?.rtt || (syncLatency ? syncLatency * 2 : 0)}
+            ntpOffset={clockStats.offset}
+            ntpRtt={clockStats.rtt}
             isSynced={isConnected}
             showSyncBadge={true}
           />
@@ -5438,8 +5448,8 @@ export default function RoomClient({ roomId }) {
             {/* Top Left NTP Sync Precision Badge */}
             <div style={{ position: 'absolute', top: '28px', left: '36px', zIndex: 100, display: 'flex', alignItems: 'center' }}>
               <SyncPrecisionBadge
-                offset={clockStatsRef.current?.offset || 0}
-                rtt={clockStatsRef.current?.rtt || (syncLatency ? syncLatency * 2 : 0)}
+                offset={clockStats.offset}
+                rtt={clockStats.rtt}
                 isSynced={isConnected}
                 compact={false}
                 showDetails={true}
@@ -6630,6 +6640,8 @@ export default function RoomClient({ roomId }) {
           me={me}
           triviaRound={triviaRound}
           triviaResult={triviaResult}
+          listeners={listeners}
+          room={room}
           onClose={() => setTriviaActive(false)}
           onStartNextRound={handleStartTrivia}
           onEndSession={handleEndTrivia}

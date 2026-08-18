@@ -343,6 +343,9 @@ def register_connection_handlers(sio: socketio.AsyncServer):
                 "listeners": room_manager.get_listeners(room_id),
                 "allow_guest_controls": room_manager.get_guest_controls(room_id),
             }
+            trivia_state = room_manager.get_trivia_state(room_id)
+            if trivia_state:
+                join_data["trivia"] = trivia_state
             if playback and playback.get("track_uri"):
                 join_data["now_playing"] = {
                     "track_uri": playback.get("track_uri"),
