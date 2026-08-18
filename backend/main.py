@@ -28,7 +28,6 @@ from backend.sockets.connection import register_connection_handlers
 from backend.sockets.chat import register_chat_handlers
 from backend.sockets.playback import register_playback_handlers
 from backend.sockets.queue import register_queue_handlers
-from backend.sockets.trivia import register_trivia_handlers
 
 # Initialize logging
 setup_logging()
@@ -103,7 +102,6 @@ register_connection_handlers(sio)
 register_chat_handlers(sio)
 register_playback_handlers(sio)
 register_queue_handlers(sio)
-register_trivia_handlers(sio)
 
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app, socketio_path="/socket.io")
 

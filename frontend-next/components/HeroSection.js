@@ -49,7 +49,6 @@ const fadeUpVariants = {
 function HeroSection({
   me,
   onInstantJam,
-  onInstantTrivia,
   onDiscordLogin,
   onJoinGuest,
   onCreateRoom,
@@ -457,40 +456,6 @@ function HeroSection({
               <span className="btn-bubble-content">
                 <span>⚡ Instant Jam</span>
                 <ArrowIcon />
-              </span>
-            </motion.button>
-
-            <motion.button
-              type="button"
-              id="btn-instant-trivia"
-              className="btn btn-secondary btn-elegant-glow btn-bubble"
-              onClick={onInstantTrivia}
-              style={{ 
-                padding: '14px 26px', 
-                fontSize: '15px', 
-                borderRadius: '99px', 
-                display: 'inline-flex', 
-                alignItems: 'center', 
-                gap: '8px',
-                border: '1px solid rgba(168, 85, 247, 0.45)',
-                background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(124, 58, 237, 0.1) 100%)',
-                color: '#f3e8ff',
-                fontWeight: 700
-              }}
-              whileHover={reduceMotion ? undefined : { 
-                scale: 1.05, 
-                boxShadow: '0 12px 32px rgba(168, 85, 247, 0.4)',
-                borderColor: 'rgba(168, 85, 247, 0.8)'
-              }}
-              whileTap={reduceMotion ? undefined : { scale: 0.98 }}
-              title="Launch a live multiplayer 10-second music trivia battle"
-            >
-              <div className="bubble-bg b1" />
-              <div className="bubble-bg b2" />
-              <div className="bubble-bg b3" />
-              <div className="bubble-bg b4" />
-              <span className="btn-bubble-content" style={{ display: 'inline-flex', alignItems: 'center', gap: '7px' }}>
-                <span>🎮 Trivia Battle</span>
               </span>
             </motion.button>
 

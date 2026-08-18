@@ -53,15 +53,9 @@ function RoomCard({ room, nameColor, getInitials, href }) {
                   </div>
                 )}
                 <div className="room-card-cover-overlay" style={{ opacity: 1 }}>
-                  {room.queue_mode === 'trivia' ? (
-                    <div className="room-card-badge trivia" style={{ background: 'linear-gradient(135deg, #9333ea, #7c3aed)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', boxShadow: '0 0 10px rgba(168, 85, 247, 0.4)' }}>
-                      🎮 Trivia
-                    </div>
-                  ) : (
-                    <div className={`room-card-badge ${room.is_private ? 'private' : 'live'}`}>
-                      {room.is_private ? 'Private' : 'Live'}
-                    </div>
-                  )}
+                  <div className={`room-card-badge ${room.is_private ? 'private' : 'live'}`}>
+                    {room.is_private ? 'Private' : 'Live'}
+                  </div>
                   <div className="room-card-listeners">
                     <div className="listeners-dot" aria-hidden="true" />
                     <span>{room.listener_count ?? 0}</span>

@@ -763,8 +763,7 @@ export default function HomePage() {
         }
         triggerToast('Jam Room created! Entering room...', 'success');
         setTimeout(() => {
-          const isTrivia = createMode === 'trivia';
-          router.push(`/room/${data.room.id}?created=true${isTrivia ? '&trivia=true' : ''}`);
+          router.push(`/room/${data.room.id}?created=true`);
         }, 150);
       } else {
         const err = await r.json().catch(() => ({}));
@@ -849,76 +848,6 @@ export default function HomePage() {
       } catch (err) {
         triggerToast('Failed to create quick room', 'error');
       }
-    }
-  };
-
-  const handleInstantTrivia = async () => {
-    // If active trivia room exists with users, join it
-    const activeTriviaRooms = rooms.filter(r => r.queue_mode === 'trivia' && !r.is_private);
-    if (activeTriviaRooms.length > 0) {
-      const sorted = [...activeTriviaRooms].sort((a, b) => (b.listener_count || 0) - (a.listener_count || 0));
-      const targetRoom = sorted[0];
-      triggerToast(`🎮 Joining Trivia Arena: ${targetRoom.name}`, 'success');
-      setTimeout(() => { router.push(`/room/${targetRoom.id}?trivia=true`); }, 800);
-      return;
-    }
-
-    let currentUser = me;
-    if (!currentUser) {
-      const randomName = generateRandomName();
-      triggerToast(`🎮 Starting Trivia as ${randomName}...`, 'info');
-      try {
-        const r = await fetch('/auth/join', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ display_name: randomName }),
-          credentials: 'include'
-        });
-        if (r.ok) {
-          const data = await r.json();
-          currentUser = data.user;
-          setMe(data.user);
-          localStorage.setItem('openjam_display_name', randomName);
-        } else {
-          triggerToast('Failed to start guest session', 'error');
-          return;
-        }
-      } catch (err) {
-        triggerToast('Failed to start guest session', 'error');
-        return;
-      }
-    }
-
-    triggerToast(`🎮 Creating a new Music Trivia Battle room...`, 'info');
-    const triviaNames = ['Beat Busters Arena', 'Pop Trivia Showdown', 'Synthwave Soundclash', 'Hit Guessers Lounge', 'Decibel Duel', 'Chart Masters'];
-    const rName = triviaNames[Math.floor(Math.random() * triviaNames.length)] + ' #' + Math.floor(Math.random() * 90 + 10);
-    try {
-      const r = await fetch('/rooms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: rName,
-          description: '🎮 Live Multiplayer Music Trivia Battle! Guess the track in 10s and race for top podium points.',
-          genre_tags: ['trivia', 'pop', 'hits'],
-          queue_mode: 'trivia',
-          password: null
-        }),
-        credentials: 'include'
-      });
-      if (r.ok) {
-        const data = await r.json();
-        setTimeout(() => { router.push(`/room/${data.room.id}?created=true&trivia=true`); }, 800);
-      } else {
-        const err = await r.json().catch(() => ({}));
-        const errMsg = typeof err.detail === 'string'
-          ? err.detail
-          : Array.isArray(err.detail)
-            ? err.detail.map(d => d.msg).join(', ')
-            : (err.message || 'Failed to create trivia battle room');
-        triggerToast(errMsg, 'error');
-      }
-    } catch (err) {
-      triggerToast('Failed to create trivia battle room', 'error');
     }
   };
 
@@ -1118,7 +1047,6 @@ export default function HomePage() {
       <HeroSection
         me={me}
         onInstantJam={handleInstantJam}
-        onInstantTrivia={handleInstantTrivia}
         onDiscordLogin={() => { window.location.href = '/auth/discord'; }}
         onJoinGuest={() => setShowJoinModal(true)}
         onCreateRoom={() => setShowCreateModal(true)}

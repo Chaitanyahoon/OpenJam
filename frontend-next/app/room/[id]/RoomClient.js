@@ -11,7 +11,6 @@ import PwaInstallPrompt from '@/components/PwaInstallPrompt';
 import { offlineDb } from '@/utils/offlineDb';
 import EmojiPicker from '@/components/EmojiPicker';
 import { extractColors } from '@/utils/colorExtractor';
-import TriviaOverlay from '@/components/trivia/TriviaOverlay';
 import JamCardModal from '@/components/modals/JamCardModal';
 import MentionPopover from '@/components/chat/MentionPopover';
 import TenorGifPicker from '@/components/chat/TenorGifPicker';
@@ -54,11 +53,8 @@ export default function RoomClient({ roomId }) {
   const [activeRoomPlaylist, setActiveRoomPlaylist] = useState(null);
   const [isLoadingPlaylist, setIsLoadingPlaylist] = useState(false);
 
-  // Trivia & Jam Card States
+  // Jam Card State
   const [showJamCardModal, setShowJamCardModal] = useState(false);
-  const [triviaActive, setTriviaActive] = useState(false);
-  const [triviaRound, setTriviaRound] = useState(null);
-  const [triviaResult, setTriviaResult] = useState(null);
 
   // Rich Chat & Mention Suite States
   const [unreadChatCount, setUnreadChatCount] = useState(0);
@@ -741,12 +737,6 @@ export default function RoomClient({ roomId }) {
         nowPlayingRef.current = data.now_playing;
         setNowPlaying(data.now_playing);
       }
-      if (data.trivia) {
-        setTriviaActive(true);
-        setTriviaRound(data.trivia);
-      } else if (data.room?.queue_mode === 'trivia' || (typeof window !== 'undefined' && window.location.search.includes('trivia=true'))) {
-        setTriviaActive(true);
-      }
       setShowPassword(false);
       setAllowGuestControls(data.allow_guest_controls || false);
 
@@ -1063,28 +1053,6 @@ export default function RoomClient({ roomId }) {
       setAllowGuestControls(data.allow_guest_controls || false);
     });
 
-    socket.on('trivia_round_started', (data) => {
-      setTriviaRound(data);
-      setTriviaResult(null);
-      setTriviaActive(true);
-      triggerToast(`Music Trivia Round ${data.round_number || 1} started!`, 'info');
-    });
-
-    socket.on('trivia_round_ended', (data) => {
-      setTriviaResult(data);
-    });
-
-    socket.on('trivia_session_ended', (data) => {
-      setTriviaActive(false);
-      setTriviaRound(null);
-      setTriviaResult(null);
-      triggerToast('Music Trivia session ended.', 'info');
-    });
-
-    socket.on('trivia_error', (data) => {
-      triggerToast(data.message || 'Trivia error', 'error');
-    });
-
     return () => {
       socket.off('connect', joinRoom);
       socket.off('sync_pong');
@@ -1106,10 +1074,6 @@ export default function RoomClient({ roomId }) {
       socket.off('user_stop_typing');
       socket.off('room_closed');
       socket.off('guest_controls_updated');
-      socket.off('trivia_round_started');
-      socket.off('trivia_round_ended');
-      socket.off('trivia_session_ended');
-      socket.off('trivia_error');
       socket.emit('leave_room', { room_id: roomId });
     };
   }, [socket, isReady, roomId]);
@@ -2645,19 +2609,6 @@ export default function RoomClient({ roomId }) {
     }
   };
 
-  const handleStartTrivia = () => {
-    if (!socket) {
-      triggerToast('Not connected to room server', 'error');
-      return;
-    }
-    socket.emit('start_trivia_round', { room_id: roomId });
-  };
-
-  const handleEndTrivia = () => {
-    if (!socket) return;
-    socket.emit('end_trivia_session', { room_id: roomId });
-  };
-
 
 
   if (roomNotFound) {
@@ -2842,17 +2793,6 @@ export default function RoomClient({ roomId }) {
             >
               <Share2 size={16} />
             </button>
-            {isHost && (
-              <button 
-                className="btn btn-secondary room-bar-trivia-btn" 
-                onClick={handleStartTrivia} 
-                title="Start Real-Time Music Trivia"
-                style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
-              >
-                <Trophy size={14} style={{ color: '#ff9f1c' }} />
-                <span className="room-bar-btn-label">Trivia</span>
-              </button>
-            )}
             <button className="btn btn-secondary room-bar-icon-btn" onClick={() => setShowSettings(true)} title="Room Settings">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
             </button>
@@ -6630,23 +6570,6 @@ export default function RoomClient({ roomId }) {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* ══ REAL-TIME MUSIC TRIVIA OVERLAY ══════════════════════ */}
-      {triviaActive && (
-        <TriviaOverlay
-          socket={socket}
-          roomId={roomId}
-          isHost={isHost}
-          me={me}
-          triviaRound={triviaRound}
-          triviaResult={triviaResult}
-          listeners={listeners}
-          room={room}
-          onClose={() => setTriviaActive(false)}
-          onStartNextRound={handleStartTrivia}
-          onEndSession={handleEndTrivia}
-        />
-      )}
 
       {/* ══ SHAREABLE JAM CARD MODAL ═════════════════════════════ */}
       {showJamCardModal && (
