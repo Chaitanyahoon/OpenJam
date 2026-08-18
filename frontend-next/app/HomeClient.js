@@ -719,6 +719,27 @@ export default function HomePage() {
     }
     setIsSubmitting(true);
     try {
+      let currentUser = me;
+      if (!currentUser) {
+        const randomName = generateRandomName();
+        try {
+          const joinRes = await fetch('/auth/join', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ display_name: randomName }),
+            credentials: 'include'
+          });
+          if (joinRes.ok) {
+            const joinData = await joinRes.json();
+            currentUser = joinData.user;
+            setMe(joinData.user);
+            localStorage.setItem('openjam_display_name', randomName);
+          }
+        } catch (authErr) {
+          console.warn('Guest auto-join before create room error:', authErr);
+        }
+      }
+
       const r = await fetch('/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -742,11 +763,17 @@ export default function HomePage() {
         }
         triggerToast('Jam Room created! Entering room...', 'success');
         setTimeout(() => {
-          router.push(`/room/${data.room.id}?created=true`);
+          const isTrivia = createMode === 'trivia';
+          router.push(`/room/${data.room.id}?created=true${isTrivia ? '&trivia=true' : ''}`);
         }, 150);
       } else {
-        const err = await r.json();
-        throw new Error(err.detail || 'Failed to create room');
+        const err = await r.json().catch(() => ({}));
+        const errMsg = typeof err.detail === 'string' 
+          ? err.detail 
+          : Array.isArray(err.detail) 
+            ? err.detail.map(d => d.msg).join(', ') 
+            : (err.message || 'Failed to create room');
+        throw new Error(errMsg);
       }
     } catch (err) {
       triggerToast(err.message, 'error');
@@ -836,7 +863,33 @@ export default function HomePage() {
       return;
     }
 
-    triggerToast(`🎮 Starting a new Music Trivia Battle...`, 'info');
+    let currentUser = me;
+    if (!currentUser) {
+      const randomName = generateRandomName();
+      triggerToast(`🎮 Starting Trivia as ${randomName}...`, 'info');
+      try {
+        const r = await fetch('/auth/join', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ display_name: randomName }),
+          credentials: 'include'
+        });
+        if (r.ok) {
+          const data = await r.json();
+          currentUser = data.user;
+          setMe(data.user);
+          localStorage.setItem('openjam_display_name', randomName);
+        } else {
+          triggerToast('Failed to start guest session', 'error');
+          return;
+        }
+      } catch (err) {
+        triggerToast('Failed to start guest session', 'error');
+        return;
+      }
+    }
+
+    triggerToast(`🎮 Creating a new Music Trivia Battle room...`, 'info');
     const triviaNames = ['Beat Busters Arena', 'Pop Trivia Showdown', 'Synthwave Soundclash', 'Hit Guessers Lounge', 'Decibel Duel', 'Chart Masters'];
     const rName = triviaNames[Math.floor(Math.random() * triviaNames.length)] + ' #' + Math.floor(Math.random() * 90 + 10);
     try {
@@ -856,7 +909,13 @@ export default function HomePage() {
         const data = await r.json();
         setTimeout(() => { router.push(`/room/${data.room.id}?created=true&trivia=true`); }, 800);
       } else {
-        triggerToast('Failed to create trivia battle room', 'error');
+        const err = await r.json().catch(() => ({}));
+        const errMsg = typeof err.detail === 'string'
+          ? err.detail
+          : Array.isArray(err.detail)
+            ? err.detail.map(d => d.msg).join(', ')
+            : (err.message || 'Failed to create trivia battle room');
+        triggerToast(errMsg, 'error');
       }
     } catch (err) {
       triggerToast('Failed to create trivia battle room', 'error');

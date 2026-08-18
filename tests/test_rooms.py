@@ -85,6 +85,22 @@ def test_create_room_authenticated(client, auth_headers, test_user, db_session):
     assert "id" in data["room"]
 
 
+def test_create_trivia_battle_room_authenticated(client, auth_headers, test_user, db_session):
+    """Test creating a trivia battle room when authenticated."""
+    payload = {
+        "name": "Trivia Arena #42",
+        "description": "Multiplayer music trivia battle",
+        "genre_tags": ["trivia", "pop"],
+        "queue_mode": "trivia",
+    }
+    response = client.post("/rooms", json=payload, headers=auth_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["room"]["name"] == "Trivia Arena #42"
+    assert data["room"]["queue_mode"] == "trivia"
+    assert data["room"]["host_user_id"] == test_user.id
+
+
 def test_create_room_unauthenticated(client):
     """Test creating a room without authentication."""
     payload = {
