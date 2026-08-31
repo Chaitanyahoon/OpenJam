@@ -695,6 +695,7 @@ export default class YouTubePlayer {
     }, 1500);
 
     this.player.loop = false;
+    this._loadInitiatedAt = Date.now();
     
     offlineDb.getTrack(videoId).then((cachedTrack) => {
       if (this._isDestroyed || this.currentVideoId !== videoId) return;
@@ -730,21 +731,22 @@ export default class YouTubePlayer {
       this.player.volume = this.volume / 100;
     }
     
+    const applyStartTime = () => {
+      try {
+        if (this.currentVideoId === videoId && startSeconds > 0) {
+          const elapsedBufferSec = this._loadInitiatedAt ? Math.max(0, (Date.now() - this._loadInitiatedAt) / 1000) : 0;
+          const adjustedStart = (this.isPlaying && elapsedBufferSec > 0.3) ? (startSeconds + elapsedBufferSec) : startSeconds;
+          this.player.currentTime = adjustedStart;
+        }
+      } catch (e) {}
+    };
+
     if (startSeconds > 0) {
       if (this.player.readyState >= 1) {
-        try {
-          if (this.currentVideoId === videoId) {
-            this.player.currentTime = startSeconds;
-          }
-        } catch (e) {}
+        applyStartTime();
       } else {
-        this.player.addEventListener('loadedmetadata', () => {
-          try {
-            if (this.currentVideoId === videoId) {
-              this.player.currentTime = startSeconds;
-            }
-          } catch (e) {}
-        }, { once: true });
+        this.player.addEventListener('loadedmetadata', applyStartTime, { once: true });
+        this.player.addEventListener('canplay', applyStartTime, { once: true });
       }
     }
     
@@ -854,7 +856,7 @@ export default class YouTubePlayer {
         this._suppressStateChange = true;
         
         // Large drift seek with cooldown
-        if (drift > 3000 && Date.now() - (this._lastSeekTime || 0) > 4000 && typeof this.ytPlayer.seekTo === 'function') {
+        if (drift > 1500 && Date.now() - (this._lastSeekTime || 0) > 3000 && typeof this.ytPlayer.seekTo === 'function') {
           this.ytPlayer.seekTo(positionMs / 1000, true);
           this._lastSeekTime = Date.now();
         }
@@ -869,7 +871,7 @@ export default class YouTubePlayer {
           if (typeof this.ytPlayer.pauseVideo === 'function') this.ytPlayer.pauseVideo();
           this.stopProgressTimer();
         }
-        setTimeout(() => { this._suppressStateChange = false; }, 500);
+        setTimeout(() => { this._suppressStateChange = false; }, 400);
       } else if (!this._ready) {
         this._pendingLoad = { videoId: this.currentVideoId, startSeconds: Math.round(positionMs / 1000) };
       }
@@ -888,21 +890,35 @@ export default class YouTubePlayer {
           });
         }
 
-        // Always ensure natural 1.0x playback speed and pitch
-        if (this.player.playbackRate !== 1.0) {
-          this.player.playbackRate = 1.0;
-        }
-
         if (this.player.readyState >= 2) {
           const actualMs = Math.round((this.player.currentTime || 0) * 1000);
-          const driftAbs = Math.abs(positionMs - actualMs);
+          const drift = positionMs - actualMs; // positive: player is behind server; negative: player is ahead
+          const driftAbs = Math.abs(drift);
 
-          // Hard seek only for genuine large skips (> 2500ms) with 4s debounce
-          if (driftAbs > 2500 && Date.now() - (this._lastSeekTime || 0) > 4000 && !this.player.seeking) {
+          // 1. Large drift (> 1200ms) or seek: perform instantaneous clean seek
+          if (driftAbs > 1200 && Date.now() - (this._lastSeekTime || 0) > 2500 && !this.player.seeking) {
             this._suppressStateChange = true;
             this.player.currentTime = Math.max(0, positionMs / 1000);
+            this.player.playbackRate = 1.0;
             this._lastSeekTime = Date.now();
-            setTimeout(() => { this._suppressStateChange = false; }, 500);
+            setTimeout(() => { this._suppressStateChange = false; }, 400);
+          }
+          // 2. Moderate drift (120ms to 1200ms): seamless micro-rate catchup (preservesPitch = true)
+          else if (driftAbs > 120 && driftAbs <= 1200 && !this.player.seeking) {
+            this.player.preservesPitch = true;
+            if (drift > 0) {
+              // Player slightly behind room clock -> subtle inaudible speedup
+              this.player.playbackRate = 1.03;
+            } else {
+              // Player slightly ahead -> subtle inaudible slowdown
+              this.player.playbackRate = 0.97;
+            }
+          }
+          // 3. Sub-120ms tight lock: natural 1.0x playback
+          else {
+            if (this.player.playbackRate !== 1.0) {
+              this.player.playbackRate = 1.0;
+            }
           }
         }
         this.startProgressTimer();

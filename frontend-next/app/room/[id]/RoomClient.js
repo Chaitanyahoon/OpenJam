@@ -1536,10 +1536,19 @@ export default function RoomClient({ roomId }) {
       return;
     }
     const updateActiveIndex = () => {
-      const currentPos = playerRef.current?.player?.currentTime 
-        ? Math.round(playerRef.current.player.currentTime * 1000)
-        : (playbackState.positionMs || 0);
-      const vocalOnsetLeadMs = 120;
+      let currentPos = 0;
+      if (playerRef.current) {
+        if (typeof playerRef.current.positionMs === 'number' && playerRef.current.positionMs > 0) {
+          currentPos = playerRef.current.positionMs;
+        } else if (playerRef.current.player && !isNaN(playerRef.current.player.currentTime)) {
+          currentPos = Math.round(playerRef.current.player.currentTime * 1000);
+        }
+      }
+      if (currentPos <= 0) {
+        currentPos = playbackState.positionMs || 0;
+      }
+
+      const vocalOnsetLeadMs = 80;
       const effectiveMs = currentPos + lyricsOffsetMs + vocalOnsetLeadMs;
       let newIdx = -1;
       for (let i = 0; i < lyricsText.length; i++) {
@@ -1558,7 +1567,7 @@ export default function RoomClient({ roomId }) {
 
     let ticker = null;
     if (playbackState.isPlaying) {
-      ticker = setInterval(updateActiveIndex, 60);
+      ticker = setInterval(updateActiveIndex, 50);
     }
     return () => {
       if (ticker) clearInterval(ticker);
@@ -6422,9 +6431,9 @@ export default function RoomClient({ roomId }) {
                             transition: 'filter 0.3s ease, font-size 0.3s ease',
                           }}
                           onClick={() => {
-                            if (item.timeMs > 0 && canControl && playerRef.current) {
+                            if (item.timeMs >= 0 && canControl && playerRef.current) {
                               setPlaybackState(prev => ({ ...prev, positionMs: item.timeMs }));
-                              playerRef.current.syncPosition(item.timeMs, playbackState.isPlaying);
+                              playerRef.current.seek(item.timeMs / 1000);
                               if (socket) {
                                 socket.emit('playback_update', {
                                   room_id: roomId,
