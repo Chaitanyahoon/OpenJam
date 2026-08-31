@@ -96,6 +96,7 @@ export default function RoomClient({ roomId }) {
   const [settingsVisuals, setSettingsVisuals] = useState(true);
   const [settingsHaptics, setSettingsHaptics] = useState(true);
   const [settingsNotifications, setSettingsNotifications] = useState(false);
+  const [eqPreset, setEqPreset] = useState(() => (typeof window !== 'undefined' && localStorage.getItem('openjam_eq_preset')) || 'normal');
 
   // Search & Inputs
   const [chatInput, setChatInput] = useState('');
@@ -1515,6 +1516,15 @@ export default function RoomClient({ roomId }) {
       setLyricsText([]);
     }
   }, [nowPlaying?.track_name, nowPlaying?.artist, nowPlaying?.track_uri]);
+
+  // Auto pre-buffer next track in queue for 0ms gapless cutovers
+  useEffect(() => {
+    if (!queue || queue.length === 0 || !playerRef.current) return;
+    const nextItem = queue.find(item => item.status === 'pending' || item.status === 'queued');
+    if (nextItem && nextItem.track_uri && nextItem.track_uri.length === 11) {
+      playerRef.current.prebufferNextTrack(nextItem.track_uri);
+    }
+  }, [queue]);
 
   // Native Browser Fullscreen trigger for Stage Mode
   useEffect(() => {
@@ -5036,6 +5046,53 @@ export default function RoomClient({ roomId }) {
                     />
                     <span className="toggle-switch-slider"></span>
                   </label>
+                </div>
+
+                {/* ══ Equalizer & Sound Profile ══ */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-1)' }}>Audio Equalizer & FX</div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-3)', marginTop: '2px' }}>Choose acoustic sound profile</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
+                    {[
+                      { id: 'normal', name: 'Studio Flat' },
+                      { id: 'bass_boost', name: '🔥 Bass Boost' },
+                      { id: 'vocal', name: '🎤 Vocal Clarity' },
+                      { id: 'club', name: '⚡ Club / EDM' },
+                      { id: 'vinyl', name: '📻 Warm Vinyl' },
+                    ].map((preset) => {
+                      const isSelected = (eqPreset || 'normal') === preset.id;
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => {
+                            setEqPreset(preset.id);
+                            if (playerRef.current) {
+                              playerRef.current.setEqPreset(preset.id);
+                            }
+                            triggerToast(`Equalizer: ${preset.name}`, 'info');
+                          }}
+                          style={{
+                            background: isSelected ? 'var(--theme-accent, #ff9f1c)' : 'rgba(255,255,255,0.05)',
+                            color: isSelected ? '#000000' : '#ffffff',
+                            fontWeight: isSelected ? 700 : 500,
+                            fontSize: '11.5px',
+                            padding: '5px 10px',
+                            borderRadius: '8px',
+                            border: isSelected ? 'none' : '1px solid rgba(255,255,255,0.08)',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                          }}
+                        >
+                          {preset.name}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>

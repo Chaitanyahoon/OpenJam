@@ -58,6 +58,19 @@ export default class YouTubePlayer {
     this._stallTimers = new Map();
     this._lastSeekTime = 0;
 
+    // Web Audio Equalizer & Filter Graph
+    this._audioCtx = null;
+    this._eqBass = null;
+    this._eqMid = null;
+    this._eqTreble = null;
+    this._eqGain = null;
+    this._eqPreset = 'normal';
+    this._playerSources = null;
+
+    // Next-Track 0ms Gapless Pre-buffer Engine
+    this._prebufferPlayer = null;
+    this._prebufferedVideoId = null;
+
     this._isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     this._wakeLock = null;
     this._keepAliveCtx = null;
@@ -84,6 +97,130 @@ export default class YouTubePlayer {
     window.addEventListener('keydown', unlockHandler, { once: true, capture: true });
     window.addEventListener('touchstart', unlockHandler, { once: true, capture: true });
     window.addEventListener('pointerdown', unlockHandler, { once: true, capture: true });
+  }
+
+  // ── Web Audio 3-Band Parametric Equalizer ─────────────────
+  _initAudioContext() {
+    if (this._audioCtx || typeof window === 'undefined') return;
+    try {
+      const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtxClass) return;
+      this._audioCtx = new AudioCtxClass();
+      this._playerSources = new WeakSet();
+
+      this._eqBass = this._audioCtx.createBiquadFilter();
+      this._eqBass.type = 'lowshelf';
+      this._eqBass.frequency.value = 120; // 120Hz bass shelf
+      this._eqBass.gain.value = 0;
+
+      this._eqMid = this._audioCtx.createBiquadFilter();
+      this._eqMid.type = 'peaking';
+      this._eqMid.frequency.value = 1500; // 1.5kHz mid peaking
+      this._eqMid.Q.value = 1.0;
+      this._eqMid.gain.value = 0;
+
+      this._eqTreble = this._audioCtx.createBiquadFilter();
+      this._eqTreble.type = 'highshelf';
+      this._eqTreble.frequency.value = 8000; // 8kHz treble shelf
+      this._eqTreble.gain.value = 0;
+
+      this._eqGain = this._audioCtx.createGain();
+      this._eqGain.gain.value = 1.0;
+
+      // Connect filters in series
+      this._eqBass.connect(this._eqMid);
+      this._eqMid.connect(this._eqTreble);
+      this._eqTreble.connect(this._eqGain);
+      this._eqGain.connect(this._audioCtx.destination);
+
+      if (this.player) {
+        this._connectMediaElement(this.player);
+      }
+
+      const savedPreset = (typeof localStorage !== 'undefined' && localStorage.getItem('openjam_eq_preset')) || 'normal';
+      this.setEqPreset(savedPreset);
+    } catch (e) {
+      console.warn('[Player] Web Audio EQ init:', e);
+    }
+  }
+
+  _connectMediaElement(audioElement) {
+    if (!audioElement || !this._audioCtx || !this._eqBass) return;
+    try {
+      if (!this._playerSources) this._playerSources = new WeakSet();
+      if (!this._playerSources.has(audioElement)) {
+        audioElement.crossOrigin = "anonymous";
+        const source = this._audioCtx.createMediaElementSource(audioElement);
+        source.connect(this._eqBass);
+        this._playerSources.add(audioElement);
+      }
+    } catch (e) {
+      console.warn('[Player] MediaElementSource connect:', e);
+    }
+  }
+
+  setEq(bassGainDb = 0, midGainDb = 0, trebleGainDb = 0) {
+    if (this._audioCtx && this._audioCtx.state === 'suspended') {
+      this._audioCtx.resume().catch(() => {});
+    }
+    if (this._eqBass) this._eqBass.gain.value = bassGainDb;
+    if (this._eqMid) this._eqMid.gain.value = midGainDb;
+    if (this._eqTreble) this._eqTreble.gain.value = trebleGainDb;
+  }
+
+  setEqPreset(presetName) {
+    this._eqPreset = presetName;
+    try { if (typeof localStorage !== 'undefined') localStorage.setItem('openjam_eq_preset', presetName); } catch (e) {}
+    switch (presetName) {
+      case 'bass_boost':
+        this.setEq(6.5, 0, 2.0);
+        break;
+      case 'club':
+        this.setEq(7.0, -1.0, 4.0);
+        break;
+      case 'vocal':
+        this.setEq(-2.0, 5.0, 3.0);
+        break;
+      case 'vinyl':
+        this.setEq(3.5, 1.0, -3.0);
+        break;
+      case 'flat':
+      case 'normal':
+      default:
+        this.setEq(0, 0, 0);
+        break;
+    }
+  }
+
+  getEqPreset() {
+    return this._eqPreset || 'normal';
+  }
+
+  // ── Next-Track 0ms Gapless Pre-Buffering ──────────────────
+  prebufferNextTrack(nextVideoId) {
+    if (!nextVideoId || nextVideoId === this.currentVideoId || nextVideoId === this._prebufferedVideoId) return;
+    this._prebufferedVideoId = nextVideoId;
+
+    if (!this._prebufferPlayer) {
+      this._prebufferPlayer = new Audio();
+      this._prebufferPlayer.preload = 'auto';
+      this._prebufferPlayer.volume = 0;
+    }
+
+    offlineDb.getTrack(nextVideoId).then((cached) => {
+      if (this._prebufferedVideoId !== nextVideoId || !this._prebufferPlayer) return;
+      if (cached && cached.blob) {
+        this._prebufferPlayer.src = URL.createObjectURL(cached.blob);
+      } else {
+        this._prebufferPlayer.src = `${BACKEND_URL}/stream/${nextVideoId}`;
+      }
+      this._prebufferPlayer.load();
+      console.log(`[Player] 0ms pre-buffering next track: ${nextVideoId}`);
+    }).catch(() => {
+      if (this._prebufferedVideoId !== nextVideoId || !this._prebufferPlayer) return;
+      this._prebufferPlayer.src = `${BACKEND_URL}/stream/${nextVideoId}`;
+      this._prebufferPlayer.load();
+    });
   }
 
   _preloadIFrameAPI() {
@@ -437,6 +574,11 @@ export default class YouTubePlayer {
   unlockAudioContext() {
     this._userUnlocked = true;
     this._hideOverlay();
+    this._initAudioContext();
+
+    if (this._audioCtx && this._audioCtx.state === 'suspended') {
+      this._audioCtx.resume().catch(() => {});
+    }
 
     // Pre-unlock player under the user gesture context
     try {
@@ -684,6 +826,29 @@ export default class YouTubePlayer {
       this.player.pause();
     } catch (e) {}
 
+    // 0ms instant playback swap if pre-buffered in background
+    if (this._prebufferPlayer && this._prebufferedVideoId === videoId && this._prebufferPlayer.readyState >= 2 && !this._useIFrame) {
+      console.log(`[Player] Instant 0ms playback swap with pre-buffered track: ${videoId}`);
+      if (this.onStreamFailUpdate) this.onStreamFailUpdate(null);
+      if (this._loadTimeout) { clearTimeout(this._loadTimeout); this._loadTimeout = null; }
+      
+      const oldPlayer = this.player;
+      try {
+        oldPlayer.pause();
+        oldPlayer.src = '';
+      } catch (e) {}
+      
+      this.player = this._prebufferPlayer;
+      this.activePlayer = this.player;
+      this._prebufferPlayer = oldPlayer;
+      this._prebufferedVideoId = null;
+      
+      this._setupAudioListeners(this.player, 'player');
+      this._connectMediaElement(this.player);
+      this._startAudioPlayback(videoId, startSeconds);
+      return;
+    }
+
     if (this.onStreamFailUpdate) this.onStreamFailUpdate("Connecting to audio stream…");
 
     if (this._loadTimeout) clearTimeout(this._loadTimeout);
@@ -696,6 +861,7 @@ export default class YouTubePlayer {
 
     this.player.loop = false;
     this._loadInitiatedAt = Date.now();
+    this._connectMediaElement(this.player);
     
     offlineDb.getTrack(videoId).then((cachedTrack) => {
       if (this._isDestroyed || this.currentVideoId !== videoId) return;
