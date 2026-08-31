@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime, ForeignKey, Integer, Boolean
+from sqlalchemy import Column, String, DateTime, ForeignKey, Integer, Boolean, Index
 from sqlalchemy.orm import relationship
 from backend.database import Base
 
@@ -42,6 +42,9 @@ class Playlist(Base):
 
 class PlaylistTrack(Base):
     __tablename__ = "playlist_tracks"
+    __table_args__ = (
+        Index("ix_playlist_tracks_pos", "playlist_id", "position"),
+    )
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     playlist_id = Column(String, ForeignKey("playlists.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -72,6 +75,9 @@ class PlaylistTrack(Base):
 
 class PlaylistLike(Base):
     __tablename__ = "playlist_likes"
+    __table_args__ = (
+        Index("ix_playlist_likes_user_playlist", "user_id", "playlist_id", unique=True),
+    )
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)

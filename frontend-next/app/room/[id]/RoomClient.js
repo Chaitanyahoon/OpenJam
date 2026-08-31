@@ -1,23 +1,25 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { useSocket } from '@/contexts/SocketContext';
 import { useRouter } from 'next/navigation';
 import YouTubePlayer from '@/utils/YouTubePlayer';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { MusicPlayer } from '@/components/ui/music-player';
 import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart, CheckCircle, AlertCircle, AlertTriangle, Info, Download, Check, Flame, Smile, Save, RefreshCw, ListPlus, Maximize2, Minimize2, SkipForward, SkipBack, Shuffle, Repeat, List, Disc, Clock, Sliders, GripVertical, HelpCircle, Bookmark, Crown, Trophy, Share2 } from 'lucide-react';
-import PwaInstallPrompt from '@/components/PwaInstallPrompt';
 import { offlineDb } from '@/utils/offlineDb';
-import EmojiPicker from '@/components/EmojiPicker';
 import { extractColors } from '@/utils/colorExtractor';
-import JamCardModal from '@/components/modals/JamCardModal';
-import MentionPopover from '@/components/chat/MentionPopover';
-import TenorGifPicker from '@/components/chat/TenorGifPicker';
 import SyncPrecisionBadge from '@/components/ui/SyncPrecisionBadge';
 import { audioPrecache } from '@/utils/audioPrecache';
-
 import DiscordRPC from '@/utils/DiscordRPC';
+
+// Dynamically code-split secondary modals and pickers for fast initial room load
+const JamCardModal = dynamic(() => import('@/components/modals/JamCardModal'), { ssr: false });
+const EmojiPicker = dynamic(() => import('@/components/EmojiPicker'), { ssr: false });
+const MentionPopover = dynamic(() => import('@/components/chat/MentionPopover'), { ssr: false });
+const TenorGifPicker = dynamic(() => import('@/components/chat/TenorGifPicker'), { ssr: false });
+const PwaInstallPrompt = dynamic(() => import('@/components/PwaInstallPrompt'), { ssr: false });
 
 export default function RoomClient({ roomId }) {
   const { socket, isConnected, isReconnecting, isConnectionFailed, reconnect } = useSocket();
@@ -415,6 +417,55 @@ export default function RoomClient({ roomId }) {
       gain.connect(ctx.destination);
       osc.start(now);
       osc.stop(now + 0.085);
+    } catch (e) {}
+  };
+
+  const playReactionSound = (emoji) => {
+    if (!settingsSound) return;
+    try {
+      const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtxClass) return;
+      if (!audioContextRef.current) {
+        audioContextRef.current = new AudioCtxClass();
+      }
+      const ctx = audioContextRef.current;
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      if (emoji === '🔥') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(160, now);
+        osc.frequency.exponentialRampToValueAtTime(45, now + 0.12);
+        gain.gain.setValueAtTime(0.06, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.13);
+      } else if (emoji === '👏') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(750, now);
+        osc.frequency.exponentialRampToValueAtTime(220, now + 0.08);
+        gain.gain.setValueAtTime(0.035, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.09);
+      } else if (emoji === '🎵' || emoji === '❤️' || emoji === '⚡') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(587.33, now);
+        osc.frequency.exponentialRampToValueAtTime(880, now + 0.14);
+        gain.gain.setValueAtTime(0.04, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.15);
+      }
     } catch (e) {}
   };
 
@@ -898,6 +949,7 @@ export default function RoomClient({ roomId }) {
 
     socket.on('reaction', (data) => {
       const id = ++lastReactionId.current;
+      playReactionSound(data.emoji);
       
       if (reactionContainerRef.current) {
         const el = document.createElement('div');
