@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
-const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000').replace(/\/$/, '');
+const isDev = process.env.NODE_ENV === 'development';
+const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL && process.env.NEXT_PUBLIC_BACKEND_URL !== 'undefined' && process.env.NEXT_PUBLIC_BACKEND_URL !== 'null')
+  ? process.env.NEXT_PUBLIC_BACKEND_URL.replace(/\/$/, '')
+  : (isDev ? 'http://localhost:8000' : 'https://api.openjam.fun');
 
 const nextConfig = {
   poweredByHeader: false,
