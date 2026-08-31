@@ -9594,28 +9594,35 @@ body:not(.room-page) .navbar:hover {
 .room-content {
   display: flex !important;
   flex-direction: row !important;
-  gap: 24px !important;
+  gap: 32px !important;
   height: calc(100dvh - 72px) !important;
+  max-height: calc(100dvh - 72px) !important;
   position: relative !important;
   z-index: 10 !important;
   overflow: hidden !important;
-  padding: 20px !important;
+  padding: 24px 32px !important;
   box-sizing: border-box !important;
   justify-content: center !important;
+  align-items: center !important;
+  max-width: 1600px !important;
+  margin: 0 auto !important;
+  width: 100% !important;
 }
 
 .room-now-playing {
-  flex: 1 !important;
+  flex: 1 1 0% !important;
   max-width: none !important;
-  width: auto !important;
+  width: 100% !important;
+  height: 100% !important;
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
-  justify-content: flex-start !important;
+  justify-content: center !important;
   overflow-y: auto !important;
   overflow-x: hidden !important;
-  padding: 0 10px !important;
+  padding: 0 16px !important;
   scrollbar-width: none !important;
+  box-sizing: border-box !important;
 }
 
 .room-now-playing::-webkit-scrollbar {
