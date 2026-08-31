@@ -506,9 +506,17 @@ export default function HomePage() {
 
 
   // Auth
-  const checkAuth = async () => {
+  const checkAuth = async (overrideToken = null) => {
     try {
-      const r = await fetch(`/auth/me?t=${Date.now()}`, { credentials: 'include', cache: 'no-store' });
+      const headers = {};
+      if (overrideToken) {
+        headers['Authorization'] = `Bearer ${overrideToken}`;
+      }
+      const r = await fetch(`/auth/me?t=${Date.now()}`, { 
+        headers, 
+        credentials: 'include', 
+        cache: 'no-store' 
+      });
       if (r.ok) {
         const data = await r.json();
         if (data.user) {
@@ -523,24 +531,7 @@ export default function HomePage() {
     } catch (e) {
       console.error('Error fetching auth:', e);
     }
-    const stored = typeof window !== 'undefined' ? localStorage.getItem('openjam_display_name') : null;
-    if (stored) {
-      try {
-        const r2 = await fetch('/auth/join', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ display_name: stored }),
-          credentials: 'include'
-        });
-        if (r2.ok) {
-          const data = await r2.json();
-          setMe(data.user);
-          return data.user;
-        }
-      } catch (e) {
-        console.error('Error joining as stored guest:', e);
-      }
-    }
+    setMe(null);
     return null;
   };
 
@@ -557,6 +548,7 @@ export default function HomePage() {
   };
 
   useEffect(() => {
+    let currentToken = null;
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       let token = params.get('token');
@@ -568,6 +560,7 @@ export default function HomePage() {
       }
 
       if (token) {
+        currentToken = token;
         const maxAge = 86400 * 30; // 30 days
         const isSecure = window.location.protocol === 'https:';
         document.cookie = `session_token=${token}; max-age=${maxAge}; path=/; samesite=lax${isSecure ? '; secure' : ''}`;
@@ -582,7 +575,7 @@ export default function HomePage() {
       }
     }
 
-    checkAuth();
+    checkAuth(currentToken);
     loadRooms();
 
     let intervalId = setInterval(loadRooms, 15000);
@@ -784,11 +777,18 @@ export default function HomePage() {
   const handleLogout = async () => {
     localStorage.removeItem('openjam_display_name');
     localStorage.removeItem('openjam_avatar_url');
+    localStorage.removeItem('openjam_user_id');
+    localStorage.removeItem('openjam_token');
+    sessionStorage.clear();
     document.cookie = "session_token=; max-age=0; path=/;";
+    if (typeof window !== 'undefined' && window.location.hostname) {
+      document.cookie = `session_token=; max-age=0; path=/; domain=${window.location.hostname};`;
+    }
     try {
       await fetch('/auth/logout', { method: 'POST', credentials: 'include' });
     } catch (e) {}
-    window.location.reload();
+    setMe(null);
+    window.location.href = '/';
   };
 
   const handleInstantJam = async () => {

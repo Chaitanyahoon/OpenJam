@@ -160,11 +160,21 @@ async def get_config():
 @router.post("/logout")
 async def logout(request: Request):
     token = request.cookies.get("session_token")
+    if not token:
+        auth_header = request.headers.get("authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
     if token:
         revoke_token(token)
         logger.info("User logged out")
     response = JSONResponse(content={"message": "Logged out"})
-    response.delete_cookie("session_token")
+    is_prod = settings.ENVIRONMENT == "production"
+    response.delete_cookie(
+        key="session_token",
+        path="/",
+        samesite="lax",
+        secure=is_prod
+    )
     return response
 
 

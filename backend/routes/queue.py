@@ -422,28 +422,16 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
     if cache_key in _url_cache:
         url, expiry = _url_cache[cache_key]
         if time.time() < expiry:
-            if await _is_url_valid(url):
-                return url
-            logger.info(f"Evicting invalid memory-cached stream URL for {cache_key}")
-            del _url_cache[cache_key]
-            if redis_store.client:
-                try:
-                    redis_store.client.delete(f"openjam:url:{cache_key}")
-                except Exception:
-                    pass
-        else:
-            del _url_cache[cache_key]
+            return url
+        del _url_cache[cache_key]
 
     if redis_store.client:
         try:
             cached_url = redis_store.client.get(f"openjam:url:{cache_key}")
             if cached_url:
-                if await _is_url_valid(cached_url):
-                    _url_cache[cache_key] = (cached_url, time.time() + _URL_CACHE_TTL)
-                    logger.info(f"Resolved stream URL for {cache_key} from Redis cache")
-                    return cached_url
-                logger.info(f"Evicting invalid Redis-cached stream URL for {cache_key}")
-                redis_store.client.delete(f"openjam:url:{cache_key}")
+                _url_cache[cache_key] = (cached_url, time.time() + _URL_CACHE_TTL)
+                logger.info(f"Resolved stream URL for {cache_key} from Redis cache")
+                return cached_url
         except Exception as e:
             logger.warning(f"Failed to retrieve stream URL from Redis for {cache_key}: {e}")
 
@@ -454,28 +442,16 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
         if cache_key in _url_cache:
             url, expiry = _url_cache[cache_key]
             if time.time() < expiry:
-                if await _is_url_valid(url):
-                    return url
-                logger.info(f"Evicting invalid memory-cached stream URL (inside lock) for {cache_key}")
-                del _url_cache[cache_key]
-                if redis_store.client:
-                    try:
-                        redis_store.client.delete(f"openjam:url:{cache_key}")
-                    except Exception:
-                        pass
-            else:
-                del _url_cache[cache_key]
+                return url
+            del _url_cache[cache_key]
 
         if redis_store.client:
             try:
                 cached_url = redis_store.client.get(f"openjam:url:{cache_key}")
                 if cached_url:
-                    if await _is_url_valid(cached_url):
-                        _url_cache[cache_key] = (cached_url, time.time() + _URL_CACHE_TTL)
-                        logger.info(f"Resolved stream URL for {cache_key} from Redis cache (inside lock)")
-                        return cached_url
-                    logger.info(f"Evicting invalid Redis-cached stream URL (inside lock) for {cache_key}")
-                    redis_store.client.delete(f"openjam:url:{cache_key}")
+                    _url_cache[cache_key] = (cached_url, time.time() + _URL_CACHE_TTL)
+                    logger.info(f"Resolved stream URL for {cache_key} from Redis cache (inside lock)")
+                    return cached_url
             except Exception:
                 pass
 
@@ -484,7 +460,7 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
         async def _try_cobalt():
             try:
                 from backend.services.cobalt import get_cobalt_stream_url
-                res = await asyncio.wait_for(get_cobalt_stream_url(video_id), timeout=3.5)
+                res = await asyncio.wait_for(get_cobalt_stream_url(video_id), timeout=2.0)
                 if res and (res.startswith("http://") or res.startswith("https://")):
                     logger.info(f"[Resolver Race] Cobalt won for {video_id}")
                     return res
@@ -495,7 +471,7 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
         async def _try_invidious():
             try:
                 from backend.services.invidious import get_stream_url as get_invidious_stream_url
-                res = await asyncio.wait_for(get_invidious_stream_url(video_id), timeout=3.8)
+                res = await asyncio.wait_for(get_invidious_stream_url(video_id), timeout=2.2)
                 if res and (res.startswith("http://") or res.startswith("https://")):
                     logger.info(f"[Resolver Race] Invidious won for {video_id}")
                     return res
@@ -515,11 +491,11 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
                         "nocheckcertificate": True,
                         "ignoreerrors": True,
                         "skip_download": True,
-                        "socket_timeout": 3.0,
+                        "socket_timeout": 2.0,
                     }
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                         return ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
-                info = await asyncio.wait_for(loop.run_in_executor(None, extract), timeout=3.5)
+                info = await asyncio.wait_for(loop.run_in_executor(None, extract), timeout=2.5)
                 if info:
                     res = info.get("url")
                     if not res and "formats" in info:
@@ -551,7 +527,7 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
                             break
                     except Exception:
                         pass
-            await asyncio.wait_for(_race(), timeout=4.0)
+            await asyncio.wait_for(_race(), timeout=2.8)
         except Exception:
             pass
         finally:

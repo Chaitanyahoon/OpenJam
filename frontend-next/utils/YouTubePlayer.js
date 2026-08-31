@@ -689,10 +689,10 @@ export default class YouTubePlayer {
     if (this._loadTimeout) clearTimeout(this._loadTimeout);
     this._loadTimeout = setTimeout(() => {
       if (!this._isDestroyed && this.currentVideoId === videoId && this.player.readyState < 2 && this.player.src && !this.player.src.startsWith('data:')) {
-        console.warn('Stream load timeout after 2.5s, switching to native player');
+        console.warn('Stream load timeout after 1.5s, switching to native player');
         this._handleAudioError('load_timeout', this.player);
       }
-    }, 2500);
+    }, 1500);
 
     this.player.loop = false;
     

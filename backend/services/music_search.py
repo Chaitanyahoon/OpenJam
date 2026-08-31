@@ -71,16 +71,18 @@ class MusicSearchService:
         except Exception as e:
             logger.warning(f"Failed to check Redis search cache: {e}")
 
+        import html as html_lib
+
         async def _search_itunes():
             params = urllib.parse.urlencode({
                 "term": query.strip(),
                 "media": "music",
                 "entity": "song",
-                "limit": min(limit, 15),
+                "limit": min(limit, 10),
             })
             try:
                 url = f"{ITUNES_API}?{params}"
-                async with httpx.AsyncClient(timeout=3.5) as client:
+                async with httpx.AsyncClient(timeout=2.5) as client:
                     resp = await client.get(url, headers={"User-Agent": "OpenJam/1.0"})
                     if resp.status_code == 200:
                         data = resp.json()
@@ -111,23 +113,22 @@ class MusicSearchService:
             try:
                 encoded = urllib.parse.quote_plus(query.strip())
                 url = f"https://www.youtube.com/results?search_query={encoded}"
-                async with httpx.AsyncClient(timeout=3.5) as client:
+                async with httpx.AsyncClient(timeout=2.8) as client:
                     resp = await client.get(url, headers={
                         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                         "Accept-Language": "en-US,en;q=0.9",
                     })
                     if resp.status_code == 200:
-                        html = resp.text
+                        resp_html = resp.text
                         tracks = []
-                        # Extract videoId and title blocks
+                        # Extract videoId, title, and channel
                         video_matches = re.findall(
                             r'\"videoRenderer\":\{\"videoId\":\"([a-zA-Z0-9_-]{11})\".*?\"title\":\{\"runs\":\[\{\"text\":\"(.*?)\"\}\].*?\"ownerText\":\{\"runs\":\[\{\"text\":\"(.*?)\"\}\]',
-                            html
+                            resp_html
                         )
-                        for vid, title, channel in video_matches[:8]:
-                            # Clean up title
-                            clean_title = title.replace("\\u0026", "&").replace("\\", "")
-                            clean_channel = channel.replace("\\u0026", "&").replace("\\", "")
+                        for vid, title, channel in video_matches[:limit]:
+                            clean_title = html_lib.unescape(title).replace("\\", "")
+                            clean_channel = html_lib.unescape(channel).replace("\\", "")
                             tracks.append({
                                 "uri": vid,
                                 "name": clean_title,
@@ -140,33 +141,33 @@ class MusicSearchService:
                 logger.debug(f"YouTube scrape search failed: {e}")
             return []
 
-        # Run iTunes, YTMusic, and YouTube scrape in parallel with tight timeouts
-        itunes_task = _search_itunes()
+        # Run YTMusic, YouTube scrape, and iTunes in parallel with tight timeouts
         ytmusic_task = asyncio.to_thread(self._search_via_ytmusic, query, limit)
         yt_scrape_task = _search_youtube_scrape()
+        itunes_task = _search_itunes()
 
-        gathered = await asyncio.gather(itunes_task, ytmusic_task, yt_scrape_task, return_exceptions=True)
-        itunes_tracks = gathered[0] if isinstance(gathered[0], list) else []
-        ytm_tracks = gathered[1] if isinstance(gathered[1], list) else []
-        yt_scrape_tracks = gathered[2] if isinstance(gathered[2], list) else []
+        gathered = await asyncio.gather(ytmusic_task, yt_scrape_task, itunes_task, return_exceptions=True)
+        ytm_tracks = gathered[0] if isinstance(gathered[0], list) else []
+        yt_scrape_tracks = gathered[1] if isinstance(gathered[1], list) else []
+        itunes_tracks = gathered[2] if isinstance(gathered[2], list) else []
 
-        # Merge results, prioritizing iTunes first, then YTMusic, then Scrape
+        # Merge results, prioritizing YouTube Music (official & direct videoId), then YouTube Scrape, then iTunes
         tracks = []
         seen = set()
 
-        for t in itunes_tracks:
-            key = f"{t['name'].lower()}_{t['artist'].lower()}"
-            if key not in seen:
-                tracks.append(t)
-                seen.add(key)
-
         for t in ytm_tracks:
-            key = f"{t['name'].lower()}_{t['artist'].lower()}"
-            if key not in seen:
+            vid = t.get("uri")
+            if vid and len(vid) == 11 and vid not in seen:
                 tracks.append(t)
-                seen.add(key)
+                seen.add(vid)
 
         for t in yt_scrape_tracks:
+            vid = t.get("uri")
+            if vid and len(vid) == 11 and vid not in seen:
+                tracks.append(t)
+                seen.add(vid)
+
+        for t in itunes_tracks:
             key = f"{t['name'].lower()}_{t['artist'].lower()}"
             if key not in seen:
                 tracks.append(t)
@@ -234,7 +235,11 @@ class MusicSearchService:
                 thumbnails = r.get("thumbnails", [])
                 artwork = None
                 if thumbnails:
-                    artwork = thumbnails[-1].get("url")
+                    raw_url = thumbnails[-1].get("url", "")
+                    if raw_url:
+                        artwork = re.sub(r"=w\d+-h\d+", "=w600-h600", raw_url)
+                if not artwork and video_id:
+                    artwork = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
                     
                 # Duration
                 duration_seconds = r.get("duration_seconds")

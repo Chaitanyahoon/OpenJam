@@ -507,7 +507,34 @@ export default function RoomClient({ roomId }) {
       if (!roomId || roomId === 'loading') return;
       try {
         let userResolved = false;
-        const rMe = await fetch(`/auth/me?t=${Date.now()}`, { credentials: 'include', cache: 'no-store' });
+        let token = null;
+        if (typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search);
+          token = params.get('token');
+          const hash = window.location.hash;
+          if (!token && hash.startsWith('#token=')) {
+            token = hash.substring(7);
+          }
+          if (token) {
+            const maxAge = 86400 * 30;
+            const isSecure = window.location.protocol === 'https:';
+            document.cookie = `session_token=${token}; max-age=${maxAge}; path=/; samesite=lax${isSecure ? '; secure' : ''}`;
+            localStorage.setItem('openjam_token', token);
+          } else {
+            token = localStorage.getItem('openjam_token');
+          }
+        }
+
+        const headers = {};
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const rMe = await fetch(`/auth/me?t=${Date.now()}`, { 
+          headers, 
+          credentials: 'include', 
+          cache: 'no-store' 
+        });
         if (rMe.ok) {
           const data = await rMe.json();
           if (data.user) {
@@ -1338,14 +1365,16 @@ export default function RoomClient({ roomId }) {
       // 1. Clean track name & artist from common YouTube fluff
       let cleanTrack = track
         .replace(/\[.*?\]|\(.*?\)/g, '')
-        .replace(/ft\..*|feat\..*/i, '')
-        .replace(/official video|official audio|lyric video|lyrics|audio|video|hd|4k|remastered|remix/gi, '')
+        .replace(/\|.*$/g, '')
+        .replace(/ft\..*|feat\..*|prod\..*/i, '')
+        .replace(/official music video|official video|official audio|lyric video|lyrics|visualizer|audio|video|hd|4k|remastered|remix|explicit/gi, '')
         .trim();
         
       let cleanArtist = (artist || '')
         .replace(/\[.*?\]|\(.*?\)/g, '')
         .replace(/ - topic/i, '')
         .replace(/vevo/i, '')
+        .replace(/official/i, '')
         .trim();
 
       // If track has "Artist - Song Title", parse it out
@@ -1506,21 +1535,35 @@ export default function RoomClient({ roomId }) {
       setLyricsActiveIdx(-1);
       return;
     }
-    const effectiveMs = (playbackState.positionMs || 0) + lyricsOffsetMs;
-    let newIdx = -1;
-    for (let i = 0; i < lyricsText.length; i++) {
-      if (lyricsText[i].timeMs !== undefined && lyricsText[i].timeMs >= 0) {
-        if (lyricsText[i].timeMs <= effectiveMs) {
-          newIdx = i;
-        } else {
-          break;
+    const updateActiveIndex = () => {
+      const currentPos = playerRef.current?.player?.currentTime 
+        ? Math.round(playerRef.current.player.currentTime * 1000)
+        : (playbackState.positionMs || 0);
+      const vocalOnsetLeadMs = 120;
+      const effectiveMs = currentPos + lyricsOffsetMs + vocalOnsetLeadMs;
+      let newIdx = -1;
+      for (let i = 0; i < lyricsText.length; i++) {
+        if (lyricsText[i].timeMs !== undefined && lyricsText[i].timeMs >= 0) {
+          if (lyricsText[i].timeMs <= effectiveMs) {
+            newIdx = i;
+          } else {
+            break;
+          }
         }
       }
+      setLyricsActiveIdx((prev) => (prev !== newIdx ? newIdx : prev));
+    };
+
+    updateActiveIndex();
+
+    let ticker = null;
+    if (playbackState.isPlaying) {
+      ticker = setInterval(updateActiveIndex, 60);
     }
-    if (newIdx !== lyricsActiveIdx) {
-      setLyricsActiveIdx(newIdx);
-    }
-  }, [playbackState.positionMs, playbackState.isPlaying, lyricsText?.length, lyricsActiveIdx, lyricsOffsetMs]);
+    return () => {
+      if (ticker) clearInterval(ticker);
+    };
+  }, [playbackState.positionMs, playbackState.isPlaying, lyricsText, lyricsOffsetMs]);
 
 
   // Typing Cleanup on Unmount

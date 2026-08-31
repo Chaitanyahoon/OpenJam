@@ -263,7 +263,13 @@ export default function ProfileClient() {
   const handleLogout = async () => {
     localStorage.removeItem('openjam_display_name');
     localStorage.removeItem('openjam_avatar_url');
-    document.cookie = "session_token=; Max-Age=0; path=/;";
+    localStorage.removeItem('openjam_user_id');
+    localStorage.removeItem('openjam_token');
+    sessionStorage.clear();
+    document.cookie = "session_token=; max-age=0; path=/;";
+    if (typeof window !== 'undefined' && window.location.hostname) {
+      document.cookie = `session_token=; max-age=0; path=/; domain=${window.location.hostname};`;
+    }
     try {
       await fetch('/auth/logout', { method: 'POST', credentials: 'include' });
     } catch (e) {}
