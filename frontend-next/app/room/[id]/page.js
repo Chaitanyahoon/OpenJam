@@ -51,7 +51,7 @@ export async function generateMetadata({ params }) {
           return url.replace(/\/$/, '');
         }
       }
-      return 'https://api.openjam.fun';
+      return 'https://openjam.onrender.com';
     };
 
     const backendUrl = getBackendUrl();
@@ -85,7 +85,7 @@ export async function generateMetadata({ params }) {
           if (currentTrack.album_art_url) ogParams.set('cover_art_url', currentTrack.album_art_url);
         }
 
-        const ogImage = `${backendUrl}/api/og/room/${id}.png?${ogParams.toString()}`;
+        const ogImage = `https://www.openjam.fun/api/og/room/${id}.png?${ogParams.toString()}`;
 
         return {
           title,

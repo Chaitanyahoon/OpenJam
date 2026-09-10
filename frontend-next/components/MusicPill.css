@@ -250,7 +250,8 @@
   font-size: 10px;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.45);
-  font-family: monospace;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .music-pill-track {

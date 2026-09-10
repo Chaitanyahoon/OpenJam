@@ -1,6 +1,5 @@
 import React from 'react';
 import HomeClient from './HomeClient';
-import { FaqJsonLd } from '@/components/FaqJsonLd';
 
 export const metadata = {
   title: "Listen to Music with Friends Online Free | Virtual Music Room — OpenJam",
@@ -48,10 +47,5 @@ export const metadata = {
 };
 
 export default function Page() {
-  return (
-    <>
-      <FaqJsonLd />
-      <HomeClient />
-    </>
-  );
+  return <HomeClient />;
 }

@@ -118,7 +118,7 @@ function RoomCard({ room, nameColor, getInitials, href }) {
           <h3 className="room-card-title">{room.name}</h3>
           <div className="room-card-host">
             {room.host_avatar_url ? (
-              <img decoding="async" loading="lazy" className="room-card-host-avatar" src={room.host_avatar_url} alt="" />
+              <img decoding="async" loading="lazy" className="room-card-host-avatar" src={room.host_avatar_url} alt={room.host_name ? `${room.host_name}'s avatar` : 'Room host avatar'} />
             ) : (
               <div
                 className="room-card-host-avatar-fallback"

@@ -1690,8 +1690,31 @@ export default function RoomClient({ roomId }) {
       return `rgba(${r}, ${g}, ${b}, ${opacity})`;
     };
 
+    let isMounted = true;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (animationFrameIdRef.current) {
+          cancelAnimationFrame(animationFrameIdRef.current);
+          animationFrameIdRef.current = null;
+        }
+      } else {
+        if (!animationFrameIdRef.current && isMounted) {
+          animationFrameIdRef.current = requestAnimationFrame(render);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     const render = () => {
-      if (!ctx) return;
+      if (!ctx || !isMounted) return;
+      if (document.hidden) return;
+
+      // Skip expensive canvas particle/wave computations on mobile screens (<= 768px)
+      if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+        animationFrameIdRef.current = requestAnimationFrame(render);
+        return;
+      }
       
       // Clear canvas with a solid black/dark base
       ctx.fillStyle = '#08080a';
@@ -1773,9 +1796,12 @@ export default function RoomClient({ roomId }) {
     render();
 
     return () => {
+      isMounted = false;
       window.removeEventListener('resize', handleResize);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (animationFrameIdRef.current) {
         cancelAnimationFrame(animationFrameIdRef.current);
+        animationFrameIdRef.current = null;
       }
     };
   }, [playbackState.isPlaying, settingsVisuals]);
@@ -5352,7 +5378,7 @@ export default function RoomClient({ roomId }) {
                     borderRadius: '16px',
                     padding: '16px',
                     fontSize: '13px',
-                    fontFamily: 'monospace',
+                    fontFamily: 'var(--font-mono)',
                     color: '#ffffff',
                     width: '100%',
                     boxSizing: 'border-box',
@@ -5592,21 +5618,7 @@ export default function RoomClient({ roomId }) {
             </motion.button>
 
             {/* Main Split Grid Stage — Always Split 2 Columns */}
-            <div
-              className="stage-view-grid"
-              style={{
-                display: 'grid',
-                gap: '56px',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flex: 1,
-                zIndex: 10,
-                width: '100%',
-                height: '100%',
-                padding: '40px 64px',
-                boxSizing: 'border-box',
-              }}
-            >
+            <div className="stage-view-grid">
               {/* Left Column: Clean Artwork Card, Track Meta, Timeline, Controls & Utility Toolbar */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', width: '100%', maxWidth: '400px', margin: '0 auto' }}>
                 
@@ -5721,7 +5733,7 @@ export default function RoomClient({ roomId }) {
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '4px', marginTop: '2px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', width: '100%' }}>
                     <h2 style={{
-                      fontFamily: 'var(--font-display-next), Outfit, system-ui, sans-serif',
+                      fontFamily: 'var(--font-display), sans-serif',
                       fontSize: '26px',
                       fontWeight: 800,
                       color: '#ffffff',
@@ -6173,7 +6185,7 @@ export default function RoomClient({ roomId }) {
                       >
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', fontWeight: 700, color: '#ffffff' }}>
                           <span>Lyrics Timing Offset</span>
-                          <span style={{ color: 'var(--theme-accent, #ff9f1c)', fontFamily: 'monospace', fontWeight: 800 }}>
+                          <span style={{ color: 'var(--theme-accent, #ff9f1c)', fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontWeight: 800 }}>
                             {lyricsOffsetMs > 0 ? `+${(lyricsOffsetMs/1000).toFixed(2)}s` : `${(lyricsOffsetMs/1000).toFixed(2)}s`}
                           </span>
                         </div>

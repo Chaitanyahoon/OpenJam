@@ -88,7 +88,8 @@ export default function SyncPrecisionBadge({
           boxShadow: isHovered ? tierGlow : 'none',
           transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
           cursor: 'pointer',
-          fontFamily: 'var(--font-mono, "SF Mono", monospace)'
+          fontFamily: 'var(--font-mono, "SF Mono", monospace)',
+          fontVariantNumeric: 'tabular-nums'
         }}
         title={`NTP Clock Sync: ${absOffset}ms offset, ${roundedRtt}ms RTT`}
       >

@@ -204,7 +204,7 @@ export default function ProfilePageClient() {
         justifyContent: 'center',
         padding: '20px',
         textAlign: 'center',
-        fontFamily: 'sans-serif'
+        fontFamily: 'var(--font-ui), sans-serif'
       }}>
         <Disc size={64} color="#ff4757" style={{ marginBottom: '24px' }} />
         <h1 style={{ fontSize: '28px', fontWeight: 800, marginBottom: '16px', letterSpacing: '-0.02em' }}>{error}</h1>
@@ -257,7 +257,7 @@ export default function ProfilePageClient() {
       position: 'relative',
       overflow: 'hidden',
       padding: '40px 24px',
-      fontFamily: 'sans-serif'
+      fontFamily: 'var(--font-ui), sans-serif'
     }}>
       {/* Interactive Cursor Glow */}
       <div 

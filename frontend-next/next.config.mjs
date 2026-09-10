@@ -2,7 +2,7 @@
 const isDev = process.env.NODE_ENV === 'development';
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL && process.env.NEXT_PUBLIC_BACKEND_URL !== 'undefined' && process.env.NEXT_PUBLIC_BACKEND_URL !== 'null')
   ? process.env.NEXT_PUBLIC_BACKEND_URL.replace(/\/$/, '')
-  : (isDev ? 'http://localhost:8000' : 'https://api.openjam.fun');
+  : (isDev ? 'http://localhost:8000' : 'https://openjam.onrender.com');
 
 const nextConfig = {
   poweredByHeader: false,
@@ -110,6 +110,14 @@ const nextConfig = {
       {
         source: '/stream/:path*',
         destination: `${BACKEND_URL}/stream/:path*`,
+      },
+      {
+        source: '/api/og/:path*',
+        destination: `${BACKEND_URL}/api/og/:path*`,
+      },
+      {
+        source: '/api/proxy/:path*',
+        destination: `${BACKEND_URL}/api/proxy/:path*`,
       },
     ];
   },

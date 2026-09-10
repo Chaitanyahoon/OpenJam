@@ -125,7 +125,7 @@ function HeroSection({
 
       {/* Floating Kinetic Music Notes in background space */}
       {mounted && !reduceMotion && (
-        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1, overflow: 'hidden' }}>
+        <div className="desktop-only" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1, overflow: 'hidden' }}>
           {[
             { symbol: '🎵', size: 24, left: '12%', delay: 0, duration: 16, top: '15%' },
             { symbol: '🎶', size: 20, right: '12%', delay: 3, duration: 20, top: '25%' },
@@ -277,7 +277,7 @@ function HeroSection({
                 fontSize: 'clamp(58px, 9vw, 98px)',
                 lineHeight: 0.95,
                 letterSpacing: '-0.04em',
-                fontFamily: "'Outfit', sans-serif", // Cohesive brand typeface
+                fontFamily: "var(--font-display), 'Outfit', sans-serif", // Cohesive brand typeface
                 fontWeight: 900,
                 marginBottom: '12px',
                 display: 'inline-block',
@@ -287,6 +287,7 @@ function HeroSection({
             >
               <span style={{ color: '#ffffff' }}>Open</span>
               <span className="brand-gradient-jam">Jam</span>
+              <span className="sr-only"> — Listen to Music with Friends Online Free in Synced Virtual Rooms</span>
             </motion.h1>
 
             <motion.h2

@@ -13,7 +13,7 @@ const PlaylistClientNoSSR = dynamic(() => import('./PlaylistClient'), {
       minHeight: '100vh',
       background: '#08080a',
       color: '#fff',
-      fontFamily: 'sans-serif'
+      fontFamily: 'var(--font-ui), sans-serif'
     }}>
       Loading Playlist...
     </div>

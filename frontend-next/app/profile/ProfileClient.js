@@ -517,7 +517,7 @@ export default function ProfileClient() {
         justifyContent: 'center',
         padding: '20px',
         textAlign: 'center',
-        fontFamily: 'sans-serif'
+        fontFamily: 'var(--font-ui), sans-serif'
       }}>
         <Disc size={64} style={{ color: 'var(--theme-accent, #ff9f1c)', marginBottom: '24px' }} />
         <h1 style={{ fontSize: '28px', fontWeight: 800, marginBottom: '16px', letterSpacing: '-0.02em' }}>Unlock Premium Music Sharing</h1>
@@ -552,7 +552,7 @@ export default function ProfileClient() {
       color: '#fff',
       position: 'relative',
       overflow: 'hidden',
-      fontFamily: 'sans-serif'
+      fontFamily: 'var(--font-ui), sans-serif'
     }}>
       {/* Interactive Cursor Glow */}
       <div 

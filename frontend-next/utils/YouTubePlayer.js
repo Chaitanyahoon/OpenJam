@@ -641,10 +641,10 @@ export default class YouTubePlayer {
         ">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="#000" style="margin-left:4px;"><path d="M8 5v14l11-7z"/></svg>
         </div>
-        <div style="font-family:system-ui, -apple-system, sans-serif; font-size:22px; font-weight:800; color:#f5f0eb; margin-bottom:8px; letter-spacing:-0.02em;">
+        <div style="font-family:var(--font-display), -apple-system, sans-serif; font-size:22px; font-weight:800; color:#f5f0eb; margin-bottom:8px; letter-spacing:-0.02em;">
           Tap to Join Live Audio
         </div>
-        <div style="font-family:system-ui, -apple-system, sans-serif; font-size:14px; color:#a8a29e; max-width:280px; text-align:center; line-height:1.5;">
+        <div style="font-family:var(--font-ui), -apple-system, sans-serif; font-size:14px; color:#a8a29e; max-width:280px; text-align:center; line-height:1.5;">
           Tap anywhere to unlock real-time synchronized music with your friends
         </div>`;
       document.body.appendChild(overlay);

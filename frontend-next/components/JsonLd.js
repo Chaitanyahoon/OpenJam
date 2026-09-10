@@ -83,6 +83,22 @@ export function JsonLd() {
           },
           {
             "@type": "Question",
+            name: "Can I use OpenJam as a free Watch2Gether or Spotify Jam alternative?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: "Yes! OpenJam is the ideal free alternative to Watch2Gether, JQBX, and Spotify Jam. Unlike Spotify Jam which requires Spotify Premium subscriptions for all participants, OpenJam allows anyone to stream and sync YouTube music together for free with no subscriptions required."
+            }
+          },
+          {
+            "@type": "Question",
+            name: "Do I need a Spotify or YouTube account to listen?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: "No, anyone with the room link can join instantly as an anonymous guest without creating an account or logging into third-party services."
+            }
+          },
+          {
+            "@type": "Question",
             name: "How does real-time music synchronization work on OpenJam?",
             acceptedAnswer: {
               "@type": "Answer",
@@ -91,10 +107,26 @@ export function JsonLd() {
           },
           {
             "@type": "Question",
-            name: "Do my friends need to create an account to join my room?",
+            name: "What is Stage Mode with synchronized karaoke lyrics?",
             acceptedAnswer: {
               "@type": "Answer",
-              text: "No, anyone with the room link can join instantly as a guest without signing up. Account creation is optional for saving playlists, listening history, and custom avatars."
+              text: "Stage Mode provides a full-screen, ambient visualizer featuring dynamic album artwork glow and real-time kinetic karaoke lyrics synchronized to the exact millisecond of playback."
+            }
+          },
+          {
+            "@type": "Question",
+            name: "Can I import playlists from Spotify or YouTube into OpenJam?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: "Yes! OpenJam supports instant playlist importing from public Spotify and YouTube URLs, automatically loading all tracks directly into your live room queue or personal playlist."
+            }
+          },
+          {
+            "@type": "Question",
+            name: "Can I use OpenJam on my mobile phone as a PWA?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: "Absolutely. OpenJam features a responsive mobile interface with touch controls and Progressive Web App (PWA) support so you can install it on iOS, Android, macOS, and Windows."
             }
           }
         ]

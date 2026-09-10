@@ -4,7 +4,7 @@ import ClientSocketProvider from "@/contexts/ClientSocketProvider";
 import PwaInstallPrompt from "@/components/PwaInstallPrompt";
 import { PreloadResources } from "@/components/PreloadResources";
 import { JsonLd } from "@/components/JsonLd";
-import { Outfit, Poppins, JetBrains_Mono, Righteous } from "next/font/google";
+import { Outfit, Plus_Jakarta_Sans, JetBrains_Mono, Righteous, Caveat } from "next/font/google";
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -12,8 +12,8 @@ const outfit = Outfit({
   display: "swap",
 });
 
-const poppins = Poppins({
-  weight: ["300", "400", "500", "600", "700"],
+const plusJakartaSans = Plus_Jakarta_Sans({
+  weight: ["300", "400", "500", "600", "700", "800"],
   subsets: ["latin"],
   variable: "--font-ui-next",
   display: "swap",
@@ -29,6 +29,12 @@ const righteous = Righteous({
   weight: ["400"],
   subsets: ["latin"],
   variable: "--font-righteous-next",
+  display: "swap",
+});
+
+const caveat = Caveat({
+  subsets: ["latin"],
+  variable: "--font-hand-next",
   display: "swap",
 });
 
@@ -70,7 +76,7 @@ export const metadata = {
     ],
   },
   alternates: {
-    canonical: "./",
+    canonical: "https://www.openjam.fun",
   },
   robots: {
     index: true,
@@ -98,7 +104,7 @@ export const metadata = {
     type: "website",
     images: [
       {
-        url: "/static/img/hero_visual_showcase.webp",
+        url: `${SITE_URL}/static/img/hero_visual_showcase.webp`,
         width: 1200,
         height: 630,
         alt: "OpenJam — Listen to Music with Friends Online Free",
@@ -109,7 +115,7 @@ export const metadata = {
     card: "summary_large_image",
     title: "OpenJam — Listen to Music with Friends Online Free | Virtual Music Room",
     description: "OpenJam is a virtual music room platform to listen to music with friends online free. Sync YouTube music with friends in a shared music listening room with real-time synced music playback.",
-    images: ["/static/img/hero_visual_showcase.webp"],
+    images: [`${SITE_URL}/static/img/hero_visual_showcase.webp`],
   },
   appleWebApp: {
     capable: true,
@@ -131,7 +137,7 @@ export default function RootLayout({ children }) {
   const gaId = process.env.NEXT_PUBLIC_GA_ID;
 
   return (
-    <html lang="en" className={`${outfit.variable} ${poppins.variable} ${jetbrainsMono.variable} ${righteous.variable}`}>
+    <html lang="en" className={`${outfit.variable} ${plusJakartaSans.variable} ${jetbrainsMono.variable} ${righteous.variable} ${caveat.variable}`}>
       <body>
         <PreloadResources />
         <JsonLd />

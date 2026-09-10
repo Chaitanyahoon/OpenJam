@@ -284,7 +284,7 @@ export default function PlaylistClient() {
         justifyContent: 'center',
         padding: '20px',
         textAlign: 'center',
-        fontFamily: 'sans-serif'
+        fontFamily: 'var(--font-ui), sans-serif'
       }}>
         <Disc size={64} color="#555" style={{ marginBottom: '24px' }} />
         <h1 style={{ fontSize: '28px', fontWeight: 800, marginBottom: '16px' }}>{error}</h1>
@@ -303,7 +303,7 @@ export default function PlaylistClient() {
       minHeight: '100vh',
       background: 'radial-gradient(circle at top, #16151c 0%, #08080a 70%)',
       color: '#fff',
-      fontFamily: 'var(--font-sans), sans-serif',
+      fontFamily: 'var(--font-ui), sans-serif',
       padding: '40px 24px',
       position: 'relative'
     }}>
@@ -607,7 +607,7 @@ export default function PlaylistClient() {
                     />
                   </button>
 
-                  <div style={{ fontSize: '12px', color: '#666', fontFamily: 'monospace' }}>
+                  <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.45)', fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums' }}>
                     {track.duration_ms ? (
                       `${Math.floor(track.duration_ms / 60000)}:${String(Math.floor((track.duration_ms % 60000) / 1000)).padStart(2, '0')}`
                     ) : (

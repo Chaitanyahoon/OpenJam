@@ -245,6 +245,7 @@
 }
 
 .mp-title {
+  font-family: var(--font-display);
   font-size: 20px;
   font-weight: 800;
   margin: 0 0 4px;
@@ -256,6 +257,7 @@
 }
 
 .mp-artist-album {
+  font-family: var(--font-ui);
   font-size: 13px;
   margin: 0;
   white-space: nowrap;
@@ -295,6 +297,7 @@
 }
 
 .mp-track-title {
+  font-family: var(--font-display);
   font-size: 20px;
   font-weight: 800;
   color: #ffffff;
@@ -304,10 +307,11 @@
   white-space: nowrap;
   max-width: 85%;
   min-width: 0;
-  letter-spacing: -0.5px;
+  letter-spacing: -0.025em;
 }
 
 .mp-track-artist {
+  font-family: var(--font-ui);
   font-size: 13px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.65);
@@ -391,7 +395,8 @@
   padding: 4px 6px;
   border-radius: 6px;
   pointer-events: none;
-  font-family: monospace;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
@@ -401,7 +406,8 @@
   margin-top: 8px;
   font-size: 11px;
   color: rgba(255, 255, 255, 0.4);
-  font-family: monospace;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Luxury Controls Deck */
@@ -2213,11 +2219,20 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
 
 @media (max-width: 768px) {
   .stage-view-grid {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
-    gap: 20px;
-    padding: 16px;
-    overflow-y: auto;
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto 1fr !important;
+    gap: 16px !important;
+    padding: calc(64px + env(safe-area-inset-top, 0px)) 16px calc(36px + env(safe-area-inset-bottom, 0px)) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    height: 100% !important;
+    align-items: flex-start !important;
+  }
+  .stage-view-grid .stage-art-card {
+    max-width: clamp(180px, 30vh, 280px) !important;
+    max-height: clamp(180px, 30vh, 280px) !important;
+    margin: 0 auto;
+    border-radius: 18px !important;
   }
 }
 

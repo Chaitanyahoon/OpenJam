@@ -35,7 +35,7 @@ export default async function sitemap() {
         return url.replace(/\/$/, '');
       }
     }
-    return 'https://api.openjam.fun';
+    return 'https://openjam.onrender.com';
   };
 
   const backendUrl = getBackendUrl();

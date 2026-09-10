@@ -248,7 +248,7 @@ export function PlaylistSkeleton() {
       minHeight: '100vh',
       background: 'radial-gradient(circle at top, #16151c 0%, #08080a 70%)',
       color: '#fff',
-      fontFamily: 'var(--font-sans), sans-serif',
+      fontFamily: 'var(--font-ui), sans-serif',
       padding: '40px 24px',
       display: 'flex',
       flexDirection: 'column',
