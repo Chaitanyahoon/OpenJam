@@ -18,7 +18,7 @@ const DEFAULTS = {
   maxVerticalRotationDeg: 5,
   dragSensitivity: 20,
   enlargeTransitionMs: 300,
-  segments: 35
+  segments: 18
 };
 
 const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
@@ -34,7 +34,8 @@ const getDataNumber = (el, name, fallback) => {
 };
 
 function buildItems(pool, seg) {
-  const xCols = Array.from({ length: seg }, (_, i) => -37 + i * 2);
+  const startX = -Math.floor(seg);
+  const xCols = Array.from({ length: seg }, (_, i) => startX + i * 2);
   const evenYs = [-4, -2, 0, 2, 4];
   const oddYs = [-3, -1, 1, 3, 5];
 
@@ -254,6 +255,7 @@ export default function DomeGallery({
       onDragStart: ({ event }) => {
         if (focusedElRef.current) return;
         stopInertia();
+        rootRef.current?.setAttribute('data-dragging', 'true');
         const evt = event;
         draggingRef.current = true;
         movedRef.current = false;
@@ -277,6 +279,7 @@ export default function DomeGallery({
         }
         if (last) {
           draggingRef.current = false;
+          rootRef.current?.removeAttribute('data-dragging');
           let [vMagX, vMagY] = velocity;
           const [dirX, dirY] = direction;
           let vx = vMagX * dirX;
@@ -534,19 +537,44 @@ export default function DomeGallery({
     }
   }, [openItemFromElement]);
 
-  // Ambient smooth Y-axis auto-rotation
+  // Ambient smooth Y-axis auto-rotation (paused when offscreen or document is hidden)
   useEffect(() => {
     let rafId;
+    let isIntersecting = true;
+    const root = rootRef.current;
+
+    let io = null;
+    if (typeof window !== 'undefined' && 'IntersectionObserver' in window && root) {
+      io = new IntersectionObserver(
+        (entries) => {
+          isIntersecting = entries[0]?.isIntersecting ?? true;
+        },
+        { threshold: 0.05 }
+      );
+      io.observe(root);
+    }
+
     const tick = () => {
-      if (!draggingRef.current && !inertiaRAF.current && !focusedElRef.current) {
-        rotationRef.current.y = wrapAngleSigned(rotationRef.current.y + 0.05); // slow, smooth ambient spin
+      if (
+        isIntersecting &&
+        !document.hidden &&
+        !draggingRef.current &&
+        !inertiaRAF.current &&
+        !focusedElRef.current
+      ) {
+        rotationRef.current.y = wrapAngleSigned(rotationRef.current.y + 0.04);
         applyTransform(rotationRef.current.x, rotationRef.current.y);
       }
       rafId = requestAnimationFrame(tick);
     };
     rafId = requestAnimationFrame(tick);
+
     return () => {
       cancelAnimationFrame(rafId);
+      if (io && root) {
+        io.unobserve(root);
+        io.disconnect();
+      }
     };
   }, []);
 

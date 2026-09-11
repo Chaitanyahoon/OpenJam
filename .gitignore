@@ -21,4 +21,7 @@ AGENTS.md
 scratch/
 backend/cache/
 beautiful-lyrics-5.1.0/
-
+demo_video/
+node_modules/
+package.json
+package-lock.json

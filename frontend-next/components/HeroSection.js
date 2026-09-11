@@ -61,6 +61,7 @@ function HeroSection({
   onInstallClick,
 }) {
   const [mounted, setMounted] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [sloganIndex, setSloganIndex] = useState(0);
 
@@ -68,6 +69,12 @@ function HeroSection({
 
   useEffect(() => {
     setMounted(true);
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile, { passive: true });
+    return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
   // const reduceMotionHook = useReducedMotion();
@@ -109,6 +116,7 @@ function HeroSection({
       >
         <DomeGallery
           images={domeTracks}
+          segments={isMobile ? 12 : 18}
           fit={0.9}
           fitBasis="max"
           minRadius={500}
@@ -143,7 +151,8 @@ function HeroSection({
                 fontSize: `${note.size}px`,
                 color: 'var(--amber)',
                 opacity: 0.08,
-                filter: 'drop-shadow(0 0 8px var(--amber))',
+                textShadow: '0 0 8px rgba(255, 159, 28, 0.4)',
+                willChange: 'transform, opacity',
               }}
               animate={{
                 y: [0, -80, 0],

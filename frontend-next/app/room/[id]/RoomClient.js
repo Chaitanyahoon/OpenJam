@@ -1710,9 +1710,8 @@ export default function RoomClient({ roomId }) {
       if (!ctx || !isMounted) return;
       if (document.hidden) return;
 
-      // Skip expensive canvas particle/wave computations on mobile screens (<= 768px)
+      // Skip canvas rendering entirely on mobile screens (<= 768px) where canvas is display:none
       if (typeof window !== 'undefined' && window.innerWidth <= 768) {
-        animationFrameIdRef.current = requestAnimationFrame(render);
         return;
       }
       
@@ -1726,16 +1725,16 @@ export default function RoomClient({ roomId }) {
       const c2 = colors[1] || '#8b5cf6';
       const c3 = colors[2] || '#ec4899';
 
-      // Draw a slow-moving, large breathing central glow portal
+      // Draw a slow-moving, naturally soft breathing central glow portal (native smooth gradient)
       const glowRadius = Math.max(width, height) * (playbackState.isPlaying ? 0.45 : 0.35) + Math.sin(phase * 2) * 5;
       const centerGrad = ctx.createRadialGradient(
         width / 2, height / 2, 0,
         width / 2, height / 2, glowRadius
       );
-      centerGrad.addColorStop(0, playbackState.isPlaying ? hexToRgba(c1, 0.04) : hexToRgba(c1, 0.015));
-      centerGrad.addColorStop(0.4, hexToRgba(c2, 0.01));
-      centerGrad.addColorStop(0.8, hexToRgba(c3, 0.005));
-      centerGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      centerGrad.addColorStop(0, playbackState.isPlaying ? hexToRgba(c1, 0.12) : hexToRgba(c1, 0.04));
+      centerGrad.addColorStop(0.35, hexToRgba(c2, playbackState.isPlaying ? 0.06 : 0.02));
+      centerGrad.addColorStop(0.7, hexToRgba(c3, playbackState.isPlaying ? 0.025 : 0.008));
+      centerGrad.addColorStop(1, 'rgba(8, 8, 10, 0)');
       ctx.fillStyle = centerGrad;
       ctx.fillRect(0, 0, width, height);
 
