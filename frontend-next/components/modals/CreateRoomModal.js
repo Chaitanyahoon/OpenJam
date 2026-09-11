@@ -98,7 +98,7 @@ export default function CreateRoomModal({
                   onChange={(e) => onCreatePrivateChange(e.target.checked)}
                 />
                 <label htmlFor="create-private" className="modal-label modal-label-checkbox">
-                  Private Room (requires password)
+                  🔒 Unlisted Room (invite-only via link)
                 </label>
               </div>
 
@@ -112,11 +112,15 @@ export default function CreateRoomModal({
                     transition={{ duration: 0.25 }}
                     style={{ overflow: 'hidden' }}
                   >
-                    <label className="modal-label">Room Password</label>
+                    <label className="modal-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Room Password</span>
+                      <span style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.45)', fontWeight: 400 }}>Optional</span>
+                    </label>
                     <input
                       type="password" className="input-field"
                       value={createPassword} onChange={(e) => onCreatePasswordChange(e.target.value)}
-                      placeholder="Enter password to join this room" maxLength="32" required
+                      placeholder="Leave blank for link-only, or set password" maxLength="32"
+                      autoComplete="new-password"
                     />
                   </motion.div>
                 )}

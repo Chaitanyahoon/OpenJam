@@ -123,6 +123,16 @@ export default function HomePage() {
   const [allowGuestControls, setAllowGuestControls] = useState(false);
   const [selectedTags, setSelectedTags] = useState(new Set());
 
+  const resetCreateForm = () => {
+    setCreateName('');
+    setCreateDesc('');
+    setCreateMode('open');
+    setCreatePrivate(false);
+    setCreatePassword('');
+    setAllowGuestControls(false);
+    setSelectedTags(new Set());
+  };
+
   // Shuffler & Submission states
   const [isShuffling, setIsShuffling] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -495,6 +505,7 @@ export default function HomePage() {
         href: '#create',
         onClick: (e) => {
           e.preventDefault();
+          resetCreateForm();
           setShowCreateModal(true);
         }
       });
@@ -707,9 +718,6 @@ export default function HomePage() {
     e.preventDefault();
     const name = createName.trim();
     if (!name) return triggerToast('Room name is required', 'error');
-    if (createPrivate && !createPassword.trim()) {
-      return triggerToast('Password is required for private room', 'error');
-    }
     setIsSubmitting(true);
     try {
       let currentUser = me;
@@ -727,21 +735,36 @@ export default function HomePage() {
             currentUser = joinData.user;
             setMe(joinData.user);
             localStorage.setItem('openjam_display_name', randomName);
+            if (joinData.token) {
+              localStorage.setItem('openjam_token', joinData.token);
+              const maxAge = 86400 * 30;
+              const isSecure = window.location.protocol === 'https:';
+              document.cookie = `session_token=${joinData.token}; max-age=${maxAge}; path=/; samesite=lax${isSecure ? '; secure' : ''}`;
+              if (reconnect) reconnect(joinData.token, randomName);
+            }
           }
         } catch (authErr) {
           console.warn('Guest auto-join before create room error:', authErr);
         }
       }
 
+      const token = typeof window !== 'undefined' ? localStorage.getItem('openjam_token') : null;
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const trimmedPassword = createPassword.trim();
       const r = await fetch('/rooms', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           name,
           description: createDesc.trim(),
           genre_tags: Array.from(selectedTags),
           queue_mode: createMode,
-          password: createPrivate ? createPassword.trim() : null,
+          is_private: createPrivate,
+          password: (createPrivate && trimmedPassword) ? trimmedPassword : null,
           allow_guest_controls: allowGuestControls
         }),
         credentials: 'include'
@@ -749,6 +772,7 @@ export default function HomePage() {
       if (r.ok) {
         const data = await r.json();
         setShowCreateModal(false);
+        resetCreateForm();
         if (activePreview) {
           try {
             localStorage.setItem(`auto_play_track_${data.room.id}`, JSON.stringify(activePreview));
@@ -808,6 +832,13 @@ export default function HomePage() {
           currentUser = data.user;
           setMe(data.user);
           localStorage.setItem('openjam_display_name', randomName);
+          if (data.token) {
+            localStorage.setItem('openjam_token', data.token);
+            const maxAge = 86400 * 30;
+            const isSecure = window.location.protocol === 'https:';
+            document.cookie = `session_token=${data.token}; max-age=${maxAge}; path=/; samesite=lax${isSecure ? '; secure' : ''}`;
+            if (reconnect) reconnect(data.token, randomName);
+          }
         } else {
           triggerToast('Failed to join guest session', 'error');
           return;
@@ -827,14 +858,19 @@ export default function HomePage() {
       const roomNames = ['Neon Lounge', 'Retro Beatcave', 'Analog Space', 'Echo Chamber', 'Decibel Oasis', 'Strobe Sanctuary'];
       const rName = roomNames[Math.floor(Math.random() * roomNames.length)] + ' #' + Math.floor(Math.random() * 90 + 10);
       try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('openjam_token') : null;
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
         const r = await fetch('/rooms', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({
             name: rName,
             description: '⚡ 1-Click Instant Jam. Welcome, come queue music and chill!',
             genre_tags: ['chill', 'lofi'],
             queue_mode: 'open',
+            is_private: false,
             password: null
           }),
           credentials: 'include'
@@ -867,6 +903,13 @@ export default function HomePage() {
           currentUser = data.user;
           setMe(data.user);
           localStorage.setItem('openjam_display_name', randomName);
+          if (data.token) {
+            localStorage.setItem('openjam_token', data.token);
+            const maxAge = 86400 * 30;
+            const isSecure = window.location.protocol === 'https:';
+            document.cookie = `session_token=${data.token}; max-age=${maxAge}; path=/; samesite=lax${isSecure ? '; secure' : ''}`;
+            if (reconnect) reconnect(data.token, randomName);
+          }
         }
       } catch (err) {
         console.warn('Duo jam guest auth error:', err);
@@ -878,14 +921,19 @@ export default function HomePage() {
     
     try {
       setIsSubmitting(true);
+      const token = typeof window !== 'undefined' ? localStorage.getItem('openjam_token') : null;
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const r = await fetch('/rooms', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           name: rName,
           description: '🎧 Duo Jam — real-time synced music for two.',
           genre_tags: ['chill', 'duo'],
           queue_mode: 'open',
+          is_private: false,
           password: null,
           allow_guest_controls: true
         }),
@@ -1116,7 +1164,7 @@ export default function HomePage() {
         onStartDuoJam={handleStartDuoJam}
         onDiscordLogin={() => { window.location.href = '/auth/discord'; }}
         onJoinGuest={() => setShowJoinModal(true)}
-        onCreateRoom={() => setShowCreateModal(true)}
+        onCreateRoom={() => { resetCreateForm(); setShowCreateModal(true); }}
         rooms={rooms}
         onPlayPreview={handlePlayPreview}
         domeTracks={computedDomeTracks}
@@ -1820,7 +1868,7 @@ export default function HomePage() {
 
       <CreateRoomModal
         show={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
+        onClose={() => { setShowCreateModal(false); resetCreateForm(); }}
         createName={createName} onCreateNameChange={setCreateName}
         createDesc={createDesc} onCreateDescChange={setCreateDesc}
         createMode={createMode} onCreateModeChange={setCreateMode}

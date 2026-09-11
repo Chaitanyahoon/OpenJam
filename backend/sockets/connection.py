@@ -239,6 +239,9 @@ def register_connection_handlers(sio: socketio.AsyncServer):
                     # Host doesn't need to enter the password
                     if room.host_user_id == user_id:
                         return None
+                    # If room has no password_hash, it's link-only / unlisted: no password needed
+                    if not room.password_hash:
+                        return None
                     if not password_input:
                         return "password_required"
                     

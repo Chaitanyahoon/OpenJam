@@ -193,6 +193,37 @@ def test_create_private_room(client, auth_headers, test_user, db_session):
     assert bcrypt.checkpw(b"secretpassword123", db_room.password_hash.encode("utf-8"))
 
 
+def test_create_unlisted_room_without_password(client, auth_headers, test_user, db_session):
+    """Test creating an unlisted/private room without any password requirement."""
+    from backend.models.room import Room
+
+    payload = {
+        "name": "Chill Link-Only Room",
+        "description": "Anyone with the link can join",
+        "genre_tags": ["lofi", "chill"],
+        "queue_mode": "open",
+        "is_private": True,
+        "password": None,
+    }
+    response = client.post("/rooms", json=payload, headers=auth_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["room"]["name"] == "Chill Link-Only Room"
+    assert data["room"]["is_private"] is True
+
+    # Verify database state: is_private is True, but password_hash is None
+    db_room = db_session.query(Room).filter(Room.id == data["room"]["id"]).first()
+    assert db_room is not None
+    assert db_room.is_private is True
+    assert db_room.password_hash is None
+
+    # Getting room details should NOT require a password
+    get_res = client.get(f"/rooms/{data['room']['id']}")
+    assert get_res.status_code == 200
+    get_data = get_res.json()
+    assert get_data.get("password_required") is not True
+
+
 
 def test_list_private_room(client, auth_headers, test_user, db_session):
     """Test listing rooms when a private room exists."""

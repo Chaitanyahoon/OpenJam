@@ -559,6 +559,7 @@ export default function RoomClient({ roomId }) {
       if (!roomId || roomId === 'loading') return;
       try {
         let userResolved = false;
+        let resolvedUserId = null;
         let token = null;
         if (typeof window !== 'undefined') {
           const params = new URLSearchParams(window.location.search);
@@ -597,6 +598,7 @@ export default function RoomClient({ roomId }) {
             }
             if (reconnect) reconnect();
             userResolved = true;
+            resolvedUserId = data.user.id;
           } else {
             // No session exists — auto-assign guest moniker if no stored name exists
             const storedName = localStorage.getItem('openjam_display_name') || '';
@@ -619,8 +621,16 @@ export default function RoomClient({ roomId }) {
                 if (joinData.user) {
                   localStorage.setItem('openjam_display_name', joinData.user.display_name);
                 }
-                if (reconnect) reconnect();
+                if (joinData.token) {
+                  localStorage.setItem('openjam_token', joinData.token);
+                  const maxAge = 86400 * 30;
+                  const isSecure = window.location.protocol === 'https:';
+                  document.cookie = `session_token=${joinData.token}; max-age=${maxAge}; path=/; samesite=lax${isSecure ? '; secure' : ''}`;
+                  headers['Authorization'] = `Bearer ${joinData.token}`;
+                }
+                if (reconnect) reconnect(joinData.token, joinData.user?.display_name);
                 userResolved = true;
+                resolvedUserId = joinData.user?.id || null;
               }
             } catch (errJoin) {
               console.warn('Guest auto-join error:', errJoin);
@@ -628,19 +638,22 @@ export default function RoomClient({ roomId }) {
           }
         }
 
-        const rRoom = await fetch(`/rooms/${roomId}`, { credentials: 'include' });
+        const rRoom = await fetch(`/rooms/${roomId}`, { headers, credentials: 'include' });
         if (rRoom.ok) {
           const data = await rRoom.json();
           setRoom(data.room);
           setQueue(data.queue || []);
           setListeners(data.listeners || []);
           
-          if (data.password_required) {
+          
+          // Host bypass: the room creator should never see the password modal for their own room
+          const isHost = resolvedUserId && data.room?.host_user_id === resolvedUserId;
+          if (data.password_required && !isHost) {
             setShowPassword(true);
           }
           
-          // Connect socket if user is successfully authenticated/resolved and room is not password-protected
-          if (userResolved && !data.password_required) {
+          // Connect socket if user is successfully authenticated/resolved and room is not password-protected (or user is host)
+          if (userResolved && (!data.password_required || isHost)) {
             setIsReady(true);
           }
         } else {
@@ -910,8 +923,13 @@ export default function RoomClient({ roomId }) {
     });
 
     socket.on('join_error', (data) => {
-      setPasswordError(data.message || 'Failed to join room');
-      setShowPassword(true);
+      const isPasswordError = data?.reason === 'password_required' || data?.reason === 'invalid_password';
+      if (isPasswordError) {
+        setPasswordError(data.message || 'Password required to enter');
+        setShowPassword(true);
+      } else {
+        triggerToast(data?.message || 'Failed to join room', 'error');
+      }
     });
 
     socket.on('chat_history', (data) => {

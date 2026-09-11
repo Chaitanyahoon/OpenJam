@@ -61,7 +61,8 @@ async def join(request: Request):
     token = create_session_token(user_id, display_name=display_name)
 
     response = JSONResponse(content={
-        "user": {"id": user_id, "display_name": display_name, "avatar_url": None}
+        "user": {"id": user_id, "display_name": display_name, "avatar_url": None},
+        "token": token,
     })
     is_prod = settings.ENVIRONMENT == "production"
     response.set_cookie(

@@ -88,9 +88,9 @@ async def create_room(request: Request, create_room_req: CreateRoomRequest, db: 
     display_name = user_data["display_name"]
 
     password_hash = None
-    is_private = False
-    if create_room_req.password:
-        password_hash = await asyncio.to_thread(_hash_password, create_room_req.password)
+    is_private = bool(create_room_req.is_private)
+    if create_room_req.password and create_room_req.password.strip():
+        password_hash = await asyncio.to_thread(_hash_password, create_room_req.password.strip())
         is_private = True
 
     def _db_create_room():
@@ -168,7 +168,7 @@ def check_room_access(room: Room, user_id: str | None) -> bool:
     2. Currently listed in the room state AND their socket SID is still alive
        (prevents stale/ghost entries from granting access).
     """
-    if not room.is_private:
+    if not room.is_private or not room.password_hash:
         return True
     if not user_id:
         return False
@@ -193,7 +193,7 @@ async def get_room(room_id: str, request: Request, db: Session = Depends(get_db)
     current_user = get_current_user_id(request, include_name=True)
     current_user_id = current_user["id"] if current_user else None
 
-    if room.is_private and not check_room_access(room, current_user_id):
+    if room.is_private and room.password_hash and not check_room_access(room, current_user_id):
         return {
             "room": {
                 "id": room.id,
