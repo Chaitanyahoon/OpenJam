@@ -49,7 +49,6 @@ const fadeUpVariants = {
 function HeroSection({
   me,
   onInstantJam,
-  onStartDuoJam,
   onDiscordLogin,
   onJoinGuest,
   onCreateRoom,
@@ -420,11 +419,11 @@ function HeroSection({
               </span>
             </motion.button>
 
-            {onStartDuoJam && (
+            {onCreateRoom && (
               <motion.button
                 type="button"
                 className="btn btn-secondary btn-elegant-glow btn-bubble"
-                onClick={onStartDuoJam}
+                onClick={onCreateRoom}
                 style={{ 
                   padding: '13px 22px', 
                   fontSize: '14px', 
@@ -446,33 +445,7 @@ function HeroSection({
                 <div className="bubble-bg b3" />
                 <div className="bubble-bg b4" />
                 <span className="btn-bubble-content">
-                  <span>👫 Duo Jam</span>
-                </span>
-              </motion.button>
-            )}
-
-            {me && onCreateRoom && (
-              <motion.button
-                type="button"
-                className="btn btn-secondary btn-elegant-glow btn-bubble"
-                onClick={onCreateRoom}
-                style={{ 
-                  padding: '13px 22px', 
-                  fontSize: '14px', 
-                  borderRadius: '99px', 
-                  display: 'inline-flex', 
-                  alignItems: 'center', 
-                  gap: '6px',
-                }}
-                whileHover={reduceMotion ? undefined : { scale: 1.05 }}
-                whileTap={reduceMotion ? undefined : { scale: 0.98 }}
-              >
-                <div className="bubble-bg b1" />
-                <div className="bubble-bg b2" />
-                <div className="bubble-bg b3" />
-                <div className="bubble-bg b4" />
-                <span className="btn-bubble-content">
-                  <span>➕ Create Jam</span>
+                  <span>➕ Custom Jam</span>
                 </span>
               </motion.button>
             )}

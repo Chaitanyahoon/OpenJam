@@ -819,7 +819,7 @@ export default function HomePage() {
     let currentUser = me;
     if (!currentUser) {
       const randomName = generateRandomName();
-      triggerToast(`⚡ Instant Jam: Entering as ${randomName}...`, 'info');
+      triggerToast(`⚡ Instant Jam: Setting up as ${randomName}...`, 'info');
       try {
         const r = await fetch('/auth/join', {
           method: 'POST',
@@ -848,77 +848,12 @@ export default function HomePage() {
         return;
       }
     }
-    if (rooms.length > 0) {
-      const sorted = [...rooms].sort((a, b) => (b.listener_count || 0) - (a.listener_count || 0));
-      const targetRoom = sorted.find(r => !r.is_private) || sorted[0];
-      triggerToast(`⚡ Joining: ${targetRoom.name}`, 'success');
-      setTimeout(() => { router.push(`/room/${targetRoom.id}`); }, 800);
-    } else {
-      triggerToast(`⚡ Creating a new Quick Jam room...`, 'info');
-      const roomNames = ['Neon Lounge', 'Retro Beatcave', 'Analog Space', 'Echo Chamber', 'Decibel Oasis', 'Strobe Sanctuary'];
-      const rName = roomNames[Math.floor(Math.random() * roomNames.length)] + ' #' + Math.floor(Math.random() * 90 + 10);
-      try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('openjam_token') : null;
-        const headers = { 'Content-Type': 'application/json' };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        const r = await fetch('/rooms', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            name: rName,
-            description: '⚡ 1-Click Instant Jam. Welcome, come queue music and chill!',
-            genre_tags: ['chill', 'lofi'],
-            queue_mode: 'open',
-            is_private: false,
-            password: null
-          }),
-          credentials: 'include'
-        });
-        if (r.ok) {
-          const data = await r.json();
-          setTimeout(() => { router.push(`/room/${data.room.id}?created=true`); }, 800);
-        } else {
-          triggerToast('Failed to create quick room', 'error');
-        }
-      } catch (err) {
-        triggerToast('Failed to create quick room', 'error');
-      }
-    }
-  };
+    const prefixes = ['Neon Lounge', 'Retro Beatcave', 'Analog Space', 'Echo Chamber', 'Decibel Oasis', 'Starlight Jam', 'Velvet Sync'];
+    const rName = currentUser?.display_name 
+      ? `${currentUser.display_name}'s Jam` 
+      : `${prefixes[Math.floor(Math.random() * prefixes.length)]} #${Math.floor(Math.random() * 90 + 10)}`;
 
-  const handleStartDuoJam = async () => {
-    let currentUser = me;
-    if (!currentUser) {
-      const randomName = generateRandomName();
-      try {
-        const r = await fetch('/auth/join', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ display_name: randomName }),
-          credentials: 'include'
-        });
-        if (r.ok) {
-          const data = await r.json();
-          currentUser = data.user;
-          setMe(data.user);
-          localStorage.setItem('openjam_display_name', randomName);
-          if (data.token) {
-            localStorage.setItem('openjam_token', data.token);
-            const maxAge = 86400 * 30;
-            const isSecure = window.location.protocol === 'https:';
-            document.cookie = `session_token=${data.token}; max-age=${maxAge}; path=/; samesite=lax${isSecure ? '; secure' : ''}`;
-            if (reconnect) reconnect(data.token, randomName);
-          }
-        }
-      } catch (err) {
-        console.warn('Duo jam guest auth error:', err);
-      }
-    }
-
-    const duoNames = ['Cosmic Duo', 'Velvet Sync', 'Sunset Two', 'Echo Two', 'Midnight Wave', 'Starlight Jam'];
-    const rName = duoNames[Math.floor(Math.random() * duoNames.length)] + ' #' + Math.floor(Math.random() * 90 + 10);
-    
     try {
       setIsSubmitting(true);
       const token = typeof window !== 'undefined' ? localStorage.getItem('openjam_token') : null;
@@ -930,8 +865,8 @@ export default function HomePage() {
         headers,
         body: JSON.stringify({
           name: rName,
-          description: '🎧 Duo Jam — real-time synced music for two.',
-          genre_tags: ['chill', 'duo'],
+          description: '⚡ 1-Click Instant Jam. Welcome, come queue music and chill!',
+          genre_tags: ['chill', 'live'],
           queue_mode: 'open',
           is_private: false,
           password: null,
@@ -939,6 +874,7 @@ export default function HomePage() {
         }),
         credentials: 'include'
       });
+
       if (r.ok) {
         const data = await r.json();
         const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.openjam.fun';
@@ -947,19 +883,18 @@ export default function HomePage() {
         try {
           if (navigator.clipboard && navigator.clipboard.writeText) {
             await navigator.clipboard.writeText(`🎧 Listen with me in real-time on OpenJam: ${inviteUrl}`);
-            triggerToast('Invite link copied to clipboard!', 'success');
           }
         } catch (_) {}
 
-        triggerToast('Duo room ready! Entering...', 'success');
+        triggerToast('⚡ Jam room ready! Invite link copied to clipboard.', 'success');
         setTimeout(() => {
-          router.push(`/room/${data.room.id}?created=true&mode=duo`);
+          router.push(`/room/${data.room.id}?created=true`);
         }, 200);
       } else {
-        triggerToast('Failed to create Duo room', 'error');
+        triggerToast('Failed to create instant jam room', 'error');
       }
     } catch (err) {
-      triggerToast('Error creating Duo room', 'error');
+      triggerToast('Error creating instant jam room', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -1161,7 +1096,6 @@ export default function HomePage() {
       <HeroSection
         me={me}
         onInstantJam={handleInstantJam}
-        onStartDuoJam={handleStartDuoJam}
         onDiscordLogin={() => { window.location.href = '/auth/discord'; }}
         onJoinGuest={() => setShowJoinModal(true)}
         onCreateRoom={() => { resetCreateForm(); setShowCreateModal(true); }}
@@ -1774,7 +1708,7 @@ export default function HomePage() {
                 ☕ OpenJam Live Lounge
               </h3>
               <p style={{ color: 'var(--text-2)', fontSize: '14.5px', maxWidth: '440px', margin: 0, lineHeight: 1.6 }}>
-                The official community radio is broadcasting synchronized chill beats right now. Jump straight in or spin up an intimate Duo Jam in 1 click!
+                The official community radio is broadcasting synchronized chill beats right now. Jump straight in or spin up your own live room in 1 click!
               </p>
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center', marginTop: '8px' }}>
                 <motion.button
@@ -1790,12 +1724,12 @@ export default function HomePage() {
                 <motion.button
                   type="button"
                   className="btn btn-secondary btn-bubble btn-guest-bubble"
-                  onClick={handleStartDuoJam}
+                  onClick={handleInstantJam}
                   whileHover={{ scale: 1.04 }}
                   whileTap={{ scale: 0.96 }}
                   style={{ padding: '12px 22px', borderRadius: '99px', fontSize: '14px' }}
                 >
-                  ⚡ Start Duo Jam (1-Click)
+                  ⚡ Instant Jam (Host Your Own)
                 </motion.button>
               </div>
             </motion.div>
