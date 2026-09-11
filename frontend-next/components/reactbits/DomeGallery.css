@@ -46,20 +46,25 @@ main.sphere-main {
 .sphere {
   transform: translateZ(calc(var(--radius) * -1));
   will-change: transform;
-  contain: layout style;
 }
 
-.overlay {
+.overlay,
+.overlay--blur {
   position: absolute;
   inset: 0;
   margin: auto;
   z-index: 3;
   pointer-events: none;
-  background-image: radial-gradient(circle at center, transparent 40%, rgba(8, 8, 10, 0.45) 70%, var(--overlay-blur-color, #08080a) 96%);
+}
+
+.overlay {
+  background-image: radial-gradient(rgba(235, 235, 235, 0) 65%, var(--overlay-blur-color, #08080a) 100%);
 }
 
 .overlay--blur {
-  display: none;
+  -webkit-mask-image: radial-gradient(rgba(235, 235, 235, 0) 70%, var(--overlay-blur-color, #08080a) 90%);
+  mask-image: radial-gradient(rgba(235, 235, 235, 0) 70%, var(--overlay-blur-color, #08080a) 90%);
+  backdrop-filter: blur(3px);
 }
 
 .item {
@@ -73,16 +78,10 @@ main.sphere-main {
   margin: auto;
   transform-origin: 50% 50%;
   backface-visibility: hidden;
-  will-change: transform;
-  contain: layout paint;
+  transition: transform 300ms;
   transform: rotateY(calc(var(--rot-y) * (var(--offset-x) + ((var(--item-size-x) - 1) / 2)) + var(--rot-y-delta, 0deg)))
     rotateX(calc(var(--rot-x) * (var(--offset-y) - ((var(--item-size-y) - 1) / 2)) + var(--rot-x-delta, 0deg)))
     translateZ(var(--radius));
-}
-
-.sphere-root[data-dragging='true'] .item,
-.sphere-root[data-dragging='true'] .item__image {
-  transition: none !important;
 }
 
 .item__image {
@@ -93,7 +92,7 @@ main.sphere-main {
   background: transparent;
   overflow: hidden;
   backface-visibility: hidden;
-  transition: transform 200ms ease;
+  transition: transform 300ms;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
