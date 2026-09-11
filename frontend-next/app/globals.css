@@ -1324,8 +1324,8 @@ input[type=range]::-moz-range-track {
 
 /* ---- Toast ---- */
 .toast-stack {
-  position: fixed; top: 24px; right: 24px;
-  z-index: 9999; display: flex; flex-direction: column; gap: 10px;
+  position: fixed; bottom: 28px; right: 28px;
+  z-index: 9999; display: flex; flex-direction: column-reverse; gap: 10px;
   pointer-events: none;
   align-items: flex-end;
 }
@@ -6973,14 +6973,14 @@ body:not(.room-page) {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  background: linear-gradient(135deg, rgba(12, 12, 18, 0.75) 0%, rgba(6, 6, 9, 0.85) 100%);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.85), inset 0 1px 1px rgba(255, 255, 255, 0.08);
-  padding: 48px 36px;
-  border-radius: 32px;
-  max-width: 640px;
+  background: rgba(10, 10, 15, 0.52);
+  backdrop-filter: blur(28px) saturate(1.6);
+  -webkit-backdrop-filter: blur(28px) saturate(1.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.7), inset 0 1px 1px rgba(255, 255, 255, 0.08);
+  padding: 28px 28px;
+  border-radius: 26px;
+  max-width: 520px;
   width: 100%;
   pointer-events: auto;
   transform-style: preserve-3d;
@@ -9639,33 +9639,33 @@ body:not(.room-page) .navbar:hover {
 .room-content {
   display: flex !important;
   flex-direction: row !important;
-  gap: 32px !important;
+  gap: 28px !important;
   height: calc(100dvh - 72px) !important;
   max-height: calc(100dvh - 72px) !important;
   position: relative !important;
   z-index: 10 !important;
   overflow: hidden !important;
-  padding: 24px 32px !important;
+  padding: 24px 28px !important;
   box-sizing: border-box !important;
   justify-content: center !important;
-  align-items: center !important;
-  max-width: 1600px !important;
+  align-items: stretch !important;
+  max-width: 1140px !important;
   margin: 0 auto !important;
   width: 100% !important;
 }
 
 .room-now-playing {
   flex: 1 1 0% !important;
-  max-width: none !important;
+  max-width: 520px !important;
+  min-width: 320px !important;
   width: 100% !important;
   height: 100% !important;
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
-  justify-content: center !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  padding: 0 16px !important;
+  justify-content: flex-start !important;
+  overflow: hidden !important;
+  padding: 0 !important;
   scrollbar-width: none !important;
   box-sizing: border-box !important;
 }
@@ -9675,16 +9675,18 @@ body:not(.room-page) .navbar:hover {
 }
 
 .room-sidebar {
-  flex: 0 0 440px !important;
-  max-width: 440px !important;
-  width: 440px !important;
+  flex: 1 1 0% !important;
+  max-width: 480px !important;
+  min-width: 320px !important;
+  width: 100% !important;
   height: 100% !important;
   display: flex !important;
   flex-direction: column !important;
-  background: rgba(12, 12, 18, 0.45) !important;
+  background: rgba(12, 12, 18, 0.5) !important;
   backdrop-filter: blur(32px) saturate(1.8) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(1.8) !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-radius: 24px !important;
+  border-radius: 28px !important;
   overflow: hidden !important;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65) !important;
 }
@@ -9833,26 +9835,36 @@ body:not(.room-page) .navbar:hover {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .sidebar-tabs {
-  background: rgba(255, 255, 255, 0.02) !important;
-  padding: 6px !important;
-  border-radius: 16px !important;
-  border: 1px solid rgba(255, 255, 255, 0.05) !important;
-  margin: 20px 20px 12px !important;
-  gap: 6px !important;
+  background: rgba(255, 255, 255, 0.025) !important;
+  padding: 5px !important;
+  border-radius: 14px !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  margin: 18px 20px 10px !important;
+  gap: 4px !important;
+  display: flex !important;
+  flex-shrink: 0 !important;
 }
 
 .sidebar-tab {
-  padding: 10px 16px !important;
-  font-size: 12px !important;
+  flex: 1 1 0% !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 8px 12px !important;
+  font-size: 12.5px !important;
   font-weight: 700 !important;
   border-radius: 10px !important;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
-  color: rgba(255, 255, 255, 0.5) !important;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  color: rgba(255, 255, 255, 0.65) !important;
+  border: none !important;
+  background: transparent !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
 }
 
 .sidebar-tab:hover {
   color: #ffffff !important;
-  background: rgba(255, 255, 255, 0.04) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
   transform: translateY(-1px) !important;
 }
 

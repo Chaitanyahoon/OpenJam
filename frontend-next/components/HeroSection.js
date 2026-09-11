@@ -189,51 +189,8 @@ function HeroSection({
             e.currentTarget.style.setProperty('--mouse-x', `${x}px`);
             e.currentTarget.style.setProperty('--mouse-y', `${y}px`);
           }}
-          style={{ position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', maxWidth: '640px', pointerEvents: 'auto' }}
+          style={{ position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', maxWidth: '520px', pointerEvents: 'auto' }}
         >
-          {/* Interactive Peeking Vinyl Record */}
-          {mounted && !reduceMotion && (
-            <motion.div
-              className="hero-vinyl-behind-wrapper"
-              animate={{
-                x: isHovered ? 260 : 70,
-                scale: isHovered ? 1.05 : 1,
-              }}
-              transition={{
-                type: 'spring',
-                stiffness: 65, // Smoother spring stiffness
-                damping: 15, // Butter-smooth damping
-              }}
-              style={{
-                position: 'absolute',
-                width: '340px',
-                height: '340px',
-                zIndex: -1,
-                pointerEvents: 'none',
-                top: 'calc(50% - 170px)',
-                left: 'calc(50% - 170px)',
-              }}
-            >
-              <div
-                className="hero-vinyl-behind"
-                style={{
-                  position: 'relative',
-                  width: '100%',
-                  height: '100%',
-                }}
-              >
-                <div className="vinyl-grooves" style={{ width: '100%', height: '100%', borderRadius: '50%', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <div className="hero-vinyl-label">
-                    <div className="hero-vinyl-label-design">
-                      <span className="hero-vinyl-label-text">OPENJAM</span>
-                      <div className="vinyl-spindle-hole" />
-                      <span className="hero-vinyl-label-sub">V2 PLAY</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
           <motion.div
             className="hero-glass-card hero-glass-card-glow"
             variants={containerVariants}
@@ -254,7 +211,7 @@ function HeroSection({
                 letterSpacing: '2px',
                 fontWeight: 800,
                 fontSize: '11px',
-                marginBottom: '16px',
+                marginBottom: '10px',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '8px',
@@ -276,12 +233,12 @@ function HeroSection({
                 transition: { type: 'spring', stiffness: 350, damping: 15 }
               }}
               style={{
-                fontSize: 'clamp(58px, 9vw, 98px)',
+                fontSize: 'clamp(50px, 7.5vw, 80px)',
                 lineHeight: 0.95,
                 letterSpacing: '-0.04em',
                 fontFamily: "var(--font-display), 'Outfit', sans-serif", // Cohesive brand typeface
                 fontWeight: 900,
-                marginBottom: '12px',
+                marginBottom: '8px',
                 display: 'inline-block',
                 transform: 'translateZ(35px)', // Floating layer
                 cursor: 'default',
@@ -296,11 +253,11 @@ function HeroSection({
               className="hero-slogan"
               variants={fadeUpVariants}
               style={{
-                fontSize: 'clamp(20px, 3.2vw, 26px)',
+                fontSize: 'clamp(18px, 2.8vw, 23px)',
                 fontWeight: 700,
                 color: '#ffffff',
                 letterSpacing: '-0.5px',
-                marginBottom: '16px',
+                marginBottom: '12px',
                 textShadow: '0 2px 8px rgba(0, 0, 0, 0.5)',
                 transform: 'translateZ(20px)', // Floating layer
                 display: 'inline-flex',
@@ -401,11 +358,11 @@ function HeroSection({
             variants={fadeUpVariants}
             style={{
               textAlign: 'center',
-              maxWidth: '480px',
-              margin: '0 auto 32px auto',
-              fontSize: '15px',
+              maxWidth: '460px',
+              margin: '0 auto 20px auto',
+              fontSize: '14.5px',
               color: 'var(--text-2)',
-              lineHeight: 1.6,
+              lineHeight: 1.5,
               textShadow: '0 2px 4px rgba(0, 0, 0, 0.5)',
               transform: 'translateZ(18px)', // Floating layer
             }}
@@ -426,7 +383,8 @@ function HeroSection({
             variants={fadeUpVariants}
             style={{
               justifyContent: 'center',
-              gap: '14px',
+              alignItems: 'center',
+              gap: '12px',
               width: '100%',
               display: 'flex',
               flexWrap: 'wrap',
@@ -439,7 +397,7 @@ function HeroSection({
               className="btn btn-primary btn-elegant-glow btn-primary-pulse btn-bubble"
               onClick={onInstantJam}
               style={{ 
-                padding: '14px 28px', 
+                padding: '13px 26px', 
                 fontSize: '15px', 
                 borderRadius: '99px', 
                 display: 'inline-flex', 
@@ -465,19 +423,21 @@ function HeroSection({
             {onStartDuoJam && (
               <motion.button
                 type="button"
-                className="btn btn-secondary btn-elegant-glow btn-bubble btn-guest-bubble"
+                className="btn btn-secondary btn-elegant-glow btn-bubble"
                 onClick={onStartDuoJam}
                 style={{ 
-                  padding: '14px 24px', 
-                  fontSize: '14.5px', 
+                  padding: '13px 22px', 
+                  fontSize: '14px', 
                   borderRadius: '99px', 
                   display: 'inline-flex', 
                   alignItems: 'center', 
-                  gap: '8px',
+                  gap: '6px',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
                 }}
                 whileHover={reduceMotion ? undefined : { 
                   scale: 1.05, 
-                  boxShadow: '0 12px 32px rgba(255, 159, 28, 0.3)' 
+                  boxShadow: '0 12px 28px rgba(255, 255, 255, 0.12)' 
                 }}
                 whileTap={reduceMotion ? undefined : { scale: 0.98 }}
               >
@@ -491,87 +451,75 @@ function HeroSection({
               </motion.button>
             )}
 
-            <div className="hero-sub-actions-row">
-              {!me ? (
-                <>
-                  <motion.button
-                    type="button"
-                    className="btn btn-discord btn-discord-cta btn-elegant-glow btn-bubble btn-discord-bubble"
-                    onClick={onDiscordLogin}
-                    style={{ 
-                      borderRadius: '99px',
-                    }}
-                    whileHover={reduceMotion ? undefined : { 
-                      scale: 1.05, 
-                      boxShadow: '0 12px 32px rgba(88, 101, 242, 0.35)' 
-                    }}
-                    whileTap={reduceMotion ? undefined : { scale: 0.98 }}
-                  >
-                    <div className="bubble-bg b1" />
-                    <div className="bubble-bg b2" />
-                    <div className="bubble-bg b3" />
-                    <div className="bubble-bg b4" />
-                    <span className="btn-bubble-content">
-                      <svg
-                        width="18"
-                        height="13"
-                        viewBox="0 0 71 55"
-                        fill="currentColor"
-                        xmlns="http://www.w3.org/2000/svg"
-                        aria-hidden="true"
-                        style={{ marginRight: '8px' }}
-                      >
-                        <path d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 40.8 40.8 0 00-1.8 3.7 54 54 0 00-16.2 0A37.3 37.3 0 0025.4.3a.2.2 0 00-.2-.1 58.4 58.4 0 00-14.7 4.6.2.2 0 00-.1 0C1.5 18.7-.9 32 .3 45.1v.1a58.9 58.9 0 0018 9.1.2.2 0 00.3-.1 42.2 42.2 0 003.6-5.9.2.2 0 00-.1-.3 38.8 38.8 0 01-5.5-2.7.2.2 0 01 0-.4l1.1-.9a.2.2 0 01.2 0 42 42 0 0035.8 0 .2.2 0 01.2 0l1.1.9a.2.2 0 010 .4 36.4 36.4 0 01-5.5 2.7.2.2 0 00-.1.3 47.3 47.3 0 003.6 5.9.2.2 0 00.3.1 58.7 58.7 0 0018-9.1v-.1c1.4-15-2.3-28-9.8-39.6a.2.2 0 00-.1-.1zM23.7 37c-3.4 0-6.2-3.1-6.2-7s2.7-7 6.2-7 6.3 3.2 6.2 7-2.8 7-6.2 7zm23 0c-3.4 0-6.2-3.1-6.2-7s2.7-7 6.2-7 6.3 3.2 6.2 7-2.8 7-6.2 7z" />
-                      </svg>
-                      Sign in
-                    </span>
-                  </motion.button>
-                  <motion.button
-                    type="button"
-                    className="btn btn-secondary btn-elegant-glow btn-bubble btn-guest-bubble"
-                    onClick={onJoinGuest}
-                    style={{ 
-                      borderRadius: '99px',
-                    }}
-                    whileHover={reduceMotion ? undefined : { 
-                      scale: 1.05, 
-                      boxShadow: '0 12px 32px rgba(255, 255, 255, 0.15)' 
-                    }}
-                    whileTap={reduceMotion ? undefined : { scale: 0.98 }}
-                  >
-                    <div className="bubble-bg b1" />
-                    <div className="bubble-bg b2" />
-                    <div className="bubble-bg b3" />
-                    <div className="bubble-bg b4" />
-                    <span className="btn-bubble-content">
-                      👋 Guest
-                    </span>
-                  </motion.button>
-                </>
-              ) : (
-                <motion.button
+            {me && onCreateRoom && (
+              <motion.button
+                type="button"
+                className="btn btn-secondary btn-elegant-glow btn-bubble"
+                onClick={onCreateRoom}
+                style={{ 
+                  padding: '13px 22px', 
+                  fontSize: '14px', 
+                  borderRadius: '99px', 
+                  display: 'inline-flex', 
+                  alignItems: 'center', 
+                  gap: '6px',
+                }}
+                whileHover={reduceMotion ? undefined : { scale: 1.05 }}
+                whileTap={reduceMotion ? undefined : { scale: 0.98 }}
+              >
+                <div className="bubble-bg b1" />
+                <div className="bubble-bg b2" />
+                <div className="bubble-bg b3" />
+                <div className="bubble-bg b4" />
+                <span className="btn-bubble-content">
+                  <span>➕ Create Jam</span>
+                </span>
+              </motion.button>
+            )}
+
+            {!me && (
+              <div style={{ width: '100%', marginTop: '6px', textAlign: 'center' }}>
+                <button
                   type="button"
-                  className="btn btn-secondary btn-elegant-glow btn-bubble btn-guest-bubble"
-                  onClick={onCreateRoom}
-                  style={{ 
-                    borderRadius: '99px',
+                  onClick={onDiscordLogin}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'rgba(255, 255, 255, 0.45)',
+                    fontSize: '12px',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '4px 10px',
+                    borderRadius: '8px',
                   }}
-                  whileHover={reduceMotion ? undefined : { 
-                    scale: 1.05, 
-                    boxShadow: '0 12px 32px rgba(255, 255, 255, 0.15)' 
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = '#fff';
+                    e.currentTarget.style.background = 'rgba(88, 101, 242, 0.15)';
                   }}
-                  whileTap={reduceMotion ? undefined : { scale: 0.98 }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = 'rgba(255, 255, 255, 0.45)';
+                    e.currentTarget.style.background = 'none';
+                  }}
                 >
-                  <div className="bubble-bg b1" />
-                  <div className="bubble-bg b2" />
-                  <div className="bubble-bg b3" />
-                  <div className="bubble-bg b4" />
-                  <span className="btn-bubble-content">
-                    ➕ Create Jam
-                  </span>
-                </motion.button>
-              )}
-            </div>
+                  <svg
+                    width="14"
+                    height="11"
+                    viewBox="0 0 71 55"
+                    fill="currentColor"
+                    xmlns="http://www.w3.org/2000/svg"
+                    aria-hidden="true"
+                    style={{ color: '#5865F2' }}
+                  >
+                    <path d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 40.8 40.8 0 00-1.8 3.7 54 54 0 00-16.2 0A37.3 37.3 0 0025.4.3a.2.2 0 00-.2-.1 58.4 58.4 0 00-14.7 4.6.2.2 0 00-.1 0C1.5 18.7-.9 32 .3 45.1v.1a58.9 58.9 0 0018 9.1.2.2 0 00.3-.1 42.2 42.2 0 003.6-5.9.2.2 0 00-.1-.3 38.8 38.8 0 01-5.5-2.7.2.2 0 01 0-.4l1.1-.9a.2.2 0 01.2 0 42 42 0 0035.8 0 .2.2 0 01.2 0l1.1.9a.2.2 0 010 .4 36.4 36.4 0 01-5.5 2.7.2.2 0 00-.1.3 47.3 47.3 0 003.6 5.9.2.2 0 00.3.1 58.7 58.7 0 0018-9.1v-.1c1.4-15-2.3-28-9.8-39.6a.2.2 0 00-.1-.1zM23.7 37c-3.4 0-6.2-3.1-6.2-7s2.7-7 6.2-7 6.3 3.2 6.2 7-2.8 7-6.2 7zm23 0c-3.4 0-6.2-3.1-6.2-7s2.7-7 6.2-7 6.3 3.2 6.2 7-2.8 7-6.2 7z" />
+                  </svg>
+                  <span>Or sign in with Discord to save playlists</span>
+                </button>
+              </div>
+            )}
           </motion.div>
         </motion.div>
         </div>
