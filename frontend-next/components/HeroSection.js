@@ -87,8 +87,8 @@ function HeroSection({
       style={{
         position: 'relative',
         zIndex: 10,
-        padding: '80px 24px 60px',
-        minHeight: '82vh',
+        padding: '96px 24px 56px',
+        minHeight: '85vh',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

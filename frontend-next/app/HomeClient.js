@@ -499,16 +499,6 @@ export default function HomePage() {
           }
         });
       }
-
-      list.push({
-        label: 'Create Jam',
-        href: '#create',
-        onClick: (e) => {
-          e.preventDefault();
-          resetCreateForm();
-          setShowCreateModal(true);
-        }
-      });
     }
 
     return list;
