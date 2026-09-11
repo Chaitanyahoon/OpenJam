@@ -138,6 +138,35 @@ async def _do_advance(room_id: str, sio: socketio.AsyncServer):
 
     next_item, queue = await asyncio.to_thread(_advance, room_id)
 
+    if not next_item and room_id == "openjam-lounge":
+        try:
+            from backend.constants import LOUNGE_DISCOVERY_TRACKS, SYSTEM_BOT_USER_ID, SYSTEM_BOT_NAME
+            import random
+            disc_track = random.choice(LOUNGE_DISCOVERY_TRACKS)
+            def _seed_lounge_track():
+                db = SessionLocal()
+                try:
+                    queue_manager.add_to_queue(
+                        db=db,
+                        room_id=room_id,
+                        track_uri=disc_track["track_uri"],
+                        track_name=disc_track["track_name"],
+                        artist=disc_track["artist"],
+                        album_art_url=disc_track.get("album_art_url", ""),
+                        duration_ms=disc_track.get("duration_ms", 0),
+                        user_id=SYSTEM_BOT_USER_ID,
+                        display_name=SYSTEM_BOT_NAME,
+                    )
+                    nxt = queue_manager.advance_queue(db, room_id)
+                    q = queue_manager.get_queue(db, room_id)
+                    return nxt, q
+                finally:
+                    db.close()
+            next_item, queue = await asyncio.to_thread(_seed_lounge_track)
+        except Exception as seed_err:
+            from backend.logger import get_logger
+            get_logger(__name__).error(f"Failed to auto-replenish openjam-lounge track: {seed_err}")
+
     if next_item:
         # Pre-resolve stream URL before emitting so playback starts instantly
         track_uri = next_item.get("track_uri", "")

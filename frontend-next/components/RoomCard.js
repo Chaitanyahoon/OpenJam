@@ -53,8 +53,8 @@ function RoomCard({ room, nameColor, getInitials, href }) {
                   </div>
                 )}
                 <div className="room-card-cover-overlay" style={{ opacity: 1 }}>
-                  <div className={`room-card-badge ${room.is_private ? 'private' : 'live'}`}>
-                    {room.is_private ? 'Private' : 'Live'}
+                  <div className={`room-card-badge ${room.id === 'openjam-lounge' ? 'lounge' : (room.is_private ? 'private' : 'live')}`}>
+                    {room.id === 'openjam-lounge' ? '☕ 24/7 Lounge' : (room.is_private ? 'Private' : 'Live')}
                   </div>
                   <div className="room-card-listeners">
                     <div className="listeners-dot" aria-hidden="true" />

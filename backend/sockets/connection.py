@@ -117,6 +117,12 @@ def register_connection_handlers(sio: socketio.AsyncServer):
             "listeners": room_manager.get_listeners(room_id),
         }, room=room_id)
         
+        if room_id == "openjam-lounge":
+            if room_manager.get_listener_count(room_id) > 0:
+                from backend.sockets.playback import evaluate_skip_votes
+                await evaluate_skip_votes(room_id, sio)
+            return
+
         if was_host:
             listeners = room_manager.get_listeners(room_id)
             if listeners:
@@ -329,7 +335,44 @@ def register_connection_handlers(sio: socketio.AsyncServer):
             await sio.emit("queue_updated", {"queue": queue}, to=sid)
     
             playback = room_manager.get_playback(room_id)
-    
+            if room_id == "openjam-lounge" and (not playback or not playback.get("track_uri") or not playback.get("is_playing")):
+                from backend.constants import LOUNGE_DISCOVERY_TRACKS, SYSTEM_BOT_USER_ID, SYSTEM_BOT_NAME
+                first_track = LOUNGE_DISCOVERY_TRACKS[0]
+                def _seed_initial_lounge():
+                    db = SessionLocal()
+                    try:
+                        q_items = queue_manager.get_queue(db, room_id)
+                        if not q_items:
+                            queue_manager.add_to_queue(
+                                db=db,
+                                room_id=room_id,
+                                track_uri=first_track["track_uri"],
+                                track_name=first_track["track_name"],
+                                artist=first_track["artist"],
+                                album_art_url=first_track.get("album_art_url", ""),
+                                duration_ms=first_track.get("duration_ms", 0),
+                                user_id=SYSTEM_BOT_USER_ID,
+                                display_name=SYSTEM_BOT_NAME,
+                            )
+                            queue_manager.advance_queue(db, room_id)
+                        return queue_manager.get_queue(db, room_id)
+                    finally:
+                        db.close()
+                queue = await asyncio.to_thread(_seed_initial_lounge)
+                room_manager.update_playback(
+                    room_id=room_id,
+                    track_uri=first_track["track_uri"],
+                    track_name=first_track["track_name"],
+                    artist=first_track["artist"],
+                    album_art_url=first_track.get("album_art_url", ""),
+                    position_ms=0,
+                    duration_ms=first_track.get("duration_ms", 0),
+                    is_playing=True,
+                )
+                from backend.sockets.playback import ensure_sync_loop
+                ensure_sync_loop(room_id, sio)
+                playback = room_manager.get_playback(room_id)
+
             # Build now_playing from queue
             now_playing_item = None
             for item in queue:

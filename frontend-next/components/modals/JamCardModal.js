@@ -69,7 +69,8 @@ export default function JamCardModal({
   const artist = nowPlaying?.artist || 'OpenJam Collective';
   const albumArtUrl = nowPlaying?.album_art_url || nowPlaying?.cover || nowPlaying?.thumbnail || '';
   const currentListeners = listenerCount || room?.listener_count || 1;
-  const inviteUrl = `https://www.openjam.fun/room/${roomId}`;
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.openjam.fun';
+  const inviteUrl = `${origin}/room/${roomId}`;
 
   // Render the high-fidelity Jam Card canvas
   useEffect(() => {
@@ -931,25 +932,47 @@ export default function JamCardModal({
     }, 'image/png');
   };
 
-  // ── 1-Tap Instagram Stories (Copy Card to Clipboard) ────────────
+  // ── 1-Tap Instagram Stories (Copy Card to Clipboard & Auto Copy Link) ──
   const handleInstagramShare = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     canvas.toBlob(async (blob) => {
       if (!blob) return;
+      const file = new File([blob], `openjam-story-${roomId}.png`, { type: 'image/png' });
+
+      // Auto-copy invite link to clipboard for Story Link Sticker
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(inviteUrl);
+        }
+      } catch (_) {}
+
+      // On mobile devices supporting file share:
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: `${trackName} on OpenJam`,
+            text: `🎧 Listen with me live: ${inviteUrl}`,
+          });
+          triggerToast('Invite link copied! Paste it in your Story Link Sticker.', 'success');
+          return;
+        } catch (err) {
+          if (err.name !== 'AbortError') console.warn('Share error:', err);
+        }
+      }
+
       if (typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
         try {
           const item = new ClipboardItem({ 'image/png': blob });
           await navigator.clipboard.write([item]);
-          triggerToast('Jam Card copied! Open Instagram Stories and tap "Paste" to share.', 'success');
+          triggerToast('Card & link copied! In Stories, paste image and add your link sticker.', 'success');
           return;
-        } catch (e) {
-          // Fallback to download
-        }
+        } catch (e) {}
       }
       handleDownloadPng();
-      triggerToast('Jam Card downloaded! Ready to upload to Instagram Stories.', 'info');
+      triggerToast('Story image downloaded & invite link copied! Paste link in your Story sticker.', 'info');
     }, 'image/png');
   };
 
@@ -1113,18 +1136,47 @@ export default function JamCardModal({
             }}
           >
             {previewUrl ? (
-              <img
-                ref={previewImgRef}
-                src={previewUrl}
-                alt="Jam Card Preview"
-                style={{
-                  maxHeight: 'min(410px, 44vh)',
-                  maxWidth: '100%',
-                  borderRadius: '14px',
-                  boxShadow: '0 16px 45px rgba(0, 0, 0, 0.75)',
-                  objectFit: 'contain',
-                }}
-              />
+              <div style={{ position: 'relative', display: 'inline-flex', justifyContent: 'center', alignItems: 'center' }}>
+                <img
+                  ref={previewImgRef}
+                  src={previewUrl}
+                  alt="Jam Card Preview"
+                  style={{
+                    maxHeight: 'min(410px, 44vh)',
+                    maxWidth: '100%',
+                    borderRadius: '14px',
+                    boxShadow: '0 16px 45px rgba(0, 0, 0, 0.75)',
+                    objectFit: 'contain',
+                    display: 'block'
+                  }}
+                />
+                {format === 'story' && (
+                  <div style={{
+                    position: 'absolute',
+                    bottom: '22%',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    padding: '6px 14px',
+                    borderRadius: '12px',
+                    border: '1.5px dashed rgba(255, 159, 28, 0.85)',
+                    background: 'rgba(8, 9, 14, 0.8)',
+                    backdropFilter: 'blur(8px)',
+                    color: '#ff9f1c',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    letterSpacing: '0.03em',
+                    pointerEvents: 'none',
+                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.6)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    whiteSpace: 'nowrap',
+                    textShadow: '0 1px 4px rgba(0,0,0,0.8)'
+                  }}>
+                    <span>🔗</span> Paste Story Link Sticker Here
+                  </div>
+                )}
+              </div>
             ) : (
               <div style={{ color: 'rgba(255, 255, 255, 0.45)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Disc size={20} className="animate-spin" /> Rendering high-res Jam Card…

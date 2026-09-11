@@ -851,6 +851,72 @@ export default function HomePage() {
     }
   };
 
+  const handleStartDuoJam = async () => {
+    let currentUser = me;
+    if (!currentUser) {
+      const randomName = generateRandomName();
+      try {
+        const r = await fetch('/auth/join', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ display_name: randomName }),
+          credentials: 'include'
+        });
+        if (r.ok) {
+          const data = await r.json();
+          currentUser = data.user;
+          setMe(data.user);
+          localStorage.setItem('openjam_display_name', randomName);
+        }
+      } catch (err) {
+        console.warn('Duo jam guest auth error:', err);
+      }
+    }
+
+    const duoNames = ['Cosmic Duo', 'Velvet Sync', 'Sunset Two', 'Echo Two', 'Midnight Wave', 'Starlight Jam'];
+    const rName = duoNames[Math.floor(Math.random() * duoNames.length)] + ' #' + Math.floor(Math.random() * 90 + 10);
+    
+    try {
+      setIsSubmitting(true);
+      const r = await fetch('/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: rName,
+          description: '🎧 Duo Jam — real-time synced music for two.',
+          genre_tags: ['chill', 'duo'],
+          queue_mode: 'open',
+          password: null,
+          allow_guest_controls: true
+        }),
+        credentials: 'include'
+      });
+      if (r.ok) {
+        const data = await r.json();
+        const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.openjam.fun';
+        const inviteUrl = `${origin}/room/${data.room.id}`;
+        
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(`🎧 Listen with me in real-time on OpenJam: ${inviteUrl}`);
+            triggerToast('Invite link copied to clipboard!', 'success');
+          }
+        } catch (_) {}
+
+        triggerToast('Duo room ready! Entering...', 'success');
+        setTimeout(() => {
+          router.push(`/room/${data.room.id}?created=true&mode=duo`);
+        }, 200);
+      } else {
+        triggerToast('Failed to create Duo room', 'error');
+      }
+    } catch (err) {
+      triggerToast('Error creating Duo room', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const toggleTag = (tag) => {
     const updated = new Set(selectedTags);
     if (updated.has(tag)) {
@@ -1047,6 +1113,7 @@ export default function HomePage() {
       <HeroSection
         me={me}
         onInstantJam={handleInstantJam}
+        onStartDuoJam={handleStartDuoJam}
         onDiscordLogin={() => { window.location.href = '/auth/discord'; }}
         onJoinGuest={() => setShowJoinModal(true)}
         onCreateRoom={() => setShowCreateModal(true)}
@@ -1619,36 +1686,70 @@ export default function HomePage() {
             </motion.div>
           ) : (
             <motion.div
-              className="empty"
-              style={{ display: 'flex' }}
+              className="glass-card"
+              style={{
+                padding: '36px 24px',
+                borderRadius: '24px',
+                border: '1px solid rgba(255, 159, 28, 0.25)',
+                background: 'linear-gradient(135deg, rgba(255, 159, 28, 0.08) 0%, rgba(12, 11, 16, 0.85) 100%)',
+                backdropFilter: 'blur(20px)',
+                textAlign: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '16px',
+                maxWidth: '600px',
+                margin: '32px auto',
+                boxShadow: '0 16px 40px rgba(0, 0, 0, 0.4)'
+              }}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
             >
-              <div className="empty-illustration">
-                <div className="empty-vinyl">
-                  <div className="vinyl-disc" />
-                  <div className="vinyl-label" />
-                </div>
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '6px 14px',
+                borderRadius: '99px',
+                background: 'rgba(255, 159, 28, 0.15)',
+                border: '1px solid var(--amber)',
+                color: 'var(--amber)',
+                fontSize: '12px',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em'
+              }}>
+                <span className="section-live-dot" style={{ margin: 0 }} /> 24/7 Community Station
               </div>
-              <div className="empty-title">No active rooms right now</div>
-              <div className="empty-sub">
-                Be the first to start a listening session and invite your friends!
+              <h3 style={{ fontSize: '24px', fontWeight: 800, color: '#fff', margin: 0, letterSpacing: '-0.02em' }}>
+                ☕ OpenJam Live Lounge
+              </h3>
+              <p style={{ color: 'var(--text-2)', fontSize: '14.5px', maxWidth: '440px', margin: 0, lineHeight: 1.6 }}>
+                The official community radio is broadcasting synchronized chill beats right now. Jump straight in or spin up an intimate Duo Jam in 1 click!
+              </p>
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center', marginTop: '8px' }}>
+                <motion.button
+                  type="button"
+                  className="btn btn-primary btn-bubble"
+                  onClick={() => router.push('/room/openjam-lounge')}
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.96 }}
+                  style={{ padding: '12px 24px', borderRadius: '99px', fontWeight: 700, fontSize: '14px' }}
+                >
+                  🎧 Tune In (Live Lounge)
+                </motion.button>
+                <motion.button
+                  type="button"
+                  className="btn btn-secondary btn-bubble btn-guest-bubble"
+                  onClick={handleStartDuoJam}
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.96 }}
+                  style={{ padding: '12px 22px', borderRadius: '99px', fontSize: '14px' }}
+                >
+                  ⚡ Start Duo Jam (1-Click)
+                </motion.button>
               </div>
-              <motion.button
-                className="btn btn-primary"
-                onClick={() => {
-                  if (me) setShowCreateModal(true);
-                  else {
-                    setOpenCreateAfterJoin(true);
-                    setShowJoinModal(true);
-                  }
-                }}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                Create First Room
-              </motion.button>
             </motion.div>
           )}
         </AnimatePresence>

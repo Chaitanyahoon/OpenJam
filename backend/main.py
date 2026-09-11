@@ -128,6 +128,8 @@ async def _room_cleanup_loop():
                 # Query all active rooms directly from DB to find ghosts
                 active_db_rooms = db.query(Room).filter(Room.is_active == True).all()
                 for r in active_db_rooms:
+                    if r.id == 'openjam-lounge':
+                        continue
                     room_data = room_manager.store.get_room(r.id)
                     if not room_data:
                         # Room is active in DB but doesn't exist in Redis
@@ -273,6 +275,54 @@ async def lifespan(app):
     init_db()
     logger.info(f"CORS allowed origins: {settings.ALLOWED_ORIGINS}")
     logger.info("Database initialized successfully")
+    
+    # Ensure system user and 24/7 Lounge room exist
+    try:
+        from backend.database import SessionLocal
+        from backend.models.user import User
+        from backend.models.room import Room
+        from backend.constants import LOUNGE_ROOM_ID, SYSTEM_BOT_USER_ID, SYSTEM_BOT_NAME
+        import json
+        
+        db_startup = SessionLocal()
+        try:
+            bot_user = db_startup.query(User).filter(User.id == SYSTEM_BOT_USER_ID).first()
+            if not bot_user:
+                bot_user = User(
+                    id=SYSTEM_BOT_USER_ID,
+                    display_name=SYSTEM_BOT_NAME,
+                    avatar_url="/static/img/default_art.png",
+                    is_admin=True,
+                    username="openjam-bot"
+                )
+                db_startup.add(bot_user)
+                db_startup.commit()
+                logger.info(f"Seeded system bot user: {SYSTEM_BOT_USER_ID}")
+
+            lounge_room = db_startup.query(Room).filter(Room.id == LOUNGE_ROOM_ID).first()
+            if not lounge_room:
+                lounge_room = Room(
+                    id=LOUNGE_ROOM_ID,
+                    name="☕ 24/7 Lofi & Chill Lounge",
+                    description="OpenJam Official Community Lounge — synchronized chill beats 24/7.",
+                    host_user_id=SYSTEM_BOT_USER_ID,
+                    genre_tags=json.dumps(["lofi", "chill", "ambient"]),
+                    queue_mode="open",
+                    is_active=True,
+                    allow_guest_controls=False,
+                )
+                db_startup.add(lounge_room)
+                db_startup.commit()
+                logger.info(f"Seeded 24/7 Lounge room: {LOUNGE_ROOM_ID}")
+            else:
+                if not lounge_room.is_active or lounge_room.host_user_id != SYSTEM_BOT_USER_ID:
+                    lounge_room.is_active = True
+                    lounge_room.host_user_id = SYSTEM_BOT_USER_ID
+                    db_startup.commit()
+        finally:
+            db_startup.close()
+    except Exception as e:
+        logger.error(f"Failed to seed 24/7 Lounge room on startup: {e}")
     
     # Start background tasks
     import asyncio

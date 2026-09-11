@@ -9,6 +9,9 @@ _pending_close: dict = {}
 
 async def _close_room_after_delay(room_id: str, delay: int, sio, db_factory):
     """Wait `delay` seconds then mark room inactive and notify clients."""
+    if room_id == "openjam-lounge":
+        return
+
     await asyncio.sleep(delay)
     
     # Safety Check: Cancel auto-close if there are active listeners now
@@ -44,6 +47,8 @@ async def _close_room_after_delay(room_id: str, delay: int, sio, db_factory):
 
 def schedule_room_close(room_id: str, sio, db_factory, delay: int = 300):
     """Schedule auto-close. Cancels any existing timer for the same room."""
+    if room_id == "openjam-lounge":
+        return
     cancel_room_close(room_id)
     task = asyncio.create_task(
         _close_room_after_delay(room_id, delay, sio, db_factory)

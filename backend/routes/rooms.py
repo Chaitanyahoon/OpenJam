@@ -53,7 +53,8 @@ async def list_rooms(
                 except Exception:
                     pass
             is_my_room = current_user_id and room.host_user_id == current_user_id
-            if count == 0 and age_seconds > 30 and not is_my_room:
+            is_lounge = (room.id == "openjam-lounge")
+            if count == 0 and age_seconds > 30 and not is_my_room and not is_lounge:
                 continue
                 
             host_name = room.host.display_name if room.host else "Unknown"
@@ -63,7 +64,8 @@ async def list_rooms(
                 current_track=now_playing,
                 host_name=host_name,
             ))
-        visible_rooms.sort(key=lambda r: r["listener_count"], reverse=True)
+        # Pin openjam-lounge at the top, then sort by listener_count desc
+        visible_rooms.sort(key=lambda r: (1 if r["id"] == "openjam-lounge" else 0, r["listener_count"]), reverse=True)
         total = len(visible_rooms)
         return {"rooms": visible_rooms[skip:skip + limit], "total": total}
 
@@ -96,6 +98,8 @@ async def create_room(request: Request, create_room_req: CreateRoomRequest, db: 
         listener_counts = room_manager.get_listener_counts()
         user_rooms = db.query(Room).filter(Room.host_user_id == user_id, Room.is_active == True).all()
         for r in user_rooms:
+            if r.id == "openjam-lounge":
+                continue
             count = listener_counts.get(r.id, 0)
             if count == 0:
                 r.is_active = False

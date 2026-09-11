@@ -598,13 +598,19 @@ export default function RoomClient({ roomId }) {
             if (reconnect) reconnect();
             userResolved = true;
           } else {
-            // No session exists — check if we have a stored display name
+            // No session exists — auto-assign guest moniker if no stored name exists
             const storedName = localStorage.getItem('openjam_display_name') || '';
-            if (storedName) {
+            let nameToJoin = storedName;
+            if (!nameToJoin) {
+              const prefixes = ['Vinyl', 'Echo', 'Neon', 'Velvet', 'Sonic', 'Strobe', 'Analog', 'Lunar'];
+              const suffixes = ['Jammer', 'Listener', 'Wave', 'Pulse', 'Drifter', 'Mixer'];
+              nameToJoin = `${prefixes[Math.floor(Math.random() * prefixes.length)]}${suffixes[Math.floor(Math.random() * suffixes.length)]}${Math.floor(Math.random() * 900 + 100)}`;
+            }
+            try {
               const rJoin = await fetch('/auth/join', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ display_name: storedName }),
+                body: JSON.stringify({ display_name: nameToJoin }),
                 credentials: 'include'
               });
               if (rJoin.ok) {
@@ -616,9 +622,8 @@ export default function RoomClient({ roomId }) {
                 if (reconnect) reconnect();
                 userResolved = true;
               }
-            } else {
-              // Defer join: show nickname prompt modal
-              setShowNicknamePrompt(true);
+            } catch (errJoin) {
+              console.warn('Guest auto-join error:', errJoin);
             }
           }
         }
@@ -634,8 +639,8 @@ export default function RoomClient({ roomId }) {
             setShowPassword(true);
           }
           
-          // Connect socket if user is successfully authenticated/resolved
-          if (userResolved) {
+          // Connect socket if user is successfully authenticated/resolved and room is not password-protected
+          if (userResolved && !data.password_required) {
             setIsReady(true);
           }
         } else {
@@ -2695,12 +2700,13 @@ export default function RoomClient({ roomId }) {
 
   const handleNicknameSubmit = async (e, customName = null) => {
     if (e) e.preventDefault();
-    const nameToSubmit = customName !== null ? customName : nickname;
+    const nameToSubmit = (customName !== null ? customName : nickname).trim();
+    if (!nameToSubmit) return;
     try {
       const rJoin = await fetch('/auth/join', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ display_name: nameToSubmit.trim() }),
+        body: JSON.stringify({ display_name: nameToSubmit }),
         credentials: 'include'
       });
       if (rJoin.ok) {
@@ -2710,10 +2716,15 @@ export default function RoomClient({ roomId }) {
           localStorage.setItem('openjam_display_name', joinData.user.display_name);
         }
         setShowNicknamePrompt(false);
-        if (reconnect) reconnect();
-        if (room) {
+        if (socket && socket.connected) {
+          socket.emit('set_guest_name', { name: nameToSubmit });
+        } else if (reconnect) {
+          reconnect();
+        }
+        if (room && !room.password_required) {
           setIsReady(true);
         }
+        triggerToast(`Updated name to ${nameToSubmit}`, 'success');
       }
     } catch (err) {
       console.error('Error setting nickname:', err);
@@ -2987,12 +2998,32 @@ export default function RoomClient({ roomId }) {
                 <span className="navbar-username" style={{ marginLeft: '8px', fontSize: '13px', fontWeight: 600 }}>{me?.display_name}</span>
               </a>
             ) : (
-              <div className="navbar-user" style={{ cursor: 'default' }} title="Temporary Guest Session">
+              <button
+                type="button"
+                className="navbar-user"
+                onClick={() => setShowNicknamePrompt(true)}
+                title="Tap to change your nickname"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'inherit',
+                  cursor: 'pointer',
+                  padding: '2px 8px',
+                  borderRadius: '99px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  transition: 'background 0.2s',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 159, 28, 0.1)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+              >
                 <div className="avatar avatar-sm" style={{ backgroundColor: nameColor(me?.display_name || '?'), width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold' }}>
                   {initials(me?.display_name || '?')}
                 </div>
-                <span className="navbar-username" style={{ marginLeft: '8px', fontSize: '13px', fontWeight: 600 }}>{me?.display_name} (Guest)</span>
-              </div>
+                <span className="navbar-username" style={{ marginLeft: '8px', fontSize: '13px', fontWeight: 600 }}>
+                  {me?.display_name} <span style={{ fontSize: '11px', opacity: 0.7 }}>✏️</span>
+                </span>
+              </button>
             )}
           </div>
         </div>

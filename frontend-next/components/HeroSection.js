@@ -49,6 +49,7 @@ const fadeUpVariants = {
 function HeroSection({
   me,
   onInstantJam,
+  onStartDuoJam,
   onDiscordLogin,
   onJoinGuest,
   onCreateRoom,
@@ -468,6 +469,35 @@ function HeroSection({
                 <ArrowIcon />
               </span>
             </motion.button>
+
+            {onStartDuoJam && (
+              <motion.button
+                type="button"
+                className="btn btn-secondary btn-elegant-glow btn-bubble btn-guest-bubble"
+                onClick={onStartDuoJam}
+                style={{ 
+                  padding: '14px 24px', 
+                  fontSize: '14.5px', 
+                  borderRadius: '99px', 
+                  display: 'inline-flex', 
+                  alignItems: 'center', 
+                  gap: '8px',
+                }}
+                whileHover={reduceMotion ? undefined : { 
+                  scale: 1.05, 
+                  boxShadow: '0 12px 32px rgba(255, 159, 28, 0.3)' 
+                }}
+                whileTap={reduceMotion ? undefined : { scale: 0.98 }}
+              >
+                <div className="bubble-bg b1" />
+                <div className="bubble-bg b2" />
+                <div className="bubble-bg b3" />
+                <div className="bubble-bg b4" />
+                <span className="btn-bubble-content">
+                  <span>👫 Duo Jam</span>
+                </span>
+              </motion.button>
+            )}
 
             <div className="hero-sub-actions-row">
               {!me ? (
