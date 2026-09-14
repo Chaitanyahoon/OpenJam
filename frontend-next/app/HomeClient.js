@@ -55,6 +55,9 @@ export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeGenreFilter, setActiveGenreFilter] = useState(null);
 
+  const lastDomeTracksRef = useRef([]);
+  const lastDomeSignatureRef = useRef('');
+
   // Compute tracks for DomeGallery dynamically
   const computedDomeTracks = useMemo(() => {
     // 1. Extract tracks currently playing in active rooms
@@ -104,6 +107,14 @@ export default function HomePage() {
         unique.push(track);
       }
     }
+
+    // Reference stabilization: avoid re-rendering HeroSection if signature is identical
+    const sig = `${activeGenreFilter || ''}|${unique.map(t => `${t.trackUri}:${t.src}`).join(',')}`;
+    if (sig === lastDomeSignatureRef.current && lastDomeTracksRef.current.length > 0) {
+      return lastDomeTracksRef.current;
+    }
+    lastDomeSignatureRef.current = sig;
+    lastDomeTracksRef.current = unique;
     return unique;
   }, [rooms, activeGenreFilter]);
 
@@ -333,22 +344,36 @@ export default function HomePage() {
   // Ambient theme color (static amber)
   const amberColor = '#ffb03a';
 
-  // Cursor glow follower
+  // Cursor glow follower (Hardware accelerated with RAF batching)
   const cursorGlowRef = useRef(null);
   useEffect(() => {
-    const handleMouseMove = (e) => {
+    if (typeof window === 'undefined') return;
+    // Don't attach on touch/coarse devices
+    if (window.matchMedia('(pointer: coarse)').matches) return;
+
+    let rafId = null;
+    let targetX = -1000;
+    let targetY = -1000;
+
+    const updateGlowPosition = () => {
       if (cursorGlowRef.current) {
-        cursorGlowRef.current.style.left = `${e.clientX}px`;
-        cursorGlowRef.current.style.top = `${e.clientY}px`;
+        cursorGlowRef.current.style.transform = `translate3d(${targetX}px, ${targetY}px, 0) translate(-50%, -50%)`;
+      }
+      rafId = null;
+    };
+
+    const handleMouseMove = (e) => {
+      targetX = e.clientX;
+      targetY = e.clientY;
+      if (!rafId) {
+        rafId = requestAnimationFrame(updateGlowPosition);
       }
     };
-    if (typeof window !== 'undefined') {
-      window.addEventListener('mousemove', handleMouseMove);
-    }
+
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
     return () => {
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('mousemove', handleMouseMove);
-      }
+      window.removeEventListener('mousemove', handleMouseMove);
+      if (rafId) cancelAnimationFrame(rafId);
     };
   }, []);
 
@@ -1010,14 +1035,12 @@ export default function HomePage() {
   return (
     <main className="landing-wrapper">
 
-      {/* Cursor follower ambient glow */}
+      {/* Cursor follower ambient glow (Hardware accelerated transform) */}
       <div 
         ref={cursorGlowRef}
         className="cursor-glow" 
         style={{
-          left: '-1000px',
-          top: '-1000px',
-          background: `radial-gradient(circle, ${amberColor}1c 0%, rgba(0,0,0,0) 65%)`
+          background: `radial-gradient(circle, ${amberColor}22 0%, ${amberColor}08 45%, rgba(0,0,0,0) 70%)`
         }}
         aria-hidden="true"
       />

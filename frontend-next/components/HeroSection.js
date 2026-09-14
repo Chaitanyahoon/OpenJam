@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import DomeGallery from './reactbits/DomeGallery';
 
@@ -63,11 +63,37 @@ function HeroSection({
   const [mounted, setMounted] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [sloganIndex, setSloganIndex] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
+  const [isHeroVisible, setIsHeroVisible] = useState(true);
+
+  const heroRef = useRef(null);
+  const cardRef = useRef(null);
+  const cardRectRef = useRef(null);
+  const cardRafRef = useRef(null);
 
   const slogans = ['In Sync.', 'With Friends.', 'In Real-Time.', 'In Harmony.'];
 
   useEffect(() => {
     setMounted(true);
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile, { passive: true });
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Pause 3D Dome when scrolled offscreen
+  useEffect(() => {
+    if (!heroRef.current || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsHeroVisible(entry.isIntersecting);
+      },
+      { threshold: 0.05 }
+    );
+    observer.observe(heroRef.current);
+    return () => observer.disconnect();
   }, []);
 
   // const reduceMotionHook = useReducedMotion();
@@ -81,47 +107,89 @@ function HeroSection({
     return () => clearInterval(timer);
   }, [reduceMotion]);
 
+  // Optimized hero card mouse interaction (eliminates synchronous reflows)
+  const handleCardMouseEnter = () => {
+    setIsHovered(true);
+    if (cardRef.current) {
+      cardRectRef.current = cardRef.current.getBoundingClientRect();
+    }
+  };
+
+  const handleCardMouseLeave = () => {
+    setIsHovered(false);
+    cardRectRef.current = null;
+    if (cardRafRef.current) {
+      cancelAnimationFrame(cardRafRef.current);
+      cardRafRef.current = null;
+    }
+  };
+
+  const handleCardMouseMove = (e) => {
+    if (!cardRectRef.current && cardRef.current) {
+      cardRectRef.current = cardRef.current.getBoundingClientRect();
+    }
+    const rect = cardRectRef.current;
+    if (!rect) return;
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    if (!cardRafRef.current) {
+      cardRafRef.current = requestAnimationFrame(() => {
+        if (cardRef.current) {
+          cardRef.current.style.setProperty('--mouse-x', `${x}px`);
+          cardRef.current.style.setProperty('--mouse-y', `${y}px`);
+        }
+        cardRafRef.current = null;
+      });
+    }
+  };
+
   return (
     <section
+      ref={heroRef}
       className="hero"
       style={{
         position: 'relative',
         zIndex: 10,
-        padding: '96px 24px 56px',
-        minHeight: '85vh',
+        padding: isMobile ? '80px 16px 40px' : '96px 24px 56px',
+        minHeight: isMobile ? 'auto' : '85vh',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         overflow: 'hidden',
       }}
     >
-      {/* Background Dome Gallery (covers whole hero section) */}
-      <div
-        className="hero-dome-bg"
-        style={{
-          position: 'absolute',
-          inset: 0,
-          width: '100%',
-          height: '100%',
-          zIndex: 1,
-          pointerEvents: 'auto', // Crucial to allow clicking and dragging the dome
-        }}
-      >
-        <DomeGallery
-          images={domeTracks}
-          fit={0.9}
-          fitBasis="max"
-          minRadius={500}
-          maxRadius={1600}
-          grayscale={false}
-          openedImageWidth="180px"
-          openedImageHeight="240px"
-          imageBorderRadius="16px"
-          openedImageBorderRadius="20px"
-          overlayBlurColor="#08080a"
-          onItemClick={onPlayPreview}
-        />
-      </div>
+      {/* Background Dome Gallery (desktop only, pauses RAF loops when offscreen) */}
+      {!isMobile && (
+        <div
+          className="hero-dome-bg"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            zIndex: 1,
+            pointerEvents: 'auto',
+            display: isHeroVisible ? 'block' : 'none',
+            visibility: isHeroVisible ? 'visible' : 'hidden',
+          }}
+        >
+          <DomeGallery
+            images={domeTracks}
+            fit={0.9}
+            fitBasis="max"
+            minRadius={500}
+            maxRadius={1600}
+            grayscale={false}
+            openedImageWidth="180px"
+            openedImageHeight="240px"
+            imageBorderRadius="16px"
+            openedImageBorderRadius="20px"
+            overlayBlurColor="#08080a"
+            onItemClick={onPlayPreview}
+            isPaused={!isHeroVisible}
+          />
+        </div>
+      )}
 
       {/* Floating Kinetic Music Notes in background space */}
       {mounted && !reduceMotion && (
@@ -179,15 +247,10 @@ function HeroSection({
         }}
       >
         <div 
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
-          onMouseMove={(e) => {
-            const rect = e.currentTarget.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            e.currentTarget.style.setProperty('--mouse-x', `${x}px`);
-            e.currentTarget.style.setProperty('--mouse-y', `${y}px`);
-          }}
+          ref={cardRef}
+          onMouseEnter={handleCardMouseEnter}
+          onMouseLeave={handleCardMouseLeave}
+          onMouseMove={handleCardMouseMove}
           style={{ position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', maxWidth: '520px', pointerEvents: 'auto' }}
         >
           <motion.div
@@ -496,6 +559,58 @@ function HeroSection({
           </motion.div>
         </motion.div>
         </div>
+
+        {/* Mobile 2D Vinyl Carousel (Hardware Accelerated 60fps) */}
+        {isMobile && domeTracks && domeTracks.length > 0 && (
+          <div className="mobile-vinyl-stage" style={{ pointerEvents: 'auto' }}>
+            <div className="mobile-vinyl-header">
+              <span className="mobile-vinyl-header-title">
+                <span>🔥</span> Trending Tracks
+              </span>
+              <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)' }}>
+                Swipe to explore
+              </span>
+            </div>
+            <div className="mobile-vinyl-carousel">
+              {domeTracks.slice(0, 14).map((track, idx) => {
+                const isPlaying = activePreview && activePreview.trackUri === track.trackUri && isPlayingPreview;
+                return (
+                  <div
+                    key={track.trackUri || idx}
+                    className={`mobile-vinyl-card ${isPlaying ? 'is-playing' : ''}`}
+                    onClick={() => onPlayPreview && onPlayPreview(track)}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <div className="mobile-vinyl-art-wrap">
+                      <div className="mobile-vinyl-disc" />
+                      <img
+                        src={track.src}
+                        alt={track.trackName || 'Jam track'}
+                        className="mobile-vinyl-cover"
+                        loading="lazy"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                        }}
+                      />
+                    </div>
+                    <div className="mobile-vinyl-meta">
+                      <div className="mobile-vinyl-title">
+                        {track.trackName || 'Discovery Track'}
+                      </div>
+                      <div className="mobile-vinyl-artist">
+                        {track.artist || 'Featured Artist'}
+                      </div>
+                      <div className="mobile-vinyl-play-btn">
+                        {isPlaying ? '⏸ Playing' : '▶ Tap to Preview'}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Floating Instruction / Hint */}
@@ -511,7 +626,11 @@ function HeroSection({
           opacity: 0.85,
         }}
       >
-        <span>🖱️ Click & drag background to spin • Click a cover to preview</span>
+        <span>
+          {isMobile
+            ? '👆 Swipe tracks to preview • Tap to jam'
+            : '🖱️ Click & drag background to spin • Click a cover to preview'}
+        </span>
       </div>
     </section>
   );

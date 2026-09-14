@@ -103,7 +103,8 @@ export default function DomeGallery({
   imageBorderRadius = '30px',
   openedImageBorderRadius = '30px',
   grayscale = true,
-  onItemClick
+  onItemClick,
+  isPaused = false
 }) {
   const rootRef = useRef(null);
   const mainRef = useRef(null);
@@ -219,7 +220,14 @@ export default function DomeGallery({
     }
   }, []);
 
+  useEffect(() => {
+    if (isPaused) {
+      stopInertia();
+    }
+  }, [isPaused, stopInertia]);
+
   const startInertia = useCallback((vx, vy) => {
+    if (isPaused) return;
     const MAX_V = 1.4;
     let vX = clamp(vx, -MAX_V, MAX_V) * 80;
     let vY = clamp(vy, -MAX_V, MAX_V) * 80;

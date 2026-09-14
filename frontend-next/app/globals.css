@@ -1601,17 +1601,25 @@ body:not(.room-page) .navbar {
   66% { transform: translate(4%, -8%) scale(1.1); }
 }
 
-/* ---- Cursor Follower Glow ---- */
+/* ---- Cursor Follower Glow (Hardware Accelerated, Zero Reflows) ---- */
 .cursor-glow {
   position: fixed;
-  width: 400px;
-  height: 400px;
+  top: 0;
+  left: 0;
+  width: 520px;
+  height: 520px;
   border-radius: 50%;
   pointer-events: none;
   z-index: 0;
-  transform: translate(-50%, -50%);
-  transition: background 0.6s ease;
-  will-change: left, top;
+  transform: translate3d(-1000px, -1000px, 0) translate(-50%, -50%);
+  will-change: transform;
+  opacity: 0.7;
+}
+
+@media (pointer: coarse), (max-width: 768px) {
+  .cursor-glow {
+    display: none !important;
+  }
 }
 
 /* ---- Hero Section ---- */
@@ -2415,7 +2423,166 @@ body:not(.room-page) .navbar {
   padding: 0 24px 80px;
   position: relative;
   z-index: 1;
+  content-visibility: auto;
+  contain-intrinsic-size: 600px;
 }
+
+/* ---- Mobile 2D Vinyl Carousel (Hardware Accelerated 60fps) ---- */
+.mobile-vinyl-stage {
+  display: none;
+  width: 100%;
+  margin-top: 18px;
+  position: relative;
+  z-index: 5;
+}
+
+@media (max-width: 768px) {
+  .mobile-vinyl-stage {
+    display: block;
+  }
+}
+
+.mobile-vinyl-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px 8px;
+}
+
+.mobile-vinyl-header-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--amber);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mobile-vinyl-carousel {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px 16px 16px;
+  scrollbar-width: none;
+  touch-action: pan-x;
+}
+.mobile-vinyl-carousel::-webkit-scrollbar {
+  display: none;
+}
+
+.mobile-vinyl-card {
+  flex: 0 0 190px;
+  scroll-snap-align: center;
+  background: rgba(18, 17, 23, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 176, 58, 0.2);
+  border-radius: 18px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.2s ease, box-shadow 0.2s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transform: translateZ(0);
+}
+.mobile-vinyl-card:active {
+  transform: scale(0.97) translateZ(0);
+  border-color: var(--amber);
+  box-shadow: 0 8px 24px rgba(255, 176, 58, 0.25);
+}
+
+.mobile-vinyl-art-wrap {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mobile-vinyl-disc {
+  position: absolute;
+  top: 4px;
+  right: -8px;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #1a1a1a 18%, #111 20%, #282828 40%, #161616 60%, #222 80%, #0a0a0a 100%);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.6), inset 0 0 4px rgba(255,255,255,0.15);
+  z-index: 1;
+  transition: transform 0.4s ease;
+  pointer-events: none;
+}
+.mobile-vinyl-card:active .mobile-vinyl-disc,
+.mobile-vinyl-card.is-playing .mobile-vinyl-disc {
+  transform: translateX(14px) rotate(90deg);
+  animation: vinylSpin 6s linear infinite;
+}
+@keyframes vinylSpin {
+  from { transform: translateX(14px) rotate(0deg); }
+  to { transform: translateX(14px) rotate(360deg); }
+}
+
+.mobile-vinyl-cover {
+  position: relative;
+  z-index: 2;
+  width: 110px;
+  height: 110px;
+  border-radius: 12px;
+  object-fit: cover;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+}
+
+.mobile-vinyl-meta {
+  width: 100%;
+  text-align: center;
+}
+.mobile-vinyl-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+.mobile-vinyl-artist {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 8px;
+}
+.mobile-vinyl-play-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--amber);
+  background: rgba(255, 176, 58, 0.12);
+  border: 1px solid rgba(255, 176, 58, 0.3);
+  padding: 4px 10px;
+  border-radius: 99px;
+  letter-spacing: 0.5px;
+}
+.mobile-vinyl-card.is-playing .mobile-vinyl-play-btn {
+  background: var(--amber);
+  color: #000;
+}
+
 .rooms-section-header {
   display: flex;
   align-items: center;
@@ -5713,21 +5880,7 @@ body:not(.room-page) {
    DJ VIBE CONSOLE & BENTO FEATURE GRID REDESIGN
    ============================================================ */
 
-/* Cursor Follower Ambient Glow */
-.cursor-glow {
-  position: fixed;
-  pointer-events: none;
-  width: 700px;
-  height: 700px;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 0;
-  mix-blend-mode: screen;
-  filter: blur(150px);
-  opacity: 0.7;
-  transition: background 1s ease-in-out;
-  will-change: left, top, background;
-}
+/* Cursor Follower Ambient Glow is optimized in line 1604 */
 
 /* Landing Wrapper Themes */
 .landing-wrapper {
