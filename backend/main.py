@@ -67,7 +67,7 @@ if settings.REDIS_URL:
 
 sio = socketio.AsyncServer(
     async_mode="asgi",
-    cors_allowed_origins="*" if settings.ENVIRONMENT == "development" else settings.ALLOWED_ORIGINS,
+    cors_allowed_origins="*",
     client_manager=sio_mgr,
     logger=False,
     engineio_logger=False,
@@ -85,9 +85,10 @@ async def custom_404_handler(request: Request, exc):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 app.include_router(auth_router)
 app.include_router(rooms_router)

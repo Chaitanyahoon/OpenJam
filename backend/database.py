@@ -28,7 +28,10 @@ else:
         "connect_timeout": 10,              # Fail fast if DB is unreachable
     }
 
-engine = create_engine(settings.DATABASE_URL, **engine_kwargs)
+db_conn_url = settings.DATABASE_URL
+if db_conn_url.startswith("postgres://"):
+    db_conn_url = db_conn_url.replace("postgres://", "postgresql://", 1)
+engine = create_engine(db_conn_url, **engine_kwargs)
 
 
 if is_sqlite:

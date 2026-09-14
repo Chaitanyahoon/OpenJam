@@ -46,7 +46,10 @@ export const SocketProvider = ({ children }) => {
         if (isLocal) {
           return `http://${hostname}:8000`;
         }
-        return 'https://api.openjam.fun';
+        if (hostname.includes('openjam.fun')) {
+          return 'https://api.openjam.fun';
+        }
+        return 'https://openjam.onrender.com';
       }
       return 'http://localhost:8000';
     };
@@ -57,8 +60,9 @@ export const SocketProvider = ({ children }) => {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,
-      reconnectionAttempts: 15,
-      timeout: 10000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: Infinity,
+      timeout: 20000,
     });
 
     socketInstance.on('connect', () => {

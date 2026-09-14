@@ -22,7 +22,10 @@ class Settings:
             return f"sqlite:///{db_path.as_posix()}"
         return "sqlite:///./data/openjam.db"
 
-    DATABASE_URL: str = os.getenv("DATABASE_URL") or default_database_url.__func__()
+    _raw_db = os.getenv("DATABASE_URL") or default_database_url.__func__()
+    if _raw_db and _raw_db.startswith("postgres://"):
+        _raw_db = _raw_db.replace("postgres://", "postgresql://", 1)
+    DATABASE_URL: str = _raw_db
 
     # Redis state store
     REDIS_URL: str = os.getenv("REDIS_URL")
