@@ -132,6 +132,7 @@ export default function RoomClient({ roomId }) {
   const [streamErrorMsg, setStreamErrorMsg] = useState(null);
   const [skipVotes, setSkipVotes] = useState({ votes: 0, required: 0, voted: false });
   const [isReady, setIsReady] = useState(false);
+  const [isShuffled, setIsShuffled] = useState(false);
 
   // Refs for scrolling and canvas
   const chatEndRef = useRef(null);
@@ -1830,7 +1831,11 @@ export default function RoomClient({ roomId }) {
 
   // UI Event Handlers
   const handleTogglePlay = () => {
-    if (!canControl || !playerRef.current) return;
+    if (!canControl) {
+      triggerToast('Host controls playback • Add tracks to queue!', 'info');
+      return;
+    }
+    if (!playerRef.current) return;
     const playing = !playbackState.isPlaying;
     playerRef.current.setPlayState(playing);
     if (socket) {
@@ -1851,13 +1856,22 @@ export default function RoomClient({ roomId }) {
   handleTogglePlayRef.current = handleTogglePlay;
 
   const handleShuffleClick = () => {
-    if (!isHost || !socket) return;
+    if (!isHost) {
+      triggerToast('Only the room host can shuffle the queue', 'info');
+      return;
+    }
+    if (!socket) return;
     socket.emit('shuffle_queue', { room_id: roomId });
+    setIsShuffled((prev) => !prev);
     triggerToast('Shuffling queue...', 'info');
   };
 
   const handleRepeatToggle = () => {
-    if (!canControl || !socket) return;
+    if (!canControl) {
+      triggerToast('Only the room host can set repeat mode', 'info');
+      return;
+    }
+    if (!socket) return;
     const nextLoop = !playbackState.loop;
     socket.emit('toggle_repeat', { room_id: roomId, loop: nextLoop });
   };
@@ -1992,12 +2006,20 @@ export default function RoomClient({ roomId }) {
   handleSeekRelativeRef.current = handleSeekRelative;
 
   const handlePreviousTrack = () => {
-    if (!canControl || !socket) return;
+    if (!canControl) {
+      triggerToast('Only the room host can go to the previous track', 'info');
+      return;
+    }
+    if (!socket) return;
     socket.emit('previous_track', { room_id: roomId });
   };
 
   const handleNextTrack = () => {
-    if (!canControl || !socket) return;
+    if (!canControl) {
+      handleVoteSkip();
+      return;
+    }
+    if (!socket) return;
     socket.emit('next_track', { room_id: roomId });
   };
   handleNextTrackRef.current = handleNextTrack;
@@ -2006,6 +2028,7 @@ export default function RoomClient({ roomId }) {
     if (!socket) return;
     socket.emit('vote_skip', { room_id: roomId });
     setSkipVotes((prev) => ({ ...prev, voted: true }));
+    triggerToast('Voted to skip track! 🗳️', 'success');
   };
 
   // ── Stage Mode: Draggable Volume Slider ──
@@ -2252,11 +2275,11 @@ export default function RoomClient({ roomId }) {
           break;
         case 'KeyS':
           e.preventDefault();
-          if (isHost) handleShuffleClick();
+          handleShuffleClick();
           break;
         case 'KeyR':
           e.preventDefault();
-          if (canControl) handleRepeatToggle();
+          handleRepeatToggle();
           break;
         case 'KeyQ':
           e.preventDefault();
@@ -3238,12 +3261,16 @@ export default function RoomClient({ roomId }) {
             onPlayPause={handleTogglePlay}
             isLiked={nowPlaying && favourites.some(f => f.track_uri === nowPlaying.track_uri)}
             onLikeToggle={handleLikeToggle}
-            isShuffled={false}
+            isShuffled={isShuffled}
             onShuffleToggle={handleShuffleClick}
             repeatMode={playbackState.loop ? 'one' : 'off'}
             onRepeatModeChange={handleRepeatToggle}
             onSeek={(seconds) => {
-              if (!canControl || !playbackState.durationMs || !socket || !playerRef.current) return;
+              if (!canControl) {
+                triggerToast('Host controls playback • Add tracks to queue!', 'info');
+                return;
+              }
+              if (!playbackState.durationMs || !socket || !playerRef.current) return;
               const newPositionMs = seconds * 1000;
               setPlaybackState(prev => ({ ...prev, positionMs: newPositionMs }));
               playerRef.current.syncPosition(newPositionMs, playbackState.isPlaying);
@@ -3260,7 +3287,9 @@ export default function RoomClient({ roomId }) {
                 is_buffering: playbackState.isPlaying ? !!streamErrorMsg : false
               });
             }}
+            onPrev={canControl ? handlePreviousTrack : () => triggerToast('Only the room host can go to the previous track', 'info')}
             onNext={canControl ? handleNextTrack : handleVoteSkip}
+            disableKeyboardShortcuts={isStageMode}
             onVolumeChange={(newVolume) => {
               setVolume(newVolume);
               if (newVolume > 0 && isMuted) {

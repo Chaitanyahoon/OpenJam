@@ -8,6 +8,7 @@ import {
   Volume2,
   VolumeX,
   List,
+  Mic,
   X,
   Settings,
   Music,
@@ -126,6 +127,10 @@ export const MusicPlayer = ({
   const [localIsShuffled, setLocalIsShuffled] = useState(false);
   const isShuffled = propIsShuffled !== undefined ? propIsShuffled : localIsShuffled;
   const setIsShuffled = (val) => {
+    if (!isHost && propCurrentTime !== undefined) {
+      if (onShuffleToggle) onShuffleToggle(val);
+      return;
+    }
     setLocalIsShuffled(val);
     if (onShuffleToggle) onShuffleToggle(val);
   };
@@ -133,6 +138,10 @@ export const MusicPlayer = ({
   const [localRepeatMode, setLocalRepeatMode] = useState("off");
   const repeatMode = propRepeatMode !== undefined ? propRepeatMode : localRepeatMode;
   const setRepeatMode = (val) => {
+    if (!isHost && propCurrentTime !== undefined) {
+      if (onRepeatModeChange) onRepeatModeChange(val);
+      return;
+    }
     setLocalRepeatMode(val);
     if (onRepeatModeChange) onRepeatModeChange(val);
   };
@@ -175,7 +184,7 @@ export const MusicPlayer = ({
   useEffect(() => {
     if (disableKeyboardShortcuts) return;
     const handleKeyPress = (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
       switch (e.code) {
         case "Space":
           e.preventDefault();
@@ -246,6 +255,10 @@ export const MusicPlayer = ({
   }
 
   function togglePlay() {
+    if (!isHost && propCurrentTime !== undefined) {
+      if (onPlayPause) onPlayPause(!isPlaying);
+      return;
+    }
     setIsPlaying(!isPlaying);
   }
 
@@ -261,18 +274,98 @@ export const MusicPlayer = ({
     });
   };
 
-  function handleProgressClick(e) {
-    if (!progressRef.current || (!isHost && propCurrentTime !== undefined)) return;
+  const [dragTime, setDragTime] = useState(null);
+  const isDraggingScrubberRef = useRef(false);
+  const seekDebounceTimerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (seekDebounceTimerRef.current) clearTimeout(seekDebounceTimerRef.current);
+      if (userPlayerScrollTimerRef.current) clearTimeout(userPlayerScrollTimerRef.current);
+    };
+  }, []);
+
+  const calcTimeFromPointer = (e) => {
+    if (!progressRef.current || !track.duration) return 0;
     const { left, width } = progressRef.current.getBoundingClientRect();
+    if (width <= 0) return 0;
     const clickPosition = e.clientX - left;
     const percentage = Math.max(0, Math.min(1, clickPosition / width));
-    const newTime = Math.floor(track.duration * percentage);
-    setCurrentTime(newTime);
-  }
+    return Math.floor(track.duration * percentage);
+  };
+
+  const handlePointerDown = (e) => {
+    if (!progressRef.current) return;
+    const newTime = calcTimeFromPointer(e);
+
+    // For guests, forward to onSeek so parent triggers friendly toast without local state desync
+    if (!isHost && propCurrentTime !== undefined) {
+      if (onSeek) onSeek(newTime);
+      return;
+    }
+
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch (_) {}
+
+    isDraggingScrubberRef.current = true;
+    setDragTime(newTime);
+
+    if (seekDebounceTimerRef.current) clearTimeout(seekDebounceTimerRef.current);
+    seekDebounceTimerRef.current = setTimeout(() => {
+      if (onSeek) onSeek(newTime);
+    }, 150);
+  };
+
+  const handlePointerMove = (e) => {
+    if (isDraggingScrubberRef.current) {
+      const newTime = calcTimeFromPointer(e);
+      setDragTime(newTime);
+      setHoverTime(newTime);
+
+      if (seekDebounceTimerRef.current) clearTimeout(seekDebounceTimerRef.current);
+      seekDebounceTimerRef.current = setTimeout(() => {
+        if (onSeek) onSeek(newTime);
+      }, 150);
+    } else {
+      handleProgressHover(e);
+    }
+  };
+
+  const handlePointerUp = (e) => {
+    if (!isDraggingScrubberRef.current) return;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch (_) {}
+    isDraggingScrubberRef.current = false;
+
+    if (seekDebounceTimerRef.current) {
+      clearTimeout(seekDebounceTimerRef.current);
+      seekDebounceTimerRef.current = null;
+    }
+
+    const finalTime = calcTimeFromPointer(e);
+    setDragTime(null);
+    setCurrentTime(finalTime);
+  };
+
+  const handlePointerCancel = (e) => {
+    if (!isDraggingScrubberRef.current) return;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch (_) {}
+    isDraggingScrubberRef.current = false;
+    if (seekDebounceTimerRef.current) {
+      clearTimeout(seekDebounceTimerRef.current);
+      seekDebounceTimerRef.current = null;
+    }
+    setDragTime(null);
+  };
 
   function handleProgressHover(e) {
-    if (!progressRef.current) return;
+    if (!progressRef.current || !track.duration) return;
     const { left, width } = progressRef.current.getBoundingClientRect();
+    if (width <= 0) return;
     const hoverPosition = e.clientX - left;
     const percentage = Math.max(0, Math.min(1, hoverPosition / width));
     const hoverTimeValue = Math.floor(track.duration * percentage);
@@ -436,19 +529,23 @@ export const MusicPlayer = ({
             <div className="mp-progress-section" style={{ width: '100%', marginBottom: '14px', boxSizing: 'border-box' }}>
               <div
                 ref={progressRef}
-                className="mp-progress-bar"
-                onClick={handleProgressClick}
-                onMouseMove={handleProgressHover}
-                onMouseLeave={() => setHoverTime(null)}
-                style={{ cursor: (isHost || propCurrentTime === undefined) ? "pointer" : "default" }}
+                className={`mp-progress-bar ${dragTime !== null ? 'is-dragging' : ''}`}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerCancel}
+                onMouseLeave={() => {
+                  if (!isDraggingScrubberRef.current) setHoverTime(null);
+                }}
+                style={{ cursor: "pointer", touchAction: "none" }}
               >
                 <div
                   className="mp-progress-fill"
-                  style={{ width: `${track.duration > 0 ? Math.min(100, (currentTime / track.duration) * 100) : 0}%` }}
+                  style={{ width: `${track.duration > 0 ? Math.min(100, ((dragTime !== null ? dragTime : currentTime) / track.duration) * 100) : 0}%` }}
                 />
                 <div
                   className="mp-progress-thumb"
-                  style={{ left: `${track.duration > 0 ? Math.min(100, (currentTime / track.duration) * 100) : 0}%` }}
+                  style={{ left: `${track.duration > 0 ? Math.min(100, ((dragTime !== null ? dragTime : currentTime) / track.duration) * 100) : 0}%` }}
                 />
                 {hoverTime !== null && (
                   <div
@@ -460,7 +557,7 @@ export const MusicPlayer = ({
                 )}
               </div>
               <div className="mp-times" style={{ marginTop: '8px', display: 'flex', justifyContent: 'space-between', width: '100%', boxSizing: 'border-box', fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--font-mono, monospace)', fontSize: '11.5px', color: 'rgba(255, 255, 255, 0.65)' }}>
-                <span>{formatTime(Math.min(currentTime, track.duration))}</span>
+                <span>{formatTime(Math.min(dragTime !== null ? dragTime : currentTime, track.duration))}</span>
                 <span>{formatTime(track.duration)}</span>
               </div>
             </div>
@@ -482,9 +579,9 @@ export const MusicPlayer = ({
               <button
                 type="button"
                 onClick={onPrev}
-                disabled={!isHost}
-                className="mp-ctrl-icon-btn prev"
-                title="Previous Track"
+                aria-disabled={!isHost}
+                className={`mp-ctrl-icon-btn prev ${!isHost ? 'mp-guest-restricted' : ''}`}
+                title={isHost ? "Previous Track" : "Previous Track (Host only)"}
               >
                 <SkipBack className="h-5 w-5" />
               </button>
@@ -493,9 +590,10 @@ export const MusicPlayer = ({
                 <button
                   type="button"
                   onClick={togglePlay}
-                  disabled={!isHost || isBuffering}
-                  className="mp-play-btn-large"
-                  title={isBuffering ? "Buffering" : isPlaying ? "Pause" : "Play"}
+                  disabled={isBuffering}
+                  aria-disabled={!isHost}
+                  className={`mp-play-btn-large ${!isHost ? 'mp-guest-restricted' : ''}`}
+                  title={isBuffering ? "Buffering" : !isHost ? "Play/Pause (Host controls playback)" : isPlaying ? "Pause" : "Play"}
                 >
                   {isBuffering ? (
                     <div className="mp-play-btn-spinner" />
@@ -580,7 +678,7 @@ export const MusicPlayer = ({
                     title="Toggle Synced Lyrics"
                     style={{ position: 'relative' }}
                   >
-                    <List className="h-4 w-4" />
+                    <Mic className="h-4 w-4" />
                   </button>
                 )}
               </div>
