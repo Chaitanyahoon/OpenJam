@@ -2264,7 +2264,7 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
 
 .mp-container {
   width: 100% !important;
-  max-width: 440px;
+  max-width: clamp(520px, 48vw, 760px);
   margin: 0 auto !important;
   box-sizing: border-box !important;
 }
@@ -2280,7 +2280,7 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
   border-radius: 28px !important;
 }
 
-/* Fix lyrics-hidden width so it uses the full 440px width and never cramps */
+/* Fix lyrics-hidden width so it uses the full width and never cramps */
 .mp-theater-body {
   width: 100% !important;
   box-sizing: border-box !important;
@@ -2313,11 +2313,11 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
 
 .mp-artwork-wrapper {
   width: 100% !important;
-  max-width: 330px !important;
+  max-width: clamp(280px, 34vh, 400px) !important;
   aspect-ratio: 1 / 1 !important;
-  border-radius: 22px !important;
+  border-radius: 26px !important;
   overflow: hidden !important;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.12) !important;
   background: #101015 !important;
 }
 
@@ -2331,16 +2331,16 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
 
 .mp-track-title {
   font-family: var(--font-display-next), Outfit, system-ui, sans-serif !important;
-  font-size: 21px !important;
+  font-size: clamp(22px, 2.2vw, 30px) !important;
   font-weight: 800 !important;
   color: #ffffff !important;
-  max-width: 88% !important;
+  max-width: 90% !important;
   letter-spacing: -0.025em !important;
 }
 
 .mp-track-artist {
   font-family: var(--font-ui-next), sans-serif !important;
-  font-size: 13.5px !important;
+  font-size: clamp(13.5px, 1.2vw, 16px) !important;
   font-weight: 500 !important;
   color: rgba(255, 255, 255, 0.65) !important;
   margin: 4px 0 0 !important;
@@ -2349,6 +2349,9 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
 /* Fix timeline and timestamp truncation */
 .mp-progress-section {
   width: 100% !important;
+  max-width: 600px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
   box-sizing: border-box !important;
   margin-bottom: 14px !important;
   padding: 0 2px !important;
@@ -2380,9 +2383,9 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  gap: 20px !important;
+  gap: clamp(20px, 2.5vw, 32px) !important;
   width: 100% !important;
-  margin: 12px 0 16px !important;
+  margin: 14px 0 18px !important;
   box-sizing: border-box !important;
 }
 

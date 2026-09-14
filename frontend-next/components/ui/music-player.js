@@ -283,7 +283,7 @@ export const MusicPlayer = ({
 
   const containerStyle = lyricsVisible
     ? { maxWidth: '1080px', margin: '0 auto', width: '100%', height: '100%', transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }
-    : { maxWidth: '440px', width: '100%', margin: '0 auto', transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)' };
+    : { maxWidth: 'clamp(520px, 48vw, 760px)', width: '100%', margin: '0 auto', transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)' };
 
   return (
     <div className={`mp-container ${className} ${lyricsVisible ? 'lyrics-open' : ''}`} style={containerStyle}>
@@ -307,7 +307,7 @@ export const MusicPlayer = ({
                 onMouseLeave={() => setArtworkHovered(false)}
                 onClick={togglePlay}
                 onWheel={handleExpVolumeScroll}
-                style={{ position: 'relative', width: '100%', maxWidth: '280px', margin: '0 auto', cursor: 'pointer' }}
+                style={{ position: 'relative', width: '100%', maxWidth: 'clamp(280px, 34vh, 400px)', margin: '0 auto', cursor: 'pointer' }}
                 title={`Click to ${isPlaying ? 'Pause' : 'Play'} • Scroll for volume`}
               >
                 {/* Album Cover Art Sleeve */}

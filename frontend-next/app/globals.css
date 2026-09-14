@@ -9639,31 +9639,31 @@ body:not(.room-page) .navbar:hover {
 .room-content {
   display: flex !important;
   flex-direction: row !important;
-  gap: 28px !important;
+  gap: 32px !important;
   height: calc(100dvh - 72px) !important;
   max-height: calc(100dvh - 72px) !important;
   position: relative !important;
   z-index: 10 !important;
   overflow: hidden !important;
-  padding: 24px 28px !important;
+  padding: 20px 32px !important;
   box-sizing: border-box !important;
-  justify-content: center !important;
+  justify-content: space-between !important;
   align-items: stretch !important;
-  max-width: 1140px !important;
+  max-width: 1720px !important;
   margin: 0 auto !important;
   width: 100% !important;
 }
 
 .room-now-playing {
   flex: 1 1 0% !important;
-  max-width: 520px !important;
-  min-width: 320px !important;
+  max-width: none !important;
+  min-width: 440px !important;
   width: 100% !important;
   height: 100% !important;
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
-  justify-content: flex-start !important;
+  justify-content: center !important;
   overflow: hidden !important;
   padding: 0 !important;
   scrollbar-width: none !important;
@@ -9675,14 +9675,14 @@ body:not(.room-page) .navbar:hover {
 }
 
 .room-sidebar {
-  flex: 1 1 0% !important;
-  max-width: 480px !important;
-  min-width: 320px !important;
-  width: 100% !important;
+  flex: 0 0 clamp(380px, 26vw, 440px) !important;
+  width: clamp(380px, 26vw, 440px) !important;
+  max-width: 440px !important;
+  min-width: 360px !important;
   height: 100% !important;
   display: flex !important;
   flex-direction: column !important;
-  background: rgba(12, 12, 18, 0.5) !important;
+  background: rgba(12, 12, 18, 0.65) !important;
   backdrop-filter: blur(32px) saturate(1.8) !important;
   -webkit-backdrop-filter: blur(32px) saturate(1.8) !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
