@@ -298,9 +298,9 @@ export const MusicPlayer = ({
         {/* ══ Theater Body (Artwork + Lyrics Grid) ══ */}
         <div className={`mp-theater-body ${lyricsVisible ? 'lyrics-visible' : 'lyrics-hidden'}`} style={{ height: '100%', width: '100%', boxSizing: 'border-box' }}>
           {/* Left Side: Turntable Controls */}
-          <div className="mp-theater-left">
+          <div className="mp-theater-left" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', width: '100%', boxSizing: 'border-box' }}>
             {/* Album artwork container — Clean, pristine square card with play overlay */}
-            <div className="mp-artwork-container">
+            <div className="mp-artwork-container" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px auto', boxSizing: 'border-box' }}>
               <div
                 className="mp-artwork-outer"
                 onMouseEnter={() => setArtworkHovered(true)}
@@ -329,6 +329,9 @@ export const MusicPlayer = ({
                     maxWidth: '100%',
                     aspectRatio: '1 / 1',
                     margin: '0 auto',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     borderRadius: '26px',
                     overflow: 'hidden',
                     transform: artworkHovered ? 'scale(1.025)' : 'scale(1)',
@@ -339,9 +342,9 @@ export const MusicPlayer = ({
                   }}
                 >
                   {track.artwork ? (
-                    <img decoding="async" loading="lazy" draggable="false" src={track.artwork} alt={track.title ? `${track.title} by ${track.artist || 'Unknown Artist'}` : 'Album Artwork'} className="mp-artwork-img" style={{ display: 'block', width: '100%', aspectRatio: '1/1', objectFit: 'cover' }} />
+                    <img decoding="async" loading="lazy" draggable="false" src={track.artwork} alt={track.title ? `${track.title} by ${track.artist || 'Unknown Artist'}` : 'Album Artwork'} className="mp-artwork-img" style={{ display: 'block', width: '100%', height: '100%', aspectRatio: '1/1', objectFit: 'cover', margin: '0 auto' }} />
                   ) : (
-                    <div className="mp-artwork-fallback" style={{ width: '100%', aspectRatio: '1/1' }}>
+                    <div className="mp-artwork-fallback" style={{ width: '100%', height: '100%', aspectRatio: '1/1', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
                       <Music className="h-12 w-12" />
                     </div>
                   )}
@@ -399,7 +402,7 @@ export const MusicPlayer = ({
             </div>
 
             {/* Unified Track Info & Equalizer */}
-            <div className="mp-meta-container">
+            <div className="mp-meta-container" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', margin: '0 auto 18px auto', boxSizing: 'border-box' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', minWidth: 0, padding: '0 8px', boxSizing: 'border-box' }}>
                 <h2 className="mp-track-title" data-presence="track-name">
                   {track.title}
