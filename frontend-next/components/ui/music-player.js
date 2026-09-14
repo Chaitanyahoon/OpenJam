@@ -307,7 +307,17 @@ export const MusicPlayer = ({
                 onMouseLeave={() => setArtworkHovered(false)}
                 onClick={togglePlay}
                 onWheel={handleExpVolumeScroll}
-                style={{ position: 'relative', width: '100%', maxWidth: 'clamp(280px, 34vh, 400px)', margin: '0 auto', cursor: 'pointer' }}
+                style={{
+                  position: 'relative',
+                  width: '100%',
+                  maxWidth: lyricsVisible ? 'clamp(200px, 24vh, 260px)' : 'clamp(280px, 34vh, 400px)',
+                  margin: '0 auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
                 title={`Click to ${isPlaying ? 'Pause' : 'Play'} • Scroll for volume`}
               >
                 {/* Album Cover Art Sleeve */}
@@ -315,7 +325,11 @@ export const MusicPlayer = ({
                   className="mp-artwork-wrapper"
                   style={{
                     position: 'relative',
-                    borderRadius: '22px',
+                    width: '100%',
+                    maxWidth: '100%',
+                    aspectRatio: '1 / 1',
+                    margin: '0 auto',
+                    borderRadius: '26px',
                     overflow: 'hidden',
                     transform: artworkHovered ? 'scale(1.025)' : 'scale(1)',
                     transition: 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease',

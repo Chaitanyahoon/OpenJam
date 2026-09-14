@@ -1651,18 +1651,26 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
 }
 
 .mp-theater-body.lyrics-hidden .mp-artwork-wrapper {
-  width: 240px !important;
-  height: 240px !important;
+  width: 100% !important;
+  max-width: clamp(280px, 34vh, 400px) !important;
+  height: auto !important;
+  aspect-ratio: 1 / 1 !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
 }
 
 .mp-theater-body.lyrics-visible .mp-theater-left {
-  flex: 0 0 380px !important;
+  flex: 0 0 340px !important;
   border-right: 1px solid rgba(255, 255, 255, 0.06) !important;
 }
 
 .mp-theater-body.lyrics-visible .mp-artwork-wrapper {
-  width: 220px !important;
-  height: 220px !important;
+  width: 100% !important;
+  max-width: clamp(200px, 24vh, 260px) !important;
+  height: auto !important;
+  aspect-ratio: 1 / 1 !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
 }
 
 .mp-theater-left .mp-artwork-container {
@@ -1911,14 +1919,18 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
 
 .mp-artwork-wrapper {
   position: relative !important;
-  width: 220px !important;
-  height: 220px !important;
-  border-radius: 20px !important;
+  width: 100% !important;
+  max-width: clamp(280px, 34vh, 400px) !important;
+  height: auto !important;
+  aspect-ratio: 1 / 1 !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  border-radius: 26px !important;
   overflow: hidden !important;
   box-shadow: 
-    0 16px 40px rgba(0, 0, 0, 0.6),
-    0 0 0 1px rgba(255, 255, 255, 0.08) !important;
-  background: rgba(255, 255, 255, 0.02) !important;
+    0 24px 60px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(255, 255, 255, 0.1) !important;
+  background: #101015 !important;
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
@@ -2052,18 +2064,26 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
     padding: 20px 32px !important;
   }
   .mp-theater-body.lyrics-hidden .mp-artwork-wrapper {
-    width: 180px !important;
-    height: 180px !important;
-    border-radius: 16px !important;
+    width: 100% !important;
+    max-width: clamp(200px, 26vh, 260px) !important;
+    height: auto !important;
+    aspect-ratio: 1 / 1 !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    border-radius: 20px !important;
   }
   .mp-theater-body.lyrics-visible .mp-theater-left {
-    flex: 0 0 320px !important;
+    flex: 0 0 300px !important;
     padding: 20px !important;
   }
   .mp-theater-body.lyrics-visible .mp-artwork-wrapper {
-    width: 160px !important;
-    height: 160px !important;
-    border-radius: 12px !important;
+    width: 100% !important;
+    max-width: clamp(160px, 20vh, 200px) !important;
+    height: auto !important;
+    aspect-ratio: 1 / 1 !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    border-radius: 16px !important;
   }
   .mp-controls-row {
     margin: 12px 0 16px !important;
@@ -2105,16 +2125,24 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
     padding: 12px 24px !important;
   }
   .mp-theater-body.lyrics-hidden .mp-artwork-wrapper {
-    width: 140px !important;
-    height: 140px !important;
+    width: 100% !important;
+    max-width: clamp(150px, 22vh, 180px) !important;
+    height: auto !important;
+    aspect-ratio: 1 / 1 !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
   }
   .mp-theater-body.lyrics-visible .mp-theater-left {
-    flex: 0 0 260px !important;
+    flex: 0 0 240px !important;
     padding: 12px !important;
   }
   .mp-theater-body.lyrics-visible .mp-artwork-wrapper {
-    width: 120px !important;
-    height: 120px !important;
+    width: 100% !important;
+    max-width: clamp(120px, 18vh, 150px) !important;
+    height: auto !important;
+    aspect-ratio: 1 / 1 !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
   }
   .mp-play-btn-large {
     width: 42px !important;
@@ -2175,12 +2203,18 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
 
 @media (max-width: 640px) {
   .mp-artwork-wrapper {
-    width: 170px !important;
-    height: 170px !important;
-    border-radius: 16px !important;
+    width: 100% !important;
+    max-width: clamp(170px, 28vh, 220px) !important;
+    height: auto !important;
+    aspect-ratio: 1 / 1 !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    border-radius: 18px !important;
   }
   .mp-artwork-container {
     margin-bottom: 12px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
   }
   .mp-meta-container {
     margin-bottom: 8px !important;
@@ -2306,23 +2340,48 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
 .mp-artwork-container {
   width: 100% !important;
   display: flex !important;
+  flex-direction: column !important;
   justify-content: center !important;
   align-items: center !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
   margin-bottom: 20px !important;
+  box-sizing: border-box !important;
+}
+
+.mp-artwork-outer {
+  position: relative !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  box-sizing: border-box !important;
 }
 
 .mp-artwork-wrapper {
+  position: relative !important;
   width: 100% !important;
   max-width: clamp(280px, 34vh, 400px) !important;
+  height: auto !important;
   aspect-ratio: 1 / 1 !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
   border-radius: 26px !important;
   overflow: hidden !important;
   box-shadow: 0 28px 70px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.12) !important;
   background: #101015 !important;
+  box-sizing: border-box !important;
 }
 
 .mp-meta-container {
   width: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
   text-align: center !important;
   margin-bottom: 18px !important;
   padding: 0 4px !important;
@@ -2420,32 +2479,7 @@ input[type="range"].mp-util-volume-slider {
   width: 78px !important;
 }
 
-/* Vinyl disc spin animation */
-.mp-vinyl-disc.spinning {
-  animation: mp-vinyl-spin 4.5s linear infinite;
-}
 
-@keyframes mp-vinyl-spin {
-  from {
-    transform: translateX(22px) rotate(0deg);
-  }
-  to {
-    transform: translateX(22px) rotate(360deg);
-  }
-}
-
-.mp-artwork-outer:hover .mp-vinyl-disc.spinning {
-  animation: mp-vinyl-spin-hover 4.5s linear infinite !important;
-}
-
-@keyframes mp-vinyl-spin-hover {
-  from {
-    transform: translateX(48px) rotate(0deg);
-  }
-  to {
-    transform: translateX(48px) rotate(360deg);
-  }
-}
 
 /* 🌸 Tactile Spring Hover States & Interactive Physics */
 .mp-btn,
