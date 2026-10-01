@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_COBALT_INSTANCES = [
     "https://api.cobalt.blackcat.sweeux.org",
+    "https://cobalt-api.kwiatekm.tokyo",
+    "https://api.cobalt.tools",
 ]
 
 

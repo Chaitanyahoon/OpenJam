@@ -897,7 +897,7 @@ export default function HomePage() {
         
         try {
           if (navigator.clipboard && navigator.clipboard.writeText) {
-            await navigator.clipboard.writeText(`🎧 Listen with me in real-time on OpenJam: ${inviteUrl}`);
+            await navigator.clipboard.writeText(`🎧 Vibe with me in real-time on OpenJam (no signup needed): ${inviteUrl}`);
           }
         } catch (_) {}
 
