@@ -1,0 +1,1 @@
+{"build":{"preview":{"android":{"buildType":"apk"},"channel":"preview","distribution":"internal"},"production":{"android":{"buildType":"apk"},"autoIncrement":true,"channel":"production","distribution":"internal"}},"cli":{"appVersionSource":"remote","version":">= 18.0.6"}}
