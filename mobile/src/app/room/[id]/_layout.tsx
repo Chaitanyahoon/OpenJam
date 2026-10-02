@@ -1,25 +1,20 @@
 /**
- * Room shell: RoomProvider + bottom tabs (Queue | Player | Chat).
- * Mirrors the PWA's <640px mobile layout (APP_FLOW.md §2.1).
+ * Room shell: RoomProvider + bottom tabs (Playing | Queue | Chat | People)
+ * with the PWA's mini-player. Mirrors the PWA's <640px mobile layout.
  */
 import React, { useEffect } from 'react';
-import { Alert, StyleSheet, Text } from 'react-native';
+import { Alert, StyleSheet } from 'react-native';
 import { Tabs, router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { RoomProvider, useRoom } from '../../../state/RoomContext';
 import { FlyingReactions } from '../../../components/FlyingReactions';
 import { LeaveModal } from '../../../components/Modals';
-import { colors, TAB_BAR_HEIGHT } from '../../../theme';
+import { RoomTabBar } from '../../../components/RoomTabBar';
+import { colors } from '../../../theme';
 import { useState } from 'react';
 
-function TabIcon({ glyph, focused }: { glyph: string; focused: boolean }) {
-  return (
-    <Text style={[styles.icon, focused && styles.iconFocused]}>{glyph}</Text>
-  );
-}
-
 function RoomGuards({ children }: { children: React.ReactNode }) {
-  const { roomClosed, joinError, roomName } = useRoom();
+  const { roomClosed, joinError } = useRoom();
   const [showLeave, setShowLeave] = useState(false);
 
   useEffect(() => {
@@ -62,36 +57,16 @@ export default function RoomLayout() {
       <RoomProvider roomId={id} password={password}>
         <RoomGuards>
           <Tabs
+            tabBar={(props) => <RoomTabBar {...props} />}
             screenOptions={{
               headerShown: false,
-              tabBarStyle: styles.tabBar,
-              tabBarActiveTintColor: colors.amber,
-              tabBarInactiveTintColor: colors.text3,
-              tabBarLabelStyle: styles.tabLabel,
               sceneStyle: { backgroundColor: colors.bgBase },
             }}
           >
-            <Tabs.Screen
-              name="queue"
-              options={{
-                title: 'Queue',
-                tabBarIcon: ({ focused }) => <TabIcon glyph="▤" focused={focused} />,
-              }}
-            />
-            <Tabs.Screen
-              name="player"
-              options={{
-                title: 'Player',
-                tabBarIcon: ({ focused }) => <TabIcon glyph="◉" focused={focused} />,
-              }}
-            />
-            <Tabs.Screen
-              name="chat"
-              options={{
-                title: 'Chat',
-                tabBarIcon: ({ focused }) => <TabIcon glyph="💬" focused={focused} />,
-              }}
-            />
+            <Tabs.Screen name="player" options={{ title: 'Playing' }} />
+            <Tabs.Screen name="queue" options={{ title: 'Queue' }} />
+            <Tabs.Screen name="chat" options={{ title: 'Chat' }} />
+            <Tabs.Screen name="people" options={{ title: 'People' }} />
           </Tabs>
           <FlyingReactions />
         </RoomGuards>
@@ -102,15 +77,4 @@ export default function RoomLayout() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bgBase },
-  tabBar: {
-    height: TAB_BAR_HEIGHT + 8,
-    backgroundColor: 'rgba(14, 14, 18, 0.92)',
-    borderTopWidth: 1,
-    borderTopColor: colors.borderAmber,
-    paddingBottom: 8,
-    paddingTop: 6,
-  },
-  tabLabel: { fontSize: 11, fontFamily: 'Poppins_500Medium' },
-  icon: { fontSize: 22, color: colors.text3 },
-  iconFocused: { color: colors.amber },
 });

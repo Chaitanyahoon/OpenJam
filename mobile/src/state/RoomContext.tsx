@@ -45,8 +45,10 @@ interface RoomApi {
   queue: QueueItem[];
   nowPlaying: TrackInfo | null;
   isPlaying: boolean;
+  loop: boolean;
   listeners: ListenerInfo[];
   messages: ChatMessage[];
+  unreadChat: number;
   typingUsers: string[];
   reactions: FlyingReaction[];
   skipVotes: { votes: number; required: number };
@@ -64,9 +66,13 @@ interface RoomApi {
   togglePlay: () => void;
   nextTrack: () => void;
   previousTrack: () => void;
+  toggleRepeat: () => void;
+  shuffleQueue: () => void;
   seekToMs: (ms: number) => void;
   removeTrack: (queueItemId: string) => void;
   setTyping: (typing: boolean) => void;
+  clearUnreadChat: () => void;
+  setChatFocused: (focused: boolean) => void;
 }
 
 const Ctx = createContext<RoomApi | null>(null);
@@ -88,8 +94,10 @@ export function RoomProvider({
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [nowPlaying, setNowPlaying] = useState<TrackInfo | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [loop, setLoop] = useState(false);
   const [listeners, setListeners] = useState<ListenerInfo[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [unreadChat, setUnreadChat] = useState(0);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [reactions, setReactions] = useState<FlyingReaction[]>([]);
   const [skipVotes, setSkipVotes] = useState({ votes: 0, required: 0 });
@@ -102,8 +110,10 @@ export function RoomProvider({
   const engineRef = useRef(new SyncEngine());
   const trackUriRef = useRef<string | null>(null);
   const playingRef = useRef(false);
+  const loopRef = useRef(false);
   const isHostRef = useRef(false);
   const meRef = useRef<ApiUser | null>(null);
+  const chatFocusedRef = useRef(false);
   const seenMsgIds = useRef(new Set<string>());
   const socketRef = useRef(socket);
   socketRef.current = socket;
@@ -164,6 +174,10 @@ export function RoomProvider({
       }
     }
     setIsPlaying(shouldPlay);
+    if (typeof data.loop === 'boolean' && data.loop !== loopRef.current) {
+      loopRef.current = data.loop;
+      setLoop(data.loop);
+    }
   }, []);
 
   const doJoin = useCallback(() => {
@@ -256,6 +270,10 @@ export function RoomProvider({
         if (!m || seenMsgIds.current.has(m.id)) return;
         seenMsgIds.current.add(m.id);
         setMessages((prev) => [...prev.slice(-199), m]);
+        // unread badge: only when the chat tab isn't in front and it isn't ours
+        if (!chatFocusedRef.current && m.user_id !== meRef.current?.id) {
+          setUnreadChat((n) => n + 1);
+        }
       };
       const onChatAck = (ack: { id: string; temp_id?: string }) => {
         if (!ack?.temp_id) return;
@@ -421,6 +439,26 @@ export function RoomProvider({
     socketRef.current?.emit(C2S.PREVIOUS_TRACK, { room_id: roomId });
   }, [canControl, roomId]);
 
+  const toggleRepeat = useCallback(() => {
+    if (!canControl) return;
+    const next = !loopRef.current;
+    socketRef.current?.emit(C2S.TOGGLE_REPEAT, { room_id: roomId, loop: next });
+    // server echoes back via playback_sync -> loop; optimistic flip for snappiness
+    loopRef.current = next;
+    setLoop(next);
+  }, [canControl, roomId]);
+
+  const shuffleQueue = useCallback(() => {
+    if (!isHostRef.current) return;
+    socketRef.current?.emit(C2S.SHUFFLE_QUEUE, { room_id: roomId });
+  }, [roomId]);
+
+  const clearUnreadChat = useCallback(() => setUnreadChat(0), []);
+  const setChatFocused = useCallback((focused: boolean) => {
+    chatFocusedRef.current = focused;
+    if (focused) setUnreadChat(0);
+  }, []);
+
   const seekToMs = useCallback(
     (ms: number) => {
       if (!canControl) return;
@@ -469,8 +507,10 @@ export function RoomProvider({
       queue,
       nowPlaying,
       isPlaying,
+      loop,
       listeners,
       messages,
+      unreadChat,
       typingUsers,
       reactions,
       skipVotes,
@@ -487,16 +527,21 @@ export function RoomProvider({
       togglePlay,
       nextTrack,
       previousTrack,
+      toggleRepeat,
+      shuffleQueue,
       seekToMs,
       removeTrack,
       setTyping,
+      clearUnreadChat,
+      setChatFocused,
     }),
     [
       roomId, roomName, isHost, canControl, queue, nowPlaying, isPlaying,
-      listeners, messages, typingUsers, reactions, skipVotes, syncReady,
+      loop, listeners, messages, unreadChat, typingUsers, reactions, skipVotes, syncReady,
       joinError, roomClosed, me, sendChat, sendReaction, dismissReaction,
       addTrack, voteTrack, voteSkip, togglePlay, nextTrack, previousTrack,
-      seekToMs, removeTrack, setTyping,
+      toggleRepeat, shuffleQueue, seekToMs, removeTrack, setTyping,
+      clearUnreadChat, setChatFocused,
     ],
   );
 

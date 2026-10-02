@@ -1,7 +1,8 @@
 /** Chat tab: presence strip + chat panel. */
-import React from 'react';
+import React, { useCallback } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
 import { colors, spacing } from '../../../theme';
 import { fontFamily } from '../../../fonts';
 import { useRoom } from '../../../state/RoomContext';
@@ -17,7 +18,15 @@ function initials(name: string): string {
 }
 
 export default function ChatTab() {
-  const { listeners, roomName } = useRoom();
+  const { listeners, roomName, setChatFocused } = useRoom();
+
+  // PWA parity: opening the chat tab clears the unread badge.
+  useFocusEffect(
+    useCallback(() => {
+      setChatFocused(true);
+      return () => setChatFocused(false);
+    }, [setChatFocused]),
+  );
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.container}>

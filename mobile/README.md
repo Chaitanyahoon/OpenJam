@@ -55,10 +55,11 @@ mobile/
     app/                 # expo-router screens
       index.tsx          # landing: hero + live room list
       room/[id]/
-        _layout.tsx      # bottom tabs (Queue | Player | Chat) + providers
+        _layout.tsx      # bottom tabs (Playing | Queue | Chat | People) + mini-player
         queue.tsx        # track search, add, upvote
-        player.tsx       # vinyl, progress, transport controls
-        chat.tsx         # presence + chat
+        player.tsx       # artwork card, EQ bars, transport, like/volume/lyrics
+        chat.tsx         # presence + chat (unread badge)
+        people.tsx       # listener list
     audio/PlayerContext.tsx   # expo-audio driver, background + lock-screen
     state/
       SocketContext.tsx  # socket.io lifecycle (path /socket.io)
@@ -91,4 +92,3 @@ Identical math to the web client (`sync_ping`/`sync_pong` → offset, median of
   and best-effort POSTs it to `POST /push/token` — the backend doesn't have
   that endpoint yet; add it server-side to enable "room started" notifications.
 - Discord OAuth is guest-only for now (web parity deferred).
-- Lyrics view is v2 (player tab has the toggle point ready).

@@ -14,6 +14,7 @@ import React, {
   useEffect,
   useMemo,
   useRef,
+  useState,
 } from 'react';
 import {
   setAudioModeAsync,
@@ -35,6 +36,9 @@ interface PlayerControls {
   /** Best-effort current position in ms, extrapolated between polls. */
   positionMs: () => number;
   updateMeta: (meta: LockScreenMeta) => void;
+  /** Local device volume 0..1 (not synced to the room). */
+  volume: number;
+  setVolume: (v: number) => void;
 }
 
 interface PlayerStatus {
@@ -112,9 +116,19 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     [player],
   );
 
+  const [volume, setVolumeState] = useState(1);
+  const setVolume = useCallback(
+    (v: number) => {
+      const clamped = Math.min(1, Math.max(0, v));
+      player.volume = clamped;
+      setVolumeState(clamped);
+    },
+    [player],
+  );
+
   const controls = useMemo(
-    () => ({ loadTrack, play, pause, seekToMs, positionMs, updateMeta }),
-    [loadTrack, play, pause, seekToMs, positionMs, updateMeta],
+    () => ({ loadTrack, play, pause, seekToMs, positionMs, updateMeta, volume, setVolume }),
+    [loadTrack, play, pause, seekToMs, positionMs, updateMeta, volume, setVolume],
   );
 
   const statusValue = useMemo<PlayerStatus>(
