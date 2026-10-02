@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
     borderRadius: 23,
     backgroundColor: colors.bgSurface,
     borderWidth: 1,
-    borderColor: colors.borderAmber,
+    borderColor: colors.hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },

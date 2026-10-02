@@ -2,7 +2,7 @@
 import React from 'react';
 import { FlatList, Image, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, radius, spacing } from '../../../theme';
+import { colors, spacing } from '../../../theme';
 import { fontFamily } from '../../../fonts';
 import { useRoom } from '../../../state/RoomContext';
 
@@ -84,35 +84,31 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.bgSurface,
-    borderWidth: 1,
-    borderColor: colors.borderAmber,
-    borderRadius: radius.lg,
-    padding: spacing.md,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hairline,
     gap: spacing.md,
   },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#1a1a20',
-    borderWidth: 1,
-    borderColor: colors.borderAmber,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.bgSurface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
-    fontFamily: fontFamily.displaySemiBold,
-    fontSize: 16,
-    color: colors.amber,
+    fontFamily: fontFamily.bodyMedium,
+    fontSize: 15,
+    color: colors.text3,
   },
   dot: {
     position: 'absolute',
-    left: 44,
-    top: 40,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    left: 40,
+    top: 36,
+    width: 11,
+    height: 11,
+    borderRadius: 5.5,
     backgroundColor: colors.green,
     borderWidth: 2,
     borderColor: colors.bgBase,

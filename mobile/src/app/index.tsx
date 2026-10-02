@@ -1,6 +1,6 @@
 /**
- * Landing screen — hero, room list, create-room flow.
- * Mirrors the PWA home (HeroSection + RoomCard list).
+ * Landing screen — minimalist: wordmark, live count, one headline,
+ * one amber action, hairline room rows.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -24,7 +24,6 @@ import {
 } from '../api';
 import { useSocket } from '../state/SocketContext';
 import { RoomCard } from '../components/RoomCard';
-import { Title, Subtitle } from '../components/ui';
 import {
   CreateRoomModal,
   IdentityModal,
@@ -91,6 +90,11 @@ export default function Landing() {
     else openRoom(room);
   };
 
+  const startRoom = () => {
+    if (user) setShowCreate(true);
+    else setShowIdentity(true);
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <View style={styles.container}>
@@ -98,15 +102,24 @@ export default function Landing() {
           <Text style={styles.logo}>
             Open<Text style={styles.logoAmber}>Jam</Text>
           </Text>
-          <Subtitle>Hear it together — at the exact same millisecond.</Subtitle>
-          {user ? (
-            <Text style={styles.welcome}>Jamming as {user.display_name}</Text>
-          ) : null}
+          <View style={styles.liveRow}>
+            <View style={styles.liveDot} />
+            <Text style={styles.liveText}>
+              {rooms.length} room{rooms.length === 1 ? '' : 's'} live now
+            </Text>
+          </View>
         </View>
 
-        <View style={styles.listHeader}>
-          <Title>Live rooms</Title>
-        </View>
+        <Text style={styles.headline}>Listen together, in sync.</Text>
+
+        <Pressable
+          style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
+          onPress={startRoom}
+        >
+          <Text style={styles.ctaText}>Start a room</Text>
+        </Pressable>
+
+        <Text style={styles.sectionLabel}>Live rooms</Text>
 
         <FlatList
           data={rooms}
@@ -117,7 +130,7 @@ export default function Landing() {
           ListEmptyComponent={
             ready ? (
               <Text style={styles.empty}>
-                No rooms live right now — create one and invite your friends.
+                No rooms live right now — start one above.
               </Text>
             ) : null
           }
@@ -127,11 +140,8 @@ export default function Landing() {
           contentContainerStyle={styles.listContent}
         />
 
-        <Pressable
-          style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
-          onPress={() => (user ? setShowCreate(true) : setShowIdentity(true))}
-        >
-          <Text style={styles.fabText}>＋</Text>
+        <Pressable onPress={startRoom} hitSlop={12} style={styles.newRoom}>
+          <Text style={styles.newRoomText}>+ New room</Text>
         </Pressable>
 
         <IdentityModal visible={showIdentity} onDone={handleIdentity} />
@@ -160,45 +170,66 @@ export default function Landing() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bgBase },
-  container: { flex: 1, paddingHorizontal: spacing.md },
-  hero: { paddingTop: spacing.lg, paddingBottom: spacing.md },
+  container: { flex: 1, paddingHorizontal: spacing.lg },
+  hero: { paddingTop: spacing.lg },
   logo: {
     fontFamily: fontFamily.displayBold,
-    fontSize: 38,
+    fontSize: 28,
     color: colors.text1,
     letterSpacing: 0.5,
   },
   logoAmber: { color: colors.amber },
-  welcome: {
-    fontFamily: fontFamily.bodyMedium,
-    fontSize: 13,
-    color: colors.green,
+  liveRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     marginTop: spacing.sm,
   },
-  listHeader: { marginBottom: spacing.sm },
-  listContent: { paddingBottom: 96 },
+  liveDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.green },
+  liveText: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 13,
+    color: colors.text3,
+  },
+  headline: {
+    fontFamily: fontFamily.displayMedium,
+    fontSize: 30,
+    color: colors.text1,
+    marginTop: spacing.xl,
+    marginBottom: spacing.lg,
+    lineHeight: 36,
+  },
+  cta: {
+    backgroundColor: colors.amber,
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  pressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
+  ctaText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 17,
+    color: '#08080a',
+  },
+  sectionLabel: {
+    fontFamily: fontFamily.bodyMedium,
+    fontSize: 12,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    color: colors.text3,
+    marginTop: spacing.xl,
+  },
+  listContent: { paddingBottom: spacing.md },
   empty: {
     fontFamily: fontFamily.bodyRegular,
     color: colors.text3,
-    textAlign: 'center',
-    marginTop: spacing.xl,
+    marginTop: spacing.lg,
+    fontSize: 14,
   },
-  fab: {
-    position: 'absolute',
-    right: spacing.md,
-    bottom: spacing.lg,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: colors.amber,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.amber,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 14,
-    elevation: 8,
+  newRoom: { paddingVertical: spacing.lg },
+  newRoomText: {
+    fontFamily: fontFamily.bodyMedium,
+    fontSize: 15,
+    color: colors.amber,
   },
-  fabPressed: { transform: [{ scale: 0.94 }] },
-  fabText: { fontSize: 28, color: '#08080a', marginTop: -2 },
 });

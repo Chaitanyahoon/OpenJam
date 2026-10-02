@@ -14,6 +14,7 @@ export const colors = {
   text1: '#f8fafc', // primary titles
   text3: '#64748b', // subtitles, captions
   borderAmber: 'rgba(255, 159, 28, 0.15)', // ambient card borders
+  hairline: 'rgba(255, 255, 255, 0.08)', // minimalist hairline dividers
   white: '#ffffff',
   black: '#000000',
 } as const;

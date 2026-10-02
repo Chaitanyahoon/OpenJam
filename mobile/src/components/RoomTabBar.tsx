@@ -129,13 +129,13 @@ export function RoomTabBar({ state, navigation }: TabBarProps) {
 
 const styles = StyleSheet.create({
   wrap: {
-    backgroundColor: 'rgba(14, 14, 18, 0.92)',
+    backgroundColor: colors.bgBase,
     borderTopWidth: 1,
-    borderTopColor: colors.borderAmber,
+    borderTopColor: colors.hairline,
   },
   mini: {
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderAmber,
+    borderBottomColor: colors.hairline,
   },
   miniProgressBg: { height: 2, backgroundColor: colors.bgSurface },
   miniProgressFill: { height: '100%', backgroundColor: colors.amber },
@@ -159,12 +159,10 @@ const styles = StyleSheet.create({
   miniPlay: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.amber,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  miniPlayGlyph: { fontSize: 16, color: '#08080a', marginLeft: 2 },
+  miniPlayGlyph: { fontSize: 18, color: colors.text1 },
   bar: {
     height: TAB_BAR_HEIGHT + 8,
     flexDirection: 'row',

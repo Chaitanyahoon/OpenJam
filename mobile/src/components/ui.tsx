@@ -92,9 +92,9 @@ export function Subtitle({ children, style }: { children: React.ReactNode; style
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.bgCard,
+    backgroundColor: colors.bgSurface,
     borderWidth: 1,
-    borderColor: colors.borderAmber,
+    borderColor: colors.hairline,
     borderRadius: radius.lg,
     padding: spacing.md,
   },
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
   field: {
     backgroundColor: colors.bgSurface,
     borderWidth: 1,
-    borderColor: colors.borderAmber,
+    borderColor: colors.hairline,
     borderRadius: radius.md,
     paddingVertical: 12,
     paddingHorizontal: spacing.md,

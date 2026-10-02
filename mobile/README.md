@@ -57,7 +57,7 @@ mobile/
       room/[id]/
         _layout.tsx      # bottom tabs (Playing | Queue | Chat | People) + mini-player
         queue.tsx        # track search, add, upvote
-        player.tsx       # artwork card, EQ bars, transport, like/volume/lyrics
+        player.tsx       # minimalist artwork, transport, Up next / Lyrics, synced lyrics
         chat.tsx         # presence + chat (unread badge)
         people.tsx       # listener list
     audio/PlayerContext.tsx   # expo-audio driver, background + lock-screen
@@ -69,7 +69,8 @@ mobile/
       engine.ts          # NTP offset math (ported from web RoomClient.js)
     components/          # Vinyl, RoomCard, QueueList, ChatPanel,
                          # FlyingReactions, Modals, ui primitives
-    theme.ts / fonts.ts  # "Vinyl & Analog Dark" design tokens
+    theme.ts / fonts.ts  # minimalist "Vinyl & Analog Dark" tokens: obsidian canvas,
+                         # amber as the single accent, hairline dividers
   app.config.ts          # expo-audio background plugin, scheme, updates
   eas.json               # preview/production APK profiles (internal dist)
 ```

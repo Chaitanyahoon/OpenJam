@@ -1,10 +1,8 @@
 /**
- * Playing tab — mirrors the PWA's MusicPlayer card:
- * square artwork with EQ bars, track info, progress, transport
- * (shuffle/prev/play/next/repeat), like, volume, lyrics toggle,
- * skip votes. Amber-glow Vinyl & Analog Dark styling.
+ * Playing tab — minimalist: artwork, whisper-thin progress, monochrome
+ * transport with one amber play button, "Up next | Lyrics" text links.
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   Image,
@@ -15,52 +13,21 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-} from 'react-native-reanimated';
-import { colors, glowShadow, radius, spacing } from '../../../theme';
+import { router } from 'expo-router';
+import { colors, spacing } from '../../../theme';
 import { fontFamily } from '../../../fonts';
 import { useRoom } from '../../../state/RoomContext';
 import { usePlayer, usePlayerStatus } from '../../../audio/PlayerContext';
 import { activeLyricIndex, fetchLyrics, type Lyrics } from '../../../audio/lyrics';
-import { isFavourite, toggleFavourite } from '../../../audio/favourites';
 
 function fmt(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
-/** One animated equalizer bar (PWA parity: animated EQ over artwork). */
-function EqBar({ delay, maxH }: { delay: number; maxH: number }) {
-  const h = useSharedValue(4);
-  useEffect(() => {
-    h.value = withRepeat(
-      withTiming(maxH, { duration: 420 + delay, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true,
-    );
-  }, [h, delay, maxH]);
-  const style = useAnimatedStyle(() => ({ height: h.value }));
-  return <Animated.View style={[styles.eqBar, style]} />;
-}
-
-function EqBars() {
-  return (
-    <View style={styles.eqWrap}>
-      <EqBar delay={0} maxH={22} />
-      <EqBar delay={120} maxH={30} />
-      <EqBar delay={60} maxH={18} />
-      <EqBar delay={200} maxH={26} />
-    </View>
-  );
-}
-
 export default function PlayerTab() {
   const {
+    roomId,
     nowPlaying,
     isPlaying,
     loop,
@@ -82,12 +49,9 @@ export default function PlayerTab() {
 
   const [pos, setPos] = useState(0);
   const [barWidth, setBarWidth] = useState(0);
-  const [volWidth, setVolWidth] = useState(0);
-  const [showVolume, setShowVolume] = useState(false);
   const [lyricsOpen, setLyricsOpen] = useState(false);
   const [lyrics, setLyrics] = useState<Lyrics>({ lines: [], synced: false });
   const [lyricsLoading, setLyricsLoading] = useState(false);
-  const [liked, setLiked] = useState(false);
   const lyricsListRef = useRef<FlatList>(null);
 
   useEffect(() => {
@@ -95,17 +59,7 @@ export default function PlayerTab() {
     return () => clearInterval(t);
   }, [player]);
 
-  // like state follows the track (PWA: local favourites)
-  useEffect(() => {
-    const uri = nowPlaying?.track_uri;
-    if (!uri) {
-      setLiked(false);
-      return;
-    }
-    isFavourite(uri).then(setLiked).catch(() => setLiked(false));
-  }, [nowPlaying?.track_uri]);
-
-  // lyrics follow the track (PWA: LRCLIB auto-fetch)
+  // lyrics follow the track (LRCLIB)
   useEffect(() => {
     setLyrics({ lines: [], synced: false });
     setLyricsLoading(false);
@@ -142,20 +96,8 @@ export default function PlayerTab() {
     seekToMs(r * duration);
   };
 
-  const onVolumePress = (e: { nativeEvent: { locationX: number } }) => {
-    const r = Math.min(1, Math.max(0, e.nativeEvent.locationX / Math.max(1, volWidth)));
-    player.setVolume(r);
-  };
-
-  const onLike = useCallback(async () => {
-    if (!nowPlaying?.track_uri) return;
-    const next = await toggleFavourite(
-      nowPlaying.track_uri,
-      nowPlaying.track_name,
-      nowPlaying.artist,
-    );
-    setLiked(next);
-  }, [nowPlaying]);
+  const goQueue = () =>
+    router.push({ pathname: '/room/[id]/queue', params: { id: roomId } });
 
   const art = nowPlaying?.album_art_url;
 
@@ -178,7 +120,7 @@ export default function PlayerTab() {
           </View>
         </View>
 
-        <View style={[styles.artCard, glowShadow]}>
+        <View style={styles.artCard}>
           {art ? (
             <Image source={{ uri: art }} style={styles.art} resizeMode="cover" />
           ) : (
@@ -186,11 +128,6 @@ export default function PlayerTab() {
               <Text style={styles.artGlyph}>♪</Text>
             </View>
           )}
-          {isPlaying ? (
-            <View style={styles.eqOverlay}>
-              <EqBars />
-            </View>
-          ) : null}
         </View>
 
         <Text style={styles.trackName} numberOfLines={1}>
@@ -221,7 +158,7 @@ export default function PlayerTab() {
             style={[styles.sideBtn, !isHost && styles.disabled]}
             accessibilityLabel="Shuffle queue"
           >
-            <Text style={styles.sideGlyph}>🔀</Text>
+            <Text style={styles.sideGlyph}>⇄</Text>
           </Pressable>
           <Pressable
             onPress={previousTrack}
@@ -250,60 +187,22 @@ export default function PlayerTab() {
             style={[styles.sideBtn, !canControl && styles.disabled]}
             accessibilityLabel="Toggle repeat"
           >
-            <Text style={[styles.sideGlyph, loop && styles.activeGlyph]}>🔁</Text>
-            {loop ? <View style={styles.loopDot} /> : null}
+            <Text style={[styles.sideGlyph, loop && styles.activeGlyph]}>↻</Text>
           </Pressable>
         </View>
 
-        <View style={styles.utils}>
-          <Pressable onPress={onLike} style={styles.utilBtn} hitSlop={10}>
-            <Text style={[styles.utilGlyph, liked && styles.likedGlyph]}>
-              {liked ? '♥' : '♡'}
-            </Text>
+        <View style={styles.links}>
+          <Pressable onPress={goQueue} hitSlop={10}>
+            <Text style={styles.link}>Up next</Text>
           </Pressable>
-          <Pressable
-            onPress={() => setShowVolume((v) => !v)}
-            style={styles.utilBtn}
-            hitSlop={10}
-          >
-            <Text style={[styles.utilGlyph, showVolume && styles.activeGlyph]}>
-              {player.volume === 0 ? '🔇' : '🔊'}
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => setLyricsOpen((v) => !v)}
-            style={styles.utilBtn}
-            hitSlop={10}
-          >
-            <Text style={[styles.utilGlyph, lyricsOpen && styles.activeGlyph]}>🎙</Text>
+          <View style={styles.linkDivider} />
+          <Pressable onPress={() => setLyricsOpen((v) => !v)} hitSlop={10}>
+            <Text style={[styles.link, lyricsOpen && styles.linkActive]}>Lyrics</Text>
           </Pressable>
         </View>
-
-        {showVolume ? (
-          <Pressable
-            onLayout={(e) => setVolWidth(e.nativeEvent.layout.width)}
-            onPress={onVolumePress}
-            style={styles.volumeHit}
-          >
-            <View style={styles.volumeBg}>
-              <View style={[styles.volumeFill, { width: `${player.volume * 100}%` }]} />
-            </View>
-            <Text style={styles.volumeLabel}>{Math.round(player.volume * 100)}%</Text>
-          </Pressable>
-        ) : null}
-
-        <Pressable style={styles.skipBtn} onPress={voteSkip}>
-          <Text style={styles.skipText}>
-            Vote to skip ({skipVotes.votes}/{skipVotes.required || '–'})
-          </Text>
-        </Pressable>
-        {!canControl ? (
-          <Text style={styles.hint}>Only the host can control playback</Text>
-        ) : null}
 
         {lyricsOpen ? (
           <View style={styles.lyricsBox}>
-            <Text style={styles.lyricsTitle}>Lyrics</Text>
             {lyricsLoading ? (
               <Text style={styles.lyricsHint}>Fetching lyrics…</Text>
             ) : lyrics.lines.length === 0 ? (
@@ -330,12 +229,21 @@ export default function PlayerTab() {
             )}
           </View>
         ) : null}
+
+        <Pressable style={styles.skipLink} onPress={voteSkip} hitSlop={10}>
+          <Text style={styles.skipText}>
+            Vote to skip ({skipVotes.votes}/{skipVotes.required || '–'})
+          </Text>
+        </Pressable>
+        {!canControl ? (
+          <Text style={styles.hint}>Only the host can control playback</Text>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const ART = 300;
+const ART = 280;
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bgBase },
@@ -349,66 +257,45 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   roomName: {
-    fontFamily: fontFamily.displaySemiBold,
-    fontSize: 18,
+    fontFamily: fontFamily.bodyMedium,
+    fontSize: 16,
     color: colors.text1,
     flex: 1,
   },
   syncBadge: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  syncDot: { width: 8, height: 8, borderRadius: 4 },
+  syncDot: { width: 7, height: 7, borderRadius: 3.5 },
   syncText: { fontFamily: fontFamily.bodyRegular, fontSize: 12, color: colors.text3 },
   artCard: {
     width: ART,
     height: ART,
-    borderRadius: 28,
+    borderRadius: 16,
     overflow: 'hidden',
-    marginVertical: spacing.md,
+    marginVertical: spacing.lg,
     backgroundColor: colors.bgSurface,
-    borderWidth: 1,
-    borderColor: colors.borderAmber,
   },
   art: { width: '100%', height: '100%' },
   artFallback: { alignItems: 'center', justifyContent: 'center' },
-  artGlyph: { fontSize: 72, color: colors.amber, opacity: 0.5 },
-  eqOverlay: {
-    position: 'absolute',
-    right: 14,
-    bottom: 12,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  eqWrap: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 30 },
-  eqBar: { width: 4, borderRadius: 2, backgroundColor: colors.amber },
+  artGlyph: { fontSize: 64, color: colors.text3, opacity: 0.5 },
   trackName: {
-    fontFamily: fontFamily.displaySemiBold,
-    fontSize: 22,
+    fontFamily: fontFamily.displayMedium,
+    fontSize: 21,
     color: colors.text1,
-    marginTop: spacing.sm,
     textAlign: 'center',
   },
   artist: {
     fontFamily: fontFamily.bodyRegular,
-    fontSize: 15,
+    fontSize: 14,
     color: colors.text3,
-    marginTop: 2,
+    marginTop: 4,
   },
   progressHit: { width: '100%', paddingVertical: spacing.md },
   progressBg: {
-    height: 6,
-    borderRadius: 3,
+    height: 3,
+    borderRadius: 2,
     backgroundColor: colors.bgSurface,
     overflow: 'hidden',
   },
-  progressFill: {
-    height: '100%',
-    backgroundColor: colors.amber,
-    borderRadius: 3,
-    shadowColor: colors.amber,
-    shadowOpacity: 0.6,
-    shadowRadius: 6,
-  },
+  progressFill: { height: '100%', backgroundColor: colors.amber, borderRadius: 2 },
   times: {
     width: '100%',
     flexDirection: 'row',
@@ -419,91 +306,40 @@ const styles = StyleSheet.create({
   controls: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
+    gap: spacing.lg,
     marginTop: spacing.lg,
   },
-  sideBtn: { padding: spacing.sm, alignItems: 'center' },
-  sideGlyph: { fontSize: 24, color: colors.text3 },
+  sideBtn: { padding: spacing.sm },
+  sideGlyph: { fontSize: 22, color: colors.text3 },
   activeGlyph: { color: colors.amber },
-  loopDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.amber,
-    marginTop: 2,
-  },
-  ctlBtn: { padding: spacing.md },
-  ctlGlyph: { fontSize: 30, color: colors.text1 },
+  ctlBtn: { padding: spacing.sm },
+  ctlGlyph: { fontSize: 28, color: colors.text1 },
   playBtn: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     backgroundColor: colors.amber,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: colors.amber,
-    shadowOpacity: 0.5,
-    shadowRadius: 16,
-    elevation: 8,
   },
-  playGlyph: { fontSize: 30, color: '#08080a', marginLeft: 3 },
-  disabled: { opacity: 0.35 },
-  utils: {
+  playGlyph: { fontSize: 26, color: '#08080a', marginLeft: 3 },
+  disabled: { opacity: 0.3 },
+  links: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xl,
-    marginTop: spacing.md,
+    gap: spacing.lg,
+    marginTop: spacing.xl,
   },
-  utilBtn: { padding: spacing.sm },
-  utilGlyph: { fontSize: 24, color: colors.text3 },
-  likedGlyph: { color: '#ff4d6d' },
-  volumeHit: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  volumeBg: {
-    flex: 1,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.bgSurface,
-    overflow: 'hidden',
-  },
-  volumeFill: { height: '100%', backgroundColor: colors.amber, borderRadius: 2 },
-  volumeLabel: { fontFamily: fontFamily.bodyRegular, fontSize: 12, color: colors.text3, width: 40, textAlign: 'right' },
-  skipBtn: {
-    marginTop: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.borderAmber,
-    borderRadius: radius.full,
-    paddingVertical: 10,
-    paddingHorizontal: spacing.lg,
-  },
-  skipText: { fontFamily: fontFamily.bodyMedium, fontSize: 14, color: colors.amber },
-  hint: {
+  link: { fontFamily: fontFamily.bodyMedium, fontSize: 14, color: colors.text3 },
+  linkActive: { color: colors.amber },
+  linkDivider: { width: 1, height: 14, backgroundColor: colors.hairline },
+  lyricsBox: { width: '100%', marginTop: spacing.lg },
+  lyricsHint: {
     fontFamily: fontFamily.bodyRegular,
-    fontSize: 12,
+    fontSize: 13,
     color: colors.text3,
-    marginTop: spacing.sm,
+    textAlign: 'center',
   },
-  lyricsBox: {
-    width: '100%',
-    marginTop: spacing.lg,
-    backgroundColor: colors.bgSurface,
-    borderWidth: 1,
-    borderColor: colors.borderAmber,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-  },
-  lyricsTitle: {
-    fontFamily: fontFamily.displaySemiBold,
-    fontSize: 16,
-    color: colors.text1,
-    marginBottom: spacing.sm,
-  },
-  lyricsHint: { fontFamily: fontFamily.bodyRegular, fontSize: 13, color: colors.text3 },
   lyricLine: {
     fontFamily: fontFamily.bodyRegular,
     fontSize: 15,
@@ -512,10 +348,18 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     lineHeight: 22,
   },
-  lyricPast: { opacity: 0.55 },
+  lyricPast: { opacity: 0.5 },
   lyricActive: {
     fontFamily: fontFamily.bodyMedium,
-    color: colors.amber,
+    color: colors.text1,
     fontSize: 17,
+  },
+  skipLink: { marginTop: spacing.xl },
+  skipText: { fontFamily: fontFamily.bodyRegular, fontSize: 13, color: colors.amber },
+  hint: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 12,
+    color: colors.text3,
+    marginTop: spacing.sm,
   },
 });

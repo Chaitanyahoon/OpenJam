@@ -185,9 +185,9 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   sheet: {
-    backgroundColor: colors.bgCard,
+    backgroundColor: colors.bgSurface,
     borderWidth: 1,
-    borderColor: colors.borderAmber,
+    borderColor: colors.hairline,
     borderRadius: radius.lg,
     padding: spacing.lg,
   },
