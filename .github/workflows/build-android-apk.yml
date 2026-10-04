@@ -49,7 +49,7 @@ jobs:
       - name: Install Mobile Dependencies
         run: |
           cd mobile
-          npm ci
+          npm install
 
       - name: Prebuild Native Android Project
         run: |
