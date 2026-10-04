@@ -16,7 +16,9 @@ import { AppState } from 'react-native';
 import { useSocket } from './SocketContext';
 import { usePlayer } from '../audio/PlayerContext';
 import { SyncEngine } from '../sync/engine';
-import { streamUrl, getStoredSession, type ApiUser } from '../api';
+import { streamUrl, getStoredSession, deleteRoom, updateRoom, type ApiUser } from '../api';
+import { recordTrackPlayed } from '../storage/history';
+import { useToast } from '../components/ToastContext';
 import {
   C2S,
   S2C,
@@ -52,15 +54,18 @@ interface RoomApi {
   typingUsers: string[];
   reactions: FlyingReaction[];
   skipVotes: { votes: number; required: number };
+  guestControls: boolean;
   syncReady: boolean;
   joinError: string | null;
   roomClosed: boolean;
   me: ApiUser | null;
   // actions
+  toggleGuestControls: () => void;
   sendChat: (content: string) => void;
   sendReaction: (emoji: string) => void;
   dismissReaction: (key: string) => void;
   addTrack: (track: TrackInfo) => void;
+  playNow: (track: TrackInfo) => void;
   voteTrack: (queueItemId: string) => void;
   voteSkip: () => void;
   togglePlay: () => void;
@@ -73,6 +78,16 @@ interface RoomApi {
   setTyping: (typing: boolean) => void;
   clearUnreadChat: () => void;
   setChatFocused: (focused: boolean) => void;
+  closeRoom: () => Promise<void>;
+  updateRoomDetails: (data: { name?: string; genre_tags?: string[] }) => Promise<void>;
+}
+
+function normalizeQueueList(items?: any[]): QueueItem[] {
+  return (items ?? []).map((i) => ({
+    ...i,
+    queue_item_id: i.queue_item_id || i.id || '',
+    added_by: i.added_by || i.added_by_name || 'Jammer',
+  }));
 }
 
 const Ctx = createContext<RoomApi | null>(null);
@@ -88,6 +103,7 @@ export function RoomProvider({
 }) {
   const { socket, connect } = useSocket();
   const player = usePlayer();
+  const toast = useToast();
 
   const [roomName, setRoomName] = useState('');
   const [isHost, setIsHost] = useState(false);
@@ -106,6 +122,7 @@ export function RoomProvider({
   const [joinError, setJoinError] = useState<string | null>(null);
   const [roomClosed, setRoomClosed] = useState(false);
   const [me, setMe] = useState<ApiUser | null>(null);
+  const canControl = isHost || guestControls;
 
   const engineRef = useRef(new SyncEngine());
   const trackUriRef = useRef<string | null>(null);
@@ -135,50 +152,59 @@ export function RoomProvider({
   }, []);
 
   /** Apply a playback_sync payload to the local player. */
-  const applyPlaybackSync = useCallback(async (data: PlaybackSyncPayload) => {
-    const p = playerRef.current;
-    const engine = engineRef.current;
-    const target = engine.targetPositionMs(data, isHostRef.current);
-    const shouldPlay = !!data.is_playing && !data.is_buffering;
+  const applyPlaybackSync = useCallback(
+    async (data: PlaybackSyncPayload, forceReload = false) => {
+      const p = playerRef.current;
+      const engine = engineRef.current;
+      const target = engine.targetPositionMs(data, isHostRef.current);
+      const shouldPlay = !!data.is_playing && !data.is_buffering;
 
-    const newNowPlaying: TrackInfo | null = data.track_uri
-      ? {
-          track_uri: data.track_uri,
-          track_name: data.track_name ?? 'Unknown track',
-          artist: data.artist ?? 'Unknown artist',
-          album_art_url: data.album_art_url,
-          duration_ms: data.duration_ms,
+      const newNowPlaying: TrackInfo | null = data.track_uri
+        ? {
+            track_uri: data.track_uri,
+            track_name: data.track_name ?? 'Unknown track',
+            artist: data.artist ?? 'Unknown artist',
+            album_art_url: data.album_art_url,
+            duration_ms: data.duration_ms,
+          }
+        : null;
+
+      const isNewTrack =
+        forceReload || (!!data.track_uri && data.track_uri !== trackUriRef.current);
+
+      if (isNewTrack && data.track_uri) {
+        trackUriRef.current = data.track_uri;
+        setNowPlaying(newNowPlaying);
+        if (newNowPlaying) {
+          recordTrackPlayed(newNowPlaying, { id: roomId, name: roomName });
         }
-      : null;
-
-    if (data.track_uri && data.track_uri !== trackUriRef.current) {
-      trackUriRef.current = data.track_uri;
-      setNowPlaying(newNowPlaying);
-      p.loadTrack(streamUrl(data.track_uri), {
-        title: newNowPlaying?.track_name ?? 'OpenJam',
-        artist: newNowPlaying?.artist,
-        artworkUrl: newNowPlaying?.album_art_url,
-      });
-      await p.seekToMs(target);
-      if (shouldPlay) p.play();
-      else p.pause();
-      playingRef.current = shouldPlay;
-    } else {
-      const drift = Math.abs(p.positionMs() - target);
-      if (shouldPlay !== playingRef.current) {
+        p.loadTrack(data.track_uri, {
+          title: newNowPlaying?.track_name ?? 'OpenJam',
+          artist: newNowPlaying?.artist,
+          artworkUrl: newNowPlaying?.album_art_url,
+        });
+        await p.seekToMs(target);
         if (shouldPlay) p.play();
         else p.pause();
         playingRef.current = shouldPlay;
-      } else if (drift > DRIFT_CORRECT_MS) {
-        await p.seekToMs(target);
+      } else {
+        const drift = Math.abs(p.positionMs() - target);
+        if (shouldPlay !== playingRef.current) {
+          if (shouldPlay) p.play();
+          else p.pause();
+          playingRef.current = shouldPlay;
+        } else if (drift > DRIFT_CORRECT_MS) {
+          await p.seekToMs(target);
+        }
       }
-    }
-    setIsPlaying(shouldPlay);
-    if (typeof data.loop === 'boolean' && data.loop !== loopRef.current) {
-      loopRef.current = data.loop;
-      setLoop(data.loop);
-    }
-  }, []);
+      setIsPlaying(shouldPlay);
+      if (typeof data.loop === 'boolean' && data.loop !== loopRef.current) {
+        loopRef.current = data.loop;
+        setLoop(data.loop);
+      }
+    },
+    [roomId, roomName],
+  );
 
   const doJoin = useCallback(() => {
     const s = socketRef.current;
@@ -196,111 +222,175 @@ export function RoomProvider({
 
   useEffect(() => {
     let mounted = true;
+    let pingTimer: ReturnType<typeof setInterval> | null = null;
+    let activeSocket: ReturnType<typeof useSocket>['socket'] = null;
+
+    // Handler references — stored so we can .off() them on cleanup
+    const onConnect = () => {
+      doJoin();
+      socketRef.current?.emit('sync_request', {});
+    };
+    const onPong = (data: SyncPongPayload) => {
+      if (engineRef.current.measure(data) !== null && engineRef.current.reliable) {
+        setSyncReady(true);
+      }
+    };
+    const onJoinSuccess = (data: JoinSuccessPayload) => {
+      if (!mounted) return;
+      setRoomName(data.room?.name ?? '');
+      const hostId = data.room?.host_user_id;
+      const mine = !!hostId && !!meRef.current && hostId === meRef.current.id;
+      isHostRef.current = mine;
+      setIsHost(mine);
+      if (typeof data.allow_guest_controls === 'boolean') {
+        setGuestControls(data.allow_guest_controls);
+      }
+      setQueue(normalizeQueueList(data.queue));
+      setListeners(data.listeners ?? []);
+      if (data.now_playing) {
+        setNowPlaying(data.now_playing);
+      }
+      if (data.playback) {
+        const pos =
+          typeof data.playback.position_ms === 'number'
+            ? data.playback.position_ms
+            : (typeof data.playback.positionMs === 'number' ? data.playback.positionMs : 0);
+        const playing =
+          typeof data.playback.is_playing === 'boolean'
+            ? data.playback.is_playing
+            : !!data.playback.isPlaying;
+        void applyPlaybackSync(
+          {
+            position_ms: pos,
+            is_playing: playing,
+            server_timestamp: data.playback.server_timestamp,
+            ...(data.now_playing ?? {}),
+          },
+          true,
+        );
+      }
+    };
+    const onJoinError = (data: { message?: string }) => {
+      if (mounted) setJoinError(data?.message || 'Could not join room');
+    };
+    const onPlaybackSync = (data: PlaybackSyncPayload) => {
+      void applyPlaybackSync(data);
+    };
+    const onTrackChanged = (data: TrackInfo | null) => {
+      if (!mounted) return;
+      if (data?.track_uri) {
+        setNowPlaying(data);
+        playerRef.current.updateMeta({
+          title: data.track_name,
+          artist: data.artist,
+          artworkUrl: data.album_art_url,
+        });
+        recordTrackPlayed(data, { id: roomId, name: roomName });
+        void applyPlaybackSync(
+          {
+            position_ms: 0,
+            is_playing: true,
+            track_uri: data.track_uri,
+            track_name: data.track_name,
+            artist: data.artist,
+            album_art_url: data.album_art_url,
+            duration_ms: data.duration_ms,
+          },
+          true,
+        );
+      } else {
+        setNowPlaying(null);
+        trackUriRef.current = null;
+        setIsPlaying(false);
+        playingRef.current = false;
+        playerRef.current.pause();
+      }
+    };
+    const onQueueUpdated = (data: { queue?: QueueItem[] }) =>
+      mounted && setQueue(normalizeQueueList(data?.queue));
+    const onListenerCount = (data: { listeners?: ListenerInfo[]; count?: number }) =>
+      mounted && setListeners(data?.listeners ?? []);
+    const onHostChanged = (data: { host_user_id?: string }) => {
+      if (!mounted) return;
+      const mine =
+        !!data?.host_user_id && !!meRef.current && data.host_user_id === meRef.current.id;
+      if (mine && !isHostRef.current) {
+        toast('You are now the room host!', 'success');
+      }
+      isHostRef.current = mine;
+      setIsHost(mine);
+    };
+    const onChatHistory = (data: { messages?: ChatMessage[] }) => {
+      if (!mounted) return;
+      const msgs = data?.messages ?? [];
+      msgs.forEach((m) => seenMsgIds.current.add(m.id));
+      setMessages(msgs.slice(-200));
+    };
+    const onChatMessage = (m: ChatMessage) => {
+      if (!mounted || !m || seenMsgIds.current.has(m.id)) return;
+      seenMsgIds.current.add(m.id);
+      setMessages((prev) => [...prev.slice(-199), m]);
+      if (!chatFocusedRef.current && m.user_id !== meRef.current?.id) {
+        setUnreadChat((n) => n + 1);
+      }
+    };
+    const onChatAck = (ack: { id: string; temp_id?: string }) => {
+      if (!mounted || !ack?.temp_id) return;
+      seenMsgIds.current.add(ack.id);
+      setMessages((prev) =>
+        prev.map((m) => (m.id === ack.temp_id ? { ...m, id: ack.id } : m)),
+      );
+    };
+    const onReaction = (r: ReactionEvent) => {
+      if (!mounted || !r?.emoji) return;
+      const key = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      setReactions((prev) => [...prev.slice(-19), { ...r, key }]);
+    };
+    const onTyping = (d: { user_name?: string; user_id?: string }) => {
+      if (!mounted) return;
+      const name = d?.user_name;
+      if (!name || (meRef.current && name === meRef.current.display_name)) return;
+      setTypingUsers((prev) => (prev.includes(name) ? prev : [...prev, name]));
+    };
+    const onStopTyping = (d: { user_name?: string }) => {
+      if (!mounted || !d?.user_name) return;
+      setTypingUsers((prev) => prev.filter((n) => n !== d.user_name));
+    };
+    const onSkipVotes = (d: { votes?: number; required?: number }) => {
+      if (mounted) setSkipVotes({ votes: d?.votes ?? 0, required: d?.required ?? 0 });
+    };
+    const onGuestControls = (d: { allow_guest_controls?: boolean; enabled?: boolean } | boolean) => {
+      const enabled =
+        typeof d === 'boolean'
+          ? d
+          : d?.allow_guest_controls !== undefined
+            ? !!d.allow_guest_controls
+            : !!d?.enabled;
+      if (mounted) {
+        setGuestControls(enabled);
+        toast(enabled ? 'Guest playback controls enabled' : 'Guest playback controls disabled', 'info');
+      }
+    };
+    const onRoomUpdated = (data: { name?: string; genre_tags?: string[]; allow_guest_controls?: boolean }) => {
+      if (!mounted || !data) return;
+      if (data.name) setRoomName(data.name);
+      if (data.allow_guest_controls !== undefined) setGuestControls(!!data.allow_guest_controls);
+      toast('Room details updated', 'info');
+    };
+    const onQueueError = (data: { message?: string }) => {
+      if (mounted) toast(data?.message || 'Queue error', 'error');
+    };
+    const onRoomClosed = () => {
+      if (mounted) setRoomClosed(true);
+    };
+
     (async () => {
       const s = (await connect()) ?? socketRef.current;
       if (!mounted || !s) {
-        setJoinError('Could not connect. Check your connection and retry.');
+        if (mounted) setJoinError('Could not connect. Check your connection and retry.');
         return;
       }
-
-      const onConnect = () => {
-        // Every (re)connect: fresh offset, rejoin, then ask for live state.
-        doJoin();
-        const sc = socketRef.current;
-        sc?.emit('sync_request', {});
-      };
-      const onPong = (data: SyncPongPayload) => {
-        if (engineRef.current.measure(data) !== null && engineRef.current.reliable) {
-          setSyncReady(true);
-        }
-      };
-      const onJoinSuccess = (data: JoinSuccessPayload) => {
-        setRoomName(data.room?.name ?? '');
-        const hostId = data.room?.host_user_id;
-        const mine = !!hostId && !!meRef.current && hostId === meRef.current.id;
-        isHostRef.current = mine;
-        setIsHost(mine);
-        setQueue(data.queue ?? []);
-        setListeners(data.listeners ?? []);
-        if (data.now_playing) {
-          trackUriRef.current = data.now_playing.track_uri;
-          setNowPlaying(data.now_playing);
-        }
-        if (data.playback) {
-          void applyPlaybackSync({
-            position_ms: data.playback.position_ms,
-            is_playing: data.playback.is_playing,
-            server_timestamp: data.playback.server_timestamp,
-            ...(data.now_playing ?? {}),
-          });
-        }
-      };
-      const onJoinError = (data: { message?: string }) => {
-        setJoinError(data?.message || 'Could not join room');
-      };
-      const onPlaybackSync = (data: PlaybackSyncPayload) => {
-        void applyPlaybackSync(data);
-      };
-      const onTrackChanged = (data: TrackInfo) => {
-        // playback_sync follows right behind; preload metadata early
-        if (data?.track_uri) {
-          playerRef.current.updateMeta({
-            title: data.track_name,
-            artist: data.artist,
-            artworkUrl: data.album_art_url,
-          });
-        }
-      };
-      const onQueueUpdated = (data: { queue?: QueueItem[] }) =>
-        setQueue(data?.queue ?? []);
-      const onListenerCount = (data: { listeners?: ListenerInfo[]; count?: number }) =>
-        setListeners(data?.listeners ?? []);
-      const onHostChanged = (data: { host_user_id?: string }) => {
-        const mine =
-          !!data?.host_user_id && !!meRef.current && data.host_user_id === meRef.current.id;
-        isHostRef.current = mine;
-        setIsHost(mine);
-      };
-      const onChatHistory = (data: { messages?: ChatMessage[] }) => {
-        const msgs = data?.messages ?? [];
-        msgs.forEach((m) => seenMsgIds.current.add(m.id));
-        setMessages(msgs.slice(-200));
-      };
-      const onChatMessage = (m: ChatMessage) => {
-        if (!m || seenMsgIds.current.has(m.id)) return;
-        seenMsgIds.current.add(m.id);
-        setMessages((prev) => [...prev.slice(-199), m]);
-        // unread badge: only when the chat tab isn't in front and it isn't ours
-        if (!chatFocusedRef.current && m.user_id !== meRef.current?.id) {
-          setUnreadChat((n) => n + 1);
-        }
-      };
-      const onChatAck = (ack: { id: string; temp_id?: string }) => {
-        if (!ack?.temp_id) return;
-        seenMsgIds.current.add(ack.id);
-        setMessages((prev) =>
-          prev.map((m) => (m.id === ack.temp_id ? { ...m, id: ack.id } : m)),
-        );
-      };
-      const onReaction = (r: ReactionEvent) => {
-        if (!r?.emoji) return;
-        const key = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        setReactions((prev) => [...prev.slice(-19), { ...r, key }]);
-      };
-      const onTyping = (d: { user_name?: string; user_id?: string }) => {
-        const name = d?.user_name;
-        if (!name || (meRef.current && name === meRef.current.display_name)) return;
-        setTypingUsers((prev) => (prev.includes(name) ? prev : [...prev, name]));
-      };
-      const onStopTyping = (d: { user_name?: string }) => {
-        if (!d?.user_name) return;
-        setTypingUsers((prev) => prev.filter((n) => n !== d.user_name));
-      };
-      const onSkipVotes = (d: { votes?: number; required?: number }) =>
-        setSkipVotes({ votes: d?.votes ?? 0, required: d?.required ?? 0 });
-      const onGuestControls = (d: { enabled?: boolean } | boolean) =>
-        setGuestControls(typeof d === 'boolean' ? d : !!d?.enabled);
-      const onRoomClosed = () => setRoomClosed(true);
+      activeSocket = s;
 
       s.on(S2C.CONNECT, onConnect);
       s.on(S2C.SYNC_PONG, onPong);
@@ -309,6 +399,7 @@ export function RoomProvider({
       s.on(S2C.PLAYBACK_SYNC, onPlaybackSync);
       s.on(S2C.TRACK_CHANGED, onTrackChanged);
       s.on(S2C.QUEUE_UPDATED, onQueueUpdated);
+      s.on(S2C.QUEUE_ERROR, onQueueError);
       s.on(S2C.LISTENER_COUNT, onListenerCount);
       s.on(S2C.HOST_CHANGED, onHostChanged);
       s.on(S2C.CHAT_HISTORY, onChatHistory);
@@ -319,16 +410,38 @@ export function RoomProvider({
       s.on(S2C.STOP_TYPING, onStopTyping);
       s.on(S2C.SKIP_VOTES_UPDATED, onSkipVotes);
       s.on(S2C.GUEST_CONTROLS_UPDATED, onGuestControls);
+      s.on(S2C.ROOM_UPDATED, onRoomUpdated);
       s.on(S2C.ROOM_CLOSED, onRoomClosed);
 
       if (s.connected) onConnect();
-      const pingTimer = setInterval(ping, PING_INTERVAL_MS);
-
-      return () => {};
+      pingTimer = setInterval(ping, PING_INTERVAL_MS);
     })();
 
     return () => {
       mounted = false;
+      if (pingTimer) clearInterval(pingTimer);
+      if (activeSocket) {
+        activeSocket.off(S2C.CONNECT, onConnect);
+        activeSocket.off(S2C.SYNC_PONG, onPong);
+        activeSocket.off(S2C.JOIN_SUCCESS, onJoinSuccess);
+        activeSocket.off(S2C.JOIN_ERROR, onJoinError);
+        activeSocket.off(S2C.PLAYBACK_SYNC, onPlaybackSync);
+        activeSocket.off(S2C.TRACK_CHANGED, onTrackChanged);
+        activeSocket.off(S2C.QUEUE_UPDATED, onQueueUpdated);
+        activeSocket.off(S2C.QUEUE_ERROR, onQueueError);
+        activeSocket.off(S2C.LISTENER_COUNT, onListenerCount);
+        activeSocket.off(S2C.HOST_CHANGED, onHostChanged);
+        activeSocket.off(S2C.CHAT_HISTORY, onChatHistory);
+        activeSocket.off(S2C.CHAT_MESSAGE, onChatMessage);
+        activeSocket.off('chat_ack', onChatAck);
+        activeSocket.off(S2C.REACTION, onReaction);
+        activeSocket.off(S2C.TYPING, onTyping);
+        activeSocket.off(S2C.STOP_TYPING, onStopTyping);
+        activeSocket.off(S2C.SKIP_VOTES_UPDATED, onSkipVotes);
+        activeSocket.off(S2C.GUEST_CONTROLS_UPDATED, onGuestControls);
+        activeSocket.off(S2C.ROOM_UPDATED, onRoomUpdated);
+        activeSocket.off(S2C.ROOM_CLOSED, onRoomClosed);
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
@@ -393,7 +506,36 @@ export function RoomProvider({
 
   const addTrack = useCallback(
     (track: TrackInfo) => {
-      socketRef.current?.emit(C2S.ADD_TO_QUEUE, {
+      const emitAdd = (s: typeof socketRef.current) => {
+        s?.emit(C2S.ADD_TO_QUEUE, {
+          room_id: roomId,
+          track_uri: track.track_uri,
+          track_name: track.track_name,
+          artist: track.artist,
+          album_art_url: track.album_art_url,
+          duration_ms: track.duration_ms,
+        });
+      };
+
+      if (!socketRef.current?.connected) {
+        connect().then((s) => {
+          if (s) {
+            emitAdd(s);
+          } else {
+            toast('Connecting to room queue...', 'info');
+          }
+        });
+        return;
+      }
+      emitAdd(socketRef.current);
+    },
+    [roomId, connect, toast],
+  );
+
+  const playNow = useCallback(
+    (track: TrackInfo) => {
+      if (!canControl) return;
+      socketRef.current?.emit(C2S.PLAY_NOW, {
         room_id: roomId,
         track_uri: track.track_uri,
         track_name: track.track_name,
@@ -401,22 +543,45 @@ export function RoomProvider({
         album_art_url: track.album_art_url,
         duration_ms: track.duration_ms,
       });
+      setNowPlaying(track);
+      recordTrackPlayed(track, { id: roomId, name: roomName });
+      void applyPlaybackSync(
+        {
+          position_ms: 0,
+          is_playing: true,
+          track_uri: track.track_uri,
+          track_name: track.track_name,
+          artist: track.artist,
+          album_art_url: track.album_art_url,
+          duration_ms: track.duration_ms,
+        },
+        true,
+      );
+      toast(`Playing "${track.track_name}"`, 'success');
     },
-    [roomId],
+    [canControl, roomId, roomName, applyPlaybackSync, toast],
   );
 
   const voteTrack = useCallback(
     (queueItemId: string) => {
+      if (!queueItemId) return;
       socketRef.current?.emit(C2S.VOTE_TRACK, { room_id: roomId, queue_item_id: queueItemId });
+      setQueue((prev) =>
+        prev.map((item) =>
+          item.queue_item_id === queueItemId || item.id === queueItemId
+            ? { ...item, votes: (item.votes ?? 0) + 1, has_voted: true }
+            : item,
+        ),
+      );
+      toast('Vote registered', 'info');
     },
-    [roomId],
+    [roomId, toast],
   );
 
   const voteSkip = useCallback(() => {
     socketRef.current?.emit(C2S.VOTE_SKIP, { room_id: roomId });
-  }, [roomId]);
-
-  const canControl = isHost || guestControls;
+    toast('Vote to skip recorded', 'info');
+  }, [roomId, toast]);
 
   const togglePlay = useCallback(() => {
     if (!canControl) return;
@@ -451,7 +616,39 @@ export function RoomProvider({
   const shuffleQueue = useCallback(() => {
     if (!isHostRef.current) return;
     socketRef.current?.emit(C2S.SHUFFLE_QUEUE, { room_id: roomId });
-  }, [roomId]);
+    toast('Queue shuffled', 'info');
+  }, [roomId, toast]);
+
+  const toggleGuestControls = useCallback(() => {
+    if (!isHostRef.current) return;
+    const nextAllow = !guestControls;
+    socketRef.current?.emit(C2S.TOGGLE_GUEST_CONTROLS, { room_id: roomId, allow: nextAllow });
+    setGuestControls(nextAllow);
+  }, [roomId, guestControls]);
+
+  const closeRoom = useCallback(async () => {
+    if (!isHostRef.current) return;
+    try {
+      await deleteRoom(roomId);
+      setRoomClosed(true);
+    } catch (err) {
+      toast('Could not close room', 'error');
+    }
+  }, [roomId, toast]);
+
+  const updateRoomDetails = useCallback(
+    async (data: { name?: string; genre_tags?: string[] }) => {
+      if (!isHostRef.current) return;
+      try {
+        const res = await updateRoom(roomId, data);
+        if (res.name) setRoomName(res.name);
+        toast('Room updated', 'success');
+      } catch (err) {
+        toast('Could not update room details', 'error');
+      }
+    },
+    [roomId, toast],
+  );
 
   const clearUnreadChat = useCallback(() => setUnreadChat(0), []);
   const setChatFocused = useCallback((focused: boolean) => {
@@ -469,13 +666,17 @@ export function RoomProvider({
 
   const removeTrack = useCallback(
     (queueItemId: string) => {
-      if (!isHost) return;
+      if (!isHost || !queueItemId) return;
       socketRef.current?.emit(C2S.REMOVE_FROM_QUEUE, {
         room_id: roomId,
         queue_item_id: queueItemId,
       });
+      setQueue((prev) =>
+        prev.filter((item) => item.queue_item_id !== queueItemId && item.id !== queueItemId),
+      );
+      toast('Track removed', 'info');
     },
-    [isHost, roomId],
+    [isHost, roomId, toast],
   );
 
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -514,14 +715,17 @@ export function RoomProvider({
       typingUsers,
       reactions,
       skipVotes,
+      guestControls,
       syncReady,
       joinError,
       roomClosed,
       me,
+      toggleGuestControls,
       sendChat,
       sendReaction,
       dismissReaction,
       addTrack,
+      playNow,
       voteTrack,
       voteSkip,
       togglePlay,
@@ -534,14 +738,16 @@ export function RoomProvider({
       setTyping,
       clearUnreadChat,
       setChatFocused,
+      closeRoom,
+      updateRoomDetails,
     }),
     [
       roomId, roomName, isHost, canControl, queue, nowPlaying, isPlaying,
-      loop, listeners, messages, unreadChat, typingUsers, reactions, skipVotes, syncReady,
-      joinError, roomClosed, me, sendChat, sendReaction, dismissReaction,
-      addTrack, voteTrack, voteSkip, togglePlay, nextTrack, previousTrack,
+      loop, listeners, messages, unreadChat, typingUsers, reactions, skipVotes, guestControls, syncReady,
+      joinError, roomClosed, me, toggleGuestControls, sendChat, sendReaction, dismissReaction,
+      addTrack, playNow, voteTrack, voteSkip, togglePlay, nextTrack, previousTrack,
       toggleRepeat, shuffleQueue, seekToMs, removeTrack, setTyping,
-      clearUnreadChat, setChatFocused,
+      clearUnreadChat, setChatFocused, closeRoom, updateRoomDetails,
     ],
   );
 

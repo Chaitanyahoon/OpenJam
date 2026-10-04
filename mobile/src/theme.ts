@@ -9,11 +9,14 @@ export const colors = {
   bgCard: 'rgba(18, 18, 24, 0.85)', // glassmorphic overlays
   amber: '#ff9f1c', // brand accent: buttons, highlights, glowing states
   gold: '#ffd23f', // warm highlight transitions
+  discord: '#5865F2', // official Discord blurple
   red: '#f43f5e', // danger / room destruction
   green: '#10b981', // success / online presence
   text1: '#f8fafc', // primary titles
+  text2: '#94a3b8', // secondary text, labels
   text3: '#64748b', // subtitles, captions
-  borderAmber: 'rgba(255, 159, 28, 0.15)', // ambient card borders
+  borderAmber: 'rgba(255, 159, 28, 0.25)', // ambient card borders
+  borderGlass: 'rgba(255, 255, 255, 0.08)', // glass card border
   hairline: 'rgba(255, 255, 255, 0.08)', // minimalist hairline dividers
   white: '#ffffff',
   black: '#000000',

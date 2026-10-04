@@ -15,7 +15,7 @@ import React, {
 import { AppState } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import { getBackendUrl } from '../config';
-import { getStoredSession } from '../api';
+import { getStoredSession, joinAsGuest } from '../api';
 
 interface SocketApi {
   socket: Socket | null;
@@ -50,8 +50,16 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       socketRef.current.connect();
       return socketRef.current;
     }
-    const { token, displayName } = await getStoredSession();
-    if (!token) return null;
+    let { token, displayName } = await getStoredSession();
+    if (!token) {
+      try {
+        const guest = await joinAsGuest(displayName || 'Jammer');
+        token = guest.token;
+        displayName = guest.user.display_name;
+      } catch {
+        return null;
+      }
+    }
     const s = io(getBackendUrl(), {
       path: '/socket.io',
       auth: { token, guest_name: displayName ?? '' },

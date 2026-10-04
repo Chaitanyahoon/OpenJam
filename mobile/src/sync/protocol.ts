@@ -52,6 +52,7 @@ export const S2C = {
   USER_JOINED: 'user_joined',
   USER_LEFT: 'user_left',
   GUEST_CONTROLS_UPDATED: 'guest_controls_updated',
+  ROOM_UPDATED: 'room_updated',
 } as const;
 
 export interface TrackInfo {
@@ -64,8 +65,12 @@ export interface TrackInfo {
 
 export interface QueueItem extends TrackInfo {
   queue_item_id: string;
+  id?: string;
   votes?: number;
   added_by?: string;
+  added_by_name?: string;
+  status?: string;
+  has_voted?: boolean;
 }
 
 export interface PlaybackSyncPayload {
@@ -120,9 +125,16 @@ export interface JoinSuccessPayload {
   queue: QueueItem[];
   now_playing: TrackInfo | null;
   playback: {
-    position_ms: number;
-    is_playing: boolean;
+    position_ms?: number;
+    positionMs?: number;
+    duration_ms?: number;
+    durationMs?: number;
+    is_playing?: boolean;
+    isPlaying?: boolean;
+    is_buffering?: boolean;
     server_timestamp?: number;
   } | null;
   listeners: ListenerInfo[];
+  allow_guest_controls?: boolean;
 }
+

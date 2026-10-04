@@ -31,6 +31,8 @@ const config: ExpoConfig = {
     // (FOREGROUND_SERVICE_MEDIA_PLAYBACK, mediaPlayback type for API 34+).
     ['expo-audio', { enableBackgroundPlayback: true }],
     'expo-notifications',
+    'expo-asset',
+    'expo-web-browser',
     [
       'expo-splash-screen',
       {

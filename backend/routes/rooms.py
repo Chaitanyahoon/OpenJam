@@ -251,3 +251,54 @@ async def close_room(room_id: str, request: Request, db: Session = Depends(get_d
     room_manager.force_close_room(room_id)
 
     return {"message": "Room closed"}
+
+
+@router.patch("/{room_id}")
+async def update_room(room_id: str, request: Request, db: Session = Depends(get_db)):
+    """Allow host to update room details (name, genre_tags, description, allow_guest_controls) live."""
+    user_data = get_current_user_id(request, include_name=True)
+    if not user_data:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    room = db.query(Room).filter(Room.id == room_id, Room.is_active == True).first()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    if room.host_user_id != user_data["id"]:
+        raise HTTPException(status_code=403, detail="Only the host can edit room settings")
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    if "name" in body and body["name"]:
+        clean_name = str(body["name"]).strip()
+        if clean_name:
+            room.name = clean_name[:100]
+
+    if "description" in body and body["description"] is not None:
+        room.description = str(body["description"]).strip()[:500]
+
+    if "genre_tags" in body and isinstance(body["genre_tags"], list):
+        clean_tags = [str(t).strip().lower() for t in body["genre_tags"] if t][:5]
+        room.genre_tags = json.dumps(clean_tags)
+
+    if "allow_guest_controls" in body:
+        allow = bool(body["allow_guest_controls"])
+        room.allow_guest_controls = allow
+        room_manager.set_guest_controls(room_id, allow)
+
+    db.commit()
+    db.refresh(room)
+
+    updated_dict = room.to_dict(
+        listener_count=room_manager.get_listener_count(room_id),
+        host_name=user_data["display_name"],
+    )
+
+    sio = getattr(request.app.state, "sio", None)
+    if sio:
+        await sio.emit("room_updated", updated_dict, room=room_id)
+        if "allow_guest_controls" in body:
+            await sio.emit("guest_controls_updated", {"allow_guest_controls": room.allow_guest_controls}, room=room_id)
+
+    return {"room": updated_dict}

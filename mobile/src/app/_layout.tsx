@@ -16,9 +16,10 @@ import {
 } from '@expo-google-fonts/poppins';
 import { PlayerProvider } from '../audio/PlayerContext';
 import { SocketProvider } from '../state/SocketContext';
+import { ToastProvider } from '../components/ToastContext';
 import { colors } from '../theme';
 
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -32,7 +33,7 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    if (fontsLoaded) SplashScreen.hideAsync();
+    if (fontsLoaded) SplashScreen.hideAsync().catch(() => {});
   }, [fontsLoaded]);
 
   if (!fontsLoaded) return null;
@@ -40,17 +41,19 @@ export default function RootLayout() {
   return (
     <PlayerProvider>
       <SocketProvider>
-        <StatusBar style="light" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: colors.bgBase },
-            animation: 'slide_from_right',
-          }}
-        >
-          <Stack.Screen name="index" />
-          <Stack.Screen name="room/[id]" />
-        </Stack>
+        <ToastProvider>
+          <StatusBar style="light" />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: colors.bgBase },
+              animation: 'slide_from_right',
+            }}
+          >
+            <Stack.Screen name="index" />
+            <Stack.Screen name="room/[id]" />
+          </Stack>
+        </ToastProvider>
       </SocketProvider>
     </PlayerProvider>
   );

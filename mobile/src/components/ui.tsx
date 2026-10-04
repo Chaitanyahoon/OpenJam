@@ -59,6 +59,7 @@ export function Field({
   placeholder,
   secureTextEntry,
   autoCapitalize,
+  autoCorrect,
   onSubmitEditing,
 }: {
   value: string;
@@ -66,6 +67,7 @@ export function Field({
   placeholder?: string;
   secureTextEntry?: boolean;
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+  autoCorrect?: boolean;
   onSubmitEditing?: () => void;
 }) {
   return (
@@ -76,6 +78,7 @@ export function Field({
       placeholderTextColor={colors.text3}
       secureTextEntry={secureTextEntry}
       autoCapitalize={autoCapitalize ?? 'sentences'}
+      autoCorrect={autoCorrect}
       onSubmitEditing={onSubmitEditing}
       style={styles.field}
     />

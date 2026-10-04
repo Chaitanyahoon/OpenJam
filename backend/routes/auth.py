@@ -220,7 +220,7 @@ def get_redirect_uri(request: Request) -> str:
 
 
 @router.get("/discord")
-async def discord_login(request: Request):
+async def discord_login(request: Request, state: str = ""):
     """Redirect user to Discord OAuth2 authorization page."""
     if not settings.DISCORD_CLIENT_ID:
         log_auth_error("discord_login: DISCORD_CLIENT_ID not configured")
@@ -236,21 +236,32 @@ async def discord_login(request: Request):
         "scope": "identify",
         "prompt": "consent",
     }
+    if state:
+        params["state"] = state
     return RedirectResponse(f"{DISCORD_AUTH_URL}?{urlencode(params)}")
 
 
 
 @router.get("/discord/callback")
-async def discord_callback(request: Request, code: str = ""):
+async def discord_callback(request: Request, code: str = "", state: str = ""):
     """Handle Discord OAuth2 callback — exchange code for token, fetch user, create session."""
     log_auth_event(f"discord_callback: callback invoked with code length={len(code) if code else 0}")
+
+    # Helper: build redirect URL that goes back to the mobile app when state is a native scheme,
+    # or falls back to the PWA frontend.
+    def _error_redirect(error_code: str):
+        if state and (state.startswith("openjam://") or state.startswith("exp://")):
+            delimiter = "&" if "?" in state else "#"
+            return RedirectResponse(f"{state}{delimiter}error={error_code}")
+        return RedirectResponse(f"{settings.FRONTEND_URL}/?error={error_code}")
+
     if not code:
         log_auth_error("discord_callback: no code provided")
-        return RedirectResponse(f"{settings.FRONTEND_URL}/?error=discord_no_code")
+        return _error_redirect("discord_no_code")
 
     if not settings.DISCORD_CLIENT_ID or not settings.DISCORD_CLIENT_SECRET:
         log_auth_error("discord_callback: DISCORD_CLIENT_ID or DISCORD_CLIENT_SECRET not configured")
-        return RedirectResponse(f"{settings.FRONTEND_URL}/?error=discord_not_configured")
+        return _error_redirect("discord_not_configured")
 
     try:
         # 1. Exchange authorization code for access token
@@ -267,13 +278,13 @@ async def discord_callback(request: Request, code: str = ""):
 
             if token_resp.status_code != 200:
                 log_auth_error(f"Discord token exchange failed (status={token_resp.status_code}): {token_resp.text}")
-                return RedirectResponse(f"{settings.FRONTEND_URL}/?error=discord_token_failed")
+                return _error_redirect("discord_token_failed")
 
             token_data = token_resp.json()
             access_token = token_data.get("access_token")
             if not access_token:
                 log_auth_error(f"discord_callback: token exchange response missing access_token. response={token_data}")
-                return RedirectResponse(f"{settings.FRONTEND_URL}/?error=discord_no_token")
+                return _error_redirect("discord_no_token")
 
             # 2. Fetch Discord user profile
             user_resp = await client.get(f"{DISCORD_API_BASE}/users/@me", headers={
@@ -282,7 +293,7 @@ async def discord_callback(request: Request, code: str = ""):
 
             if user_resp.status_code != 200:
                 log_auth_error(f"Discord user fetch failed (status={user_resp.status_code}): {user_resp.text}")
-                return RedirectResponse(f"{settings.FRONTEND_URL}/?error=discord_user_failed")
+                return _error_redirect("discord_user_failed")
 
             discord_user = user_resp.json()
 
@@ -392,7 +403,12 @@ async def discord_callback(request: Request, code: str = ""):
         )
 
 
-        response = RedirectResponse(f"{settings.FRONTEND_URL}/#token={session_token}")
+        if state and (state.startswith("openjam://") or state.startswith("exp://")):
+            delimiter = "&" if "?" in state else "#"
+            redirect_target = f"{state}{delimiter}token={session_token}"
+            response = RedirectResponse(redirect_target)
+        else:
+            response = RedirectResponse(f"{settings.FRONTEND_URL}/#token={session_token}")
         is_prod = settings.ENVIRONMENT == "production"
         response.set_cookie(
             key="session_token",
@@ -409,5 +425,6 @@ async def discord_callback(request: Request, code: str = ""):
         log_auth_error(f"Discord OAuth2 exception: {str(e)}")
         import traceback
         log_auth_error(traceback.format_exc())
-        return RedirectResponse(f"{settings.FRONTEND_URL}/?error=discord_error")
+        return _error_redirect("discord_error")
+
 

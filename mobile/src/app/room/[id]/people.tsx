@@ -1,126 +1,642 @@
-/** People tab: who's in the room (mirrors the PWA's People panel). */
-import React from 'react';
-import { FlatList, Image, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, spacing } from '../../../theme';
+/**
+ * People tab:
+ * - Room share card with instant invite link sharing
+ * - Host moderation deck (Guest Playback Controls toggle)
+ * - Roster of active listeners sorted with Host first & You indicators
+ * - Discord avatar rendering and color-coded fallback badges
+ */
+import React, { useEffect, useState } from 'react';
+import { Alert, FlatList, Pressable, Share, StyleSheet, Switch, Text, View } from 'react-native';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Share2, Crown, Activity, User, Edit3, Trash2 } from 'lucide-react-native';
+import { router } from 'expo-router';
+import { colors, radius, spacing } from '../../../theme';
 import { fontFamily } from '../../../fonts';
 import { useRoom } from '../../../state/RoomContext';
-
-function initials(name: string): string {
-  return name
-    .split(/[\s-_]+/)
-    .map((p) => p[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-}
+import { initials, nameColor } from '../../../components/ChatPanel';
+import { ProfileModal } from '../../../components/ProfileModal';
+import { EditRoomModal, ListenerActionModal } from '../../../components/Modals';
+import { clearSession, getStoredSession, joinAsGuest, type ApiUser } from '../../../api';
+import { useToast } from '../../../components/ToastContext';
+import type { PlayedTrack } from '../../../storage/history';
 
 export default function PeopleTab() {
-  const { listeners, roomName, me } = useRoom();
+  const {
+    roomId,
+    roomName,
+    listeners,
+    me,
+    isHost,
+    guestControls,
+    toggleGuestControls,
+    closeRoom,
+    updateRoomDetails,
+  } = useRoom();
+  const toast = useToast();
+  const [showProfile, setShowProfile] = useState(false);
+  const [showEditRoom, setShowEditRoom] = useState(false);
+  const [selectedListener, setSelectedListener] = useState<any | null>(null);
+  const [sessionUser, setSessionUser] = useState<ApiUser | null>(null);
+
+  useEffect(() => {
+    void getStoredSession().then((s) => {
+      if (s.user) setSessionUser(s.user);
+    });
+  }, []);
+
+  const handleUpdateGuestName = async (newName: string) => {
+    try {
+      const { user: u } = await joinAsGuest(newName);
+      setSessionUser(u);
+      toast(`Guest name updated to "${u.display_name}"`, 'success');
+    } catch {
+      toast('Could not update guest profile', 'error');
+    }
+  };
+
+  const handleSignOut = async () => {
+    await clearSession();
+    setSessionUser(null);
+    toast('Signed out', 'info');
+  };
+
+  const handleJoinRoom = (targetRoomId: string) => {
+    setShowProfile(false);
+    if (targetRoomId !== roomId) {
+      router.replace({ pathname: '/room/[id]', params: { id: targetRoomId } });
+    }
+  };
+
+  const handlePlayTrack = (track: PlayedTrack) => {
+    setShowProfile(false);
+    if (track.roomId && track.roomId !== roomId) {
+      router.replace({ pathname: '/room/[id]', params: { id: track.roomId } });
+    }
+  };
+
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        message: `Join me on OpenJam!\nhttps://www.openjam.fun/room/${roomId}`,
+        title: `OpenJam – ${roomName || 'Live Room'}`,
+      });
+    } catch {
+      // dismissed
+    }
+  };
+
+  const handleCloseRoom = () => {
+    Alert.alert(
+      'Close & Delete Room?',
+      'This will end the session and remove the room for all connected listeners.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Close Room',
+          style: 'destructive',
+          onPress: async () => {
+            await closeRoom();
+            toast('Room closed', 'info');
+            router.replace('/');
+          },
+        },
+      ],
+    );
+  };
+
+  // Sort listeners: Hosts first, then current user, then others alphabetically
+  const sortedListeners = [...listeners].sort((a, b) => {
+    if (a.is_host && !b.is_host) return -1;
+    if (!a.is_host && b.is_host) return 1;
+    if (me && a.user_id === me.id) return -1;
+    if (me && b.user_id === me.id) return 1;
+    return a.user_name.localeCompare(b.user_name);
+  });
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.container}>
-        <Text style={styles.header} numberOfLines={1}>
-          {roomName}
-        </Text>
-        <Text style={styles.sub}>
-          {listeners.length} online
-        </Text>
-        <FlatList
-          data={listeners}
-          keyExtractor={(l) => l.user_id}
-          contentContainerStyle={styles.list}
-          renderItem={({ item }) => {
-            const isMe = me && item.user_id === me.id;
-            return (
-              <View style={styles.row}>
-                {item.avatar_url ? (
-                  <Image source={{ uri: item.avatar_url }} style={styles.avatar} />
-                ) : (
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>{initials(item.user_name)}</Text>
+    <View style={styles.safe}>
+      <FlatList
+        data={sortedListeners}
+        keyExtractor={(l) => l.user_id}
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={
+          <>
+            {/* Room Share / Invite Card */}
+            <View style={styles.shareCard}>
+              <View style={styles.shareMeta}>
+                <Text style={styles.shareTitle}>Invite Friends to Jam</Text>
+                <Text style={styles.shareCode}>Room Code: #{roomId}</Text>
+              </View>
+              <Pressable
+                onPress={handleShare}
+                style={({ pressed }) => [styles.shareBtn, pressed && styles.pressed]}
+                hitSlop={8}
+                accessibilityLabel="Share room invite"
+              >
+                <LinearGradient
+                  colors={['#ffb03a', '#ff9f1c']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.shareGradient}
+                >
+                  <Share2 size={13} color="#08080a" />
+                  <Text style={styles.shareBtnText}>Share</Text>
+                </LinearGradient>
+              </Pressable>
+            </View>
+
+            {/* Host Moderation & Playback Controls Deck */}
+            {isHost ? (
+              <View style={styles.hostCard}>
+                <View style={styles.hostCardHeader}>
+                  <Text style={styles.hostCardBadge}>HOST CONTROLS</Text>
+                </View>
+                <View style={styles.hostRow}>
+                  <View style={styles.hostInfo}>
+                    <Text style={styles.hostTitle}>Guest Playback Controls</Text>
+                    <Text style={styles.hostDesc}>
+                      Allow anyone in the room to play, pause, seek, and reorder the queue.
+                    </Text>
                   </View>
-                )}
-                <View style={styles.dot} />
-                <View style={styles.info}>
-                  <Text style={styles.name} numberOfLines={1}>
-                    {item.user_name}
-                    {isMe ? ' (you)' : ''}
-                  </Text>
-                  <Text style={styles.role}>
-                    {item.is_host ? '★ Host' : 'Listener'}
-                  </Text>
+                  <Switch
+                    value={guestControls}
+                    onValueChange={toggleGuestControls}
+                    trackColor={{ true: colors.amber, false: 'rgba(255, 255, 255, 0.15)' }}
+                    thumbColor={colors.white}
+                  />
+                </View>
+
+                <View style={styles.hostButtonsRow}>
+                  <Pressable
+                    onPress={() => setShowEditRoom(true)}
+                    style={({ pressed }) => [styles.hostEditBtn, pressed && styles.pressed]}
+                    accessibilityLabel="Edit room settings"
+                  >
+                    <Edit3 size={13} color={colors.amber} />
+                    <Text style={styles.hostEditBtnText}>Edit Details</Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={handleCloseRoom}
+                    style={({ pressed }) => [styles.hostDeleteBtn, pressed && styles.pressed]}
+                    accessibilityLabel="Close and delete room"
+                  >
+                    <Trash2 size={13} color="#ef4444" />
+                    <Text style={styles.hostDeleteBtnText}>Close Room</Text>
+                  </Pressable>
                 </View>
               </View>
-            );
-          }}
-          ListEmptyComponent={
-            <Text style={styles.empty}>No one else is here yet.</Text>
-          }
-        />
-      </View>
-    </SafeAreaView>
+            ) : null}
+
+            {/* Listeners Header */}
+            <View style={styles.listHeaderRow}>
+              <View style={styles.listHeaderLeft}>
+                <View style={styles.liveDot} />
+                <Text style={styles.listHeaderTitle}>
+                  LISTENERS IN ROOM ({listeners.length})
+                </Text>
+              </View>
+
+              <Pressable
+                onPress={() => setShowProfile(true)}
+                style={({ pressed }) => [styles.myProfileBtn, pressed && styles.pressed]}
+                hitSlop={8}
+                accessibilityLabel="View your profile"
+              >
+                <User size={12} color={colors.amber} />
+                <Text style={styles.myProfileBtnText}>My Profile</Text>
+              </Pressable>
+            </View>
+          </>
+        }
+        renderItem={({ item }) => {
+          const isMe = me && item.user_id === me.id;
+          return (
+            <Pressable
+              onPress={isMe ? () => setShowProfile(true) : () => setSelectedListener(item)}
+              style={({ pressed }) => [
+                styles.listenerCard,
+                isMe && styles.listenerCardMe,
+                pressed && styles.pressed,
+              ]}
+              accessibilityLabel={isMe ? 'Open profile' : `Manage ${item.user_name}`}
+            >
+              <View style={styles.avatarWrap}>
+                {item.avatar_url ? (
+                  <Image
+                    source={{ uri: item.avatar_url }}
+                    style={styles.avatar}
+                    contentFit="cover"
+                    transition={200}
+                  />
+                ) : (
+                  <View
+                    style={[
+                      styles.avatar,
+                      { backgroundColor: nameColor(item.user_name) },
+                    ]}
+                  >
+                    <Text style={styles.avatarInitial}>{initials(item.user_name)}</Text>
+                  </View>
+                )}
+                <View style={styles.onlineDot} />
+              </View>
+
+              <View style={styles.info}>
+                <View style={styles.nameRow}>
+                  <Text style={styles.name} numberOfLines={1}>
+                    {item.user_name}
+                  </Text>
+                  {isMe ? (
+                    <View style={styles.youBadge}>
+                      <Text style={styles.youBadgeText}>YOU</Text>
+                    </View>
+                  ) : null}
+                </View>
+
+                <View style={styles.statusRow}>
+                  <Activity size={11} color={colors.text3} />
+                  <Text style={styles.statusText}>Listening in sync</Text>
+                </View>
+              </View>
+
+              {item.is_host ? (
+                <View style={styles.hostBadge}>
+                  <Crown size={9} color={colors.amber} />
+                  <Text style={styles.hostBadgeText}>HOST</Text>
+                </View>
+              ) : (
+                <View style={styles.memberBadge}>
+                  <Text style={styles.memberBadgeText}>LISTENER</Text>
+                </View>
+              )}
+            </Pressable>
+          );
+        }}
+        ListEmptyComponent={
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyTitle}>You're jamming solo</Text>
+            <Text style={styles.emptyDesc}>
+              Tap the share button above to send the invite link to your friends!
+            </Text>
+          </View>
+        }
+      />
+
+      <ProfileModal
+        visible={showProfile}
+        user={sessionUser || me}
+        currentName={sessionUser?.display_name || me?.display_name}
+        onClose={() => setShowProfile(false)}
+        onUpdateGuestName={handleUpdateGuestName}
+        onSignOut={handleSignOut}
+        onJoinRoom={handleJoinRoom}
+        onPlayTrack={handlePlayTrack}
+      />
+
+      <EditRoomModal
+        visible={showEditRoom}
+        currentName={roomName}
+        onClose={() => setShowEditRoom(false)}
+        onSave={async (data) => {
+          await updateRoomDetails(data);
+        }}
+      />
+
+      <ListenerActionModal
+        visible={!!selectedListener}
+        listener={selectedListener}
+        onClose={() => setSelectedListener(null)}
+        onMention={(targetName) => {
+          setSelectedListener(null);
+          router.push({
+            pathname: '/room/[id]/chat',
+            params: { id: roomId, mention: targetName },
+          });
+        }}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bgBase },
-  container: { flex: 1, paddingHorizontal: spacing.lg },
-  header: {
-    fontFamily: fontFamily.displaySemiBold,
-    fontSize: 20,
-    color: colors.text1,
-    marginTop: spacing.sm,
+  safe: {
+    flex: 1,
+    backgroundColor: colors.bgBase,
   },
-  sub: {
-    fontFamily: fontFamily.bodyRegular,
-    fontSize: 13,
-    color: colors.text3,
-    marginTop: 2,
-    marginBottom: spacing.md,
+  container: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xl * 1.5,
   },
-  list: { gap: spacing.sm, paddingBottom: spacing.lg },
-  row: {
+  // Share Card
+  shareCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.hairline,
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 18,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  shareMeta: {
+    flex: 1,
+  },
+  shareTitle: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 15,
+    color: colors.text1,
+  },
+  shareCode: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 12,
+    color: colors.text3,
+    marginTop: 2,
+  },
+  shareBtn: {
+    borderRadius: 18,
+    overflow: 'hidden',
+    shadowColor: colors.amber,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  shareGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    gap: 6,
+  },
+  shareBtnGlyph: {
+    fontSize: 14,
+    color: '#08080a',
+    fontWeight: 'bold',
+  },
+  shareBtnText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 13,
+    color: '#08080a',
+  },
+  // Host Controls Card
+  hostCard: {
+    backgroundColor: 'rgba(255, 159, 28, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.25)',
+    borderRadius: 18,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  hostCardHeader: {
+    marginBottom: spacing.xs,
+  },
+  hostCardBadge: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 10,
+    color: colors.amber,
+    letterSpacing: 1,
+  },
+  hostRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     gap: spacing.md,
   },
+  hostInfo: {
+    flex: 1,
+  },
+  hostTitle: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 14,
+    color: colors.text1,
+  },
+  hostDesc: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 12,
+    color: colors.text3,
+    marginTop: 3,
+    lineHeight: 16,
+  },
+  hostButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  hostEditBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255, 159, 28, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.3)',
+    borderRadius: radius.md,
+    paddingVertical: 9,
+  },
+  hostEditBtnText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 12,
+    color: colors.amber,
+  },
+  hostDeleteBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+    borderRadius: radius.md,
+    paddingVertical: 9,
+  },
+  hostDeleteBtnText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 12,
+    color: '#ef4444',
+  },
+  // Listeners List Header
+  listHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+    paddingHorizontal: 4,
+  },
+  listHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.green,
+  },
+  listHeaderTitle: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 11,
+    color: colors.text3,
+    letterSpacing: 1,
+  },
+  myProfileBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: radius.full,
+    backgroundColor: 'rgba(255, 159, 28, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.25)',
+  },
+  myProfileBtnText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 11,
+    color: colors.amber,
+  },
+  // Listener Row Card
+  listenerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(22, 22, 32, 0.65)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    gap: 12,
+  },
+  listenerCardMe: {
+    borderColor: 'rgba(255, 159, 28, 0.3)',
+    backgroundColor: 'rgba(255, 159, 28, 0.06)',
+  },
+  avatarWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    position: 'relative',
+  },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.bgSurface,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: {
-    fontFamily: fontFamily.bodyMedium,
-    fontSize: 15,
-    color: colors.text3,
+  avatarInitial: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 16,
+    color: '#08080a',
   },
-  dot: {
+  onlineDot: {
     position: 'absolute',
-    left: 40,
-    top: 36,
-    width: 11,
-    height: 11,
-    borderRadius: 5.5,
+    right: 0,
+    bottom: 0,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: colors.green,
     borderWidth: 2,
     borderColor: colors.bgBase,
   },
-  info: { flex: 1 },
-  name: { fontFamily: fontFamily.bodyMedium, fontSize: 15, color: colors.text1 },
-  role: { fontFamily: fontFamily.bodyRegular, fontSize: 12, color: colors.text3, marginTop: 2 },
-  empty: {
+  info: {
+    flex: 1,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  name: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 15,
+    color: colors.text1,
+  },
+  youBadge: {
+    backgroundColor: 'rgba(255, 159, 28, 0.2)',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  youBadgeText: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 9,
+    color: colors.amber,
+    letterSpacing: 0.5,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  statusText: {
     fontFamily: fontFamily.bodyRegular,
-    fontSize: 14,
+    fontSize: 11.5,
+    color: colors.text3,
+  },
+  hostBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 159, 28, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.45)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  hostBadgeText: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 10,
+    color: colors.amber,
+    letterSpacing: 0.5,
+  },
+  memberBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  memberBadgeText: {
+    fontFamily: fontFamily.bodyMedium,
+    fontSize: 10,
+    color: colors.text3,
+    letterSpacing: 0.5,
+  },
+  emptyCard: {
+    alignItems: 'center',
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.md,
+  },
+  emptyTitle: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 16,
+    color: colors.text1,
+  },
+  emptyDesc: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 13,
     color: colors.text3,
     textAlign: 'center',
-    marginTop: spacing.xl,
+    marginTop: 4,
+  },
+  pressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.96 }],
   },
 });
