@@ -1,0 +1,106 @@
+name: Build & Release Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'GitHub Release Tag to upload APK to (e.g. v1.0.0-mobile)'
+        required: false
+        default: 'v1.0.0-mobile'
+      upload_to_release:
+        description: 'Upload APK directly to the release tag'
+        type: boolean
+        default: true
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Set up Java 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install Mobile Dependencies
+        run: |
+          cd mobile
+          npm ci
+
+      - name: Prebuild Native Android Project
+        run: |
+          cd mobile
+          npx expo prebuild --platform android --clean
+
+      - name: Build Standalone Release APK
+        run: |
+          cd mobile/android
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Package APK & Generate Checksum
+        run: |
+          mkdir -p build-output
+          # Locate built APK
+          APK_PATH=$(find mobile/android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            echo "Error: Release APK was not found!"
+            exit 1
+          fi
+          echo "Found APK at: $APK_PATH"
+          cp "$APK_PATH" build-output/openjam-v1.0.0.apk
+          cd build-output
+          sha256sum openjam-v1.0.0.apk > openjam-v1.0.0.apk.sha256
+          cat openjam-v1.0.0.apk.sha256
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openjam-android-apk
+          path: build-output/openjam-v1.0.0.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload APK to GitHub Release
+        if: ${{ (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.upload_to_release == true) }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ inputs.release_tag }}"
+          if [ -z "$TAG" ]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "Target Release Tag: $TAG"
+          
+          # Delete old zip bundle if present on the release
+          gh release delete-asset "$TAG" "openjam-android-v1.0.0-bundle.zip" -y || true
+          
+          # Upload real APK binary and checksum
+          gh release upload "$TAG" build-output/openjam-v1.0.0.apk build-output/openjam-v1.0.0.apk.sha256 --clobber
