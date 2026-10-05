@@ -9,6 +9,7 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Switch,
   Text,
@@ -34,10 +35,14 @@ import {
   Plus,
   Check,
   Pencil,
+  ListMusic,
+  Share2,
+  Heart,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
 import type { ApiUser, RoomSummary } from '../api';
+import type { TrackInfo } from '../sync/protocol';
 import {
   getRecentlyPlayed,
   getFavoriteRooms,
@@ -47,6 +52,11 @@ import {
   calculateStorageUsageKb,
   clearAllLocalCache,
   clearRecentlyPlayed,
+  getOfflinePlaylists,
+  saveOfflinePlaylist,
+  deleteOfflinePlaylist,
+  getFavoriteTracks,
+  type OfflinePlaylist,
   type PlayedTrack,
   type FavoriteRoom,
   type ListeningStats,
@@ -66,7 +76,7 @@ interface ProfileModalProps {
   onPlayTrack?: (track: PlayedTrack) => void;
 }
 
-type TabMode = 'history' | 'favorites' | 'settings';
+type TabMode = 'history' | 'playlists' | 'favorites' | 'settings';
 
 function formatRelativeTime(timestamp: number): string {
   const diffSec = Math.floor((Date.now() - timestamp) / 1000);
@@ -109,6 +119,10 @@ export function ProfileModal({
   const [isEditingName, setIsEditingName] = useState(false);
   const [recentTracks, setRecentTracks] = useState<PlayedTrack[]>([]);
   const [favoriteRooms, setFavoriteRooms] = useState<FavoriteRoom[]>([]);
+  const [playlists, setPlaylists] = useState<OfflinePlaylist[]>([]);
+  const [favTracks, setFavTracks] = useState<TrackInfo[]>([]);
+  const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
+  const [newPlaylistName, setNewPlaylistName] = useState('');
   const [stats, setStats] = useState<ListeningStats>({
     totalTracksJammed: 0,
     totalMinutesJammed: 0,
@@ -124,18 +138,22 @@ export function ProfileModal({
   const loadData = async () => {
     setLoading(true);
     try {
-      const [recents, favs, st, prefs, usage] = await Promise.all([
+      const [recents, favs, st, prefs, usage, plists, liked] = await Promise.all([
         getRecentlyPlayed(),
         getFavoriteRooms(),
         getListeningStats(),
         getAppPreferences(),
         calculateStorageUsageKb(),
+        getOfflinePlaylists(),
+        getFavoriteTracks(),
       ]);
       setRecentTracks(recents);
       setFavoriteRooms(favs);
       setStats(st);
       setPreferences(prefs);
       setCacheKb(usage);
+      setPlaylists(plists);
+      setFavTracks(liked);
     } catch {} finally {
       setLoading(false);
     }
@@ -168,6 +186,41 @@ export function ProfileModal({
     setRecentTracks([]);
     setCacheKb(await calculateStorageUsageKb());
     toast('Listening history cleared', 'info');
+  };
+
+  const handleCreatePlaylist = async () => {
+    const trimmed = newPlaylistName.trim();
+    if (!trimmed) return;
+    try {
+      const created = await saveOfflinePlaylist(trimmed);
+      setPlaylists((prev) => [created, ...prev]);
+      setNewPlaylistName('');
+      setIsCreatingPlaylist(false);
+      setCacheKb(await calculateStorageUsageKb());
+      toast(`Created playlist "${trimmed}"`, 'success');
+    } catch {
+      toast('Could not create playlist', 'error');
+    }
+  };
+
+  const handleDeletePlaylist = async (id: string, name: string) => {
+    await deleteOfflinePlaylist(id);
+    setPlaylists((prev) => prev.filter((p) => p.id !== id));
+    setCacheKb(await calculateStorageUsageKb());
+    toast(`Deleted playlist "${name}"`, 'info');
+  };
+
+  const handleSharePlaylist = async (p: OfflinePlaylist) => {
+    try {
+      const summary =
+        p.tracks.length > 0
+          ? p.tracks.map((t, idx) => `${idx + 1}. ${t.track_name} – ${t.artist}`).join('\n')
+          : 'Empty playlist';
+      await Share.share({
+        title: `OpenJam Playlist: ${p.name}`,
+        message: `🎶 OpenJam Playlist: ${p.name} (${p.tracks.length} tracks)\n\n${summary}\n\nListen together on https://www.openjam.fun`,
+      });
+    } catch {}
   };
 
   const handleClearAllStorage = async () => {
@@ -346,9 +399,19 @@ export function ProfileModal({
                 onPress={() => setActiveTab('history')}
                 style={[styles.tabItem, activeTab === 'history' && styles.tabItemActive]}
               >
-                <Clock size={13} color={activeTab === 'history' ? colors.amber : colors.text3} />
+                <Clock size={12} color={activeTab === 'history' ? colors.amber : colors.text3} />
                 <Text style={[styles.tabItemText, activeTab === 'history' && styles.tabItemTextActive]}>
-                  Recent ({recentTracks.length})
+                  Recent
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setActiveTab('playlists')}
+                style={[styles.tabItem, activeTab === 'playlists' && styles.tabItemActive]}
+              >
+                <ListMusic size={12} color={activeTab === 'playlists' ? colors.amber : colors.text3} />
+                <Text style={[styles.tabItemText, activeTab === 'playlists' && styles.tabItemTextActive]}>
+                  Playlists ({playlists.length})
                 </Text>
               </Pressable>
 
@@ -356,9 +419,9 @@ export function ProfileModal({
                 onPress={() => setActiveTab('favorites')}
                 style={[styles.tabItem, activeTab === 'favorites' && styles.tabItemActive]}
               >
-                <Bookmark size={13} color={activeTab === 'favorites' ? colors.amber : colors.text3} />
+                <Bookmark size={12} color={activeTab === 'favorites' ? colors.amber : colors.text3} />
                 <Text style={[styles.tabItemText, activeTab === 'favorites' && styles.tabItemTextActive]}>
-                  Saved ({favoriteRooms.length})
+                  Stations
                 </Text>
               </Pressable>
 
@@ -366,7 +429,7 @@ export function ProfileModal({
                 onPress={() => setActiveTab('settings')}
                 style={[styles.tabItem, activeTab === 'settings' && styles.tabItemActive]}
               >
-                <Sliders size={13} color={activeTab === 'settings' ? colors.amber : colors.text3} />
+                <Sliders size={12} color={activeTab === 'settings' ? colors.amber : colors.text3} />
                 <Text style={[styles.tabItemText, activeTab === 'settings' && styles.tabItemTextActive]}>
                   Settings
                 </Text>
@@ -438,7 +501,158 @@ export function ProfileModal({
               </View>
             ) : null}
 
-            {/* 2. Saved / Favorite Rooms */}
+            {/* 2. Playlists & Library */}
+            {activeTab === 'playlists' ? (
+              <View style={styles.tabContentSection}>
+                <View style={styles.contentHeaderRow}>
+                  <Text style={styles.contentSectionTitle}>OFFLINE PLAYLISTS & LIBRARY</Text>
+                  {!isCreatingPlaylist ? (
+                    <Pressable
+                      onPress={() => setIsCreatingPlaylist(true)}
+                      hitSlop={6}
+                      style={styles.newPlaylistBtn}
+                    >
+                      <Plus size={12} color={colors.amber} />
+                      <Text style={styles.newPlaylistBtnText}>New</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+
+                {/* Offline Awareness Banner */}
+                <View style={styles.offlineBanner}>
+                  <Sparkles size={14} color={colors.amber} />
+                  <Text style={styles.offlineBannerText}>
+                    Playlists and favorite tracks are saved locally in phone storage. Live music streams seamlessly whenever connected to the internet.
+                  </Text>
+                </View>
+
+                {/* Inline New Playlist Form */}
+                {isCreatingPlaylist ? (
+                  <View style={styles.newPlaylistForm}>
+                    <TextInput
+                      value={newPlaylistName}
+                      onChangeText={setNewPlaylistName}
+                      placeholder="Playlist name (e.g. Chill Beats)"
+                      placeholderTextColor={colors.text3}
+                      style={styles.newPlaylistInput}
+                      maxLength={32}
+                      autoFocus
+                    />
+                    <Pressable
+                      onPress={handleCreatePlaylist}
+                      style={({ pressed }) => [styles.createPlaylistBtn, pressed && styles.pressed]}
+                    >
+                      <Check size={14} color="#08080a" strokeWidth={3} />
+                    </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        setIsCreatingPlaylist(false);
+                        setNewPlaylistName('');
+                      }}
+                      style={styles.cancelPlaylistBtn}
+                    >
+                      <X size={14} color={colors.text2} />
+                    </Pressable>
+                  </View>
+                ) : null}
+
+                {/* Playlists List */}
+                {playlists.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <ListMusic size={32} color={colors.text3} opacity={0.4} />
+                    <Text style={styles.emptyTitle}>No saved playlists yet</Text>
+                    <Text style={styles.emptySubtitle}>
+                      Create custom playlists to save your favorite jams for quick listening.
+                    </Text>
+                  </View>
+                ) : (
+                  playlists.map((pl) => (
+                    <View key={pl.id} style={styles.playlistCard}>
+                      <View style={styles.playlistCardHeader}>
+                        <View style={styles.playlistIconBox}>
+                          <ListMusic size={16} color={colors.amber} />
+                        </View>
+                        <View style={styles.playlistMeta}>
+                          <Text style={styles.playlistName} numberOfLines={1}>
+                            {pl.name}
+                          </Text>
+                          <Text style={styles.playlistSub}>
+                            {pl.tracks.length} tracks · Saved locally
+                          </Text>
+                        </View>
+                        <View style={styles.playlistActions}>
+                          <Pressable
+                            onPress={() => handleSharePlaylist(pl)}
+                            hitSlop={8}
+                            style={styles.playlistActionBtn}
+                            accessibilityLabel="Share playlist"
+                          >
+                            <Share2 size={13} color={colors.text2} />
+                          </Pressable>
+                          <Pressable
+                            onPress={() => handleDeletePlaylist(pl.id, pl.name)}
+                            hitSlop={8}
+                            style={styles.playlistActionBtn}
+                            accessibilityLabel="Delete playlist"
+                          >
+                            <Trash2 size={13} color={colors.red} />
+                          </Pressable>
+                        </View>
+                      </View>
+                    </View>
+                  ))
+                )}
+
+                {/* Liked Tracks Section */}
+                <View style={[styles.contentHeaderRow, { marginTop: spacing.md }]}>
+                  <Text style={styles.contentSectionTitle}>
+                    FAVORITE TRACKS ({favTracks.length})
+                  </Text>
+                </View>
+
+                {favTracks.length === 0 ? (
+                  <View style={[styles.emptyState, { paddingVertical: 18 }]}>
+                    <Heart size={24} color={colors.text3} opacity={0.4} />
+                    <Text style={styles.emptySubtitle}>
+                      Tap heart on any song to save it to your library.
+                    </Text>
+                  </View>
+                ) : (
+                  favTracks.map((t, idx) => (
+                    <View key={`${t.track_uri}-${idx}`} style={styles.historyRow}>
+                      <View style={[styles.historyArt, styles.artFallback]}>
+                        <Music size={16} color={colors.amber} />
+                      </View>
+                      <View style={styles.historyInfo}>
+                        <Text style={styles.historyTrackName} numberOfLines={1}>
+                          {t.track_name}
+                        </Text>
+                        <Text style={styles.historyArtist} numberOfLines={1}>
+                          {t.artist || 'Unknown Artist'}
+                        </Text>
+                      </View>
+                      {onPlayTrack ? (
+                        <Pressable
+                          onPress={() => {
+                            onPlayTrack({
+                              ...t,
+                              playedAt: Date.now(),
+                            });
+                            onClose();
+                          }}
+                          style={({ pressed }) => [styles.quickActionBtn, pressed && styles.pressed]}
+                          hitSlop={6}
+                        >
+                          <Play size={12} color={colors.amber} fill={colors.amber} />
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  ))
+                )}
+              </View>
+            ) : null}
+
+            {/* 3. Saved / Favorite Rooms */}
             {activeTab === 'favorites' ? (
               <View style={styles.tabContentSection}>
                 <View style={styles.contentHeaderRow}>
@@ -1016,5 +1230,110 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.8,
+  },
+  newPlaylistBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.full,
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+  },
+  newPlaylistBtnText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 11,
+    color: colors.amber,
+  },
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255, 159, 28, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.2)',
+    borderRadius: radius.md,
+    padding: 10,
+    marginBottom: spacing.sm,
+  },
+  offlineBannerText: {
+    flex: 1,
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 11,
+    color: colors.text2,
+    lineHeight: 15,
+  },
+  newPlaylistForm: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: spacing.sm,
+  },
+  newPlaylistInput: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: radius.md,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 12,
+    color: colors.text1,
+  },
+  createPlaylistBtn: {
+    padding: 8,
+    backgroundColor: colors.amber,
+    borderRadius: radius.md,
+  },
+  cancelPlaylistBtn: {
+    padding: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: radius.md,
+  },
+  playlistCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: radius.md,
+    padding: 10,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  playlistCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  playlistIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playlistMeta: {
+    flex: 1,
+  },
+  playlistName: {
+    fontFamily: fontFamily.bodyMedium,
+    fontSize: 13,
+    color: colors.text1,
+  },
+  playlistSub: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 11,
+    color: colors.text3,
+    marginTop: 1,
+  },
+  playlistActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  playlistActionBtn: {
+    padding: 6,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
   },
 });

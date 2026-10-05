@@ -147,14 +147,18 @@ function RoomGuards({ children }: { children: React.ReactNode }) {
   const { roomClosed, joinError } = useRoom();
   const [showLeave, setShowLeave] = useState(false);
 
-  // Android hardware back → show leave modal instead of instant exit
+  // Android hardware back → show leave modal instead of instant exit; dismiss if open
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (showLeave) {
+        setShowLeave(false);
+        return true;
+      }
       setShowLeave(true);
       return true; // prevent default back
     });
     return () => sub.remove();
-  }, []);
+  }, [showLeave]);
 
   useEffect(() => {
     if (roomClosed) {

@@ -33,7 +33,7 @@ import {
 } from '../sync/protocol';
 
 const PING_INTERVAL_MS = 30_000;
-const DRIFT_CORRECT_MS = 1500;
+const DRIFT_CORRECT_MS = 2500;
 
 export interface FlyingReaction extends ReactionEvent {
   key: string;
@@ -679,7 +679,45 @@ export function RoomProvider({
     [isHost, roomId, toast],
   );
 
+  // Auto-advance on track completion & auto-recovery on fatal playback errors
+  useEffect(() => {
+    const p = playerRef.current;
+    p.setOnTrackEnded(() => {
+      if (canControl) {
+        nextTrack();
+      }
+    });
+
+    p.setOnTrackError((code) => {
+      const errStr = String(code);
+      // YouTube fatal errors: 2 (invalid param), 5 (HTML5 error), 100 (removed), 101/150 (embed disabled/region blocked)
+      const isFatal = ['2', '5', '100', '101', '150'].includes(errStr);
+      if (isFatal) {
+        if (canControl) {
+          toast(`Track unavailable on YouTube (Code ${code}). Skipping...`, 'error');
+          nextTrack();
+        } else {
+          toast(`Track unavailable on YouTube (Code ${code}). Voting to skip...`, 'info');
+          voteSkip();
+        }
+      }
+    });
+
+    return () => {
+      p.setOnTrackEnded(null);
+      p.setOnTrackError(null);
+    };
+  }, [canControl, nextTrack, voteSkip, toast]);
+
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clean up typing timer on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimer.current) clearTimeout(typingTimer.current);
+    };
+  }, []);
+
   const setTyping = useCallback(
     (typing: boolean) => {
       const s = socketRef.current;

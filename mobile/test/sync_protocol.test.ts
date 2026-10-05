@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert';
 import { C2S, S2C } from '../src/sync/protocol.ts';
 
-export const DRIFT_SEEK_THRESHOLD_MS = 1500;
+export const DRIFT_SEEK_THRESHOLD_MS = 2500;
 
 export function evaluateSyncDrift(
   clientPosMs: number,
@@ -40,16 +40,16 @@ describe('Socket.IO Sync Protocol & Drift Calculation', () => {
     assert.strictEqual(S2C.SYNC_PONG, 'sync_pong');
   });
 
-  it('ignores minor drift within 1500ms tolerance without seeking', () => {
+  it('ignores mobile network ping jitter within 2500ms tolerance without seeking', () => {
     const now = 1000000;
-    const res = evaluateSyncDrift(45200, 45000, now - 100, now);
+    const res = evaluateSyncDrift(46800, 45000, now - 100, now);
     assert.strictEqual(res.needsSeek, false);
     assert.ok(res.driftMs < DRIFT_SEEK_THRESHOLD_MS);
   });
 
-  it('triggers seek correction when drift exceeds 1500ms threshold', () => {
+  it('triggers seek correction when drift exceeds 2500ms threshold', () => {
     const now = 1000000;
-    const res = evaluateSyncDrift(42000, 45000, now - 100, now);
+    const res = evaluateSyncDrift(41000, 45000, now - 100, now);
     assert.strictEqual(res.needsSeek, true);
     assert.ok(res.driftMs >= DRIFT_SEEK_THRESHOLD_MS);
   });

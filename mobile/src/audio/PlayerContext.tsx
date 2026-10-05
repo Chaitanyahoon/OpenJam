@@ -46,6 +46,8 @@ interface PlayerControls {
   setVolume: (v: number) => void;
   /** Whether a seek command was issued within the last cooldown window */
   isSeekingRecently: () => boolean;
+  setOnTrackEnded: (cb: (() => void) | null) => void;
+  setOnTrackError: (cb: ((code: number | string) => void) | null) => void;
 }
 
 interface PlayerStatus {
@@ -227,7 +229,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const isSeekingRecently = useCallback(() => {
-    return Date.now() - lastSeekTimeRef.current < 1500;
+    return Date.now() - lastSeekTimeRef.current < 3500;
   }, []);
 
   const updateMeta = useCallback(
@@ -261,6 +263,25 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     },
     [player],
   );
+
+  // External listener refs for track lifecycle events
+  const onTrackEndedCbRef = useRef<(() => void) | null>(null);
+  const onTrackErrorCbRef = useRef<((code: number | string) => void) | null>(null);
+
+  const setOnTrackEnded = useCallback((cb: (() => void) | null) => {
+    onTrackEndedCbRef.current = cb;
+  }, []);
+
+  const setOnTrackError = useCallback((cb: ((code: number | string) => void) | null) => {
+    onTrackErrorCbRef.current = cb;
+  }, []);
+
+  // Native expo-audio track completion listener
+  useEffect(() => {
+    if (activeDriver === 'expo' && (status as { didJustFinish?: boolean })?.didJustFinish) {
+      onTrackEndedCbRef.current?.();
+    }
+  }, [activeDriver, status]);
 
   // YouTube Audio Bridge callbacks
   const handleYtProgress = useCallback(
@@ -303,8 +324,21 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeDriver]);
 
+  const handleYtEnded = useCallback(() => {
+    if (activeDriver === 'youtube') {
+      setYtPlaying(false);
+      sampleRef.current = {
+        at: Date.now(),
+        posMs: ytDurationMs,
+        playing: false,
+      };
+      onTrackEndedCbRef.current?.();
+    }
+  }, [activeDriver, ytDurationMs]);
+
   const handleYtError = useCallback((code: number | string) => {
     console.warn('[Player] YouTube Audio Bridge error code:', code);
+    onTrackErrorCbRef.current?.(code);
   }, []);
 
   const controls = useMemo<PlayerControls>(
@@ -318,8 +352,22 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       volume,
       setVolume,
       isSeekingRecently,
+      setOnTrackEnded,
+      setOnTrackError,
     }),
-    [loadTrack, play, pause, seekToMs, positionMs, updateMeta, volume, setVolume, isSeekingRecently],
+    [
+      loadTrack,
+      play,
+      pause,
+      seekToMs,
+      positionMs,
+      updateMeta,
+      volume,
+      setVolume,
+      isSeekingRecently,
+      setOnTrackEnded,
+      setOnTrackError,
+    ],
   );
 
   const isCurrentlyPlaying =
@@ -349,6 +397,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           onProgress={handleYtProgress}
           onPlaying={handleYtPlaying}
           onPaused={handleYtPaused}
+          onEnded={handleYtEnded}
           onError={handleYtError}
         />
       </StatusCtx.Provider>

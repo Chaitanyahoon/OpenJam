@@ -64,6 +64,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...(init || {}),
     headers: { ...(await authHeaders()), ...(init?.headers || {}) },
   });
+  if (res.status === 401) {
+    // Purge expired or invalid token to avoid permanent socket authentication loops
+    await clearSession().catch(() => {});
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(`API ${res.status} ${path}: ${text.slice(0, 200)}`);
