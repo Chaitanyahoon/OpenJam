@@ -53,7 +53,8 @@ function extractYouTubeId(urlOrQuery: string): string | null {
     /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([^"&?\/\s]{11})/;
   const match = clean.match(reg);
   if (match && match[1]) return match[1];
-  if (/^[a-zA-Z0-9_-]{11}$/.test(clean)) return clean;
+  const streamMatch = clean.match(/(?:\/stream\/|^yt:|^ytid:)([a-zA-Z0-9_-]{11})(?:\?|$)/);
+  if (streamMatch && streamMatch[1]) return streamMatch[1];
   return null;
 }
 

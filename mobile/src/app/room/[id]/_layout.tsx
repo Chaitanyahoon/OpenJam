@@ -30,7 +30,7 @@ export function useLeave() {
 const InitialNameCtx = createContext<string>('');
 
 function RoomHeader() {
-  const { roomName, roomId, listeners, syncReady } = useRoom();
+  const { roomName, roomId, listeners, syncReady, connectionState } = useRoom();
   const initialName = useContext(InitialNameCtx);
   const triggerLeave = useLeave();
   const toast = useToast();
@@ -71,6 +71,13 @@ function RoomHeader() {
   const host = listeners.find((l) => l.is_host);
   const hostName = host?.user_name || 'Host';
 
+  const indicatorColor =
+    connectionState === 'connected' && syncReady
+      ? colors.green
+      : connectionState === 'offline'
+        ? colors.red
+        : colors.amber;
+
   return (
     <View style={styles.header}>
       {/* Back / Leave button */}
@@ -89,7 +96,7 @@ function RoomHeader() {
           <View
             style={[
               styles.liveIndicatorDot,
-              { backgroundColor: syncReady ? colors.green : colors.amber },
+              { backgroundColor: indicatorColor },
             ]}
           />
           <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail">
@@ -144,7 +151,7 @@ function RoomHeader() {
 }
 
 function RoomGuards({ children }: { children: React.ReactNode }) {
-  const { roomClosed, joinError } = useRoom();
+  const { roomClosed, joinError, retryJoin } = useRoom();
   const [showLeave, setShowLeave] = useState(false);
 
   // Android hardware back → show leave modal instead of instant exit; dismiss if open
@@ -171,10 +178,11 @@ function RoomGuards({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (joinError) {
       Alert.alert('Could not join', joinError, [
-        { text: 'Back', onPress: () => router.back() },
+        { text: 'Retry', onPress: () => retryJoin() },
+        { text: 'Back', onPress: () => router.back(), style: 'cancel' },
       ]);
     }
-  }, [joinError]);
+  }, [joinError, retryJoin]);
 
   return (
     <LeaveCtx.Provider value={() => setShowLeave(true)}>
@@ -202,7 +210,7 @@ export default function RoomLayout() {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
       <InitialNameCtx.Provider value={initialName}>
-        <RoomProvider roomId={id} password={password}>
+        <RoomProvider key={id} roomId={id} password={password}>
           <RoomGuards>
             <Tabs
               tabBar={(props) => <RoomTabBar {...props} />}

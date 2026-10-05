@@ -7,7 +7,7 @@
  * - Live Community Stations with zero empty state
  * - Cleaned up: Removed trending carousel clutter per user request
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   Image,
@@ -73,6 +73,25 @@ const openjamLogo = require('../../assets/images/openjam-logo.png');
 const GENRES = ['All', 'Lofi & Chill', 'Synthwave', 'Hip Hop', 'Ambient'];
 const SLOGANS = ['In Sync.', 'With Friends.', 'In Real-Time.', 'In Harmony.'];
 
+const GENRE_MAP: Record<string, string[]> = {
+  'Lofi & Chill': ['lofi', 'chill', 'beats', 'study', 'relax', 'cafe', 'lounge'],
+  'Synthwave': ['synthwave', 'retrowave', '80s', 'electronic', 'synth', 'cyberpunk', 'sunset'],
+  'Hip Hop': ['hip-hop', 'hiphop', 'rap', 'trap', 'boom-bap', 'beats', 'r&b'],
+  'Ambient': ['ambient', 'drone', 'meditation', 'sleep', 'atmosphere', 'peaceful'],
+};
+
+/** Memoized ticker prevents full Landing screen re-renders every 2.8s */
+const SloganTicker = React.memo(function SloganTicker() {
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setIndex((prev) => (prev + 1) % SLOGANS.length);
+    }, 2800);
+    return () => clearInterval(timer);
+  }, []);
+  return <Text style={styles.heroTitleAmber}>{SLOGANS[index]}</Text>;
+});
+
 export default function Landing() {
   const { connect, disconnect } = useSocket();
   const toast = useToast();
@@ -89,16 +108,8 @@ export default function Landing() {
   const [pwRoom, setPwRoom] = useState<RoomSummary | null>(null);
   const [favoriteRooms, setFavoriteRooms] = useState<FavoriteRoom[]>([]);
   const [ready, setReady] = useState(false);
-  const [sloganIndex, setSloganIndex] = useState(0);
   const [authError, setAuthError] = useState<string | null>(null);
-
-  // Rotating PWA slogan ticker every 2.8s
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setSloganIndex((prev) => (prev + 1) % SLOGANS.length);
-    }, 2800);
-    return () => clearInterval(timer);
-  }, []);
+  const handledTokensRef = useRef<Set<string>>(new Set());
 
   const loadFavorites = useCallback(async () => {
     try {
@@ -158,6 +169,10 @@ export default function Landing() {
       }
 
       if (token) {
+        if (handledTokensRef.current.has(token)) {
+          return true;
+        }
+        handledTokensRef.current.add(token);
         disconnect();
         const profile = await saveAuthToken(token);
         if (profile) {
@@ -309,10 +324,16 @@ export default function Landing() {
   const filteredRooms = useMemo(() => {
     let list = rooms;
     if (selectedGenre !== 'All') {
-      const g = selectedGenre.toLowerCase();
-      list = list.filter((r) =>
-        (r.genre_tags || []).some((tag) => tag.toLowerCase().includes(g)),
-      );
+      const targetKeywords = GENRE_MAP[selectedGenre] || [selectedGenre.toLowerCase()];
+      list = list.filter((r) => {
+        const roomTags = (r.genre_tags || []).map((t) => t.toLowerCase().trim());
+        const roomName = (r.name || '').toLowerCase();
+        return targetKeywords.some(
+          (kw) =>
+            roomTags.some((tag) => tag.includes(kw) || kw.includes(tag)) ||
+            roomName.includes(kw),
+        );
+      });
     }
     const q = searchQuery.trim().toLowerCase();
     if (!q) return list;
@@ -428,7 +449,7 @@ export default function Landing() {
               {/* Main Title with Animated Slogan Ticker */}
               <Text style={styles.heroTitle}>
                 Listen Together.{'\n'}
-                <Text style={styles.heroTitleAmber}>{SLOGANS[sloganIndex]}</Text>
+                <SloganTicker />
               </Text>
 
               <Text style={styles.heroSubtitle}>
@@ -621,6 +642,28 @@ export default function Landing() {
               </View>
             </Animated.View>
           ) : null
+        }
+        ListFooterComponent={
+          <View style={styles.footerSection}>
+            <View style={styles.footerLinksRow}>
+              <Pressable
+                onPress={() => router.push('/legal/privacy')}
+                hitSlop={8}
+                style={({ pressed }) => [styles.footerLink, pressed && styles.pressed]}
+              >
+                <Text style={styles.footerLinkText}>Privacy</Text>
+              </Pressable>
+              <Text style={styles.footerDot}>•</Text>
+              <Pressable
+                onPress={() => router.push('/legal/terms')}
+                hitSlop={8}
+                style={({ pressed }) => [styles.footerLink, pressed && styles.pressed]}
+              >
+                <Text style={styles.footerLinkText}>Terms</Text>
+              </Pressable>
+            </View>
+            <Text style={styles.footerCopy}>OpenJam • Free & Open-Source Audio Sync</Text>
+          </View>
         }
       />
 
@@ -1219,5 +1262,35 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.8,
+  },
+  footerSection: {
+    alignItems: 'center',
+    paddingTop: spacing.xl,
+    paddingBottom: 40,
+    gap: 8,
+  },
+  footerLinksRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  footerLink: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  footerLinkText: {
+    color: colors.text3,
+    fontFamily: fontFamily.bodyMedium,
+    fontSize: 12,
+  },
+  footerDot: {
+    color: colors.text3,
+    fontSize: 12,
+  },
+  footerCopy: {
+    color: colors.text3,
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 11,
+    opacity: 0.6,
   },
 });

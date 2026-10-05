@@ -52,6 +52,10 @@ export default function RootLayout() {
           >
             <Stack.Screen name="index" />
             <Stack.Screen name="room/[id]" />
+            <Stack.Screen name="playlist/[id]" />
+            <Stack.Screen name="profile/[id]" />
+            <Stack.Screen name="legal/privacy" />
+            <Stack.Screen name="legal/terms" />
           </Stack>
         </ToastProvider>
       </SocketProvider>

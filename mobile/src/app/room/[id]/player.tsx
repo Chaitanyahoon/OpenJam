@@ -14,7 +14,7 @@
  * - Synced Karaoke lyrics card with tap-to-seek and auto-scroll centering
  * - Empty state with immediate "Add Songs to Queue" CTA
  */
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   GestureResponderEvent,
   PanResponder,
@@ -29,6 +29,7 @@ import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
+  cancelAnimation,
   Easing,
   useAnimatedStyle,
   useSharedValue,
@@ -85,6 +86,8 @@ function fmt(ms: number): string {
 
 
 
+const lyricsCache = new Map<string, Lyrics>();
+
 export default function PlayerTab() {
   const {
     roomId,
@@ -139,13 +142,13 @@ export default function PlayerTab() {
     if (isPlaying) {
       vinylSlide.value = withTiming(maxSlide, { duration: 450 });
       vinylRotation.value = withRepeat(
-        withTiming(360, { duration: 7500, easing: Easing.linear }),
+        withTiming(vinylRotation.value + 360, { duration: 7500, easing: Easing.linear }),
         -1,
         false,
       );
     } else {
       vinylSlide.value = withTiming(0, { duration: 350 });
-      vinylRotation.value = withTiming(0, { duration: 400 });
+      cancelAnimation(vinylRotation);
     }
   }, [isPlaying, maxSlide, vinylRotation, vinylSlide]);
 
@@ -169,17 +172,33 @@ export default function PlayerTab() {
   const canControlRef = useRef(canControl);
   canControlRef.current = canControl;
 
+  const barLayoutRef = useRef<{ pageX: number; width: number }>({ pageX: 0, width: 0 });
+  const scrubberViewRef = useRef<View>(null);
+
+  const measureScrubber = useCallback(() => {
+    scrubberViewRef.current?.measure((_x, _y, width, _height, pageX) => {
+      if (width > 0) {
+        barLayoutRef.current = { pageX, width };
+        setBarWidth(width);
+      }
+    });
+  }, []);
+
   const panResponder = useMemo(
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => canControlRef.current,
         onMoveShouldSetPanResponder: () => canControlRef.current,
         onPanResponderGrant: (evt) => {
-          if (!canControlRef.current || barWidthRef.current <= 0 || durationRef.current <= 0) return;
-          const x = evt.nativeEvent.locationX;
+          if (!canControlRef.current || durationRef.current <= 0) return;
+          measureScrubber();
+          const pageX = evt.nativeEvent.pageX;
+          const left = barLayoutRef.current.pageX || 0;
+          const width = barLayoutRef.current.width || barWidthRef.current;
+          if (width <= 0) return;
+          const touchX = pageX - left;
           const target = Math.round(
-            (Math.max(0, Math.min(x, barWidthRef.current)) / barWidthRef.current) *
-              durationRef.current,
+            (Math.max(0, Math.min(touchX, width)) / width) * durationRef.current,
           );
           scrubPosRef.current = target;
           setScrubPos(target);
@@ -187,11 +206,14 @@ export default function PlayerTab() {
           void hapticSelection();
         },
         onPanResponderMove: (evt) => {
-          if (!canControlRef.current || barWidthRef.current <= 0 || durationRef.current <= 0) return;
-          const x = evt.nativeEvent.locationX;
+          if (!canControlRef.current || durationRef.current <= 0) return;
+          const pageX = evt.nativeEvent.pageX;
+          const left = barLayoutRef.current.pageX || 0;
+          const width = barLayoutRef.current.width || barWidthRef.current;
+          if (width <= 0) return;
+          const touchX = pageX - left;
           const target = Math.round(
-            (Math.max(0, Math.min(x, barWidthRef.current)) / barWidthRef.current) *
-              durationRef.current,
+            (Math.max(0, Math.min(touchX, width)) / width) * durationRef.current,
           );
           if (Math.abs(target - scrubPosRef.current) > 1000) {
             void hapticSelection();
@@ -213,16 +235,23 @@ export default function PlayerTab() {
           setIsScrubbing(false);
         },
       }),
-    [seekToMs],
+    [seekToMs, measureScrubber],
   );
 
   const displayPos = isScrubbing ? scrubPos : pos;
   const ratio = duration > 0 ? Math.min(1, Math.max(0, displayPos / duration)) : 0;
 
-  // Correct parameter order for LRCLIB lyrics lookup: (artist, track, durationSec)
+  // Lazy-load lyrics only when sheet is opened (or if track changes while open)
   useEffect(() => {
+    if (!lyricsOpen) return;
     if (!nowPlaying?.track_name) {
       setLyrics({ lines: [], synced: false });
+      return;
+    }
+    const cacheKey = nowPlaying.track_uri || `${nowPlaying.artist || ''}-${nowPlaying.track_name}`;
+    const cached = lyricsCache.get(cacheKey);
+    if (cached) {
+      setLyrics(cached);
       return;
     }
     let cancelled = false;
@@ -230,7 +259,10 @@ export default function PlayerTab() {
     const durSec = Math.round(duration / 1000);
     fetchLyrics(nowPlaying.artist ?? '', nowPlaying.track_name, durSec)
       .then((res) => {
-        if (!cancelled) setLyrics(res);
+        if (!cancelled) {
+          lyricsCache.set(cacheKey, res);
+          setLyrics(res);
+        }
       })
       .finally(() => {
         if (!cancelled) setLyricsLoading(false);
@@ -238,7 +270,7 @@ export default function PlayerTab() {
     return () => {
       cancelled = true;
     };
-  }, [nowPlaying?.track_name, nowPlaying?.artist, duration]);
+  }, [lyricsOpen, nowPlaying?.track_name, nowPlaying?.artist, nowPlaying?.track_uri, duration]);
 
   // Active line calculation for synced lyrics
   const activeIdx = useMemo(() => {
@@ -257,9 +289,14 @@ export default function PlayerTab() {
   }, [activeIdx, lyricsOpen, lyrics.synced]);
 
   const onSeekPress = (e: GestureResponderEvent) => {
-    if (!canControl || barWidth <= 0 || duration <= 0) return;
-    const x = e.nativeEvent.locationX;
-    const targetMs = Math.round((Math.max(0, Math.min(x, barWidth)) / barWidth) * duration);
+    if (!canControl || duration <= 0) return;
+    measureScrubber();
+    const pageX = e.nativeEvent.pageX;
+    const left = barLayoutRef.current.pageX || 0;
+    const width = barLayoutRef.current.width || barWidth;
+    if (width <= 0) return;
+    const touchX = pageX - left;
+    const targetMs = Math.round((Math.max(0, Math.min(touchX, width)) / width) * duration);
     seekToMs(targetMs);
   };
 
@@ -353,7 +390,11 @@ export default function PlayerTab() {
 
             {/* Full-Width Scrubber Deck with Monospace Timecodes & Smooth PanResponder */}
             <View
-              onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}
+              ref={scrubberViewRef}
+              onLayout={(e) => {
+                setBarWidth(e.nativeEvent.layout.width);
+                measureScrubber();
+              }}
               {...panResponder.panHandlers}
               style={styles.progressHit}
               accessibilityLabel="Track Scrubber"

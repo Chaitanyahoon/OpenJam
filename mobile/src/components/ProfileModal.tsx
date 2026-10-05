@@ -3,6 +3,7 @@
  * favorite rooms, and local storage cache manager.
  */
 import React, { useEffect, useState } from 'react';
+import { router } from 'expo-router';
 import {
   ActivityIndicator,
   FlatList,
@@ -361,6 +362,19 @@ export function ProfileModal({
                   <Text style={styles.heroDiscordCtaText}>Connect Discord Account</Text>
                 </Pressable>
               ) : null}
+
+              {user?.id ? (
+                <Pressable
+                  onPress={() => {
+                    onClose();
+                    router.push({ pathname: '/profile/[id]', params: { id: user.id } });
+                  }}
+                  style={({ pressed }) => [styles.viewPublicProfileBtn, pressed && styles.pressed]}
+                >
+                  <Text style={styles.viewPublicProfileText}>View Public Profile</Text>
+                  <ChevronRight size={14} color={colors.amber} />
+                </Pressable>
+              ) : null}
             </View>
 
             {/* Borderless Listening Stats Strip */}
@@ -567,7 +581,14 @@ export function ProfileModal({
                   </View>
                 ) : (
                   playlists.map((pl) => (
-                    <View key={pl.id} style={styles.playlistCard}>
+                    <Pressable
+                      key={pl.id}
+                      onPress={() => {
+                        onClose();
+                        router.push({ pathname: '/playlist/[id]', params: { id: pl.id } });
+                      }}
+                      style={({ pressed }) => [styles.playlistCard, pressed && styles.pressed]}
+                    >
                       <View style={styles.playlistCardHeader}>
                         <View style={styles.playlistIconBox}>
                           <ListMusic size={16} color={colors.amber} />
@@ -577,7 +598,7 @@ export function ProfileModal({
                             {pl.name}
                           </Text>
                           <Text style={styles.playlistSub}>
-                            {pl.tracks.length} tracks · Saved locally
+                            {pl.tracks.length} tracks · Tap to open
                           </Text>
                         </View>
                         <View style={styles.playlistActions}>
@@ -599,7 +620,7 @@ export function ProfileModal({
                           </Pressable>
                         </View>
                       </View>
-                    </View>
+                    </Pressable>
                   ))
                 )}
 
@@ -761,6 +782,31 @@ export function ProfileModal({
                       <Text style={styles.discordLoginCtaText}>Sign in with Discord</Text>
                     </Pressable>
                   ) : null}
+                </View>
+
+                {/* Legal & Compliance Links */}
+                <View style={styles.legalLinksBlock}>
+                  <Pressable
+                    onPress={() => {
+                      onClose();
+                      router.push('/legal/privacy');
+                    }}
+                    style={({ pressed }) => [styles.legalLinkRow, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.legalLinkText}>Privacy Policy</Text>
+                    <ChevronRight size={14} color={colors.text3} />
+                  </Pressable>
+                  <View style={styles.legalDivider} />
+                  <Pressable
+                    onPress={() => {
+                      onClose();
+                      router.push('/legal/terms');
+                    }}
+                    style={({ pressed }) => [styles.legalLinkRow, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.legalLinkText}>Terms of Service</Text>
+                    <ChevronRight size={14} color={colors.text3} />
+                  </Pressable>
                 </View>
               </View>
             ) : null}
@@ -1335,5 +1381,46 @@ const styles = StyleSheet.create({
     padding: 6,
     borderRadius: 6,
     backgroundColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  viewPublicProfileBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 10,
+    paddingVertical: 8,
+    borderRadius: radius.md,
+    backgroundColor: 'rgba(255, 159, 28, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.2)',
+  },
+  viewPublicProfileText: {
+    color: colors.amber,
+    fontFamily: fontFamily.displaySemiBold,
+    fontSize: 12,
+  },
+  legalLinksBlock: {
+    marginTop: spacing.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    overflow: 'hidden',
+  },
+  legalLinkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+  },
+  legalLinkText: {
+    color: colors.text2,
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 13,
+  },
+  legalDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
 });

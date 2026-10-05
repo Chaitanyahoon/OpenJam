@@ -270,3 +270,109 @@ export async function searchTracks(query: string): Promise<TrackSearchResult[]> 
 export function streamUrl(videoId: string): string {
   return `${getBackendUrl()}/stream/${encodeURIComponent(videoId)}`;
 }
+
+export interface ApiPlaylistTrack {
+  id: string;
+  track_uri: string;
+  track_name: string;
+  artist: string;
+  album_art_url?: string;
+  duration_ms?: number;
+  position?: number;
+}
+
+export interface ApiPlaylist {
+  id: string;
+  name: string;
+  description?: string;
+  is_private: boolean;
+  creator_id: string;
+  creator_name?: string;
+  created_at?: string;
+  tracks: ApiPlaylistTrack[];
+}
+
+export async function getPlaylist(id: string): Promise<ApiPlaylist | null> {
+  try {
+    const data = await request<{ playlist: ApiPlaylist }>(`/playlists/${encodeURIComponent(id)}`);
+    return data.playlist;
+  } catch {
+    return null;
+  }
+}
+
+export async function deletePlaylist(id: string): Promise<boolean> {
+  try {
+    await request(`/playlists/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export interface PublicProfile {
+  id: string;
+  display_name: string;
+  username?: string;
+  avatar_url?: string | null;
+  bio?: string | null;
+  banner_color?: string;
+  profile_theme?: string;
+  is_registered?: boolean;
+  discord_username?: string | null;
+}
+
+export interface ProfileSocialStats {
+  followers_count: number;
+  following_count: number;
+  is_following: boolean;
+  followers?: any[];
+  following?: any[];
+}
+
+export interface ProfileStatsData {
+  total_tracks_listened?: number;
+  total_minutes_listened?: number;
+  rooms_joined?: number;
+  rooms_created?: number;
+}
+
+export async function getPublicProfile(
+  userId: string,
+): Promise<{ user: PublicProfile; playlists: ApiPlaylist[] } | null> {
+  try {
+    const data = await request<{ user: PublicProfile; playlists?: ApiPlaylist[] }>(
+      `/profile/${encodeURIComponent(userId)}`,
+    );
+    return { user: data.user, playlists: data.playlists || [] };
+  } catch {
+    return null;
+  }
+}
+
+export async function getProfileSocial(userId: string): Promise<ProfileSocialStats | null> {
+  try {
+    return await request<ProfileSocialStats>(`/profile/${encodeURIComponent(userId)}/social`);
+  } catch {
+    return null;
+  }
+}
+
+export async function getProfileStats(userId: string): Promise<ProfileStatsData | null> {
+  try {
+    return await request<ProfileStatsData>(`/profile/${encodeURIComponent(userId)}/stats`);
+  } catch {
+    return null;
+  }
+}
+
+export async function toggleFollowUser(userId: string, follow: boolean): Promise<boolean> {
+  try {
+    await request(`/profile/${encodeURIComponent(userId)}/follow`, {
+      method: follow ? 'POST' : 'DELETE',
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}

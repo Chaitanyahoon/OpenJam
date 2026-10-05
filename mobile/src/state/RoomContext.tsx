@@ -39,11 +39,14 @@ export interface FlyingReaction extends ReactionEvent {
   key: string;
 }
 
+export type RoomConnectionState = 'joining' | 'connected' | 'reconnecting' | 'offline';
+
 interface RoomApi {
   roomId: string;
   roomName: string;
   isHost: boolean;
   canControl: boolean;
+  connectionState: RoomConnectionState;
   queue: QueueItem[];
   nowPlaying: TrackInfo | null;
   isPlaying: boolean;
@@ -60,6 +63,7 @@ interface RoomApi {
   roomClosed: boolean;
   me: ApiUser | null;
   // actions
+  retryJoin: () => void;
   toggleGuestControls: () => void;
   sendChat: (content: string) => void;
   sendReaction: (emoji: string) => void;
@@ -119,6 +123,7 @@ export function RoomProvider({
   const [skipVotes, setSkipVotes] = useState({ votes: 0, required: 0 });
   const [guestControls, setGuestControls] = useState(false);
   const [syncReady, setSyncReady] = useState(false);
+  const [connectionState, setConnectionState] = useState<RoomConnectionState>('joining');
   const [joinError, setJoinError] = useState<string | null>(null);
   const [roomClosed, setRoomClosed] = useState(false);
   const [me, setMe] = useState<ApiUser | null>(null);
@@ -136,6 +141,29 @@ export function RoomProvider({
   socketRef.current = socket;
   const playerRef = useRef(player);
   playerRef.current = player;
+  const joinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const syncSeqRef = useRef<number>(0);
+  const lastServerTsRef = useRef<number>(0);
+
+  const resetJoinTimeout = useCallback(() => {
+    if (joinTimeoutRef.current) {
+      clearTimeout(joinTimeoutRef.current);
+      joinTimeoutRef.current = null;
+    }
+  }, []);
+
+  const startJoinTimeout = useCallback(() => {
+    resetJoinTimeout();
+    joinTimeoutRef.current = setTimeout(() => {
+      setConnectionState((curr) => {
+        if (curr !== 'connected') {
+          setJoinError('Room connection timed out. Check your connection or retry.');
+          return 'offline';
+        }
+        return curr;
+      });
+    }, 12_000);
+  }, [resetJoinTimeout]);
 
   useEffect(() => {
     getStoredSession().then((s) => {
@@ -154,6 +182,19 @@ export function RoomProvider({
   /** Apply a playback_sync payload to the local player. */
   const applyPlaybackSync = useCallback(
     async (data: PlaybackSyncPayload, forceReload = false) => {
+      syncSeqRef.current += 1;
+      if (
+        data.server_timestamp &&
+        lastServerTsRef.current &&
+        data.server_timestamp < lastServerTsRef.current &&
+        !forceReload
+      ) {
+        return;
+      }
+      if (data.server_timestamp) {
+        lastServerTsRef.current = data.server_timestamp;
+      }
+
       const p = playerRef.current;
       const engine = engineRef.current;
       const target = engine.targetPositionMs(data, isHostRef.current);
@@ -211,6 +252,8 @@ export function RoomProvider({
     if (!s) return;
     engineRef.current.reset();
     setSyncReady(false);
+    setConnectionState('joining');
+    startJoinTimeout();
     s.emit(C2S.JOIN_ROOM, {
       room_id: roomId,
       password: password || '',
@@ -218,7 +261,13 @@ export function RoomProvider({
     });
     // kick off offset measurement immediately
     s.emit(C2S.SYNC_PING, { t0: Date.now() });
-  }, [roomId, password]);
+  }, [roomId, password, startJoinTimeout]);
+
+  const retryJoin = useCallback(() => {
+    setJoinError(null);
+    setConnectionState('joining');
+    doJoin();
+  }, [doJoin]);
 
   useEffect(() => {
     let mounted = true;
@@ -237,6 +286,9 @@ export function RoomProvider({
     };
     const onJoinSuccess = (data: JoinSuccessPayload) => {
       if (!mounted) return;
+      resetJoinTimeout();
+      setConnectionState('connected');
+      setJoinError(null);
       setRoomName(data.room?.name ?? '');
       const hostId = data.room?.host_user_id;
       const mine = !!hostId && !!meRef.current && hostId === meRef.current.id;
@@ -271,7 +323,15 @@ export function RoomProvider({
       }
     };
     const onJoinError = (data: { message?: string }) => {
-      if (mounted) setJoinError(data?.message || 'Could not join room');
+      resetJoinTimeout();
+      if (mounted) {
+        setConnectionState('offline');
+        setJoinError(data?.message || 'Could not join room');
+      }
+    };
+    const onDisconnect = () => {
+      if (!mounted) return;
+      setConnectionState('reconnecting');
     };
     const onPlaybackSync = (data: PlaybackSyncPayload) => {
       void applyPlaybackSync(data);
@@ -393,6 +453,7 @@ export function RoomProvider({
       activeSocket = s;
 
       s.on(S2C.CONNECT, onConnect);
+      s.on(S2C.DISCONNECT, onDisconnect);
       s.on(S2C.SYNC_PONG, onPong);
       s.on(S2C.JOIN_SUCCESS, onJoinSuccess);
       s.on(S2C.JOIN_ERROR, onJoinError);
@@ -419,9 +480,11 @@ export function RoomProvider({
 
     return () => {
       mounted = false;
+      resetJoinTimeout();
       if (pingTimer) clearInterval(pingTimer);
       if (activeSocket) {
         activeSocket.off(S2C.CONNECT, onConnect);
+        activeSocket.off(S2C.DISCONNECT, onDisconnect);
         activeSocket.off(S2C.SYNC_PONG, onPong);
         activeSocket.off(S2C.JOIN_SUCCESS, onJoinSuccess);
         activeSocket.off(S2C.JOIN_ERROR, onJoinError);
@@ -743,6 +806,7 @@ export function RoomProvider({
       roomName,
       isHost,
       canControl,
+      connectionState,
       queue,
       nowPlaying,
       isPlaying,
@@ -758,6 +822,7 @@ export function RoomProvider({
       joinError,
       roomClosed,
       me,
+      retryJoin,
       toggleGuestControls,
       sendChat,
       sendReaction,
@@ -780,9 +845,9 @@ export function RoomProvider({
       updateRoomDetails,
     }),
     [
-      roomId, roomName, isHost, canControl, queue, nowPlaying, isPlaying,
+      roomId, roomName, isHost, canControl, connectionState, queue, nowPlaying, isPlaying,
       loop, listeners, messages, unreadChat, typingUsers, reactions, skipVotes, guestControls, syncReady,
-      joinError, roomClosed, me, toggleGuestControls, sendChat, sendReaction, dismissReaction,
+      joinError, roomClosed, me, retryJoin, toggleGuestControls, sendChat, sendReaction, dismissReaction,
       addTrack, playNow, voteTrack, voteSkip, togglePlay, nextTrack, previousTrack,
       toggleRepeat, shuffleQueue, seekToMs, removeTrack, setTyping,
       clearUnreadChat, setChatFocused, closeRoom, updateRoomDetails,
