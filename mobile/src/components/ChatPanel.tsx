@@ -12,6 +12,8 @@ import React, { forwardRef, useImperativeHandle, useRef, useState } from 'react'
 import {
   FlatList,
   KeyboardAvoidingView,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Platform,
   Pressable,
   StyleSheet,
@@ -21,7 +23,18 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Crown, MessageSquare, Send, Heart, Flame, Sparkles, ThumbsUp, Music } from 'lucide-react-native';
+import {
+  Crown,
+  MessageSquare,
+  Send,
+  Heart,
+  Flame,
+  Sparkles,
+  ThumbsUp,
+  Music,
+  UserPlus,
+  LogOut,
+} from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
 import { useRoom } from '../state/RoomContext';
@@ -78,6 +91,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, { onMentionUser?: (name: strin
     const [input, setInput] = useState('');
     const listRef = useRef<FlatList>(null);
     const inputRef = useRef<TextInput>(null);
+    const isNearBottomRef = useRef(true);
 
     useImperativeHandle(ref, () => ({
       insertMention: (userName: string) => {
@@ -87,12 +101,21 @@ export const ChatPanel = forwardRef<ChatPanelRef, { onMentionUser?: (name: strin
       },
     }));
 
+    const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+      const paddingToBottom = 80;
+      isNearBottomRef.current =
+        layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
+    };
+
     const submit = () => {
       const text = input.trim();
       if (!text) return;
       sendChat(text);
       setInput('');
       setTyping(false);
+      isNearBottomRef.current = true;
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     };
 
     const handleMention = (userName: string) => {
@@ -118,8 +141,39 @@ export const ChatPanel = forwardRef<ChatPanelRef, { onMentionUser?: (name: strin
           style={styles.list}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          onContentSizeChange={() => {
+            if (isNearBottomRef.current) {
+              listRef.current?.scrollToEnd({ animated: true });
+            }
+          }}
           renderItem={({ item }) => {
+            if (item.is_system) {
+              let icon = <Sparkles size={11} color={colors.amber} />;
+              let isAmber = false;
+              if (item.system_type === 'join') {
+                icon = <UserPlus size={11} color={colors.green} />;
+              } else if (item.system_type === 'leave') {
+                icon = <LogOut size={11} color={colors.text3} />;
+              } else if (item.system_type === 'host') {
+                icon = <Crown size={11} color={colors.amber} />;
+                isAmber = true;
+              }
+              return (
+                <View style={styles.systemRow}>
+                  <View style={[styles.systemPill, isAmber && styles.systemPillHost]}>
+                    {icon}
+                    <Text style={[styles.systemText, isAmber && styles.systemTextHost]}>
+                      {item.content}
+                    </Text>
+                  </View>
+                </View>
+              );
+            }
+
             const mine = me && item.user_id === me.id;
             const isHostMsg = listeners.some((l) => l.user_id === item.user_id && l.is_host);
 
@@ -499,5 +553,33 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.8,
     transform: [{ scale: 0.95 }],
+  },
+  systemRow: {
+    alignItems: 'center',
+    marginVertical: 4,
+  },
+  systemPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 14,
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+  },
+  systemPillHost: {
+    backgroundColor: 'rgba(255, 159, 28, 0.08)',
+    borderColor: 'rgba(255, 159, 28, 0.25)',
+  },
+  systemText: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 11,
+    color: colors.text3,
+  },
+  systemTextHost: {
+    fontFamily: fontFamily.bodyMedium,
+    color: colors.amber,
   },
 });

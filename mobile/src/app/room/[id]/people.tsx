@@ -9,14 +9,14 @@ import React, { useEffect, useState } from 'react';
 import { Alert, FlatList, Pressable, Share, StyleSheet, Switch, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Share2, Crown, Activity, User, Edit3, Trash2 } from 'lucide-react-native';
+import { Share2, Crown, Activity, User, Edit3, Trash2, QrCode } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { colors, radius, spacing } from '../../../theme';
 import { fontFamily } from '../../../fonts';
 import { useRoom } from '../../../state/RoomContext';
 import { initials, nameColor } from '../../../components/ChatPanel';
 import { ProfileModal } from '../../../components/ProfileModal';
-import { EditRoomModal, ListenerActionModal } from '../../../components/Modals';
+import { EditRoomModal, ListenerActionModal, RoomInviteModal } from '../../../components/Modals';
 import { clearSession, getStoredSession, joinAsGuest, type ApiUser } from '../../../api';
 import { useToast } from '../../../components/ToastContext';
 import type { PlayedTrack } from '../../../storage/history';
@@ -32,10 +32,13 @@ export default function PeopleTab() {
     toggleGuestControls,
     closeRoom,
     updateRoomDetails,
+    transferHost,
+    kickUser,
   } = useRoom();
   const toast = useToast();
   const [showProfile, setShowProfile] = useState(false);
   const [showEditRoom, setShowEditRoom] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
   const [selectedListener, setSelectedListener] = useState<any | null>(null);
   const [sessionUser, setSessionUser] = useState<ApiUser | null>(null);
 
@@ -105,6 +108,40 @@ export default function PeopleTab() {
     );
   };
 
+  const handleTransferHost = (targetUserId: string, targetUserName: string) => {
+    Alert.alert(
+      'Make Room Host?',
+      `Are you sure you want to pass host privileges to ${targetUserName}? You will become a regular listener.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Make Host',
+          style: 'default',
+          onPress: () => {
+            transferHost(targetUserId);
+          },
+        },
+      ],
+    );
+  };
+
+  const handleKickUser = (targetUserId: string, targetUserName: string) => {
+    Alert.alert(
+      'Remove from Room?',
+      `Are you sure you want to remove ${targetUserName} from this room?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => {
+            kickUser(targetUserId);
+          },
+        },
+      ],
+    );
+  };
+
   // Sort listeners: Hosts first, then current user, then others alphabetically
   const sortedListeners = [...listeners].sort((a, b) => {
     if (a.is_host && !b.is_host) return -1;
@@ -129,22 +166,32 @@ export default function PeopleTab() {
                 <Text style={styles.shareTitle}>Invite Friends to Jam</Text>
                 <Text style={styles.shareCode}>Room Code: #{roomId}</Text>
               </View>
-              <Pressable
-                onPress={handleShare}
-                style={({ pressed }) => [styles.shareBtn, pressed && styles.pressed]}
-                hitSlop={8}
-                accessibilityLabel="Share room invite"
-              >
-                <LinearGradient
-                  colors={['#ffb03a', '#ff9f1c']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.shareGradient}
+              <View style={styles.shareActionsRow}>
+                <Pressable
+                  onPress={() => setShowInviteModal(true)}
+                  style={({ pressed }) => [styles.qrBtn, pressed && styles.pressed]}
+                  hitSlop={8}
+                  accessibilityLabel="Show QR code invite"
                 >
-                  <Share2 size={13} color="#08080a" />
-                  <Text style={styles.shareBtnText}>Share</Text>
-                </LinearGradient>
-              </Pressable>
+                  <QrCode size={16} color={colors.amber} />
+                </Pressable>
+                <Pressable
+                  onPress={handleShare}
+                  style={({ pressed }) => [styles.shareBtn, pressed && styles.pressed]}
+                  hitSlop={8}
+                  accessibilityLabel="Share room invite"
+                >
+                  <LinearGradient
+                    colors={['#ffb03a', '#ff9f1c']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.shareGradient}
+                  >
+                    <Share2 size={13} color="#08080a" />
+                    <Text style={styles.shareBtnText}>Share</Text>
+                  </LinearGradient>
+                </Pressable>
+              </View>
             </View>
 
             {/* Host Moderation & Playback Controls Deck */}
@@ -308,6 +355,7 @@ export default function PeopleTab() {
       <ListenerActionModal
         visible={!!selectedListener}
         listener={selectedListener}
+        isHostViewer={isHost}
         onClose={() => setSelectedListener(null)}
         onMention={(targetName) => {
           setSelectedListener(null);
@@ -316,6 +364,23 @@ export default function PeopleTab() {
             params: { id: roomId, mention: targetName },
           });
         }}
+        onTransferHost={handleTransferHost}
+        onKickListener={handleKickUser}
+        onViewProfile={(targetUserId) => {
+          setSelectedListener(null);
+          router.push({
+            pathname: '/profile/[id]',
+            params: { id: targetUserId },
+          });
+        }}
+      />
+
+      <RoomInviteModal
+        visible={showInviteModal}
+        roomId={roomId}
+        roomName={roomName}
+        onClose={() => setShowInviteModal(false)}
+        onShare={handleShare}
       />
     </View>
   );
@@ -356,6 +421,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.text3,
     marginTop: 2,
+  },
+  shareActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  qrBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   shareBtn: {
     borderRadius: 18,

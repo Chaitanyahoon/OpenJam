@@ -536,3 +536,84 @@ def register_connection_handlers(sio: socketio.AsyncServer):
             "t1": t1,
             "t2": t2
         }, to=sid)
+
+    @sio.event
+    async def transfer_host(sid, data):
+        """Allow current host to transfer host privileges to another listener in the room."""
+        user_info = room_manager.get_user_by_sid(sid)
+        if not user_info:
+            return
+        room_id = user_info["room_id"]
+        caller_id = user_info["user_id"]
+        target_user_id = data.get("target_user_id") if isinstance(data, dict) else None
+        if not target_user_id or target_user_id == caller_id:
+            return
+
+        room = room_manager.store.get_room(room_id)
+        if not room or room.get("host_sid") != sid:
+            logger.warning(f"Unauthorized transfer_host attempt in room {room_id} by {caller_id}")
+            return
+
+        target_info = room.get("users", {}).get(target_user_id)
+        if not target_info:
+            return
+
+        target_sid = target_info.get("sid")
+        target_name = target_info.get("display_name", "Listener")
+        room_manager.set_host(room_id, target_sid)
+
+        def _update_db_host(rid, uid):
+            db = SessionLocal()
+            try:
+                from backend.models.room import Room
+                r = db.query(Room).filter(Room.id == rid).first()
+                if r:
+                    r.host_user_id = uid
+                    db.commit()
+            finally:
+                db.close()
+        await asyncio.to_thread(_update_db_host, room_id, target_user_id)
+
+        await sio.emit("host_changed", {
+            "host_user_id": target_user_id,
+            "host_name": target_name,
+        }, room=room_id)
+
+        await sio.emit("listener_count", {
+            "count": room_manager.get_listener_count(room_id),
+            "listeners": room_manager.get_listeners(room_id),
+        }, room=room_id)
+        logger.info(f"Host transferred in room {room_id} from {caller_id} to {target_name} ({target_user_id})")
+
+    @sio.event
+    async def kick_user(sid, data):
+        """Allow current host to remove a listener from the room."""
+        user_info = room_manager.get_user_by_sid(sid)
+        if not user_info:
+            return
+        room_id = user_info["room_id"]
+        caller_id = user_info["user_id"]
+        target_user_id = data.get("target_user_id") if isinstance(data, dict) else None
+        if not target_user_id or target_user_id == caller_id:
+            return
+
+        room = room_manager.store.get_room(room_id)
+        if not room or room.get("host_sid") != sid:
+            logger.warning(f"Unauthorized kick_user attempt in room {room_id} by {caller_id}")
+            return
+
+        target_info = room.get("users", {}).get(target_user_id)
+        if not target_info:
+            return
+
+        target_sid = target_info.get("sid")
+        target_name = target_info.get("display_name", "Listener")
+        if target_sid:
+            await sio.emit("kicked_from_room", {
+                "room_id": room_id,
+                "message": "You were removed from the room by the host.",
+            }, to=target_sid)
+            await _handle_user_departure(room_id, target_user_id, target_name, False)
+            await sio.leave_room(target_sid, room_id)
+            logger.info(f"User {target_name} ({target_user_id}) kicked from room {room_id} by host {caller_id}")
+

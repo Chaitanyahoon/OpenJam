@@ -27,6 +27,8 @@ export const C2S = {
   TYPING: 'typing',
   STOP_TYPING: 'stop_typing',
   SYNC_PING: 'sync_ping',
+  TRANSFER_HOST: 'transfer_host',
+  KICK_USER: 'kick_user',
 } as const;
 
 /** Server -> client events */
@@ -53,6 +55,7 @@ export const S2C = {
   USER_LEFT: 'user_left',
   GUEST_CONTROLS_UPDATED: 'guest_controls_updated',
   ROOM_UPDATED: 'room_updated',
+  KICKED_FROM_ROOM: 'kicked_from_room',
 } as const;
 
 export interface TrackInfo {
@@ -99,6 +102,8 @@ export interface ChatMessage {
   content: string;
   timestamp: number;
   avatar_url?: string | null;
+  is_system?: boolean;
+  system_type?: 'join' | 'leave' | 'host' | 'skip' | 'info';
 }
 
 export interface ReactionEvent {

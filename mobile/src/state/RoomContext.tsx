@@ -13,6 +13,7 @@ import React, {
   useState,
 } from 'react';
 import { AppState } from 'react-native';
+import { router } from 'expo-router';
 import { useSocket } from './SocketContext';
 import { usePlayer } from '../audio/PlayerContext';
 import { SyncEngine } from '../sync/engine';
@@ -79,6 +80,9 @@ interface RoomApi {
   shuffleQueue: () => void;
   seekToMs: (ms: number) => void;
   removeTrack: (queueItemId: string) => void;
+  reorderQueue: (orderedIds: string[]) => void;
+  transferHost: (targetUserId: string) => void;
+  kickUser: (targetUserId: string) => void;
   setTyping: (typing: boolean) => void;
   clearUnreadChat: () => void;
   setChatFocused: (focused: boolean) => void;
@@ -370,7 +374,33 @@ export function RoomProvider({
       mounted && setQueue(normalizeQueueList(data?.queue));
     const onListenerCount = (data: { listeners?: ListenerInfo[]; count?: number }) =>
       mounted && setListeners(data?.listeners ?? []);
-    const onHostChanged = (data: { host_user_id?: string }) => {
+    const onUserJoined = (data: { user_id?: string; display_name?: string }) => {
+      if (!mounted || !data?.display_name) return;
+      const sysMsg: ChatMessage = {
+        id: `sys-j-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        user_id: 'system',
+        user_name: 'OpenJam',
+        content: `${data.display_name} joined the room`,
+        timestamp: Date.now(),
+        is_system: true,
+        system_type: 'join',
+      };
+      setMessages((prev) => [...prev.slice(-199), sysMsg]);
+    };
+    const onUserLeft = (data: { user_id?: string; display_name?: string }) => {
+      if (!mounted || !data?.display_name) return;
+      const sysMsg: ChatMessage = {
+        id: `sys-l-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        user_id: 'system',
+        user_name: 'OpenJam',
+        content: `${data.display_name} left the room`,
+        timestamp: Date.now(),
+        is_system: true,
+        system_type: 'leave',
+      };
+      setMessages((prev) => [...prev.slice(-199), sysMsg]);
+    };
+    const onHostChanged = (data: { host_user_id?: string; host_name?: string }) => {
       if (!mounted) return;
       const mine =
         !!data?.host_user_id && !!meRef.current && data.host_user_id === meRef.current.id;
@@ -379,6 +409,21 @@ export function RoomProvider({
       }
       isHostRef.current = mine;
       setIsHost(mine);
+      const sysMsg: ChatMessage = {
+        id: `sys-h-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        user_id: 'system',
+        user_name: 'OpenJam',
+        content: `${data?.host_name || 'A new DJ'} is now the room host`,
+        timestamp: Date.now(),
+        is_system: true,
+        system_type: 'host',
+      };
+      setMessages((prev) => [...prev.slice(-199), sysMsg]);
+    };
+    const onKicked = (data?: { message?: string }) => {
+      if (!mounted) return;
+      toast(data?.message || 'You were removed from the room by the host', 'error');
+      router.replace('/');
     };
     const onChatHistory = (data: { messages?: ChatMessage[] }) => {
       if (!mounted) return;
@@ -473,6 +518,9 @@ export function RoomProvider({
       s.on(S2C.GUEST_CONTROLS_UPDATED, onGuestControls);
       s.on(S2C.ROOM_UPDATED, onRoomUpdated);
       s.on(S2C.ROOM_CLOSED, onRoomClosed);
+      s.on(S2C.USER_JOINED, onUserJoined);
+      s.on(S2C.USER_LEFT, onUserLeft);
+      s.on(S2C.KICKED_FROM_ROOM, onKicked);
 
       if (s.connected) onConnect();
       pingTimer = setInterval(ping, PING_INTERVAL_MS);
@@ -504,6 +552,9 @@ export function RoomProvider({
         activeSocket.off(S2C.GUEST_CONTROLS_UPDATED, onGuestControls);
         activeSocket.off(S2C.ROOM_UPDATED, onRoomUpdated);
         activeSocket.off(S2C.ROOM_CLOSED, onRoomClosed);
+        activeSocket.off(S2C.USER_JOINED, onUserJoined);
+        activeSocket.off(S2C.USER_LEFT, onUserLeft);
+        activeSocket.off(S2C.KICKED_FROM_ROOM, onKicked);
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -569,6 +620,33 @@ export function RoomProvider({
 
   const addTrack = useCallback(
     (track: TrackInfo) => {
+      // Check for duplicate in queue or now playing
+      const normUri = track.track_uri?.trim().toLowerCase();
+      const normName = track.track_name?.trim().toLowerCase();
+      const normArtist = track.artist?.trim().toLowerCase();
+
+      const isDupQueue = queue.some((q) => {
+        if (normUri && q.track_uri && q.track_uri.trim().toLowerCase() === normUri) return true;
+        return (
+          normName &&
+          normArtist &&
+          q.track_name.trim().toLowerCase() === normName &&
+          q.artist.trim().toLowerCase() === normArtist
+        );
+      });
+
+      const isDupPlaying =
+        nowPlaying &&
+        ((normUri && nowPlaying.track_uri && nowPlaying.track_uri.trim().toLowerCase() === normUri) ||
+          (normName &&
+            normArtist &&
+            nowPlaying.track_name.trim().toLowerCase() === normName &&
+            nowPlaying.artist.trim().toLowerCase() === normArtist));
+
+      if (isDupQueue || isDupPlaying) {
+        toast(`"${track.track_name}" is already in the queue`, 'info');
+      }
+
       const emitAdd = (s: typeof socketRef.current) => {
         s?.emit(C2S.ADD_TO_QUEUE, {
           room_id: roomId,
@@ -592,7 +670,7 @@ export function RoomProvider({
       }
       emitAdd(socketRef.current);
     },
-    [roomId, connect, toast],
+    [roomId, queue, nowPlaying, connect, toast],
   );
 
   const playNow = useCallback(
@@ -742,6 +820,56 @@ export function RoomProvider({
     [isHost, roomId, toast],
   );
 
+  const reorderQueue = useCallback(
+    (orderedIds: string[]) => {
+      if (!orderedIds || orderedIds.length === 0) return;
+      socketRef.current?.emit(C2S.REORDER_QUEUE, {
+        room_id: roomId,
+        ordered_ids: orderedIds,
+      });
+      setQueue((prev) => {
+        const itemMap = new Map(prev.map((item) => [item.queue_item_id || item.id || '', item]));
+        const updated: QueueItem[] = [];
+        for (const id of orderedIds) {
+          const found = itemMap.get(id);
+          if (found) {
+            updated.push(found);
+            itemMap.delete(id);
+          }
+        }
+        for (const rem of itemMap.values()) {
+          updated.push(rem);
+        }
+        return updated;
+      });
+    },
+    [roomId],
+  );
+
+  const transferHost = useCallback(
+    (targetUserId: string) => {
+      if (!isHost || !targetUserId) return;
+      socketRef.current?.emit(C2S.TRANSFER_HOST, {
+        room_id: roomId,
+        target_user_id: targetUserId,
+      });
+      toast('Host transfer requested', 'info');
+    },
+    [isHost, roomId, toast],
+  );
+
+  const kickUser = useCallback(
+    (targetUserId: string) => {
+      if (!isHost || !targetUserId) return;
+      socketRef.current?.emit(C2S.KICK_USER, {
+        room_id: roomId,
+        target_user_id: targetUserId,
+      });
+      toast('Listener removed from room', 'info');
+    },
+    [isHost, roomId, toast],
+  );
+
   // Auto-advance on track completion & auto-recovery on fatal playback errors
   useEffect(() => {
     const p = playerRef.current;
@@ -838,6 +966,9 @@ export function RoomProvider({
       shuffleQueue,
       seekToMs,
       removeTrack,
+      reorderQueue,
+      transferHost,
+      kickUser,
       setTyping,
       clearUnreadChat,
       setChatFocused,
@@ -849,7 +980,7 @@ export function RoomProvider({
       loop, listeners, messages, unreadChat, typingUsers, reactions, skipVotes, guestControls, syncReady,
       joinError, roomClosed, me, retryJoin, toggleGuestControls, sendChat, sendReaction, dismissReaction,
       addTrack, playNow, voteTrack, voteSkip, togglePlay, nextTrack, previousTrack,
-      toggleRepeat, shuffleQueue, seekToMs, removeTrack, setTyping,
+      toggleRepeat, shuffleQueue, seekToMs, removeTrack, reorderQueue, transferHost, kickUser, setTyping,
       clearUnreadChat, setChatFocused, closeRoom, updateRoomDetails,
     ],
   );

@@ -102,6 +102,9 @@ jobs:
             TAG="${GITHUB_REF#refs/tags/}"
           fi
           echo "Target Release Tag: $TAG"
+
+          # Ensure release exists or create draft/published release
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "OpenJam Android App $TAG" --notes "Automated release build for OpenJam Android."
           
           # Delete old zip bundle if present on the release
           gh release delete-asset "$TAG" "openjam-android-v1.0.0-bundle.zip" -y || true

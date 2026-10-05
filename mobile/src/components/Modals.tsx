@@ -1,7 +1,19 @@
 /** Create / Join / Leave modals — glassmorphic, per the web app's modals/. */
 import React, { useEffect, useState } from 'react';
 import { Image, Modal, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
-import { LogIn, Shuffle, X, LogOut, AlertCircle, RefreshCw, MessageSquare } from 'lucide-react-native';
+import {
+  LogIn,
+  Shuffle,
+  X,
+  LogOut,
+  AlertCircle,
+  RefreshCw,
+  MessageSquare,
+  Crown,
+  User,
+  UserX,
+  QrCode,
+} from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
 import { Field, PrimaryButton, Title, Subtitle } from './ui';
@@ -589,13 +601,21 @@ export function EditRoomModal({
 export function ListenerActionModal({
   visible,
   listener,
+  isHostViewer,
   onClose,
   onMention,
+  onTransferHost,
+  onKickListener,
+  onViewProfile,
 }: {
   visible: boolean;
   listener: { user_id: string; user_name: string; avatar_url?: string | null; is_host?: boolean } | null;
+  isHostViewer?: boolean;
   onClose: () => void;
   onMention?: (userName: string) => void;
+  onTransferHost?: (userId: string, userName: string) => void;
+  onKickListener?: (userId: string, userName: string) => void;
+  onViewProfile?: (userId: string) => void;
 }) {
   if (!listener) return null;
   const initialsText = (listener.user_name || '?').slice(0, 2).toUpperCase();
@@ -618,25 +638,129 @@ export function ListenerActionModal({
 
       <View style={styles.gap} />
 
+      {onViewProfile ? (
+        <Pressable
+          onPress={() => {
+            onViewProfile(listener.user_id);
+            onClose();
+          }}
+          style={({ pressed }) => [styles.actionButtonSecondary, pressed && styles.pressed]}
+        >
+          <User size={16} color={colors.amber} />
+          <Text style={styles.actionButtonSecondaryText}>View Public Profile</Text>
+        </Pressable>
+      ) : null}
+
       {onMention ? (
         <Pressable
           onPress={() => {
             onMention(listener.user_name);
             onClose();
           }}
-          style={({ pressed }) => [styles.actionButtonSecondary, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.actionButtonSecondary, { marginTop: 8 }, pressed && styles.pressed]}
         >
           <MessageSquare size={16} color={colors.text1} />
           <Text style={styles.actionButtonSecondaryText}>Mention in Chat</Text>
         </Pressable>
       ) : null}
 
-      <View style={{ height: 8 }} />
+      {isHostViewer && !listener.is_host && onTransferHost ? (
+        <Pressable
+          onPress={() => {
+            onTransferHost(listener.user_id, listener.user_name);
+            onClose();
+          }}
+          style={({ pressed }) => [
+            styles.actionButtonSecondary,
+            { marginTop: 8, borderColor: 'rgba(255, 159, 28, 0.3)' },
+            pressed && styles.pressed,
+          ]}
+        >
+          <Crown size={16} color={colors.amber} />
+          <Text style={[styles.actionButtonSecondaryText, { color: colors.amber }]}>
+            Make Room Host
+          </Text>
+        </Pressable>
+      ) : null}
+
+      {isHostViewer && !listener.is_host && onKickListener ? (
+        <Pressable
+          onPress={() => {
+            onKickListener(listener.user_id, listener.user_name);
+            onClose();
+          }}
+          style={({ pressed }) => [styles.actionButtonDestructive, { marginTop: 8 }, pressed && styles.pressed]}
+        >
+          <UserX size={16} color="#ef4444" />
+          <Text style={styles.actionButtonDestructiveText}>Remove from Room</Text>
+        </Pressable>
+      ) : null}
+
+      <View style={{ height: 12 }} />
       <Pressable
         onPress={onClose}
         style={({ pressed }) => [styles.stayBtn, pressed && styles.pressed]}
       >
         <Text style={styles.stayBtnText}>Close</Text>
+      </Pressable>
+    </Shell>
+  );
+}
+
+export function RoomInviteModal({
+  visible,
+  roomId,
+  roomName,
+  onClose,
+  onShare,
+}: {
+  visible: boolean;
+  roomId: string;
+  roomName?: string;
+  onClose: () => void;
+  onShare: () => void;
+}) {
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&format=png&data=${encodeURIComponent(
+    `https://www.openjam.fun/room/${roomId}`,
+  )}`;
+
+  return (
+    <Shell visible={visible} onClose={onClose}>
+      <View style={{ alignItems: 'center' }}>
+        <View style={styles.qrIconWrap}>
+          <QrCode size={22} color={colors.amber} />
+        </View>
+        <Title style={{ textAlign: 'center', marginTop: 10 }}>Invite to Jam</Title>
+        <Subtitle style={{ textAlign: 'center', marginTop: 4 }}>
+          {roomName || 'Live Music Room'}
+        </Subtitle>
+
+        {/* QR Code Container */}
+        <View style={styles.qrCodeFrame}>
+          <Image
+            source={{ uri: qrUrl }}
+            style={styles.qrImage}
+            resizeMode="contain"
+          />
+        </View>
+
+        {/* Room Code Badge */}
+        <View style={styles.roomCodeBadge}>
+          <Text style={styles.roomCodeLabel}>ROOM CODE</Text>
+          <Text style={styles.roomCodeText}>#{roomId}</Text>
+        </View>
+      </View>
+
+      <View style={{ height: 16 }} />
+
+      <PrimaryButton title="Share Invite Link" onPress={onShare} />
+
+      <View style={{ height: 8 }} />
+      <Pressable
+        onPress={onClose}
+        style={({ pressed }) => [styles.stayBtn, pressed && styles.pressed]}
+      >
+        <Text style={styles.stayBtnText}>Done</Text>
       </Pressable>
     </Shell>
   );
@@ -951,5 +1075,68 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.text3,
     marginTop: 2,
+  },
+  actionButtonDestructive: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    borderRadius: radius.md,
+    paddingVertical: 12,
+  },
+  actionButtonDestructiveText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 14,
+    color: '#ef4444',
+  },
+  qrIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qrCodeFrame: {
+    width: 200,
+    height: 200,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 10,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: 'rgba(255, 159, 28, 0.4)',
+  },
+  qrImage: {
+    width: '100%',
+    height: '100%',
+  },
+  roomCodeBadge: {
+    alignItems: 'center',
+    marginTop: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  roomCodeLabel: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 9,
+    color: colors.text3,
+    letterSpacing: 1,
+  },
+  roomCodeText: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 16,
+    color: colors.amber,
+    marginTop: 1,
   },
 });

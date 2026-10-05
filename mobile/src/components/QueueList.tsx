@@ -24,6 +24,8 @@ import {
   Plus,
   Play,
   ChevronLeft,
+  ChevronUp,
+  ChevronDown,
   Music,
   ListMusic,
   ArrowBigUp,
@@ -59,8 +61,17 @@ function extractYouTubeId(urlOrQuery: string): string | null {
 }
 
 export function QueueList() {
-  const { queue, nowPlaying, isHost, canControl, addTrack, playNow, voteTrack, removeTrack } =
-    useRoom();
+  const {
+    queue,
+    nowPlaying,
+    isHost,
+    canControl,
+    addTrack,
+    playNow,
+    voteTrack,
+    removeTrack,
+    reorderQueue,
+  } = useRoom();
   const toast = useToast();
 
   const [query, setQuery] = useState('');
@@ -180,6 +191,18 @@ export function QueueList() {
     setQuery('');
     setResults([]);
     setShowResults(false);
+  };
+
+  const handleNudge = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= queue.length) return;
+    const newQueue = [...queue];
+    const temp = newQueue[index];
+    newQueue[index] = newQueue[targetIndex];
+    newQueue[targetIndex] = temp;
+    const orderedIds = newQueue.map((item) => item.queue_item_id || item.id || '');
+    reorderQueue(orderedIds);
+    void hapticLight();
   };
 
   return (
@@ -478,6 +501,41 @@ export function QueueList() {
                       </View>
                     </Pressable>
 
+                    {/* Host Reorder / Nudge buttons */}
+                    {canControl && queue.length > 1 ? (
+                      <View style={styles.nudgeCol}>
+                        <Pressable
+                          onPress={() => handleNudge(index, 'up')}
+                          disabled={index === 0}
+                          style={({ pressed }) => [
+                            styles.nudgeBtn,
+                            index === 0 && styles.nudgeBtnDisabled,
+                            pressed && styles.pressed,
+                          ]}
+                          hitSlop={6}
+                          accessibilityLabel="Move track up"
+                        >
+                          <ChevronUp size={11} color={index === 0 ? colors.text3 : colors.text2} />
+                        </Pressable>
+                        <Pressable
+                          onPress={() => handleNudge(index, 'down')}
+                          disabled={index === queue.length - 1}
+                          style={({ pressed }) => [
+                            styles.nudgeBtn,
+                            index === queue.length - 1 && styles.nudgeBtnDisabled,
+                            pressed && styles.pressed,
+                          ]}
+                          hitSlop={6}
+                          accessibilityLabel="Move track down"
+                        >
+                          <ChevronDown
+                            size={11}
+                            color={index === queue.length - 1 ? colors.text3 : colors.text2}
+                          />
+                        </Pressable>
+                      </View>
+                    ) : null}
+
                     {/* Host Remove */}
                     {isHost ? (
                       <Pressable
@@ -487,6 +545,7 @@ export function QueueList() {
                         }}
                         style={({ pressed }) => [styles.removeBtn, pressed && styles.pressed]}
                         hitSlop={8}
+                        accessibilityLabel="Remove track from queue"
                       >
                         <Trash2 size={13} color={colors.red} />
                       </Pressable>
@@ -863,6 +922,26 @@ const styles = StyleSheet.create({
   voteTextActive: {
     color: colors.amber,
     fontFamily: fontFamily.bodySemiBold,
+  },
+  nudgeCol: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    marginRight: 4,
+  },
+  nudgeBtn: {
+    width: 24,
+    height: 18,
+    borderRadius: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  nudgeBtnDisabled: {
+    opacity: 0.25,
   },
   removeBtn: {
     width: 32,
