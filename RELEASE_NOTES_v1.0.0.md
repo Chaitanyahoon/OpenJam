@@ -1,6 +1,6 @@
 ### 📲 Direct APK Download & Installation
 - 📦 **Download Standalone APK**: [**openjam-v1.0.0.apk**](https://github.com/Chaitanyahoon/OpenJam/releases/download/v1.0.0-mobile/openjam-v1.0.0.apk) (113.7 MB)
-- 🔒 **SHA256 Checksum**: `0c8ff86c0a44b0c9b47c95c75e3bab6f903765b94e873389f8165fdebbb6884c`
+- 🔒 **SHA256 Checksum**: `0cec386d42f7454d4d21bef51b9abe7afe9e1d35110bfd3821d313fda253aaa2`
 - 📱 **Compatibility**: Android 10+ (API 29–35), Universal multi-architecture (`arm64-v8a`, `armeabi-v7a`, `x86_64`, `x86`).
 
 ---
@@ -12,11 +12,10 @@
 
 ---
 
-### ✨ Key Features
-- **Native Android Experience**: Built with Expo Router & React Native on Hermes bytecode engine.
-- **Discord Authentication & Resilient Fallback**: Discord OAuth login with deep linking (`openjam://`), friendly failure recovery screen, and instant guest login with nickname randomizer dice.
-- **Room Creation & Password Security**: Room name randomizer, genre chips, private room password lock, and guest playback toggle.
-- **Real-Time Host Room Management**: Live room editing (`PATCH /rooms/{id}` + `room_updated`), listener moderation, and room deletion (`DELETE /rooms/{id}` + `room_closed`).
-- **Harmonious Audio Sync**: Synchronized social playback across listeners with live scrubber and synced lyrics.
-- **Minimalist Pure Vector UI**: 100% sharp Lucide vector icons and dark-mode glass styling (zero cartoon emojis).
-- **Automated CI/CD**: Standalone APK built and released via GitHub Actions workflow (`.github/workflows/build-android-apk.yml`).
+### ✨ What's New in This Release
+- 🎧 **Official OpenJam Brand Icon & Splash Screen**: Replaced all default Expo placeholder icons with custom high-resolution OpenJam headphones & vinyl record adaptive icons, splash screen, and Material You themed monochrome icons.
+- 🔊 **Unmuted Real-Time Audio Playback**: Resolved Chromium WebView media throttling with hardware-accelerated playback container, explicit unmute hooks, and seek cooldown protection.
+- 🔑 **Discord OAuth Mobile Deep-Linking**: Fixed OAuth redirect returning into the mobile app (`openjam://?token=...`) with seamless session synchronization.
+- 🛡️ **Lock Screen Controls & Notifications**: Added Android 13+ foreground playback permissions and notification onboarding banner.
+- 💾 **Offline Playlists & Storage**: Sandboxed offline playlists and favorite track caching requiring zero dangerous storage permissions.
+- 🎨 **Minimalist Vector Interface**: Responsive clamped layout (`maxWidth: 600`) across phones and tablets, with 100% sharp Lucide vector icons.
