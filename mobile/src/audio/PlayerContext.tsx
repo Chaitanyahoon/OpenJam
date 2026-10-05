@@ -34,7 +34,7 @@ export interface LockScreenMeta {
 }
 
 interface PlayerControls {
-  loadTrack: (urlOrId: string, meta: LockScreenMeta) => void | Promise<void>;
+  loadTrack: (urlOrId: string, meta: LockScreenMeta) => Promise<void>;
   play: () => void;
   pause: () => void;
   seekToMs: (ms: number) => Promise<void>;
@@ -44,6 +44,8 @@ interface PlayerControls {
   /** Local device volume 0..1 (not synced to the room). */
   volume: number;
   setVolume: (v: number) => void;
+  /** Whether a seek command was issued within the last cooldown window */
+  isSeekingRecently: () => boolean;
 }
 
 interface PlayerStatus {
@@ -83,9 +85,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [activeDriver, setActiveDriver] = useState<'expo' | 'youtube'>('youtube');
   const [ytPlaying, setYtPlaying] = useState(false);
   const [ytDurationMs, setYtDurationMs] = useState(0);
+  const [volume, setVolumeState] = useState(1);
+  const volumeRef = useRef(1);
+  volumeRef.current = volume;
 
   // Monotonic position sample for extrapolation between polls
   const sampleRef = useRef({ at: Date.now(), posMs: 0, playing: false });
+  const lastSeekTimeRef = useRef(0);
 
   // Update sample when Expo Audio polls
   useEffect(() => {
@@ -107,7 +113,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const loadTrack = useCallback(
-    async (urlOrId: string, meta: LockScreenMeta) => {
+    async (urlOrId: string, meta: LockScreenMeta): Promise<void> => {
       let ytId = parseYouTubeId(urlOrId);
 
       // If it's a search title or query with spaces, resolve via backend search/resolve endpoint
@@ -134,13 +140,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         setActiveDriver('youtube');
         sampleRef.current = { at: Date.now(), posMs: 0, playing: true };
         setYtPlaying(true);
-        ytBridgeRef.current?.loadVideo(ytId, 0, true);
+        ytBridgeRef.current?.loadVideo(ytId, 0, true, volumeRef.current);
       } else if (urlOrId && urlOrId.startsWith('http')) {
         // Direct stream URL
         ytBridgeRef.current?.pause();
         setActiveDriver('expo');
         setYtPlaying(false);
         player.replace({ uri: urlOrId });
+        player.volume = volumeRef.current;
         player.play();
       }
 
@@ -197,6 +204,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const seekToMs = useCallback(
     async (ms: number) => {
+      lastSeekTimeRef.current = Date.now();
       const safeMs = Math.max(0, ms);
       if (activeDriver === 'youtube') {
         ytBridgeRef.current?.seekTo(safeMs / 1000);
@@ -216,6 +224,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const s = sampleRef.current;
     if (!s.playing) return s.posMs;
     return s.posMs + (Date.now() - s.at);
+  }, []);
+
+  const isSeekingRecently = useCallback(() => {
+    return Date.now() - lastSeekTimeRef.current < 1500;
   }, []);
 
   const updateMeta = useCallback(
@@ -240,7 +252,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     [player],
   );
 
-  const [volume, setVolumeState] = useState(1);
   const setVolume = useCallback(
     (v: number) => {
       const clamped = Math.min(1, Math.max(0, v));
@@ -261,33 +272,42 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           posMs,
           playing: ytPlaying,
         };
-        if (durationSec > 0) {
-          setYtDurationMs(durationSec * 1000);
+        const durMs = Math.round(durationSec * 1000);
+        if (durMs > 0 && durMs !== ytDurationMs) {
+          setYtDurationMs(durMs);
         }
       }
     },
-    [activeDriver, ytPlaying],
+    [activeDriver, ytPlaying, ytDurationMs],
   );
 
   const handleYtPlaying = useCallback(() => {
-    setYtPlaying(true);
-    sampleRef.current = {
-      at: Date.now(),
-      posMs: sampleRef.current.posMs,
-      playing: true,
-    };
-  }, []);
+    if (activeDriver === 'youtube') {
+      setYtPlaying(true);
+      sampleRef.current = {
+        at: Date.now(),
+        posMs: sampleRef.current.posMs,
+        playing: true,
+      };
+    }
+  }, [activeDriver]);
 
   const handleYtPaused = useCallback(() => {
-    setYtPlaying(false);
-    sampleRef.current = {
-      at: Date.now(),
-      posMs: sampleRef.current.posMs,
-      playing: false,
-    };
+    if (activeDriver === 'youtube') {
+      setYtPlaying(false);
+      sampleRef.current = {
+        at: Date.now(),
+        posMs: sampleRef.current.posMs,
+        playing: false,
+      };
+    }
+  }, [activeDriver]);
+
+  const handleYtError = useCallback((code: number | string) => {
+    console.warn('[Player] YouTube Audio Bridge error code:', code);
   }, []);
 
-  const controls = useMemo(
+  const controls = useMemo<PlayerControls>(
     () => ({
       loadTrack,
       play,
@@ -297,8 +317,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       updateMeta,
       volume,
       setVolume,
+      isSeekingRecently,
     }),
-    [loadTrack, play, pause, seekToMs, positionMs, updateMeta, volume, setVolume],
+    [loadTrack, play, pause, seekToMs, positionMs, updateMeta, volume, setVolume, isSeekingRecently],
   );
 
   const isCurrentlyPlaying =
@@ -328,6 +349,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           onProgress={handleYtProgress}
           onPlaying={handleYtPlaying}
           onPaused={handleYtPaused}
+          onError={handleYtError}
         />
       </StatusCtx.Provider>
     </ControlsCtx.Provider>

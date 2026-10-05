@@ -64,6 +64,32 @@ export function estimateCacheKb(rawStrings: string[]): number {
   return Math.max(1, Math.round(totalBytes / 1024));
 }
 
+export function toggleFavoriteTrackPure(
+  existing: { track_uri: string }[],
+  track: { track_uri: string; track_name: string },
+): { updatedList: any[]; isFavorited: boolean } {
+  const exists = existing.some((t) => t.track_uri === track.track_uri);
+  if (exists) {
+    return {
+      updatedList: existing.filter((t) => t.track_uri !== track.track_uri),
+      isFavorited: false,
+    };
+  }
+  return {
+    updatedList: [track, ...existing],
+    isFavorited: true,
+  };
+}
+
+export function addTrackToPlaylistPure(
+  tracks: { track_uri: string }[],
+  newTrack: { track_uri: string; track_name: string },
+): { updatedTracks: any[]; added: boolean } {
+  const exists = tracks.some((t) => t.track_uri === newTrack.track_uri);
+  if (exists) return { updatedTracks: tracks, added: false };
+  return { updatedTracks: [...tracks, newTrack], added: true };
+}
+
 describe('Local Storage & History Cache Engine', () => {
   it('adds new played track to the top of recently played list', () => {
     const list: PlayedTrack[] = [];
@@ -146,5 +172,27 @@ describe('Local Storage & History Cache Engine', () => {
     const data = ['a'.repeat(2048), 'b'.repeat(2048)];
     const kb = estimateCacheKb(data);
     assert.strictEqual(kb, 4); // 4096 bytes = 4 KB
+  });
+
+  it('correctly toggles favorite track in offline storage', () => {
+    const initial: { track_uri: string; track_name: string }[] = [];
+    const res1 = toggleFavoriteTrackPure(initial, { track_uri: 'yt:1', track_name: 'Chill Beat' });
+    assert.strictEqual(res1.isFavorited, true);
+    assert.strictEqual(res1.updatedList.length, 1);
+
+    const res2 = toggleFavoriteTrackPure(res1.updatedList, { track_uri: 'yt:1', track_name: 'Chill Beat' });
+    assert.strictEqual(res2.isFavorited, false);
+    assert.strictEqual(res2.updatedList.length, 0);
+  });
+
+  it('adds tracks to offline playlist and prevents duplicate entries', () => {
+    const playlist = [{ track_uri: 'yt:1', track_name: 'Song 1' }];
+    const res1 = addTrackToPlaylistPure(playlist, { track_uri: 'yt:2', track_name: 'Song 2' });
+    assert.strictEqual(res1.added, true);
+    assert.strictEqual(res1.updatedTracks.length, 2);
+
+    const res2 = addTrackToPlaylistPure(res1.updatedTracks, { track_uri: 'yt:1', track_name: 'Song 1' });
+    assert.strictEqual(res2.added, false);
+    assert.strictEqual(res2.updatedTracks.length, 2);
   });
 });

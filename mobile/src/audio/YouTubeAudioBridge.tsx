@@ -15,7 +15,7 @@ import { StyleSheet, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 
 export interface YouTubeAudioBridgeRef {
-  loadVideo: (videoId: string, startSeconds?: number, autoplay?: boolean) => void;
+  loadVideo: (videoId: string, startSeconds?: number, autoplay?: boolean, volume?: number) => void;
   play: () => void;
   pause: () => void;
   seekTo: (seconds: number) => void;
@@ -34,7 +34,10 @@ const YOUTUBE_HTML = `<!DOCTYPE html>
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>body { margin: 0; padding: 0; background: transparent; overflow: hidden; }</style>
+  <style>
+    body { margin: 0; padding: 0; background: #000; overflow: hidden; width: 100vw; height: 100vh; }
+    #player { width: 100%; height: 100%; }
+  </style>
 </head>
 <body>
   <div id="player"></div>
@@ -51,8 +54,8 @@ const YOUTUBE_HTML = `<!DOCTYPE html>
 
     function onYouTubeIframeAPIReady() {
       player = new YT.Player('player', {
-        height: '1',
-        width: '1',
+        height: '100%',
+        width: '100%',
         playerVars: {
           autoplay: 1,
           controls: 0,
@@ -61,7 +64,8 @@ const YOUTUBE_HTML = `<!DOCTYPE html>
           playsinline: 1,
           rel: 0,
           modestbranding: 1,
-          iv_load_policy: 3
+          iv_load_policy: 3,
+          origin: 'https://openjam.fun'
         },
         events: {
           'onReady': onPlayerReady,
@@ -73,6 +77,9 @@ const YOUTUBE_HTML = `<!DOCTYPE html>
 
     function onPlayerReady(e) {
       isReady = true;
+      try {
+        if (player && typeof player.unMute === 'function') player.unMute();
+      } catch (err) {}
       post({ type: 'ready' });
       if (pending) {
         executeCommand(pending);
@@ -83,6 +90,11 @@ const YOUTUBE_HTML = `<!DOCTYPE html>
     function onPlayerStateChange(e) {
       // -1 unstarted, 0 ended, 1 playing, 2 paused, 3 buffering, 5 cued
       var states = { '-1': 'unstarted', '0': 'ended', '1': 'playing', '2': 'paused', '3': 'buffering', '5': 'cued' };
+      if (e.data === 1 && player) {
+        try {
+          if (typeof player.unMute === 'function') player.unMute();
+        } catch (err) {}
+      }
       var cur = player && player.getCurrentTime ? player.getCurrentTime() : 0;
       var dur = player && player.getDuration ? player.getDuration() : 0;
       post({
@@ -117,10 +129,16 @@ const YOUTUBE_HTML = `<!DOCTYPE html>
         if (cmd.action === 'load') {
           if (cmd.autoplay) {
             player.loadVideoById({ videoId: cmd.videoId, startSeconds: cmd.startSeconds || 0 });
+            if (typeof player.unMute === 'function') player.unMute();
+            if (typeof cmd.volume === 'number' && typeof player.setVolume === 'function') {
+              player.setVolume(Math.round(cmd.volume * 100));
+            }
+            if (typeof player.playVideo === 'function') player.playVideo();
           } else {
             player.cueVideoById({ videoId: cmd.videoId, startSeconds: cmd.startSeconds || 0 });
           }
         } else if (cmd.action === 'play') {
+          if (typeof player.unMute === 'function') player.unMute();
           if (player.playVideo) player.playVideo();
         } else if (cmd.action === 'pause') {
           if (player.pauseVideo) player.pauseVideo();
@@ -169,12 +187,13 @@ export const YouTubeAudioBridge = forwardRef<
   };
 
   useImperativeHandle(ref, () => ({
-    loadVideo: (videoId: string, startSeconds = 0, autoplay = true) => {
+    loadVideo: (videoId: string, startSeconds = 0, autoplay = true, volume = 1.0) => {
       sendCommand({
         action: 'load',
         videoId,
         startSeconds,
         autoplay,
+        volume,
       });
     },
     play: () => {
@@ -213,16 +232,17 @@ export const YouTubeAudioBridge = forwardRef<
   };
 
   return (
-    <View style={styles.hiddenContainer} pointerEvents="none">
+    <View style={styles.hardwareContainer} pointerEvents="none">
       <WebView
         ref={webViewRef}
         originWhitelist={['*']}
-        source={{ html: YOUTUBE_HTML, baseUrl: 'https://www.youtube.com' }}
+        source={{ html: YOUTUBE_HTML, baseUrl: 'https://openjam.fun' }}
         onMessage={handleMessage}
         javaScriptEnabled={true}
         domStorageEnabled={true}
         mediaPlaybackRequiresUserAction={false}
         allowsInlineMediaPlayback={true}
+        androidLayerType="hardware"
         style={styles.webView}
       />
     </View>
@@ -230,17 +250,17 @@ export const YouTubeAudioBridge = forwardRef<
 });
 
 const styles = StyleSheet.create({
-  hiddenContainer: {
-    width: 1,
-    height: 1,
-    opacity: 0.01,
+  hardwareContainer: {
+    width: 200,
+    height: 200,
+    opacity: 0.002,
     position: 'absolute',
-    top: -10,
-    left: -10,
+    bottom: 0,
+    right: 0,
     overflow: 'hidden',
   },
   webView: {
-    width: 1,
-    height: 1,
+    width: 200,
+    height: 200,
   },
 });

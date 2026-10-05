@@ -247,12 +247,15 @@ async def discord_callback(request: Request, code: str = "", state: str = ""):
     """Handle Discord OAuth2 callback — exchange code for token, fetch user, create session."""
     log_auth_event(f"discord_callback: callback invoked with code length={len(code) if code else 0}")
 
+    import urllib.parse
+    clean_state = urllib.parse.unquote(state) if state else ""
+
     # Helper: build redirect URL that goes back to the mobile app when state is a native scheme,
     # or falls back to the PWA frontend.
     def _error_redirect(error_code: str):
-        if state and (state.startswith("openjam://") or state.startswith("exp://")):
-            delimiter = "&" if "?" in state else "#"
-            return RedirectResponse(f"{state}{delimiter}error={error_code}")
+        if clean_state and (clean_state.startswith("openjam:") or clean_state.startswith("exp:")):
+            delimiter = "&" if "?" in clean_state else "?"
+            return RedirectResponse(f"{clean_state}{delimiter}error={error_code}")
         return RedirectResponse(f"{settings.FRONTEND_URL}/?error={error_code}")
 
     if not code:
@@ -403,9 +406,9 @@ async def discord_callback(request: Request, code: str = "", state: str = ""):
         )
 
 
-        if state and (state.startswith("openjam://") or state.startswith("exp://")):
-            delimiter = "&" if "?" in state else "#"
-            redirect_target = f"{state}{delimiter}token={session_token}"
+        if clean_state and (clean_state.startswith("openjam:") or clean_state.startswith("exp:")):
+            delimiter = "&" if "?" in clean_state else "?"
+            redirect_target = f"{clean_state}{delimiter}token={session_token}"
             response = RedirectResponse(redirect_target)
         else:
             response = RedirectResponse(f"{settings.FRONTEND_URL}/#token={session_token}")

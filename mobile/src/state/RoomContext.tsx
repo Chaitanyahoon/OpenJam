@@ -178,7 +178,7 @@ export function RoomProvider({
         if (newNowPlaying) {
           recordTrackPlayed(newNowPlaying, { id: roomId, name: roomName });
         }
-        p.loadTrack(data.track_uri, {
+        await p.loadTrack(data.track_uri, {
           title: newNowPlaying?.track_name ?? 'OpenJam',
           artist: newNowPlaying?.artist,
           artworkUrl: newNowPlaying?.album_art_url,
@@ -193,7 +193,7 @@ export function RoomProvider({
           if (shouldPlay) p.play();
           else p.pause();
           playingRef.current = shouldPlay;
-        } else if (drift > DRIFT_CORRECT_MS) {
+        } else if (drift > DRIFT_CORRECT_MS && !p.isSeekingRecently()) {
           await p.seekToMs(target);
         }
       }

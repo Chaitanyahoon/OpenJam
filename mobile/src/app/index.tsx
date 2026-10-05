@@ -63,6 +63,7 @@ import { getFavoriteRooms, type FavoriteRoom, type PlayedTrack } from '../storag
 import { hapticMedium } from '../utils/haptics';
 import { useToast } from '../components/ToastContext';
 import { registerPushToken } from '../notifications';
+import { PermissionBanner } from '../components/PermissionBanner';
 
 // Complete WebBrowser session if returning from OAuth
 WebBrowser.maybeCompleteAuthSession();
@@ -73,7 +74,7 @@ const GENRES = ['All', 'Lofi & Chill', 'Synthwave', 'Hip Hop', 'Ambient'];
 const SLOGANS = ['In Sync.', 'With Friends.', 'In Real-Time.', 'In Harmony.'];
 
 export default function Landing() {
-  const { connect } = useSocket();
+  const { connect, disconnect } = useSocket();
   const toast = useToast();
 
   const [user, setUser] = useState<ApiUser | null>(null);
@@ -147,6 +148,64 @@ export default function Landing() {
     setRefreshing(false);
   }, [loadRooms]);
 
+  // Process incoming OAuth callback URL
+  const processAuthUrl = useCallback(
+    async (url: string) => {
+      let token = '';
+      if (url.includes('token=')) {
+        const match = url.match(/[?&#]token=([a-zA-Z0-9_\-.]+)/);
+        if (match) token = match[1];
+      }
+
+      if (token) {
+        disconnect();
+        const profile = await saveAuthToken(token);
+        if (profile) {
+          setUser(profile);
+          setAuthError(null);
+          setShowIdentity(false);
+          toast(
+            `Welcome, ${profile.discord_username ? '@' + profile.discord_username : profile.display_name}!`,
+            'success',
+          );
+          await connect();
+          registerPushToken().catch(() => {});
+        } else {
+          toast('Signed in via Discord', 'success');
+          setShowIdentity(false);
+          await connect();
+        }
+        return true;
+      } else if (url.includes('error=')) {
+        const errMatch = url.match(/[?&#]error=([a-zA-Z0-9_]+)/);
+        const reason = errMatch ? errMatch[1].replace(/_/g, ' ') : 'authorization denied';
+        setAuthError(`Discord sign-in was interrupted (${reason}). You can retry or join as a guest.`);
+        setShowIdentity(true);
+        return false;
+      }
+      return false;
+    },
+    [connect, disconnect, toast],
+  );
+
+  // Listen for incoming deep links from OAuth redirect
+  useEffect(() => {
+    const handleUrl = (event: { url: string }) => {
+      if (event.url && (event.url.includes('token=') || event.url.includes('error='))) {
+        void processAuthUrl(event.url);
+      }
+    };
+    const sub = Linking.addEventListener('url', handleUrl);
+    void Linking.getInitialURL().then((initialUrl) => {
+      if (initialUrl && (initialUrl.includes('token=') || initialUrl.includes('error='))) {
+        void processAuthUrl(initialUrl);
+      }
+    });
+    return () => {
+      sub.remove();
+    };
+  }, [processAuthUrl]);
+
   // Discord OAuth sign in
   const handleDiscordLogin = async () => {
     try {
@@ -158,34 +217,7 @@ export default function Landing() {
       const res = await WebBrowser.openAuthSessionAsync(authUrl, redirectScheme);
 
       if (res.type === 'success' && res.url) {
-        let token = '';
-        if (res.url.includes('token=')) {
-          const match = res.url.match(/token=([a-zA-Z0-9_\-.]+)/);
-          if (match) token = match[1];
-        }
-
-        if (token) {
-          const profile = await saveAuthToken(token);
-          if (profile) {
-            setUser(profile);
-            setAuthError(null);
-            setShowIdentity(false);
-            toast(
-              `Welcome, ${profile.discord_username ? '@' + profile.discord_username : profile.display_name}!`,
-              'success',
-            );
-            await connect();
-            registerPushToken().catch(() => {});
-          } else {
-            toast('Signed in via Discord', 'success');
-            setShowIdentity(false);
-          }
-        } else if (res.url.includes('error=')) {
-          const errMatch = res.url.match(/error=([a-zA-Z0-9_]+)/);
-          const reason = errMatch ? errMatch[1].replace(/_/g, ' ') : 'authorization denied';
-          setAuthError(`Discord sign-in was interrupted (${reason}). You can retry or join as a guest.`);
-          setShowIdentity(true);
-        }
+        await processAuthUrl(res.url);
       } else if (res.type === 'cancel' || res.type === 'dismiss') {
         setAuthError('The Discord sign-in window was closed. You can retry or continue as a guest.');
         setShowIdentity(true);
@@ -199,6 +231,7 @@ export default function Landing() {
   // Guest sign in fallback
   const handleIdentity = async (displayName: string) => {
     try {
+      disconnect();
       const { user: u } = await joinAsGuest(displayName);
       setUser(u);
       setShowIdentity(false);
@@ -212,6 +245,7 @@ export default function Landing() {
 
   // Sign out
   const handleSignOut = async () => {
+    disconnect();
     await clearSession();
     setUser(null);
     toast('Signed out', 'info');
@@ -220,6 +254,7 @@ export default function Landing() {
   // Guest sign in / update name from ProfileModal
   const handleUpdateGuestName = async (displayName: string) => {
     try {
+      disconnect();
       const { user: u } = await joinAsGuest(displayName);
       setUser(u);
       toast(`Name updated to "${u.display_name}"`, 'success');
@@ -375,6 +410,9 @@ export default function Landing() {
                 </Pressable>
               )}
             </View>
+
+            {/* Permission & Sandboxed Storage Onboarding Banner */}
+            <PermissionBanner />
 
             {/* Streamlined Hero Stage */}
             <LinearGradient
@@ -546,11 +584,13 @@ export default function Landing() {
           </View>
         }
         renderItem={({ item }) => (
-          <RoomCard
-            room={item}
-            onPress={() => handleRoomPress(item)}
-            onFavoriteToggle={loadFavorites}
-          />
+          <View style={styles.roomCardWrap}>
+            <RoomCard
+              room={item}
+              onPress={() => handleRoomPress(item)}
+              onFavoriteToggle={loadFavorites}
+            />
+          </View>
         )}
         ListEmptyComponent={
           ready ? (
@@ -661,6 +701,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: spacing.md,
+    maxWidth: 600,
+    width: '100%',
+    alignSelf: 'center',
   },
   navLeft: {
     flexDirection: 'row',
@@ -1084,7 +1127,15 @@ const styles = StyleSheet.create({
     color: colors.amber,
     fontFamily: fontFamily.bodySemiBold,
   },
+  roomCardWrap: {
+    maxWidth: 600,
+    width: '100%',
+    alignSelf: 'center',
+  },
   loungeCard: {
+    maxWidth: 600,
+    width: '100%',
+    alignSelf: 'center',
     backgroundColor: 'rgba(18, 18, 26, 0.85)',
     borderWidth: 1,
     borderColor: 'rgba(255, 159, 28, 0.25)',

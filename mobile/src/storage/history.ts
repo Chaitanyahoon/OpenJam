@@ -15,6 +15,16 @@ const RECENT_TRACKS_KEY = 'openjam_recent_tracks_v2';
 const FAVORITE_ROOMS_KEY = 'openjam_favorite_rooms_v2';
 const LISTENING_STATS_KEY = 'openjam_listening_stats_v2';
 const APP_PREFERENCES_KEY = 'openjam_app_preferences_v2';
+const OFFLINE_PLAYLISTS_KEY = 'openjam_offline_playlists_v1';
+const FAVORITE_TRACKS_KEY = 'openjam_favorite_tracks_v1';
+
+export interface OfflinePlaylist {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+  tracks: TrackInfo[];
+}
 
 export interface PlayedTrack extends TrackInfo {
   playedAt: number;
@@ -221,6 +231,8 @@ export async function calculateStorageUsageKb(): Promise<number> {
       FAVORITE_ROOMS_KEY,
       LISTENING_STATS_KEY,
       APP_PREFERENCES_KEY,
+      OFFLINE_PLAYLISTS_KEY,
+      FAVORITE_TRACKS_KEY,
     ];
     let totalBytes = 0;
     for (const key of keys) {
@@ -240,4 +252,121 @@ export async function clearAllLocalCache(): Promise<void> {
       FAVORITE_ROOMS_KEY,
     ]);
   } catch {}
+}
+
+/** 6. Offline Playlists & Favorite Tracks (Sandboxed App Storage) */
+export async function getOfflinePlaylists(): Promise<OfflinePlaylist[]> {
+  try {
+    const raw = await AsyncStorage.getItem(OFFLINE_PLAYLISTS_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+export async function saveOfflinePlaylist(
+  name: string,
+  tracks: TrackInfo[] = [],
+): Promise<OfflinePlaylist> {
+  const playlists = await getOfflinePlaylists();
+  const now = Date.now();
+  const id = `playlist_${now}_${Math.random().toString(36).substring(2, 7)}`;
+  const newPlaylist: OfflinePlaylist = {
+    id,
+    name: name.trim() || 'My Offline Playlist',
+    createdAt: now,
+    updatedAt: now,
+    tracks,
+  };
+  const updated = [newPlaylist, ...playlists];
+  await AsyncStorage.setItem(OFFLINE_PLAYLISTS_KEY, JSON.stringify(updated));
+  return newPlaylist;
+}
+
+export async function deleteOfflinePlaylist(playlistId: string): Promise<void> {
+  try {
+    const playlists = await getOfflinePlaylists();
+    const updated = playlists.filter((p) => p.id !== playlistId);
+    await AsyncStorage.setItem(OFFLINE_PLAYLISTS_KEY, JSON.stringify(updated));
+  } catch {}
+}
+
+export async function addTrackToOfflinePlaylist(
+  playlistId: string,
+  track: TrackInfo,
+): Promise<boolean> {
+  try {
+    const playlists = await getOfflinePlaylists();
+    const index = playlists.findIndex((p) => p.id === playlistId);
+    if (index === -1) return false;
+
+    const p = playlists[index];
+    const exists = p.tracks.some((t) => t.track_uri === track.track_uri);
+    if (exists) return false;
+
+    p.tracks.push(track);
+    p.updatedAt = Date.now();
+    playlists[index] = p;
+    await AsyncStorage.setItem(OFFLINE_PLAYLISTS_KEY, JSON.stringify(playlists));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function removeTrackFromOfflinePlaylist(
+  playlistId: string,
+  trackUri: string,
+): Promise<boolean> {
+  try {
+    const playlists = await getOfflinePlaylists();
+    const index = playlists.findIndex((p) => p.id === playlistId);
+    if (index === -1) return false;
+
+    const p = playlists[index];
+    p.tracks = p.tracks.filter((t) => t.track_uri !== trackUri);
+    p.updatedAt = Date.now();
+    playlists[index] = p;
+    await AsyncStorage.setItem(OFFLINE_PLAYLISTS_KEY, JSON.stringify(playlists));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function getFavoriteTracks(): Promise<TrackInfo[]> {
+  try {
+    const raw = await AsyncStorage.getItem(FAVORITE_TRACKS_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+export async function toggleFavoriteTrack(track: TrackInfo): Promise<boolean> {
+  try {
+    const list = await getFavoriteTracks();
+    const exists = list.some((t) => t.track_uri === track.track_uri);
+    let updated: TrackInfo[];
+    if (exists) {
+      updated = list.filter((t) => t.track_uri !== track.track_uri);
+    } else {
+      updated = [track, ...list];
+    }
+    await AsyncStorage.setItem(FAVORITE_TRACKS_KEY, JSON.stringify(updated));
+    return !exists;
+  } catch {
+    return false;
+  }
+}
+
+export async function isFavoriteTrack(trackUri: string): Promise<boolean> {
+  try {
+    const list = await getFavoriteTracks();
+    return list.some((t) => t.track_uri === trackUri);
+  } catch {
+    return false;
+  }
 }
