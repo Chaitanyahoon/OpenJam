@@ -12,6 +12,12 @@ on:
         type: boolean
         default: true
   push:
+    branches:
+      - main
+      - mobile-app
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/build-android-apk.yml'
     tags:
       - 'v*'
 
@@ -93,13 +99,17 @@ jobs:
           retention-days: 30
 
       - name: Upload APK to GitHub Release
-        if: ${{ (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.upload_to_release == true) }}
+        if: ${{ startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/mobile-app' || (github.event_name == 'workflow_dispatch' && inputs.upload_to_release == true) }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ inputs.release_tag }}"
           if [ -z "$TAG" ]; then
-            TAG="${GITHUB_REF#refs/tags/}"
+            if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+              TAG="${GITHUB_REF#refs/tags/}"
+            else
+              TAG="v1.0.0-mobile"
+            fi
           fi
           echo "Target Release Tag: $TAG"
 
@@ -109,5 +119,5 @@ jobs:
           # Delete old zip bundle if present on the release
           gh release delete-asset "$TAG" "openjam-android-v1.0.0-bundle.zip" -y || true
           
-          # Upload real APK binary and checksum
+          # Upload real APK binary and checksum (--clobber replaces previous APK with upgraded one)
           gh release upload "$TAG" build-output/openjam-v1.0.0.apk build-output/openjam-v1.0.0.apk.sha256 --clobber
