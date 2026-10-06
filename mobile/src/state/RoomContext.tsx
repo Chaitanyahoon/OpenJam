@@ -171,8 +171,11 @@ export function RoomProvider({
     }, 12_000);
   }, [resetJoinTimeout]);
 
+  const tokenRef = useRef<string | null>(null);
+
   useEffect(() => {
     getStoredSession().then((s) => {
+      tokenRef.current = s.token;
       meRef.current = s.user;
       setMe(s.user);
       if (hostIdRef.current && s.user?.id && hostIdRef.current === s.user.id) {
@@ -268,6 +271,7 @@ export function RoomProvider({
       room_id: roomId,
       password: password || '',
       avatar_url: meRef.current?.avatar_url || null,
+      token: tokenRef.current || undefined,
     });
     // kick off offset measurement immediately
     s.emit(C2S.SYNC_PING, { t0: Date.now() });
@@ -445,7 +449,17 @@ export function RoomProvider({
       if (!mounted || !m || seenMsgIds.current.has(m.id)) return;
       seenMsgIds.current.add(m.id);
       setMessages((prev) => {
-        // If this message is from current user, check if we have a pending optimistic temp message
+        // 1. Direct deterministic match if server returned temp_id
+        if (m.temp_id) {
+          const tempIdx = prev.findIndex((msg) => msg.id === m.temp_id);
+          if (tempIdx !== -1) {
+            const next = [...prev];
+            next[tempIdx] = m;
+            return next;
+          }
+        }
+
+        // 2. Check if this message is from current user and matches a pending optimistic message
         const isFromMe =
           (!!meRef.current && (m.user_id === meRef.current.id || m.user_name === meRef.current.display_name)) ||
           m.user_id === 'me';
@@ -454,15 +468,20 @@ export function RoomProvider({
             (msg) =>
               msg.id.startsWith('temp_') &&
               (msg.user_id === m.user_id || msg.user_id === 'me' || msg.user_name === m.user_name) &&
-              msg.content === m.content,
+              msg.content.trim() === m.content.trim(),
           );
           if (optIndex !== -1) {
-            // Replace optimistic temp message in-place with verified server message
             const next = [...prev];
             next[optIndex] = m;
             return next;
           }
         }
+
+        // Prevent duplicate if already in state
+        if (prev.some((msg) => msg.id === m.id)) {
+          return prev;
+        }
+
         return [...prev.slice(-199), m];
       });
       if (!chatFocusedRef.current && m.user_id !== meRef.current?.id) {

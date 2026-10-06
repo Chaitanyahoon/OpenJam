@@ -201,6 +201,26 @@ def register_connection_handlers(sio: socketio.AsyncServer):
         display_name = session.get("display_name", "Jammer")
         avatar_url = data.get("avatar_url") or session.get("avatar_url")
 
+        # If client passes token in join payload, verify and upgrade socket session
+        join_token = data.get("token")
+        if join_token:
+            from itsdangerous import URLSafeTimedSerializer
+            from backend.config import settings
+            try:
+                tok_data = URLSafeTimedSerializer(settings.SECRET_KEY).loads(join_token, max_age=86400 * 30)
+                if tok_data and tok_data.get("user_id"):
+                    user_id = tok_data.get("user_id")
+                    session["user_id"] = user_id
+                    if tok_data.get("display_name"):
+                        display_name = tok_data.get("display_name")
+                        session["display_name"] = display_name
+                    if tok_data.get("avatar_url"):
+                        avatar_url = tok_data.get("avatar_url")
+                        session["avatar_url"] = avatar_url
+                    await sio.save_session(sid, session)
+            except Exception:
+                pass
+
         # Ensure we have the latest display name and avatar from database if the user is registered
         if user_id:
             def _get_db_user_profile(uid):

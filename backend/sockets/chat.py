@@ -116,12 +116,15 @@ def register_chat_handlers(sio: socketio.AsyncServer):
             _db_save_message, room_id, user_id, display_name, avatar_url, content
         )
 
+        temp_id = data.get("temp_id")
+        if temp_id:
+            msg_dict["temp_id"] = temp_id
+
         # Broadcast to the room
         await sio.emit("chat_message", msg_dict, room=room_id)
 
         # Send delivery ACK back to sender with the message ID
         ack = {"id": msg_dict["id"]}
-        temp_id = data.get("temp_id")
         if temp_id:
             ack["temp_id"] = temp_id
         await sio.emit("chat_ack", ack, to=sid)

@@ -205,7 +205,6 @@ export function QueueList() {
     setShowResults(false);
   };
 
-  const upNextTracks = queue.filter((item) => item.status !== 'playing');
   const playingQueueItem = queue.find((item) => item.status === 'playing');
   const activeTrack =
     nowPlaying ||
@@ -219,6 +218,21 @@ export function QueueList() {
         }
       : null);
 
+  const activeTrackUri = (activeTrack?.track_uri || '').trim().toLowerCase();
+
+  const upNextTracks = queue.filter((item) => {
+    if (item.status === 'playing') return false;
+    if (activeTrackUri && (item.track_uri || '').trim().toLowerCase() === activeTrackUri) {
+      return false;
+    }
+    if (playingQueueItem) {
+      const playingId = playingQueueItem.queue_item_id || playingQueueItem.id;
+      const itemId = item.queue_item_id || item.id;
+      if (playingId && itemId && playingId === itemId) return false;
+    }
+    return true;
+  });
+
   const handleNudge = (index: number, direction: 'up' | 'down') => {
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= upNextTracks.length) return;
@@ -226,10 +240,9 @@ export function QueueList() {
     const temp = newUpcoming[index];
     newUpcoming[index] = newUpcoming[targetIndex];
     newUpcoming[targetIndex] = temp;
-    const orderedIds = [
-      ...(playingQueueItem ? [playingQueueItem.queue_item_id || playingQueueItem.id || ''] : []),
-      ...newUpcoming.map((item) => item.queue_item_id || item.id || ''),
-    ].filter(Boolean);
+    const orderedIds = newUpcoming
+      .map((item) => item.queue_item_id || item.id || '')
+      .filter(Boolean);
     reorderQueue(orderedIds);
     void hapticLight();
   };

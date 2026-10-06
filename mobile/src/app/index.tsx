@@ -110,6 +110,7 @@ export default function Landing() {
   const [ready, setReady] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const handledTokensRef = useRef<Set<string>>(new Set());
+  const authSuccessRef = useRef(false);
   const insets = useSafeAreaInsets();
 
   const promptFirstLaunchPermissions = useCallback(() => {
@@ -175,6 +176,7 @@ export default function Landing() {
       }
 
       if (token) {
+        authSuccessRef.current = true;
         if (handledTokensRef.current.has(token)) {
           return true;
         }
@@ -233,6 +235,7 @@ export default function Landing() {
   const handleDiscordLogin = async () => {
     try {
       setAuthError(null);
+      authSuccessRef.current = false;
       const backendUrl = getBackendUrl();
       const redirectScheme = Linking.createURL('/');
       const authUrl = `${backendUrl}/auth/discord?state=${encodeURIComponent(redirectScheme)}`;
@@ -241,7 +244,7 @@ export default function Landing() {
 
       if (res.type === 'success' && res.url) {
         await processAuthUrl(res.url);
-      } else if (res.type === 'cancel' || res.type === 'dismiss') {
+      } else if (!authSuccessRef.current && (res.type === 'cancel' || res.type === 'dismiss')) {
         setAuthError('The Discord sign-in window was closed. You can retry or continue as a guest.');
         setShowIdentity(true);
       }

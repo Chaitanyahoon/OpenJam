@@ -140,10 +140,12 @@ export default function PlayerTab() {
   const { durationMs } = usePlayerStatus();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
 
-  // Dynamically clamp turntable stage so compact devices (e.g. 640px height) never push controls off screen
-  const artworkSize = Math.max(180, Math.min(windowWidth - 64, windowHeight * 0.34, 300));
+  // Dynamically clamp turntable stage so compact devices (e.g. 360dp width or 640px height) never push controls off screen or overflow horizontally
+  const maxAvailableWidth = windowWidth - spacing.lg * 2;
+  const maxStageWidth = Math.min(maxAvailableWidth, 340);
+  const artworkSize = Math.max(160, Math.min(Math.floor(maxStageWidth / 1.08), windowHeight * 0.32, 280));
   const discSize = artworkSize - 12;
-  const maxSlide = Math.round(artworkSize * 0.08);
+  const maxSlide = Math.min(Math.round(artworkSize * 0.08), Math.max(0, maxStageWidth - artworkSize));
 
   const [pos, setPos] = useState(0);
   useEffect(() => {

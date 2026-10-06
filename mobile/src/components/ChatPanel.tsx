@@ -185,7 +185,10 @@ export const ChatPanel = forwardRef<ChatPanelRef, { onMentionUser?: (name: strin
               );
             }
 
-            const mine = me && item.user_id === me.id;
+            const mine =
+              (me && item.user_id === me.id) ||
+              item.user_id === 'me' ||
+              item.id.startsWith('temp_');
             const isHostMsg = listeners.some((l) => l.user_id === item.user_id && l.is_host);
 
             if (mine) {

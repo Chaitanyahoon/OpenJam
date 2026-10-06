@@ -104,6 +104,7 @@ export interface ChatMessage {
   avatar_url?: string | null;
   is_system?: boolean;
   system_type?: 'join' | 'leave' | 'host' | 'skip' | 'info';
+  temp_id?: string;
 }
 
 export interface ReactionEvent {

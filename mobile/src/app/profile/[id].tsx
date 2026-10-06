@@ -23,6 +23,9 @@ import {
   Text,
   View,
 } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -41,10 +44,15 @@ import {
   Trash2,
   Sliders,
   LogOut,
+  LogIn,
   Radio,
   Music,
   Play,
   Check,
+  DownloadCloud,
+  Vibrate,
+  ExternalLink,
+  ShieldCheck,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../../theme';
 import { fontFamily } from '../../fonts';
@@ -55,6 +63,8 @@ import {
   toggleFollowUser,
   getStoredSession,
   clearSession,
+  fetchMe,
+  getBackendUrl,
   type PublicProfile,
   type ApiPlaylist,
   type ProfileSocialStats,
@@ -65,8 +75,9 @@ import {
   getFavoriteRooms,
   getOfflinePlaylists,
   calculateStorageUsageKb,
-  clearAllLocalCache,
   clearRecentlyPlayed,
+  saveOfflinePlaylist,
+  deleteOfflinePlaylist,
   getAppPreferences,
   updateAppPreferences,
   type OfflinePlaylist,
@@ -75,7 +86,9 @@ import {
   type AppPreferences,
 } from '../../storage/history';
 import { useToast } from '../../components/ToastContext';
-import { hapticLight, hapticMedium, hapticHeavy } from '../../utils/haptics';
+import { updateHapticsPreference, hapticLight, hapticMedium, hapticHeavy } from '../../utils/haptics';
+import { ImportPlaylistModal } from '../../components/ImportPlaylistModal';
+import type { TrackInfo } from '../../sync/protocol';
 
 type SelfTabMode = 'playlists' | 'history' | 'saved' | 'settings';
 
@@ -108,6 +121,12 @@ export default function UserProfileScreen() {
   const [followLoading, setFollowLoading] = useState(false);
   const [selfTab, setSelfTab] = useState<SelfTabMode>('playlists');
   const [cacheKb, setCacheKb] = useState(0);
+  const [preferences, setPreferences] = useState<AppPreferences>({
+    audioQuality: 'high',
+    hapticEnabled: true,
+  });
+  const [isDiscordUser, setIsDiscordUser] = useState(false);
+  const [importModalVisible, setImportModalVisible] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -119,16 +138,19 @@ export default function UserProfileScreen() {
 
       if (isMine) {
         // Load local personal data in parallel
-        const [recents, favs, offPlists, usage] = await Promise.all([
+        const [recents, favs, offPlists, usage, prefs] = await Promise.all([
           getRecentlyPlayed(),
           getFavoriteRooms(),
           getOfflinePlaylists(),
           calculateStorageUsageKb(),
+          getAppPreferences(),
         ]);
         setRecentTracks(recents);
         setFavoriteRooms(favs);
         setOfflinePlaylists(offPlists);
         setCacheKb(usage);
+        setPreferences(prefs);
+        setIsDiscordUser(!!session.user?.discord_id || !!session.user?.is_registered);
       }
 
       if (targetId) {
@@ -228,14 +250,84 @@ export default function UserProfileScreen() {
     } catch {}
   };
 
-  const handleClearCache = async () => {
-    void hapticHeavy();
-    await clearAllLocalCache();
+  const handleToggleAudioQuality = async (value: boolean) => {
+    void hapticLight();
+    const updated = await updateAppPreferences({
+      audioQuality: value ? 'high' : 'saver',
+    });
+    setPreferences(updated);
+    toast(value ? 'High-Fidelity Audio (320kbps) enabled' : 'Data Saver Audio enabled', 'info');
+  };
+
+  const handleToggleHaptics = async (value: boolean) => {
+    updateHapticsPreference(value);
+    const updated = await updateAppPreferences({
+      hapticEnabled: value,
+    });
+    setPreferences(updated);
+    if (value) void hapticMedium();
+    toast(value ? 'Haptic feedback enabled' : 'Haptic feedback disabled', 'info');
+  };
+
+  const handleClearHistory = async () => {
+    void hapticLight();
+    await clearRecentlyPlayed();
     setRecentTracks([]);
-    setFavoriteRooms([]);
-    setOfflinePlaylists([]);
-    setCacheKb(0);
-    toast('Local cache cleared', 'success');
+    setCacheKb(await calculateStorageUsageKb());
+    toast('Listening history cleared', 'info');
+  };
+
+  const handleOpenAndroidSettings = () => {
+    void hapticLight();
+    void Linking.openSettings();
+  };
+
+  const handleDeleteOfflinePlaylist = async (playlistId: string, name: string) => {
+    void hapticMedium();
+    await deleteOfflinePlaylist(playlistId);
+    setOfflinePlaylists((prev) => prev.filter((p) => p.id !== playlistId));
+    setCacheKb(await calculateStorageUsageKb());
+    toast(`Deleted playlist "${name}"`, 'info');
+  };
+
+  const handleSaveImportedPlaylist = async (name: string, tracks: TrackInfo[]) => {
+    try {
+      void hapticMedium();
+      const created = await saveOfflinePlaylist(name, tracks);
+      setOfflinePlaylists((prev) => [created, ...prev]);
+      setCacheKb(await calculateStorageUsageKb());
+      toast(`Imported playlist "${name}" (${tracks.length} tracks)`, 'success');
+    } catch {
+      toast('Failed to save imported playlist', 'error');
+    }
+  };
+
+  const handleDiscordLogin = async () => {
+    try {
+      void hapticMedium();
+      const backendUrl = getBackendUrl();
+      const redirectScheme = Linking.createURL('/');
+      const authUrl = `${backendUrl}/auth/discord?state=${encodeURIComponent(redirectScheme)}`;
+      const res = await WebBrowser.openAuthSessionAsync(authUrl, redirectScheme);
+      if (res.type === 'success' && res.url) {
+        let token = '';
+        if (res.url.includes('token=')) {
+          const match = res.url.match(/[?&#]token=([a-zA-Z0-9_\-.]+)/);
+          if (match) token = match[1];
+        }
+        if (token) {
+          await AsyncStorage.setItem('openjam_token', token);
+          const me = await fetchMe();
+          if (me) {
+            setProfile(me as any);
+            setIsDiscordUser(true);
+            toast(`Logged in as ${me.display_name}`, 'success');
+          }
+        }
+      }
+    } catch {
+      toast('Discord authentication failed', 'error');
+    }
   };
 
   const handleSignOut = async () => {
@@ -455,35 +547,139 @@ export default function UserProfileScreen() {
               </View>
             )}
 
+            {isSelf && selfTab === 'playlists' ? (
+              <View style={styles.sectionHeaderRow}>
+                <View style={styles.sectionHeaderTitle}>
+                  <ListMusic size={15} color={colors.amber} />
+                  <Text style={styles.sectionTitle}>YOUR PLAYLISTS</Text>
+                </View>
+                <Pressable
+                  onPress={() => {
+                    void hapticLight();
+                    setImportModalVisible(true);
+                  }}
+                  style={({ pressed }) => [styles.importBtn, pressed && styles.pressed]}
+                >
+                  <DownloadCloud size={13} color={colors.amber} />
+                  <Text style={styles.importBtnText}>Import</Text>
+                </Pressable>
+              </View>
+            ) : null}
+
             {/* If Settings Tab is active for Self */}
             {isSelf && selfTab === 'settings' ? (
               <View style={styles.settingsContainer}>
+                {/* Audio Experience Settings */}
                 <View style={styles.settingsCard}>
-                  <Text style={styles.settingsCardTitle}>Storage & Cache</Text>
+                  <Text style={styles.settingsCardTitle}>Playback & Audio</Text>
+
                   <View style={styles.settingsRow}>
-                    <View>
-                      <Text style={styles.settingsRowLabel}>Local Offline Storage</Text>
-                      <Text style={styles.settingsRowSub}>Cached songs, history & artwork</Text>
+                    <View style={styles.settingsRowLeft}>
+                      <Headphones size={18} color={colors.amber} style={styles.settingsRowIcon} />
+                      <View style={styles.settingsTextCol}>
+                        <Text style={styles.settingsRowLabel}>High-Fidelity Audio</Text>
+                        <Text style={styles.settingsRowSub}>Stream at 320 kbps when available</Text>
+                      </View>
                     </View>
-                    <Text style={styles.settingsValueText}>{cacheKb} KB</Text>
+                    <Switch
+                      value={preferences.audioQuality === 'high'}
+                      onValueChange={handleToggleAudioQuality}
+                      trackColor={{ false: 'rgba(255, 255, 255, 0.12)', true: colors.amber }}
+                      thumbColor="#ffffff"
+                    />
                   </View>
-                  <Pressable
-                    onPress={handleClearCache}
-                    style={({ pressed }) => [styles.clearCacheBtn, pressed && styles.pressed]}
-                  >
-                    <Trash2 size={14} color={colors.red} />
-                    <Text style={styles.clearCacheBtnText}>Clear Local Cache</Text>
-                  </Pressable>
+
+                  <View style={styles.settingsDivider} />
+
+                  <View style={styles.settingsRow}>
+                    <View style={styles.settingsRowLeft}>
+                      <Vibrate size={18} color={colors.amber} style={styles.settingsRowIcon} />
+                      <View style={styles.settingsTextCol}>
+                        <Text style={styles.settingsRowLabel}>Haptic Feedback</Text>
+                        <Text style={styles.settingsRowSub}>Tactile vibrations on playback actions</Text>
+                      </View>
+                    </View>
+                    <Switch
+                      value={preferences.hapticEnabled}
+                      onValueChange={handleToggleHaptics}
+                      trackColor={{ false: 'rgba(255, 255, 255, 0.12)', true: colors.amber }}
+                      thumbColor="#ffffff"
+                    />
+                  </View>
                 </View>
 
+                {/* Android System Settings & Storage */}
+                <View style={styles.settingsCard}>
+                  <Text style={styles.settingsCardTitle}>System & OS Settings</Text>
+
+                  <View style={styles.settingsRow}>
+                    <View style={styles.settingsRowLeft}>
+                      <Sliders size={18} color={colors.amber} style={styles.settingsRowIcon} />
+                      <View style={styles.settingsTextCol}>
+                        <Text style={styles.settingsRowLabel}>Android App Settings</Text>
+                        <Text style={styles.settingsRowSub}>
+                          Manage system cache, sound access, and notifications in Android
+                        </Text>
+                      </View>
+                    </View>
+                    <Pressable
+                      onPress={handleOpenAndroidSettings}
+                      style={({ pressed }) => [styles.outlineActionBtn, pressed && styles.pressed]}
+                    >
+                      <ExternalLink size={13} color={colors.amber} />
+                      <Text style={styles.outlineActionBtnText}>Open</Text>
+                    </Pressable>
+                  </View>
+
+                  <View style={styles.settingsDivider} />
+
+                  <View style={styles.settingsRow}>
+                    <View style={styles.settingsRowLeft}>
+                      <Clock size={18} color={colors.text3} style={styles.settingsRowIcon} />
+                      <View style={styles.settingsTextCol}>
+                        <Text style={styles.settingsRowLabel}>Clear Listening History</Text>
+                        <Text style={styles.settingsRowSub}>Reset recently played tracks list</Text>
+                      </View>
+                    </View>
+                    <Pressable
+                      onPress={handleClearHistory}
+                      style={({ pressed }) => [styles.dangerActionBtn, pressed && styles.pressed]}
+                    >
+                      <Trash2 size={13} color={colors.red} />
+                      <Text style={styles.dangerActionBtnText}>Clear</Text>
+                    </Pressable>
+                  </View>
+                </View>
+
+                {/* Account & Session Card */}
                 <View style={styles.settingsCard}>
                   <Text style={styles.settingsCardTitle}>Account & Session</Text>
+
+                  {isDiscordUser ? (
+                    <View style={styles.accountBadgeRow}>
+                      <ShieldCheck size={16} color={colors.green} />
+                      <Text style={styles.accountBadgeText}>
+                        Linked to Discord (@{profile.username || profile.display_name})
+                      </Text>
+                    </View>
+                  ) : (
+                    <Pressable
+                      onPress={handleDiscordLogin}
+                      style={({ pressed }) => [styles.discordLoginBtn, pressed && styles.pressed]}
+                    >
+                      <LogIn size={15} color="#ffffff" />
+                      <Text style={styles.discordLoginBtnText}>Connect Discord Account</Text>
+                    </Pressable>
+                  )}
+
                   <Pressable
                     onPress={handleSignOut}
                     style={({ pressed }) => [styles.signOutBtn, pressed && styles.pressed]}
                   >
                     <LogOut size={15} color="#ffffff" />
-                    <Text style={styles.signOutBtnText}>Sign Out & Reset Session</Text>
+                    <Text style={styles.signOutBtnText}>
+                      {isDiscordUser ? 'Sign Out & Reset Session' : 'Reset Guest Session'}
+                    </Text>
                   </Pressable>
                 </View>
               </View>
@@ -544,6 +740,7 @@ export default function UserProfileScreen() {
           }
 
           // Playlists Card (default)
+          const isOffline = offlinePlaylists.some((p) => p.id === item.id);
           return (
             <Pressable
               onPress={() => {
@@ -560,9 +757,22 @@ export default function UserProfileScreen() {
                   {item.name}
                 </Text>
                 <Text style={styles.playlistSub}>
-                  {(item.tracks || []).length} tracks
+                  {(item.tracks || []).length} tracks{isOffline ? ' • Offline' : ''}
                 </Text>
               </View>
+              {isSelf && isOffline ? (
+                <Pressable
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    void handleDeleteOfflinePlaylist(item.id, item.name);
+                  }}
+                  hitSlop={8}
+                  style={styles.deletePlaylistBtn}
+                  accessibilityLabel="Delete offline playlist"
+                >
+                  <Trash2 size={15} color={colors.text3} />
+                </Pressable>
+              ) : null}
             </Pressable>
           );
         }}
@@ -579,6 +789,12 @@ export default function UserProfileScreen() {
             </View>
           )
         }
+      />
+      <ImportPlaylistModal
+        visible={importModalVisible}
+        mode="save"
+        onClose={() => setImportModalVisible(false)}
+        onSaveToPlaylists={handleSaveImportedPlaylist}
       />
     </SafeAreaView>
   );
@@ -936,6 +1152,39 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.bodySemiBold,
     fontSize: 11,
   },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  sectionHeaderTitle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  importBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255, 159, 28, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.25)',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: radius.full,
+  },
+  importBtnText: {
+    color: colors.amber,
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 12,
+  },
+  deletePlaylistBtn: {
+    padding: 6,
+    marginLeft: 6,
+  },
   settingsContainer: {
     width: '100%',
     paddingTop: spacing.sm,
@@ -962,6 +1211,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 6,
   },
+  settingsRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    paddingRight: 12,
+  },
+  settingsRowIcon: {
+    marginRight: 10,
+  },
+  settingsTextCol: {
+    flex: 1,
+  },
   settingsRowLabel: {
     color: colors.text1,
     fontFamily: fontFamily.bodyMedium,
@@ -973,27 +1234,75 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 2,
   },
-  settingsValueText: {
-    color: colors.amber,
-    fontFamily: fontFamily.bodySemiBold,
-    fontSize: 13,
+  settingsDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    marginVertical: 8,
   },
-  clearCacheBtn: {
+  outlineActionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
+    gap: 5,
+    backgroundColor: 'rgba(255, 159, 28, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.25)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.sm,
+  },
+  outlineActionBtnText: {
+    color: colors.amber,
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 12,
+  },
+  dangerActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     backgroundColor: 'rgba(244, 63, 94, 0.1)',
     borderWidth: 1,
     borderColor: 'rgba(244, 63, 94, 0.25)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: radius.sm,
-    paddingVertical: 9,
-    marginTop: spacing.md,
   },
-  clearCacheBtnText: {
+  dangerActionBtnText: {
     color: colors.red,
     fontFamily: fontFamily.bodySemiBold,
     fontSize: 12,
+  },
+  accountBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(34, 197, 94, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radius.sm,
+    marginBottom: spacing.sm,
+  },
+  accountBadgeText: {
+    color: colors.text1,
+    fontFamily: fontFamily.bodyMedium,
+    fontSize: 12,
+    flex: 1,
+  },
+  discordLoginBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#5865F2',
+    borderRadius: radius.sm,
+    paddingVertical: 10,
+    marginBottom: spacing.xs,
+  },
+  discordLoginBtnText: {
+    color: '#ffffff',
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 13,
   },
   signOutBtn: {
     flexDirection: 'row',
