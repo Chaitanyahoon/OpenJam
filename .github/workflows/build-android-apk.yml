@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'GitHub Release Tag to upload APK to (e.g. v1.0.0-mobile)'
+        description: 'GitHub Release Tag to upload APK to (e.g. v1.0.1-mobile, leave blank for auto)'
         required: false
-        default: 'v1.0.0-mobile'
+        default: ''
       upload_to_release:
         description: 'Upload APK directly to the release tag'
         type: boolean
@@ -35,6 +35,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
@@ -85,16 +87,26 @@ jobs:
             exit 1
           fi
           echo "Found APK at: $APK_PATH"
-          cp "$APK_PATH" build-output/openjam-v1.0.0.apk
+
+          APP_VERSION=$(node -p "require('./mobile/package.json').version")
+          echo "App Version: $APP_VERSION"
+
+          # Package versioned, latest, and legacy filenames for maximum compatibility
+          cp "$APK_PATH" "build-output/openjam-v${APP_VERSION}.apk"
+          cp "$APK_PATH" "build-output/openjam-latest.apk"
+          cp "$APK_PATH" "build-output/openjam-v1.0.0.apk"
+
           cd build-output
-          sha256sum openjam-v1.0.0.apk > openjam-v1.0.0.apk.sha256
-          cat openjam-v1.0.0.apk.sha256
+          sha256sum "openjam-v${APP_VERSION}.apk" > "openjam-v${APP_VERSION}.apk.sha256"
+          sha256sum "openjam-latest.apk" > "openjam-latest.apk.sha256"
+          sha256sum "openjam-v1.0.0.apk" > "openjam-v1.0.0.apk.sha256"
+          cat "openjam-v${APP_VERSION}.apk.sha256"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: openjam-android-apk
-          path: build-output/openjam-v1.0.0.apk
+          path: build-output/openjam-*.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -103,21 +115,52 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          APP_VERSION=$(node -p "require('./mobile/package.json').version")
           TAG="${{ inputs.release_tag }}"
           if [ -z "$TAG" ]; then
             if [[ "$GITHUB_REF" == refs/tags/* ]]; then
               TAG="${GITHUB_REF#refs/tags/}"
             else
-              TAG="v1.0.0-mobile"
+              TAG="v${APP_VERSION}-mobile"
             fi
           fi
           echo "Target Release Tag: $TAG"
 
-          # Ensure release exists or create draft/published release
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "OpenJam Android App $TAG" --notes "Automated release build for OpenJam Android."
-          
-          # Delete old zip bundle if present on the release
-          gh release delete-asset "$TAG" "openjam-android-v1.0.0-bundle.zip" -y || true
-          
-          # Upload real APK binary and checksum (--clobber replaces previous APK with upgraded one)
-          gh release upload "$TAG" build-output/openjam-v1.0.0.apk build-output/openjam-v1.0.0.apk.sha256 --clobber
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          COMMIT_MSG=$(git log -1 --pretty=%s)
+          BUILD_DATE=$(date -u +"%Y-%m-%d %H:%M UTC")
+          APK_SHA=$(awk '{print $1}' "build-output/openjam-v${APP_VERSION}.apk.sha256")
+          FILE_SIZE=$(du -h "build-output/openjam-v${APP_VERSION}.apk" | awk '{print $1}')
+
+          cat <<EOF > release_notes.md
+          ## 🎧 OpenJam Android App (${TAG})
+
+          > **Latest Release Build**: ${BUILD_DATE}  
+          > **Commit**: \`${COMMIT_SHA}\` — ${COMMIT_MSG}  
+          > **Package Version**: \`v${APP_VERSION}\`
+
+          ### 📲 Direct APK Downloads
+          - 📦 **Latest Release APK**: [**openjam-v${APP_VERSION}.apk**](https://github.com/Chaitanyahoon/OpenJam/releases/download/${TAG}/openjam-v${APP_VERSION}.apk) (${FILE_SIZE})
+          - 📦 **Permanent Latest Link**: [**openjam-latest.apk**](https://github.com/Chaitanyahoon/OpenJam/releases/download/${TAG}/openjam-latest.apk)
+          - 🔒 **SHA256 Checksum**: \`${APK_SHA}\`
+
+          ### ✨ Key Features & Stability Improvements
+          - **Synchronized Playback**: Sub-10ms drift-corrected audio streaming across room listeners.
+          - **Host Controls**: Full playback controls, nudging, and queue management for room hosts.
+          - **Universal Importer**: One-tap Spotify & YouTube playlist importing to queue and personal library.
+          - **Optimized Chat**: Deduplicated optimistic messaging with zero double bubbles.
+          - **Android System Parity**: High-Fidelity Audio toggle, haptics, and native Android App Info settings shortcut.
+          - **Responsive Vinyl UI**: Clamped turntable stage preventing horizontal overflow on all screen sizes.
+          EOF
+
+          # Create or update GitHub Release
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Updating existing release $TAG..."
+            gh release edit "$TAG" --title "OpenJam Android App ${TAG}" --notes-file release_notes.md --latest
+          else
+            echo "Creating new release $TAG..."
+            gh release create "$TAG" --title "OpenJam Android App ${TAG}" --notes-file release_notes.md --latest
+          fi
+
+          # Upload APK binaries and checksums (--clobber replaces previous files with newest build)
+          gh release upload "$TAG" build-output/* --clobber
