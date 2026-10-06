@@ -1,6 +1,6 @@
-/** Create / Join / Leave modals — glassmorphic, per the web app's modals/. */
 import React, { useEffect, useState } from 'react';
 import { Image, Modal, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   LogIn,
   Shuffle,
@@ -28,9 +28,19 @@ function Shell({
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
+      <Pressable
+        style={[
+          styles.backdrop,
+          {
+            paddingTop: Math.max(insets.top, spacing.lg),
+            paddingBottom: Math.max(insets.bottom, spacing.lg),
+          },
+        ]}
+        onPress={onClose}
+      >
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           {children}
         </Pressable>
@@ -769,7 +779,7 @@ export function RoomInviteModal({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     padding: spacing.lg,
   },

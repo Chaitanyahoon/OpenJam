@@ -11,13 +11,15 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Share2, Crown, Activity, User, Edit3, Trash2, QrCode } from 'lucide-react-native';
 import { router } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 import { colors, radius, spacing } from '../../../theme';
 import { fontFamily } from '../../../fonts';
 import { useRoom } from '../../../state/RoomContext';
 import { initials, nameColor } from '../../../components/ChatPanel';
 import { ProfileModal } from '../../../components/ProfileModal';
 import { EditRoomModal, ListenerActionModal, RoomInviteModal } from '../../../components/Modals';
-import { clearSession, getStoredSession, joinAsGuest, type ApiUser } from '../../../api';
+import { clearSession, getStoredSession, joinAsGuest, getBackendUrl, saveAuthToken, type ApiUser } from '../../../api';
 import { useToast } from '../../../components/ToastContext';
 import type { PlayedTrack } from '../../../storage/history';
 
@@ -62,6 +64,34 @@ export default function PeopleTab() {
     await clearSession();
     setSessionUser(null);
     toast('Signed out', 'info');
+  };
+
+  const handleDiscordLogin = async () => {
+    try {
+      const backendUrl = getBackendUrl();
+      const redirectScheme = Linking.createURL('/');
+      const authUrl = `${backendUrl}/auth/discord?state=${encodeURIComponent(redirectScheme)}`;
+
+      const res = await WebBrowser.openAuthSessionAsync(authUrl, redirectScheme);
+
+      if (res.type === 'success' && res.url) {
+        const url = res.url;
+        const match = url.match(/[?&#]token=([^&]+)/);
+        const token = match ? decodeURIComponent(match[1]) : null;
+        if (token) {
+          const profile = await saveAuthToken(token);
+          if (profile) {
+            setSessionUser(profile);
+            toast(
+              `Connected as ${profile.discord_username ? '@' + profile.discord_username : profile.display_name}!`,
+              'success',
+            );
+          }
+        }
+      }
+    } catch {
+      toast('Could not connect to Discord', 'error');
+    }
   };
 
   const handleJoinRoom = (targetRoomId: string) => {
@@ -338,6 +368,7 @@ export default function PeopleTab() {
         currentName={sessionUser?.display_name || me?.display_name}
         onClose={() => setShowProfile(false)}
         onUpdateGuestName={handleUpdateGuestName}
+        onDiscordLogin={handleDiscordLogin}
         onSignOut={handleSignOut}
         onJoinRoom={handleJoinRoom}
         onPlayTrack={handlePlayTrack}

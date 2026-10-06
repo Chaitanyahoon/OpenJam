@@ -18,6 +18,7 @@ import {
   Play,
   Pause,
 } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, TAB_BAR_HEIGHT } from '../theme';
 import { fontFamily } from '../fonts';
 import { useRoom } from '../state/RoomContext';
@@ -101,9 +102,11 @@ function MiniPlayer({ onOpen }: { onOpen: () => void }) {
 }
 
 export function RoomTabBar({ state, navigation }: TabBarProps) {
+  const insets = useSafeAreaInsets();
   const { unreadChat, listeners } = useRoom();
   const current = state.routes[state.index]?.name;
   const showMini = current !== 'player';
+  const bottomPad = Math.max(insets.bottom, 8);
 
   const go = (routeName: string, index: number) => {
     const event = navigation.emit({
@@ -121,7 +124,7 @@ export function RoomTabBar({ state, navigation }: TabBarProps) {
       {showMini ? (
         <MiniPlayer onOpen={() => go('player', state.routes.findIndex((r) => r.name === 'player'))} />
       ) : null}
-      <View style={styles.bar}>
+      <View style={[styles.bar, { paddingBottom: bottomPad, height: TAB_BAR_HEIGHT + bottomPad }]}>
         {TABS.map((t) => {
           const index = state.routes.findIndex((r) => r.name === t.route);
           if (index === -1) return null;

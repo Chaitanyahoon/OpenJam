@@ -20,7 +20,7 @@ import {
   View,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as WebBrowser from 'expo-web-browser';
@@ -63,7 +63,7 @@ import { getFavoriteRooms, type FavoriteRoom, type PlayedTrack } from '../storag
 import { hapticMedium } from '../utils/haptics';
 import { useToast } from '../components/ToastContext';
 import { registerPushToken } from '../notifications';
-import { PermissionBanner } from '../components/PermissionBanner';
+import { requestFirstLaunchPermissions } from '../permissions';
 
 // Complete WebBrowser session if returning from OAuth
 WebBrowser.maybeCompleteAuthSession();
@@ -110,6 +110,15 @@ export default function Landing() {
   const [ready, setReady] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const handledTokensRef = useRef<Set<string>>(new Set());
+  const insets = useSafeAreaInsets();
+
+  // Native Android OS system permission prompt on initial launch
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void requestFirstLaunchPermissions();
+    }, 600);
+    return () => clearTimeout(timer);
+  }, []);
 
   const loadFavorites = useCallback(async () => {
     try {
@@ -362,7 +371,10 @@ export default function Landing() {
         data={filteredRooms}
         keyExtractor={(r) => r.id}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom, 24) + 64 },
+        ]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.amber} />
         }
@@ -431,9 +443,6 @@ export default function Landing() {
                 </Pressable>
               )}
             </View>
-
-            {/* Permission & Sandboxed Storage Onboarding Banner */}
-            <PermissionBanner />
 
             {/* Streamlined Hero Stage */}
             <LinearGradient

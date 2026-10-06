@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   X,
   LogIn,
@@ -248,11 +249,13 @@ export function ProfileModal({
   }
   const avatarBg = `hsl(${Math.abs(hue) % 360}, 65%, 48%)`;
   const initials = (nameToHash.trim() || '?').slice(0, 2).toUpperCase();
+  const insets = useSafeAreaInsets();
+  const bottomPad = Math.max(insets.bottom, 20) + 12;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <View style={styles.sheetContainer}>
+        <View style={[styles.sheetContainer, { paddingBottom: bottomPad }]}>
           {/* Top Sheet Header */}
           <View style={styles.sheetHeader}>
             <View style={styles.sheetHeaderLeft}>
@@ -820,14 +823,14 @@ export function ProfileModal({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    backgroundColor: 'rgba(0, 0, 0, 0.88)',
     justifyContent: 'flex-end',
   },
   sheetContainer: {
-    backgroundColor: '#0d0d14',
+    backgroundColor: '#0c0c12',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: '88%',
+    maxHeight: '90%',
     paddingBottom: 24,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.1)',

@@ -6,7 +6,7 @@ import logging
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Request, Depends
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse
 import httpx
 from sqlalchemy.orm import Session
 from backend.database import get_db
@@ -409,7 +409,62 @@ async def discord_callback(request: Request, code: str = "", state: str = ""):
         if clean_state and (clean_state.startswith("openjam:") or clean_state.startswith("exp:")):
             delimiter = "&" if "?" in clean_state else "?"
             redirect_target = f"{clean_state}{delimiter}token={session_token}"
-            response = RedirectResponse(redirect_target)
+            html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connecting to OpenJam...</title>
+    <meta http-equiv="refresh" content="0;url={redirect_target}">
+    <style>
+        body {{
+            background: #08080a;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 24px;
+            box-sizing: border-box;
+            text-align: center;
+        }}
+        .card {{
+            background: #121217;
+            border: 1px solid #27272a;
+            border-radius: 20px;
+            padding: 36px 24px;
+            max-width: 380px;
+            width: 100%;
+            box-shadow: 0 12px 32px rgba(0,0,0,0.6);
+        }}
+        h2 {{ margin: 0 0 10px 0; font-size: 20px; font-weight: 700; color: #fff; }}
+        p {{ margin: 0 0 24px 0; font-size: 14px; color: #a1a1aa; line-height: 1.5; }}
+        a.btn {{
+            display: inline-block;
+            background: #ff9f1c;
+            color: #08080a;
+            font-weight: 700;
+            font-size: 15px;
+            text-decoration: none;
+            padding: 14px 28px;
+            border-radius: 9999px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Authentication Complete</h2>
+        <p>Returning you to the OpenJam mobile app...</p>
+        <a class="btn" href="{redirect_target}">Open OpenJam App</a>
+    </div>
+    <script>
+        window.location.href = "{redirect_target}";
+    </script>
+</body>
+</html>"""
+            response = HTMLResponse(content=html_content, status_code=200)
         else:
             response = RedirectResponse(f"{settings.FRONTEND_URL}/#token={session_token}")
         is_prod = settings.ENVIRONMENT == "production"
