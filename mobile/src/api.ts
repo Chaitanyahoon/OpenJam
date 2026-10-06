@@ -376,3 +376,64 @@ export async function toggleFollowUser(userId: string, follow: boolean): Promise
     return false;
   }
 }
+
+/** Check if a URL points to an external playlist (Spotify or YouTube/YouTube Music) */
+export function isPlaylistUrl(url?: string | null): boolean {
+  if (!url) return false;
+  const clean = url.trim().toLowerCase();
+  return (
+    clean.includes('spotify.com/playlist/') ||
+    clean.includes('music.youtube.com/playlist') ||
+    clean.includes('youtube.com/playlist') ||
+    ((clean.includes('youtube.com') || clean.includes('youtu.be')) && clean.includes('list='))
+  );
+}
+
+export interface ImportedPlaylistTrack {
+  name: string;
+  artist: string;
+  uri: string;
+  album_art_url?: string;
+  duration_ms?: number;
+}
+
+/**
+ * Import public playlist tracks from Spotify, YouTube, or YouTube Music
+ * via backend playlist parser service.
+ */
+export async function importExternalPlaylist(url: string): Promise<ImportedPlaylistTrack[]> {
+  try {
+    const data = await request<{ tracks: ImportedPlaylistTrack[] }>(
+      `/search/playlist?url=${encodeURIComponent(url.trim())}`,
+    );
+    return data?.tracks || [];
+  } catch (err: any) {
+    const msg = err?.message || 'Could not import playlist';
+    throw new Error(msg);
+  }
+}
+
+/**
+ * Add multiple tracks to a room's queue in bulk.
+ */
+export async function addMultipleTracksToQueue(
+  roomId: string,
+  tracks: {
+    track_uri: string;
+    track_name: string;
+    artist: string;
+    album_art_url?: string;
+    duration_ms?: number;
+  }[],
+): Promise<boolean> {
+  try {
+    await request(`/rooms/${encodeURIComponent(roomId)}/queue/multiple`, {
+      method: 'POST',
+      body: JSON.stringify(tracks),
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+

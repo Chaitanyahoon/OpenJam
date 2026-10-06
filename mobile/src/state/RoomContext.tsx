@@ -70,6 +70,7 @@ interface RoomApi {
   sendReaction: (emoji: string) => void;
   dismissReaction: (key: string) => void;
   addTrack: (track: TrackInfo) => void;
+  addMultipleTracks: (tracks: TrackInfo[]) => void;
   playNow: (track: TrackInfo) => void;
   voteTrack: (queueItemId: string) => void;
   voteSkip: () => void;
@@ -707,6 +708,39 @@ export function RoomProvider({
     [roomId, queue, nowPlaying, connect, toast],
   );
 
+  const addMultipleTracks = useCallback(
+    (tracks: TrackInfo[]) => {
+      if (!tracks || tracks.length === 0) return;
+      const emitAddMultiple = (s: typeof socketRef.current) => {
+        s?.emit(C2S.ADD_MULTIPLE_TO_QUEUE, {
+          room_id: roomId,
+          tracks: tracks.map((t) => ({
+            uri: t.track_uri,
+            track_uri: t.track_uri,
+            name: t.track_name,
+            track_name: t.track_name,
+            artist: t.artist,
+            album_art_url: t.album_art_url,
+            duration_ms: t.duration_ms || 0,
+          })),
+        });
+      };
+
+      if (!socketRef.current?.connected) {
+        connect().then((s) => {
+          if (s) {
+            emitAddMultiple(s);
+          } else {
+            toast('Connecting to room queue...', 'info');
+          }
+        });
+        return;
+      }
+      emitAddMultiple(socketRef.current);
+    },
+    [roomId, connect, toast],
+  );
+
   const playNow = useCallback(
     (track: TrackInfo) => {
       if (!canControl) return;
@@ -990,6 +1024,7 @@ export function RoomProvider({
       sendReaction,
       dismissReaction,
       addTrack,
+      addMultipleTracks,
       playNow,
       voteTrack,
       voteSkip,
@@ -1013,7 +1048,7 @@ export function RoomProvider({
       roomId, roomName, isHost, canControl, connectionState, queue, nowPlaying, isPlaying,
       loop, listeners, messages, unreadChat, typingUsers, reactions, skipVotes, guestControls, syncReady,
       joinError, roomClosed, me, retryJoin, toggleGuestControls, sendChat, sendReaction, dismissReaction,
-      addTrack, playNow, voteTrack, voteSkip, togglePlay, nextTrack, previousTrack,
+      addTrack, addMultipleTracks, playNow, voteTrack, voteSkip, togglePlay, nextTrack, previousTrack,
       toggleRepeat, shuffleQueue, seekToMs, removeTrack, reorderQueue, transferHost, kickUser, setTyping,
       clearUnreadChat, setChatFocused, closeRoom, updateRoomDetails,
     ],

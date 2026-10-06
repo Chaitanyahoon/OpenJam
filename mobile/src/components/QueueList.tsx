@@ -31,13 +31,15 @@ import {
   ArrowBigUp,
   Trash2,
   Sparkles,
+  DownloadCloud,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
 import { useRoom } from '../state/RoomContext';
-import { searchTracks, type TrackSearchResult } from '../api';
+import { searchTracks, isPlaylistUrl, type TrackSearchResult } from '../api';
 import { useToast } from './ToastContext';
 import { hapticLight, hapticMedium, hapticHeavy } from '../utils/haptics';
+import { ImportPlaylistModal } from './ImportPlaylistModal';
 
 function fmtDuration(ms?: number): string {
   if (!ms || ms <= 0) return '';
@@ -65,6 +67,7 @@ export function QueueList() {
     isHost,
     canControl,
     addTrack,
+    addMultipleTracks,
     playNow,
     voteTrack,
     removeTrack,
@@ -76,6 +79,8 @@ export function QueueList() {
   const [results, setResults] = useState<TrackSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [importModalVisible, setImportModalVisible] = useState(false);
+  const [importUrlToScan, setImportUrlToScan] = useState('');
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<TextInput>(null);
 
@@ -89,6 +94,15 @@ export function QueueList() {
   const handleLinkAdd = (explicitQuery?: string) => {
     const q = (explicitQuery !== undefined ? explicitQuery : query).trim();
     if (!q) return;
+
+    if (isPlaylistUrl(q)) {
+      setImportUrlToScan(q);
+      setImportModalVisible(true);
+      setQuery('');
+      setResults([]);
+      setShowResults(false);
+      return;
+    }
 
     const ytId = extractYouTubeId(q);
     if (ytId) {
@@ -255,7 +269,20 @@ export function QueueList() {
             <Plus size={14} color="#08080a" strokeWidth={2.5} />
             <Text style={styles.linkBtnText}>Add</Text>
           </Pressable>
-        ) : null}
+        ) : (
+          <Pressable
+            onPress={() => {
+              setImportUrlToScan('');
+              setImportModalVisible(true);
+            }}
+            style={({ pressed }) => [styles.importBtn, pressed && styles.pressed]}
+            hitSlop={6}
+            accessibilityLabel="Import Spotify or YouTube Playlist"
+          >
+            <DownloadCloud size={14} color={colors.amber} />
+            <Text style={styles.importBtnText}>Import</Text>
+          </Pressable>
+        )}
       </View>
 
       {/* Searching spinner */}
@@ -413,17 +440,30 @@ export function QueueList() {
                   </Text>
                   <Text style={styles.emptySub}>
                     {activeTrack
-                      ? 'The music will stop after this track. Search songs above or paste a link to keep the queue rolling.'
-                      : 'Search songs above or paste a YouTube / Spotify link to start playing music together.'}
+                      ? 'The music will stop after this track. Search songs above or import a playlist to keep the queue rolling.'
+                      : 'Search songs above, paste a link, or import a Spotify / YouTube playlist to start playing music together.'}
                   </Text>
-                  <Pressable
-                    onPress={() => inputRef.current?.focus()}
-                    style={({ pressed }) => [styles.emptyActionBtn, pressed && styles.pressed]}
-                    hitSlop={6}
-                  >
-                    <Search size={14} color="#08080a" />
-                    <Text style={styles.emptyActionBtnText}>Search for Songs</Text>
-                  </Pressable>
+                  <View style={styles.emptyActionRow}>
+                    <Pressable
+                      onPress={() => inputRef.current?.focus()}
+                      style={({ pressed }) => [styles.emptyActionBtn, pressed && styles.pressed]}
+                      hitSlop={6}
+                    >
+                      <Search size={14} color="#08080a" />
+                      <Text style={styles.emptyActionBtnText}>Search Songs</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        setImportUrlToScan('');
+                        setImportModalVisible(true);
+                      }}
+                      style={({ pressed }) => [styles.emptyImportBtn, pressed && styles.pressed]}
+                      hitSlop={6}
+                    >
+                      <DownloadCloud size={14} color={colors.amber} />
+                      <Text style={styles.emptyImportBtnText}>Import Playlist</Text>
+                    </Pressable>
+                  </View>
                 </View>
               }
               renderItem={({ item, index }) => {
@@ -563,6 +603,20 @@ export function QueueList() {
           )}
         </View>
       )}
+
+      <ImportPlaylistModal
+        visible={importModalVisible}
+        initialUrl={importUrlToScan}
+        mode="queue"
+        onClose={() => {
+          setImportModalVisible(false);
+          setImportUrlToScan('');
+        }}
+        onAddToQueue={(tracks) => {
+          addMultipleTracks(tracks);
+          toast(`Added ${tracks.length} tracks to queue!`, 'success');
+        }}
+      />
     </View>
   );
 }
@@ -1063,5 +1117,43 @@ const styles = StyleSheet.create({
     color: colors.text3,
     fontVariant: ['tabular-nums'],
     marginRight: 4,
+  },
+  importBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.3)',
+    paddingHorizontal: 12,
+    height: 40,
+    borderRadius: radius.md,
+  },
+  importBtnText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 12,
+    color: colors.amber,
+  },
+  emptyActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 4,
+  },
+  emptyImportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.3)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: radius.full,
+  },
+  emptyImportBtnText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 12.5,
+    color: colors.amber,
   },
 });

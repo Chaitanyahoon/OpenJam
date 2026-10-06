@@ -6,7 +6,9 @@ import React, { useEffect, useState } from 'react';
 import { router } from 'expo-router';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
+  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -40,6 +42,11 @@ import {
   ListMusic,
   Share2,
   Heart,
+  ExternalLink,
+  DownloadCloud,
+  Headphones,
+  Vibrate,
+  Bell,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
@@ -52,7 +59,6 @@ import {
   getAppPreferences,
   updateAppPreferences,
   calculateStorageUsageKb,
-  clearAllLocalCache,
   clearRecentlyPlayed,
   getOfflinePlaylists,
   saveOfflinePlaylist,
@@ -65,6 +71,8 @@ import {
   type AppPreferences,
 } from '../storage/history';
 import { useToast } from './ToastContext';
+import { updateHapticsPreference, hapticMedium, hapticLight } from '../utils/haptics';
+import { ImportPlaylistModal } from './ImportPlaylistModal';
 
 interface ProfileModalProps {
   visible: boolean;
@@ -125,6 +133,7 @@ export function ProfileModal({
   const [favTracks, setFavTracks] = useState<TrackInfo[]>([]);
   const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
+  const [importModalVisible, setImportModalVisible] = useState(false);
   const [stats, setStats] = useState<ListeningStats>({
     totalTracksJammed: 0,
     totalMinutesJammed: 0,
@@ -225,12 +234,49 @@ export function ProfileModal({
     } catch {}
   };
 
-  const handleClearAllStorage = async () => {
-    await clearAllLocalCache();
-    setRecentTracks([]);
-    setFavoriteRooms([]);
-    setCacheKb(await calculateStorageUsageKb());
-    toast('App local cache cleared', 'success');
+  const handleToggleHaptics = async (value: boolean) => {
+    updateHapticsPreference(value);
+    const updated = await updateAppPreferences({
+      hapticEnabled: value,
+    });
+    setPreferences(updated);
+    if (value) void hapticMedium();
+    toast(value ? 'Haptic feedback enabled' : 'Haptic feedback disabled', 'info');
+  };
+
+  const handleOpenAndroidSettings = () => {
+    void Linking.openSettings();
+  };
+
+  const handleConfirmClearHistory = () => {
+    Alert.alert(
+      'Clear Listening History',
+      'Are you sure you want to clear your recently played tracks? Your saved playlists and pinned stations will be preserved.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear History',
+          style: 'destructive',
+          onPress: async () => {
+            await clearRecentlyPlayed();
+            setRecentTracks([]);
+            setCacheKb(await calculateStorageUsageKb());
+            toast('Listening history cleared', 'info');
+          },
+        },
+      ],
+    );
+  };
+
+  const handleImportPlaylistSuccess = async (name: string, tracks: TrackInfo[]) => {
+    try {
+      const created = await saveOfflinePlaylist(name, tracks);
+      setPlaylists((prev) => [created, ...prev]);
+      setCacheKb(await calculateStorageUsageKb());
+      toast(`Imported playlist "${name}" with ${tracks.length} tracks`, 'success');
+    } catch {
+      toast('Could not save imported playlist', 'error');
+    }
   };
 
   const handleToggleQuality = async (value: boolean) => {
@@ -522,14 +568,26 @@ export function ProfileModal({
                 <View style={styles.contentHeaderRow}>
                   <Text style={styles.contentSectionTitle}>OFFLINE PLAYLISTS & LIBRARY</Text>
                   {!isCreatingPlaylist ? (
-                    <Pressable
-                      onPress={() => setIsCreatingPlaylist(true)}
-                      hitSlop={6}
-                      style={styles.newPlaylistBtn}
-                    >
-                      <Plus size={12} color={colors.amber} />
-                      <Text style={styles.newPlaylistBtnText}>New</Text>
-                    </Pressable>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Pressable
+                        onPress={() => setImportModalVisible(true)}
+                        hitSlop={6}
+                        style={styles.newPlaylistBtn}
+                        accessibilityLabel="Import playlist from Spotify or YouTube"
+                      >
+                        <DownloadCloud size={12} color={colors.amber} />
+                        <Text style={styles.newPlaylistBtnText}>Import</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => setIsCreatingPlaylist(true)}
+                        hitSlop={6}
+                        style={styles.newPlaylistBtn}
+                        accessibilityLabel="Create new offline playlist"
+                      >
+                        <Plus size={12} color={colors.amber} />
+                        <Text style={styles.newPlaylistBtnText}>New</Text>
+                      </Pressable>
+                    </View>
                   ) : null}
                 </View>
 
@@ -719,7 +777,7 @@ export function ProfileModal({
               </View>
             ) : null}
 
-            {/* 3. Settings & Cache */}
+            {/* 3. Settings & Preferences */}
             {activeTab === 'settings' ? (
               <View style={styles.tabContentSection}>
                 <View style={styles.contentHeaderRow}>
@@ -731,7 +789,7 @@ export function ProfileModal({
                   <View style={styles.settingInfo}>
                     <Text style={styles.settingTitle}>High-Fidelity Audio</Text>
                     <Text style={styles.settingSub}>
-                      Stream full quality WebM audio. Turn off for Data Saver mode.
+                      Stream full 320kbps WebM audio. Disable for Data Saver mode.
                     </Text>
                   </View>
                   <Switch
@@ -742,19 +800,77 @@ export function ProfileModal({
                   />
                 </View>
 
-                {/* Local Storage usage */}
+                {/* Haptic Feedback */}
                 <View style={styles.settingCard}>
                   <View style={styles.settingInfo}>
-                    <Text style={styles.settingTitle}>Local Device Cache</Text>
+                    <Text style={styles.settingTitle}>Haptic Touch Feedback</Text>
                     <Text style={styles.settingSub}>
-                      Using {cacheKb} KB of offline storage for tracks and room sessions.
+                      Tactile vibrations when scrubbing, reacting, and reordering.
+                    </Text>
+                  </View>
+                  <Switch
+                    value={preferences.hapticEnabled ?? true}
+                    onValueChange={handleToggleHaptics}
+                    trackColor={{ true: colors.amber, false: 'rgba(255, 255, 255, 0.15)' }}
+                    thumbColor={colors.white}
+                  />
+                </View>
+
+                {/* Background Service Status */}
+                <View style={styles.settingCard}>
+                  <View style={styles.settingInfo}>
+                    <Text style={styles.settingTitle}>Background Audio Service</Text>
+                    <Text style={styles.settingSub}>
+                      Android foreground service keeps music playing when screen is locked.
+                    </Text>
+                  </View>
+                  <View style={styles.settingBadge}>
+                    <Headphones size={11} color={colors.amber} />
+                    <Text style={styles.settingBadgeText}>Active</Text>
+                  </View>
+                </View>
+
+                {/* Android System Section */}
+                <View style={[styles.contentHeaderRow, { marginTop: spacing.md }]}>
+                  <Text style={styles.contentSectionTitle}>ANDROID SYSTEM & STORAGE</Text>
+                </View>
+
+                {/* Android OS App Settings */}
+                <View style={styles.settingCard}>
+                  <View style={styles.settingInfo}>
+                    <Text style={styles.settingTitle}>Android App Settings</Text>
+                    <Text style={styles.settingSub}>
+                      Manage OS storage, clear system cache, and toggle permissions.
                     </Text>
                   </View>
                   <Pressable
-                    onPress={handleClearAllStorage}
-                    style={({ pressed }) => [styles.clearCacheBtn, pressed && styles.pressed]}
+                    onPress={handleOpenAndroidSettings}
+                    style={({ pressed }) => [styles.androidSettingsBtn, pressed && styles.pressed]}
+                    accessibilityLabel="Open Android system settings for OpenJam"
                   >
-                    <Text style={styles.clearCacheText}>Clear Cache</Text>
+                    <Text style={styles.androidSettingsText}>Settings</Text>
+                    <ExternalLink size={12} color={colors.amber} />
+                  </Pressable>
+                </View>
+
+                {/* Listening History Clear */}
+                <View style={styles.settingCard}>
+                  <View style={styles.settingInfo}>
+                    <Text style={styles.settingTitle}>Listening History</Text>
+                    <Text style={styles.settingSub}>
+                      {recentTracks.length} tracks recorded. Saved playlists are preserved.
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={handleConfirmClearHistory}
+                    disabled={recentTracks.length === 0}
+                    style={({ pressed }) => [
+                      styles.clearHistoryBtn,
+                      recentTracks.length === 0 && styles.btnDisabled,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text style={styles.clearHistoryText}>Clear</Text>
                   </Pressable>
                 </View>
 
@@ -814,6 +930,13 @@ export function ProfileModal({
           </ScrollView>
         </View>
       </View>
+
+      <ImportPlaylistModal
+        visible={importModalVisible}
+        mode="save"
+        onClose={() => setImportModalVisible(false)}
+        onSaveToPlaylists={handleImportPlaylistSuccess}
+      />
     </Modal>
   );
 }
@@ -1228,18 +1351,53 @@ const styles = StyleSheet.create({
     color: colors.text3,
     marginTop: 2,
   },
-  clearCacheBtn: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  settingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderColor: 'rgba(255, 159, 28, 0.3)',
+  },
+  settingBadgeText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 10.5,
+    color: colors.amber,
+  },
+  androidSettingsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.3)',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: radius.sm,
   },
-  clearCacheText: {
+  androidSettingsText: {
     fontFamily: fontFamily.bodySemiBold,
     fontSize: 11,
-    color: colors.text2,
+    color: colors.amber,
+  },
+  clearHistoryBtn: {
+    backgroundColor: 'rgba(244, 63, 94, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(244, 63, 94, 0.25)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.sm,
+  },
+  clearHistoryText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 11,
+    color: colors.red,
+  },
+  btnDisabled: {
+    opacity: 0.4,
   },
   // Auth action
   authActionBlock: {
