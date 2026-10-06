@@ -400,7 +400,6 @@ export function IdentityModal({
               {onDiscordLogin ? (
                 <Pressable
                   onPress={() => {
-                    onClose?.();
                     onDiscordLogin();
                   }}
                   style={({ pressed }) => [styles.discordLoginBtn, { width: '100%' }, pressed && styles.pressed]}

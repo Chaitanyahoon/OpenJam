@@ -9,11 +9,11 @@ export function resolveHostStatus(
   data: Partial<JoinSuccessPayload>,
   currentUserId?: string | null,
 ): boolean {
-  if (typeof data.is_host === 'boolean') {
-    return data.is_host;
-  }
   const hostId = data.host_user_id || data.room?.host_user_id || null;
-  return Boolean(hostId && currentUserId && hostId === currentUserId);
+  return (
+    data.is_host === true ||
+    Boolean(hostId && currentUserId && hostId === currentUserId)
+  );
 }
 
 /**
@@ -50,9 +50,14 @@ describe('Host Authorization & Queue Separation Engine', () => {
     assert.strictEqual(isHost, true);
   });
 
-  it('correctly resolves host status when server emits is_host: false', () => {
+  it('correctly resolves host status when server emits is_host: false for different user', () => {
     const isHost = resolveHostStatus({ is_host: false, host_user_id: 'host-123' }, 'user-456');
     assert.strictEqual(isHost, false);
+  });
+
+  it('correctly recovers host status for room creator even if is_host was false due to handshake race', () => {
+    const isHost = resolveHostStatus({ is_host: false, host_user_id: 'creator-99' }, 'creator-99');
+    assert.strictEqual(isHost, true);
   });
 
   it('evaluates host from host_user_id matching current user ID when is_host is omitted', () => {

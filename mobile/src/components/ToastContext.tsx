@@ -70,12 +70,24 @@ const BORDER: Record<ToastType, string> = {
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const counter = useRef(0);
+  const recentToastsRef = useRef<Map<string, number>>(new Map());
 
   const show: ToastFn = useCallback((text, type = 'info', durationMs = 3000) => {
+    if (!text || !text.trim()) return;
+    const cleanText = text.trim();
+    const key = `${type}:${cleanText}`;
+    const now = Date.now();
+    const lastShown = recentToastsRef.current.get(key) || 0;
+    if (now - lastShown < 2000) {
+      return;
+    }
+    recentToastsRef.current.set(key, now);
+
     const id = `toast-${++counter.current}`;
-    setToasts((prev) => [...prev.slice(-4), { id, text, type }]);
+    setToasts((prev) => [...prev.slice(-3), { id, text: cleanText, type }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
+      recentToastsRef.current.delete(key);
     }, durationMs);
   }, []);
 

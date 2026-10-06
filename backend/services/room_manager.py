@@ -183,12 +183,15 @@ class RoomManager:
         room = self.store.get_room(room_id)
         if not room:
             return []
+        host_sid = room.get("host_sid")
         return [
             {
                 "user_id": uid,
                 "display_name": info["display_name"],
+                "user_name": info["display_name"],
                 "avatar_url": info["avatar_url"],
-                "is_registered": info.get("is_registered", False)
+                "is_registered": info.get("is_registered", False),
+                "is_host": bool(host_sid and info.get("sid") == host_sid),
             }
             for uid, info in room["users"].items()
         ]

@@ -335,9 +335,14 @@ def register_connection_handlers(sio: socketio.AsyncServer):
                 host_user_id = None
                 if room:
                     host_user_id = room.host_user_id
-                    if room.host_user_id == user_id:
+                    current_host_sid = room_manager.get_host_sid(room_id)
+                    # If this user matches DB host, OR if the room currently has no active host (and is not lounge)
+                    if (room.host_user_id and room.host_user_id == user_id) or (room_id != "openjam-lounge" and not current_host_sid):
                         room_manager.set_host(room_id, sid)
                         is_host = True
+                        if not room.host_user_id:
+                            room.host_user_id = user_id
+                            db.commit()
                     # Sync guest controls from DB into room state
                     room_manager.set_guest_controls(room_id, room.allow_guest_controls or False)
                     if not room.is_active:

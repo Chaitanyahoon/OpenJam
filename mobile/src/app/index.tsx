@@ -171,8 +171,10 @@ export default function Landing() {
     async (url: string) => {
       let token = '';
       if (url.includes('token=')) {
-        const match = url.match(/[?&#]token=([a-zA-Z0-9_\-.]+)/);
-        if (match) token = match[1];
+        const match = url.match(/[?&#]token=([^&#]+)/);
+        if (match) {
+          token = decodeURIComponent(match[1]).replace(/\/+$/, '').trim();
+        }
       }
 
       if (token) {
@@ -245,12 +247,23 @@ export default function Landing() {
       if (res.type === 'success' && res.url) {
         await processAuthUrl(res.url);
       } else if (!authSuccessRef.current && (res.type === 'cancel' || res.type === 'dismiss')) {
-        setAuthError('The Discord sign-in window was closed. You can retry or continue as a guest.');
+        setTimeout(async () => {
+          if (!authSuccessRef.current) {
+            const currentSession = await getStoredSession();
+            if (currentSession.token) {
+              authSuccessRef.current = true;
+              return;
+            }
+            setAuthError('The Discord sign-in window was closed. You can retry or continue as a guest.');
+            setShowIdentity(true);
+          }
+        }, 500);
+      }
+    } catch {
+      if (!authSuccessRef.current) {
+        setAuthError('Could not reach Discord authentication server. Check your connection or continue as a guest.');
         setShowIdentity(true);
       }
-    } catch (err) {
-      setAuthError('Could not reach Discord authentication server. Check your connection or continue as a guest.');
-      setShowIdentity(true);
     }
   };
 
@@ -700,18 +713,10 @@ export default function Landing() {
         onDone={handleIdentity}
         onDiscordLogin={handleDiscordLogin}
         onSignOut={handleSignOut}
-        onClose={async () => {
+        onClose={() => {
           setShowIdentity(false);
           setAuthError(null);
           promptFirstLaunchPermissions();
-          try {
-            const session = await getStoredSession();
-            if (!session.token) {
-              const { user: u } = await joinAsGuest('Jammer');
-              setUser(u);
-              await connect();
-            }
-          } catch {}
         }}
       />
       <CreateRoomModal

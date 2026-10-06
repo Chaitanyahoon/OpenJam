@@ -99,6 +99,16 @@ function normalizeQueueList(items?: any[]): QueueItem[] {
   }));
 }
 
+function normalizeListeners(raw?: any[], hostId?: string | null): ListenerInfo[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((l) => ({
+    user_id: String(l.user_id || ''),
+    user_name: String(l.user_name || l.display_name || 'Jammer'),
+    avatar_url: l.avatar_url || null,
+    is_host: Boolean(l.is_host || (hostId && l.user_id === hostId)),
+  }));
+}
+
 const Ctx = createContext<RoomApi | null>(null);
 
 export function RoomProvider({
@@ -260,18 +270,24 @@ export function RoomProvider({
     [roomId, roomName],
   );
 
-  const doJoin = useCallback(() => {
+  const doJoin = useCallback(async () => {
     const s = socketRef.current;
     if (!s) return;
     engineRef.current.reset();
     setSyncReady(false);
     setConnectionState('joining');
     startJoinTimeout();
+
+    const session = await getStoredSession();
+    tokenRef.current = session.token;
+    meRef.current = session.user;
+    setMe(session.user);
+
     s.emit(C2S.JOIN_ROOM, {
       room_id: roomId,
       password: password || '',
-      avatar_url: meRef.current?.avatar_url || null,
-      token: tokenRef.current || undefined,
+      avatar_url: session.user?.avatar_url || null,
+      token: session.token || undefined,
     });
     // kick off offset measurement immediately
     s.emit(C2S.SYNC_PING, { t0: Date.now() });
@@ -280,7 +296,7 @@ export function RoomProvider({
   const retryJoin = useCallback(() => {
     setJoinError(null);
     setConnectionState('joining');
-    doJoin();
+    void doJoin();
   }, [doJoin]);
 
   useEffect(() => {
@@ -290,7 +306,7 @@ export function RoomProvider({
 
     // Handler references — stored so we can .off() them on cleanup
     const onConnect = () => {
-      doJoin();
+      void doJoin();
       socketRef.current?.emit('sync_request', {});
     };
     const onPong = (data: SyncPongPayload) => {
@@ -307,16 +323,15 @@ export function RoomProvider({
       const hostId = data.host_user_id || data.room?.host_user_id || null;
       hostIdRef.current = hostId;
       const isHostUser =
-        typeof data.is_host === 'boolean'
-          ? data.is_host
-          : Boolean(hostId && meRef.current?.id && hostId === meRef.current.id);
+        data.is_host === true ||
+        Boolean(hostId && ((meRef.current?.id && hostId === meRef.current.id) || (me?.id && hostId === me.id)));
       isHostRef.current = isHostUser;
       setIsHost(isHostUser);
       if (typeof data.allow_guest_controls === 'boolean') {
         setGuestControls(data.allow_guest_controls);
       }
       setQueue(normalizeQueueList(data.queue));
-      setListeners(data.listeners ?? []);
+      setListeners(normalizeListeners(data.listeners, hostId));
       if (data.now_playing) {
         setNowPlaying(data.now_playing);
       }
@@ -387,7 +402,7 @@ export function RoomProvider({
     const onQueueUpdated = (data: { queue?: QueueItem[] }) =>
       mounted && setQueue(normalizeQueueList(data?.queue));
     const onListenerCount = (data: { listeners?: ListenerInfo[]; count?: number }) =>
-      mounted && setListeners(data?.listeners ?? []);
+      mounted && setListeners(normalizeListeners(data?.listeners, hostIdRef.current));
     const onUserJoined = (data: { user_id?: string; display_name?: string }) => {
       if (!mounted || !data?.display_name) return;
       const sysMsg: ChatMessage = {
@@ -416,13 +431,18 @@ export function RoomProvider({
     };
     const onHostChanged = (data: { host_user_id?: string; host_name?: string }) => {
       if (!mounted) return;
+      if (data?.host_user_id) {
+        hostIdRef.current = data.host_user_id;
+      }
       const mine =
-        !!data?.host_user_id && !!meRef.current && data.host_user_id === meRef.current.id;
+        !!data?.host_user_id &&
+        Boolean((meRef.current && data.host_user_id === meRef.current.id) || (me && data.host_user_id === me.id));
       if (mine && !isHostRef.current) {
         toast('You are now the room host!', 'success');
       }
       isHostRef.current = mine;
       setIsHost(mine);
+      setListeners((prev) => normalizeListeners(prev, data?.host_user_id || hostIdRef.current));
       const sysMsg: ChatMessage = {
         id: `sys-h-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         user_id: 'system',
