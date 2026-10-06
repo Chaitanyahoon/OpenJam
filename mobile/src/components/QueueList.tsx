@@ -39,43 +39,6 @@ import { searchTracks, type TrackSearchResult } from '../api';
 import { useToast } from './ToastContext';
 import { hapticLight, hapticMedium, hapticHeavy } from '../utils/haptics';
 
-const DISCOVERY_CHIPS = ['Lofi Beats', 'Synthwave', 'Chillhop', 'Anime OST', 'Jazz Hop', 'Gaming Chill'];
-
-const CURATED_RECOMMENDATIONS = [
-  {
-    track_uri: 'jfKfPfyJRdk',
-    track_name: 'Lofi Hip Hop Chill Beats',
-    artist: 'Lofi Girl',
-    album_art_url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=300&q=80',
-    duration_ms: 180000,
-    tag: 'Lofi',
-  },
-  {
-    track_uri: '4xDzrJKXOOY',
-    track_name: 'Synthwave Night Drive',
-    artist: 'Retro Dreamer',
-    album_art_url: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=300&q=80',
-    duration_ms: 210000,
-    tag: 'Synthwave',
-  },
-  {
-    track_uri: '5qap5aO4i9A',
-    track_name: 'Coffee Shop Acoustic Chill',
-    artist: 'Acoustic Jam',
-    album_art_url: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=300&q=80',
-    duration_ms: 195000,
-    tag: 'Acoustic',
-  },
-  {
-    track_uri: 'DWcJFNfaw9c',
-    track_name: 'Midnight City Dreams',
-    artist: 'Neon Sunset',
-    album_art_url: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&q=80',
-    duration_ms: 240000,
-    tag: 'Electronic',
-  },
-];
-
 function fmtDuration(ms?: number): string {
   if (!ms || ms <= 0) return '';
   const s = Math.floor(ms / 1000);
@@ -228,14 +191,31 @@ export function QueueList() {
     setShowResults(false);
   };
 
+  const upNextTracks = queue.filter((item) => item.status !== 'playing');
+  const playingQueueItem = queue.find((item) => item.status === 'playing');
+  const activeTrack =
+    nowPlaying ||
+    (playingQueueItem
+      ? {
+          track_uri: playingQueueItem.track_uri,
+          track_name: playingQueueItem.track_name,
+          artist: playingQueueItem.artist,
+          album_art_url: playingQueueItem.album_art_url,
+          duration_ms: playingQueueItem.duration_ms,
+        }
+      : null);
+
   const handleNudge = (index: number, direction: 'up' | 'down') => {
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= queue.length) return;
-    const newQueue = [...queue];
-    const temp = newQueue[index];
-    newQueue[index] = newQueue[targetIndex];
-    newQueue[targetIndex] = temp;
-    const orderedIds = newQueue.map((item) => item.queue_item_id || item.id || '');
+    if (targetIndex < 0 || targetIndex >= upNextTracks.length) return;
+    const newUpcoming = [...upNextTracks];
+    const temp = newUpcoming[index];
+    newUpcoming[index] = newUpcoming[targetIndex];
+    newUpcoming[targetIndex] = temp;
+    const orderedIds = [
+      ...(playingQueueItem ? [playingQueueItem.queue_item_id || playingQueueItem.id || ''] : []),
+      ...newUpcoming.map((item) => item.queue_item_id || item.id || ''),
+    ].filter(Boolean);
     reorderQueue(orderedIds);
     void hapticLight();
   };
@@ -277,47 +257,6 @@ export function QueueList() {
           </Pressable>
         ) : null}
       </View>
-
-      {/* Quick Discovery Chips */}
-      {!showResults ? (
-        <View style={styles.discoverySection}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.discoveryChipsRow}
-          >
-            <View style={styles.discoveryPrefix}>
-              <Sparkles size={11} color={colors.amber} />
-              <Text style={styles.discoveryPrefixText}>VIBES</Text>
-            </View>
-            {DISCOVERY_CHIPS.map((chip) => (
-              <Pressable
-                key={chip}
-                onPress={() => {
-                  setQuery(chip);
-                  void executeSearch(chip);
-                  void hapticLight();
-                }}
-                style={({ pressed }) => [
-                  styles.chipBtn,
-                  query === chip && styles.chipBtnActive,
-                  pressed && styles.pressed,
-                ]}
-                hitSlop={4}
-              >
-                <Text
-                  style={[
-                    styles.chipBtnText,
-                    query === chip && styles.chipBtnTextActive,
-                  ]}
-                >
-                  {chip}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
-      ) : null}
 
       {/* Searching spinner */}
       {searching ? (
@@ -415,80 +354,76 @@ export function QueueList() {
             </View>
           ) : (
             <FlatList
-              data={queue}
+              data={upNextTracks}
               keyExtractor={(i, index) => i.queue_item_id || i.id || `q-${index}`}
               showsVerticalScrollIndicator={false}
               style={styles.queueList}
               ListHeaderComponent={
-                queue.length > 0 ? (
-                  <View style={styles.listSectionHeader}>
-                    <Text style={styles.sectionTitle}>
-                      UP NEXT ({queue.length})
-                    </Text>
-                  </View>
-                ) : null
+                <View>
+                  {/* Dedicated Now Playing Hero in Queue Tab */}
+                  {activeTrack ? (
+                    <View style={styles.nowPlayingSection}>
+                      <View style={styles.nowPlayingHeaderRow}>
+                        <View style={styles.liveIndicatorDot} />
+                        <Text style={styles.nowPlayingSectionLabel}>NOW PLAYING</Text>
+                      </View>
+                      <View style={styles.nowPlayingCard}>
+                        {activeTrack.album_art_url ? (
+                          <Image
+                            source={{ uri: activeTrack.album_art_url }}
+                            style={styles.nowPlayingArt}
+                            contentFit="cover"
+                          />
+                        ) : (
+                          <View style={[styles.nowPlayingArt, styles.artFallback]}>
+                            <Music size={20} color={colors.amber} />
+                          </View>
+                        )}
+                        <View style={styles.nowPlayingInfo}>
+                          <Text style={styles.nowPlayingTitle} numberOfLines={1}>
+                            {activeTrack.track_name}
+                          </Text>
+                          <Text style={styles.nowPlayingArtist} numberOfLines={1}>
+                            {activeTrack.artist}
+                          </Text>
+                        </View>
+                        {activeTrack.duration_ms ? (
+                          <Text style={styles.nowPlayingDuration}>
+                            {fmtDuration(activeTrack.duration_ms)}
+                          </Text>
+                        ) : null}
+                      </View>
+                    </View>
+                  ) : null}
+
+                  {upNextTracks.length > 0 ? (
+                    <View style={styles.listSectionHeader}>
+                      <Text style={styles.sectionTitle}>
+                        UP NEXT ({upNextTracks.length})
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
               }
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
                   <ListMusic size={36} color={colors.text3} opacity={0.4} style={{ marginBottom: 8 }} />
                   <Text style={styles.emptyTitle}>
-                    {nowPlaying ? 'No songs up next' : 'Queue is empty'}
+                    {activeTrack ? 'No songs up next' : 'Queue is empty'}
                   </Text>
                   <Text style={styles.emptySub}>
-                    {nowPlaying
-                      ? 'Add more tracks to keep the music flowing seamlessly:'
-                      : 'Search above or tap + on a recommended track to kick off the session:'}
+                    {activeTrack
+                      ? 'The music will stop after this track. Search songs above or paste a link to keep the queue rolling.'
+                      : 'Search songs above or paste a YouTube / Spotify link to start playing music together.'}
                   </Text>
-                  <View style={styles.emptyPromptRow}>
-                    {DISCOVERY_CHIPS.map((chip) => (
-                      <Pressable
-                        key={chip}
-                        onPress={() => {
-                          setQuery(chip);
-                          void executeSearch(chip);
-                          void hapticLight();
-                        }}
-                        style={({ pressed }) => [styles.emptyChip, pressed && styles.pressed]}
-                      >
-                        <Sparkles size={11} color={colors.amber} />
-                        <Text style={styles.emptyChipText}>{chip}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
-
-                  {/* Recommended Starter Tracks Cards */}
-                  <View style={styles.recSection}>
-                    <View style={styles.recHeaderRow}>
-                      <Text style={styles.recSectionTitle}>RECOMMENDED TRACKS</Text>
-                      <Text style={styles.recSectionSub}>1-Tap Quick Add</Text>
-                    </View>
-                    {CURATED_RECOMMENDATIONS.map((track) => (
-                      <View key={track.track_uri} style={styles.recRow}>
-                        <Image source={{ uri: track.album_art_url }} style={styles.recArt} contentFit="cover" />
-                        <View style={styles.recInfo}>
-                          <Text style={styles.recName} numberOfLines={1}>{track.track_name}</Text>
-                          <View style={styles.recMetaRow}>
-                            <Text style={styles.recArtist} numberOfLines={1}>{track.artist}</Text>
-                            <View style={styles.recTagBadge}>
-                              <Text style={styles.recTagText}>{track.tag}</Text>
-                            </View>
-                          </View>
-                        </View>
-                        <Pressable
-                          onPress={() => {
-                            addTrack(track);
-                            toast(`Added "${track.track_name}" to queue`, 'success');
-                            void hapticMedium();
-                          }}
-                          style={({ pressed }) => [styles.recAddBtn, pressed && styles.pressed]}
-                          hitSlop={8}
-                          accessibilityLabel={`Add ${track.track_name} to queue`}
-                        >
-                          <Plus size={16} color={colors.amber} />
-                        </Pressable>
-                      </View>
-                    ))}
-                  </View>
+                  <Pressable
+                    onPress={() => inputRef.current?.focus()}
+                    style={({ pressed }) => [styles.emptyActionBtn, pressed && styles.pressed]}
+                    hitSlop={6}
+                  >
+                    <Search size={14} color="#08080a" />
+                    <Text style={styles.emptyActionBtnText}>Search for Songs</Text>
+                  </Pressable>
                 </View>
               }
               renderItem={({ item, index }) => {
@@ -573,7 +508,7 @@ export function QueueList() {
                     </Pressable>
 
                     {/* Host Reorder / Nudge buttons */}
-                    {canControl && queue.length > 1 ? (
+                    {canControl && upNextTracks.length > 1 ? (
                       <View style={styles.nudgeCol}>
                         <Pressable
                           onPress={() => handleNudge(index, 'up')}
@@ -590,10 +525,10 @@ export function QueueList() {
                         </Pressable>
                         <Pressable
                           onPress={() => handleNudge(index, 'down')}
-                          disabled={index === queue.length - 1}
+                          disabled={index === upNextTracks.length - 1}
                           style={({ pressed }) => [
                             styles.nudgeBtn,
-                            index === queue.length - 1 && styles.nudgeBtnDisabled,
+                            index === upNextTracks.length - 1 && styles.nudgeBtnDisabled,
                             pressed && styles.pressed,
                           ]}
                           hitSlop={6}
@@ -601,7 +536,7 @@ export function QueueList() {
                         >
                           <ChevronDown
                             size={11}
-                            color={index === queue.length - 1 ? colors.text3 : colors.text2}
+                            color={index === upNextTracks.length - 1 ? colors.text3 : colors.text2}
                           />
                         </Pressable>
                       </View>
@@ -1033,11 +968,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xl * 1.5,
     paddingHorizontal: spacing.lg,
   },
-  emptyIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-    opacity: 0.5,
-  },
   emptyTitle: {
     fontFamily: fontFamily.displayBold,
     fontSize: 16,
@@ -1050,91 +980,88 @@ const styles = StyleSheet.create({
     color: colors.text3,
     textAlign: 'center',
     lineHeight: 18,
-    maxWidth: 260,
+    maxWidth: 270,
+    marginBottom: spacing.md,
+  },
+  emptyActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.amber,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: radius.full,
+    marginTop: 4,
+  },
+  emptyActionBtnText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 12.5,
+    color: '#08080a',
   },
   pressed: {
     opacity: 0.75,
   },
-  recSection: {
-    width: '100%',
-    marginTop: spacing.xl,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.08)',
+  // Dedicated Now Playing Card inside Queue Tab
+  nowPlayingSection: {
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
   },
-  recHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.sm,
-    paddingHorizontal: 2,
-  },
-  recSectionTitle: {
-    fontFamily: fontFamily.displayBold,
-    fontSize: 11.5,
-    color: colors.amber,
-    letterSpacing: 0.8,
-  },
-  recSectionSub: {
-    fontFamily: fontFamily.bodyRegular,
-    fontSize: 11,
-    color: colors.text3,
-  },
-  recRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
-    borderRadius: 12,
-    padding: 8,
-    marginBottom: 8,
-    gap: 10,
-  },
-  recArt: {
-    width: 42,
-    height: 42,
-    borderRadius: 8,
-  },
-  recInfo: {
-    flex: 1,
-  },
-  recName: {
-    fontFamily: fontFamily.bodySemiBold,
-    fontSize: 13,
-    color: colors.text1,
-  },
-  recMetaRow: {
+  nowPlayingHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  liveIndicatorDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.amber,
+  },
+  nowPlayingSectionLabel: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 10.5,
+    color: colors.amber,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  nowPlayingCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 159, 28, 0.07)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.22)',
+    borderRadius: 12,
+    padding: 8,
+    gap: 10,
+  },
+  nowPlayingArt: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+  },
+  nowPlayingInfo: {
+    flex: 1,
+  },
+  nowPlayingTitle: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 13.5,
+    color: colors.text1,
+  },
+  nowPlayingArtist: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 11.5,
+    color: colors.text2,
     marginTop: 2,
   },
-  recArtist: {
+  nowPlayingDuration: {
     fontFamily: fontFamily.bodyRegular,
     fontSize: 11,
     color: colors.text3,
-    flexShrink: 1,
-  },
-  recTagBadge: {
-    backgroundColor: 'rgba(255, 159, 28, 0.12)',
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: radius.full,
-  },
-  recTagText: {
-    fontFamily: fontFamily.bodyMedium,
-    fontSize: 9,
-    color: colors.amber,
-  },
-  recAddBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 159, 28, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 159, 28, 0.3)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    fontVariant: ['tabular-nums'],
+    marginRight: 4,
   },
 });

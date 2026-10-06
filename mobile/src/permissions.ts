@@ -58,50 +58,21 @@ export async function requestFirstLaunchPermissions(): Promise<{
     }
 
     let notificationsGranted = false;
-    let storageGranted = false;
 
     if (Platform.OS === 'android') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const permissionsToRequest: any[] = [];
       const apiLevel =
         typeof Platform.Version === 'number'
           ? Platform.Version
           : parseInt(String(Platform.Version), 10) || 30;
 
-      // Android 13+ (API 33+)
-      if (apiLevel >= 33) {
-        if (PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS) {
-          permissionsToRequest.push(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
-        }
-        if (PermissionsAndroid.PERMISSIONS.READ_MEDIA_AUDIO) {
-          permissionsToRequest.push(PermissionsAndroid.PERMISSIONS.READ_MEDIA_AUDIO);
-        }
+      // Android 13+ (API 33+) requires runtime permission for notifications
+      if (apiLevel >= 33 && PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS) {
+        const res = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+        );
+        notificationsGranted = res === PermissionsAndroid.RESULTS.GRANTED;
       } else {
-        // Android 12 and below
-        if (PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE) {
-          permissionsToRequest.push(PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE);
-        }
-        if (PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE) {
-          permissionsToRequest.push(PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE);
-        }
-      }
-
-      if (permissionsToRequest.length > 0) {
-        const results = await PermissionsAndroid.requestMultiple(permissionsToRequest);
-
-        if (apiLevel >= 33) {
-          notificationsGranted =
-            results[PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS] ===
-            PermissionsAndroid.RESULTS.GRANTED;
-          storageGranted =
-            results[PermissionsAndroid.PERMISSIONS.READ_MEDIA_AUDIO] ===
-            PermissionsAndroid.RESULTS.GRANTED;
-        } else {
-          storageGranted =
-            results[PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE] ===
-            PermissionsAndroid.RESULTS.GRANTED;
-          notificationsGranted = true;
-        }
+        notificationsGranted = true;
       }
     }
 
@@ -114,10 +85,11 @@ export async function requestFirstLaunchPermissions(): Promise<{
     } catch {}
 
     await AsyncStorage.setItem(FIRST_LAUNCH_PERMISSIONS_KEY, 'true');
-    return { notificationsGranted, storageGranted };
+    // Sandboxed storage in FileSystem.documentDirectory is always granted
+    return { notificationsGranted, storageGranted: true };
   } catch (err) {
     console.warn('Error requesting first launch permissions:', err);
-    return { notificationsGranted: false, storageGranted: false };
+    return { notificationsGranted: false, storageGranted: true };
   }
 }
 

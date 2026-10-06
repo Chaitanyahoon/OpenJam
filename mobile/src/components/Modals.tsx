@@ -1,5 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { Image, Modal, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import {
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   LogIn,
@@ -13,6 +24,7 @@ import {
   User,
   UserX,
   QrCode,
+  Headphones,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
@@ -233,16 +245,13 @@ export function IdentityModal({
   onSignOut?: () => void;
   onClose?: () => void;
 }) {
-  const [name, setName] = useState(currentName || getRandomName());
+  const [name, setName] = useState(currentName || '');
 
   useEffect(() => {
     if (currentName) setName(currentName);
   }, [currentName]);
 
-  const initials = (name.trim() || '?').slice(0, 2).toUpperCase();
-  let hue = 0;
-  for (let i = 0; i < (name || '').length; i++) hue = (name || '').charCodeAt(i) + ((hue << 5) - hue);
-  const avatarBg = `hsl(${Math.abs(hue) % 360}, 65%, 48%)`;
+  const initials = (user?.display_name || name.trim() || '?').slice(0, 2).toUpperCase();
 
   const rollName = () => {
     setName(getRandomName());
@@ -253,7 +262,10 @@ export function IdentityModal({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <View style={styles.sheet}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.sheet}
+        >
           {onClose ? (
             <Pressable
               onPress={() => {
@@ -268,7 +280,11 @@ export function IdentityModal({
           ) : null}
 
           {authError ? (
-            <View style={{ alignItems: 'center' }}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ alignItems: 'center' }}
+            >
               <View style={styles.errorIconWrap}>
                 <AlertCircle size={36} color={colors.amber} />
               </View>
@@ -276,7 +292,7 @@ export function IdentityModal({
               <Title style={{ textAlign: 'center', marginTop: 12 }}>
                 Discord Sign-In Failed
               </Title>
-              <Subtitle style={[styles.sub, { textAlign: 'center' }]}>
+              <Subtitle style={[styles.sub, { textAlign: 'center', maxWidth: 280 }]}>
                 {authError}
               </Subtitle>
 
@@ -293,31 +309,30 @@ export function IdentityModal({
                 </Pressable>
               ) : null}
 
-              <View style={styles.dividerRow}>
+              <View style={[styles.dividerRow, { width: '100%' }]}>
                 <View style={styles.dividerLine} />
                 <Text style={styles.dividerText}>or continue as guest</Text>
                 <View style={styles.dividerLine} />
               </View>
 
-              <View style={[styles.inputWithDice, { width: '100%' }]}>
+              <View style={[styles.inputWithDice, { width: '100%', marginTop: 0 }]}>
                 <View style={{ flex: 1 }}>
                   <Field
                     value={name}
                     onChangeText={setName}
-                    placeholder="Enter display name"
-                    onSubmitEditing={() => name.trim() && onDone(name.trim())}
+                    placeholder="Enter nickname (or roll one)"
+                    onSubmitEditing={() => onDone(name.trim() || getRandomName())}
                   />
                 </View>
-                <Pressable onPress={rollName} style={styles.diceBtn} accessibilityLabel="Roll random name">
+                <Pressable onPress={rollName} style={styles.diceBtn} accessibilityLabel="Roll random nickname">
                   <Shuffle size={20} color={colors.amber} />
                 </Pressable>
               </View>
 
-              <View style={styles.gap} />
+              <View style={{ height: 12 }} />
               <PrimaryButton
-                title="Continue as Guest"
-                onPress={() => name.trim() && onDone(name.trim())}
-                disabled={!name.trim()}
+                title={name.trim() ? `Continue as "${name.trim()}"` : 'Quick Guest Access'}
+                onPress={() => onDone(name.trim() || getRandomName())}
               />
 
               {onClose ? (
@@ -327,11 +342,12 @@ export function IdentityModal({
                     onClose();
                   }}
                   style={({ pressed }) => [styles.browseWithoutSignInBtn, pressed && styles.pressed]}
+                  hitSlop={8}
                 >
                   <Text style={styles.browseWithoutSignInText}>Browse Rooms Without Signing In</Text>
                 </Pressable>
               ) : null}
-            </View>
+            </ScrollView>
           ) : isDiscord ? (
             <View style={{ alignItems: 'center' }}>
               {user?.avatar_url ? (
@@ -365,67 +381,75 @@ export function IdentityModal({
               </Pressable>
             </View>
           ) : (
-            <View>
-              <View style={[styles.avatarPreview, { backgroundColor: avatarBg }]}>
-                <Text style={styles.avatarPreviewText}>{initials}</Text>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ alignItems: 'center' }}
+            >
+              {/* Brand Aura Icon */}
+              <View style={styles.brandHeroIconWrap}>
+                <Headphones size={32} color={colors.amber} strokeWidth={2.2} />
               </View>
 
-              <Title style={{ textAlign: 'center' }}>Join OpenJam</Title>
-              <Subtitle style={[styles.sub, { textAlign: 'center' }]}>
-                Sign in with Discord to sync playlists, badges, and your profile across devices.
+              <Title style={{ textAlign: 'center', marginTop: 12 }}>Welcome to OpenJam</Title>
+              <Subtitle style={[styles.sub, { textAlign: 'center', maxWidth: 280, marginTop: 4 }]}>
+                Listen to music together in real-time sync with friends and community rooms.
               </Subtitle>
 
+              {/* Option 1: Discord */}
               {onDiscordLogin ? (
                 <Pressable
                   onPress={() => {
                     onClose?.();
                     onDiscordLogin();
                   }}
-                  style={({ pressed }) => [styles.discordLoginBtn, pressed && styles.pressed]}
+                  style={({ pressed }) => [styles.discordLoginBtn, { width: '100%' }, pressed && styles.pressed]}
                 >
                   <LogIn size={18} color="#ffffff" strokeWidth={2.4} />
                   <Text style={styles.discordLoginBtnText}>Sign in with Discord</Text>
                 </Pressable>
               ) : null}
 
-              <View style={styles.dividerRow}>
+              <View style={[styles.dividerRow, { width: '100%' }]}>
                 <View style={styles.dividerLine} />
                 <Text style={styles.dividerText}>or continue as guest</Text>
                 <View style={styles.dividerLine} />
               </View>
 
-              <View style={styles.inputWithDice}>
+              {/* Option 2: Guest Profile */}
+              <View style={[styles.inputWithDice, { width: '100%', marginTop: 0 }]}>
                 <View style={{ flex: 1 }}>
                   <Field
                     value={name}
                     onChangeText={setName}
-                    placeholder="Enter display name"
-                    onSubmitEditing={() => name.trim() && onDone(name.trim())}
+                    placeholder="Enter nickname (or roll one)"
+                    onSubmitEditing={() => onDone(name.trim() || getRandomName())}
                   />
                 </View>
-                <Pressable onPress={rollName} style={styles.diceBtn} accessibilityLabel="Roll random name">
+                <Pressable onPress={rollName} style={styles.diceBtn} accessibilityLabel="Roll random nickname">
                   <Shuffle size={20} color={colors.amber} />
                 </Pressable>
               </View>
 
-              <View style={styles.gap} />
+              <View style={{ height: 12 }} />
               <PrimaryButton
-                title="Continue as Guest"
-                onPress={() => name.trim() && onDone(name.trim())}
-                disabled={!name.trim()}
+                title={name.trim() ? `Continue as "${name.trim()}"` : 'Quick Guest Access'}
+                onPress={() => onDone(name.trim() || getRandomName())}
               />
 
+              {/* Option 3: Browse without signing in */}
               {onClose ? (
                 <Pressable
                   onPress={onClose}
                   style={({ pressed }) => [styles.browseWithoutSignInBtn, pressed && styles.pressed]}
+                  hitSlop={8}
                 >
                   <Text style={styles.browseWithoutSignInText}>Browse Rooms Without Signing In</Text>
                 </Pressable>
               ) : null}
-            </View>
+            </ScrollView>
           )}
-        </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -1028,6 +1052,22 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.8,
+  },
+  brandHeroIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 159, 28, 0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.xs,
+    shadowColor: colors.amber,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 4,
   },
   errorIconWrap: {
     width: 64,

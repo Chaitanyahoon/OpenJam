@@ -138,6 +138,7 @@ export function RoomProvider({
   const playingRef = useRef(false);
   const loopRef = useRef(false);
   const isHostRef = useRef(false);
+  const hostIdRef = useRef<string | null>(null);
   const meRef = useRef<ApiUser | null>(null);
   const chatFocusedRef = useRef(false);
   const seenMsgIds = useRef(new Set<string>());
@@ -173,6 +174,10 @@ export function RoomProvider({
     getStoredSession().then((s) => {
       meRef.current = s.user;
       setMe(s.user);
+      if (hostIdRef.current && s.user?.id && hostIdRef.current === s.user.id) {
+        isHostRef.current = true;
+        setIsHost(true);
+      }
     });
   }, []);
 
@@ -294,10 +299,14 @@ export function RoomProvider({
       setConnectionState('connected');
       setJoinError(null);
       setRoomName(data.room?.name ?? '');
-      const hostId = data.room?.host_user_id;
-      const mine = !!hostId && !!meRef.current && hostId === meRef.current.id;
-      isHostRef.current = mine;
-      setIsHost(mine);
+      const hostId = data.host_user_id || data.room?.host_user_id || null;
+      hostIdRef.current = hostId;
+      const isHostUser =
+        typeof data.is_host === 'boolean'
+          ? data.is_host
+          : Boolean(hostId && meRef.current?.id && hostId === meRef.current.id);
+      isHostRef.current = isHostUser;
+      setIsHost(isHostUser);
       if (typeof data.allow_guest_controls === 'boolean') {
         setGuestControls(data.allow_guest_controls);
       }

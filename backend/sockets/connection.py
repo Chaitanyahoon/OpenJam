@@ -304,26 +304,45 @@ def register_connection_handlers(sio: socketio.AsyncServer):
             return
 
         # Check if this user is the room host and set host_sid, and reactivate room if inactive
-        def _check_host(room_id, user_id):
+        def _check_host_and_get_room(room_id, user_id):
             db = SessionLocal()
             try:
                 from backend.models.room import Room
-                room = db.query(Room).filter(Room.id == room_id).first()
+                from sqlalchemy.orm import selectinload
+                room = db.query(Room).options(selectinload(Room.host)).filter(Room.id == room_id).first()
+                room_dict = None
+                is_host = False
+                host_user_id = None
                 if room:
+                    host_user_id = room.host_user_id
                     if room.host_user_id == user_id:
                         room_manager.set_host(room_id, sid)
+                        is_host = True
                     # Sync guest controls from DB into room state
                     room_manager.set_guest_controls(room_id, room.allow_guest_controls or False)
                     if not room.is_active:
                         room.is_active = True
                         db.commit()
                         logger.info(f"Reactivated room {room_id} in database")
+                    host_name = room.host.display_name if room.host else "Host"
+                    host_avatar_url = room.host.avatar_url if room.host else None
+                    room_dict = room.to_dict(
+                        listener_count=room_manager.get_listener_count(room_id),
+                        host_name=host_name,
+                        host_avatar_url=host_avatar_url,
+                    )
+                return {
+                    "room_dict": room_dict,
+                    "host_user_id": host_user_id,
+                    "is_host": is_host or room_manager.is_host(room_id, sid),
+                }
             except Exception as e:
                 logger.error(f"Error checking host/reactivating room: {e}")
+                return {"room_dict": None, "host_user_id": None, "is_host": room_manager.is_host(room_id, sid)}
             finally:
                 db.close()
 
-        await asyncio.to_thread(_check_host, room_id, user_id)
+        room_meta = await asyncio.to_thread(_check_host_and_get_room, room_id, user_id)
 
         await sio.enter_room(sid, room_id)
         cancel_room_close(room_id)
@@ -383,11 +402,18 @@ def register_connection_handlers(sio: socketio.AsyncServer):
                     now_playing_item = item
                     break
     
+            is_host_val = room_meta["is_host"] if room_meta else room_manager.is_host(room_id, sid)
+            host_user_id_val = room_meta["host_user_id"] if room_meta else None
+            room_dict_val = room_meta["room_dict"] if room_meta else None
+
             join_data = {
                 "room_id": room_id,
                 "queue": queue,
                 "listeners": room_manager.get_listeners(room_id),
                 "allow_guest_controls": room_manager.get_guest_controls(room_id),
+                "is_host": is_host_val,
+                "host_user_id": host_user_id_val,
+                "room": room_dict_val,
             }
             if playback and playback.get("track_uri"):
                 join_data["now_playing"] = {

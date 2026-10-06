@@ -112,12 +112,8 @@ export default function Landing() {
   const handledTokensRef = useRef<Set<string>>(new Set());
   const insets = useSafeAreaInsets();
 
-  // Native Android OS system permission prompt on initial launch
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      void requestFirstLaunchPermissions();
-    }, 600);
-    return () => clearTimeout(timer);
+  const promptFirstLaunchPermissions = useCallback(() => {
+    void requestFirstLaunchPermissions();
   }, []);
 
   const loadFavorites = useCallback(async () => {
@@ -153,6 +149,7 @@ export default function Landing() {
         setUser(latestUser || session.user);
         await connect();
         registerPushToken().catch(() => {});
+        promptFirstLaunchPermissions();
       } else {
         // Show onboarding / sign in sheet on initial launch if unauthenticated
         setShowIdentity(true);
@@ -160,7 +157,7 @@ export default function Landing() {
       await loadRooms();
       setReady(true);
     })();
-  }, [connect, loadRooms]);
+  }, [connect, loadRooms, promptFirstLaunchPermissions]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -194,10 +191,12 @@ export default function Landing() {
           );
           await connect();
           registerPushToken().catch(() => {});
+          promptFirstLaunchPermissions();
         } else {
           toast('Signed in via Discord', 'success');
           setShowIdentity(false);
           await connect();
+          promptFirstLaunchPermissions();
         }
         return true;
       } else if (url.includes('error=')) {
@@ -209,7 +208,7 @@ export default function Landing() {
       }
       return false;
     },
-    [connect, disconnect, toast],
+    [connect, disconnect, toast, promptFirstLaunchPermissions],
   );
 
   // Listen for incoming deep links from OAuth redirect
@@ -259,9 +258,11 @@ export default function Landing() {
       const { user: u } = await joinAsGuest(displayName);
       setUser(u);
       setShowIdentity(false);
+      setAuthError(null);
       toast(`Welcome, ${u.display_name}!`, 'success');
       await connect();
       registerPushToken().catch(() => {});
+      promptFirstLaunchPermissions();
     } catch {
       toast('Could not create guest session', 'error');
     }
@@ -696,9 +697,18 @@ export default function Landing() {
         onDone={handleIdentity}
         onDiscordLogin={handleDiscordLogin}
         onSignOut={handleSignOut}
-        onClose={() => {
+        onClose={async () => {
           setShowIdentity(false);
           setAuthError(null);
+          promptFirstLaunchPermissions();
+          try {
+            const session = await getStoredSession();
+            if (!session.token) {
+              const { user: u } = await joinAsGuest('Jammer');
+              setUser(u);
+              await connect();
+            }
+          } catch {}
         }}
       />
       <CreateRoomModal

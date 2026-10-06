@@ -121,11 +121,19 @@ export interface ListenerInfo {
 
 export interface JoinSuccessPayload {
   room_id: string;
+  is_host?: boolean;
+  host_user_id?: string;
   room?: {
     id: string;
     name: string;
     host_user_id: string;
+    host_name?: string;
+    host_avatar_url?: string | null;
+    listener_count?: number;
     is_private?: boolean;
+    allow_guest_controls?: boolean;
+    genre_tags?: string[];
+    description?: string;
   };
   queue: QueueItem[];
   now_playing: TrackInfo | null;
