@@ -1,46 +1,26 @@
 /**
  * Push notifications via Expo Push Service.
- * Flow: request permission -> get Expo push token -> (TODO) send to backend
- * so it can notify this device (room started, mentions).
- *
- * NOTE: Starting in Expo SDK 53, Android push notifications (remote notifications)
- * via expo-notifications are removed from Expo Go and will throw an error
- * at import time. This module safely guards against Expo Go on Android so development
- * and testing in Expo Go work without crashing the app.
+ * Native standalone module: requests permissions, configures Android channel,
+ * and fetches the Expo push token for backend sync.
  */
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
+import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { getBackendUrl } from './config';
 import { getStoredSession } from './api';
 
-type NotificationsModule = typeof import('expo-notifications');
-
-let Notifications: NotificationsModule | null = null;
-
-try {
-  const isExpoGo =
-    Constants.appOwnership === 'expo' ||
-    (Constants as { executionEnvironment?: string }).executionEnvironment === 'storeClient';
-
-  if (!(Platform.OS === 'android' && isExpoGo)) {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    Notifications = require('expo-notifications');
-    Notifications?.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowBanner: true,
-        shouldShowList: true,
-        shouldPlaySound: false,
-        shouldSetBadge: false,
-      }),
-    });
-  }
-} catch {
-  Notifications = null;
-}
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
 
 async function setupAndroidChannel(): Promise<void> {
-  if (Platform.OS !== 'android' || !Notifications) return;
+  if (Platform.OS !== 'android') return;
   try {
     await Notifications.setNotificationChannelAsync('room-activity', {
       name: 'Room activity',
@@ -52,10 +32,10 @@ async function setupAndroidChannel(): Promise<void> {
   }
 }
 
-/** Returns the Expo push token, or null (simulator / denied / Expo Go on Android). */
+/** Returns the Expo push token, or null if running on simulator or denied. */
 export async function registerPushToken(): Promise<string | null> {
   try {
-    if (!Notifications || !Device.isDevice) return null;
+    if (!Device.isDevice) return null;
     await setupAndroidChannel();
     const { status: existing } = await Notifications.getPermissionsAsync();
     const { status } =

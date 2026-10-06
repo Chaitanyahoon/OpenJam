@@ -11,11 +11,12 @@ friends, no Play Store.
 cd mobile
 cp .env.example .env          # set EXPO_PUBLIC_BACKEND_URL to your server
 npm install
-npx expo start                # scan the QR with Expo Go (dev only)
+npx expo run:android         # run on connected Android device/emulator
 ```
 
-> Audio background playback needs a **development build**, not Expo Go:
-> `npx expo run:android` (needs Android Studio) or an EAS dev build.
+> **Standalone Android App**: OpenJam is built as a native standalone Android APK
+> with background audio foreground service (`FOREGROUND_SERVICE_MEDIA_PLAYBACK`)
+> and lockscreen playback notification support.
 
 ## Build a shareable APK (EAS cloud — no Android Studio needed)
 

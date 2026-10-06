@@ -1,33 +1,15 @@
 /**
  * Permissions & App Storage Management.
  * Handles:
- * 1. Notification Permission (POST_NOTIFICATIONS) for Android 13+ lockscreen media
- *    playback controls and background service alerts.
- * 2. Sandboxed Storage Verification for offline playlist downloads & favorites
- *    (Scoped sandbox storage requires 0 dangerous OS permissions).
+ * 1. Native Android OS Permission Dialogs for Notifications (POST_NOTIFICATIONS)
+ *    and Media Audio/Storage (READ_MEDIA_AUDIO / READ_EXTERNAL_STORAGE).
+ * 2. Sandboxed Storage Verification for offline playlist downloads & favorites.
  */
 import { PermissionsAndroid, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Constants from 'expo-constants';
+import * as Notifications from 'expo-notifications';
 
-const PERMISSION_BANNER_DISMISSED_KEY = 'openjam_permission_banner_dismissed_v1';
 const FIRST_LAUNCH_PERMISSIONS_KEY = '@openjam_first_launch_permissions_asked_v1';
-
-type NotificationsModule = typeof import('expo-notifications');
-let Notifications: NotificationsModule | null = null;
-
-try {
-  const isExpoGo =
-    Constants.appOwnership === 'expo' ||
-    (Constants as { executionEnvironment?: string }).executionEnvironment === 'storeClient';
-
-  if (!(Platform.OS === 'android' && isExpoGo)) {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    Notifications = require('expo-notifications');
-  }
-} catch {
-  Notifications = null;
-}
 
 export type PermissionState = 'granted' | 'denied' | 'undetermined';
 
@@ -39,7 +21,6 @@ export interface StorageInfo {
 
 /** Check current notification permission status */
 export async function getNotificationPermissionStatus(): Promise<PermissionState> {
-  if (!Notifications) return 'granted';
   try {
     const { status } = await Notifications.getPermissionsAsync();
     return status as PermissionState;
@@ -50,7 +31,6 @@ export async function getNotificationPermissionStatus(): Promise<PermissionState
 
 /** Request notification permission for background audio & lock screen controls */
 export async function requestNotificationPermission(): Promise<boolean> {
-  if (!Notifications) return true;
   try {
     const { status: existing } = await Notifications.getPermissionsAsync();
     if (existing === 'granted') return true;
@@ -126,17 +106,14 @@ export async function requestFirstLaunchPermissions(): Promise<{
     }
 
     // Ensure expo-notifications permission state is also synced
-    if (Notifications) {
-      try {
-        const notifRes = await Notifications.requestPermissionsAsync();
-        if (notifRes.status === 'granted') {
-          notificationsGranted = true;
-        }
-      } catch {}
-    }
+    try {
+      const notifRes = await Notifications.requestPermissionsAsync();
+      if (notifRes.status === 'granted') {
+        notificationsGranted = true;
+      }
+    } catch {}
 
     await AsyncStorage.setItem(FIRST_LAUNCH_PERMISSIONS_KEY, 'true');
-    await AsyncStorage.setItem(PERMISSION_BANNER_DISMISSED_KEY, 'true');
     return { notificationsGranted, storageGranted };
   } catch (err) {
     console.warn('Error requesting first launch permissions:', err);
@@ -151,21 +128,4 @@ export function getSandboxStorageInfo(): StorageInfo {
     description: 'Private app storage sandbox for offline playlists & favorites.',
     isReady: true,
   };
-}
-
-/** Check if user previously dismissed the permissions onboarding banner */
-export async function isPermissionBannerDismissed(): Promise<boolean> {
-  try {
-    const val = await AsyncStorage.getItem(PERMISSION_BANNER_DISMISSED_KEY);
-    return val === 'true';
-  } catch {
-    return false;
-  }
-}
-
-/** Dismiss the permissions onboarding banner */
-export async function dismissPermissionBanner(): Promise<void> {
-  try {
-    await AsyncStorage.setItem(PERMISSION_BANNER_DISMISSED_KEY, 'true');
-  } catch {}
 }
