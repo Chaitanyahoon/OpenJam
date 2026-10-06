@@ -1,9 +1,16 @@
 /**
- * Public User Profile Screen.
+ * User Profile & Library Screen.
  *
- * Shows public profile info, bio, listening statistics,
- * followers / following counts with Follow/Unfollow action,
- * and user's public playlists.
+ * For other users (!isSelf):
+ * - Displays public profile info, bio, listening statistics, followers / following,
+ *   follow / unfollow action, and public playlists.
+ *
+ * For self (isSelf):
+ * - Complete personal profile & settings hub:
+ *   - Playlists: public and offline playlists
+ *   - History: recently played tracks with timestamps
+ *   - Saved Rooms: pinned rooms with 1-tap join
+ *   - Settings: storage cache management, session sign out
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -12,6 +19,7 @@ import {
   Pressable,
   Share,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from 'react-native';
@@ -29,6 +37,14 @@ import {
   Headphones,
   Clock,
   Sparkles,
+  Bookmark,
+  Trash2,
+  Sliders,
+  LogOut,
+  Radio,
+  Music,
+  Play,
+  Check,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../../theme';
 import { fontFamily } from '../../fonts';
@@ -38,61 +54,128 @@ import {
   getProfileStats,
   toggleFollowUser,
   getStoredSession,
+  clearSession,
   type PublicProfile,
   type ApiPlaylist,
   type ProfileSocialStats,
   type ProfileStatsData,
 } from '../../api';
+import {
+  getRecentlyPlayed,
+  getFavoriteRooms,
+  getOfflinePlaylists,
+  calculateStorageUsageKb,
+  clearAllLocalCache,
+  clearRecentlyPlayed,
+  getAppPreferences,
+  updateAppPreferences,
+  type OfflinePlaylist,
+  type PlayedTrack,
+  type FavoriteRoom,
+  type AppPreferences,
+} from '../../storage/history';
 import { useToast } from '../../components/ToastContext';
-import { hapticLight, hapticMedium } from '../../utils/haptics';
+import { hapticLight, hapticMedium, hapticHeavy } from '../../utils/haptics';
+
+type SelfTabMode = 'playlists' | 'history' | 'saved' | 'settings';
+
+function formatRelativeTime(timestamp: number): string {
+  const diffSec = Math.floor((Date.now() - timestamp) / 1000);
+  if (diffSec < 60) return 'Just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d ago`;
+}
 
 export default function UserProfileScreen() {
   const params = useLocalSearchParams<{ id: string }>();
-  const userId = Array.isArray(params.id) ? params.id[0] : params.id;
+  const rawId = Array.isArray(params.id) ? params.id[0] : params.id;
   const toast = useToast();
 
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [playlists, setPlaylists] = useState<ApiPlaylist[]>([]);
+  const [offlinePlaylists, setOfflinePlaylists] = useState<OfflinePlaylist[]>([]);
+  const [recentTracks, setRecentTracks] = useState<PlayedTrack[]>([]);
+  const [favoriteRooms, setFavoriteRooms] = useState<FavoriteRoom[]>([]);
   const [social, setSocial] = useState<ProfileSocialStats | null>(null);
   const [stats, setStats] = useState<ProfileStatsData | null>(null);
   const [isSelf, setIsSelf] = useState(false);
   const [following, setFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
+  const [selfTab, setSelfTab] = useState<SelfTabMode>('playlists');
+  const [cacheKb, setCacheKb] = useState(0);
 
   const loadData = useCallback(async () => {
-    if (!userId) return;
     setLoading(true);
     try {
       const session = await getStoredSession();
-      if (session.user && session.user.id === userId) {
-        setIsSelf(true);
+      const targetId = rawId === 'me' ? session.user?.id : rawId;
+      const isMine = rawId === 'me' || (!!session.user && session.user.id === targetId);
+      setIsSelf(isMine);
+
+      if (isMine) {
+        // Load local personal data in parallel
+        const [recents, favs, offPlists, usage] = await Promise.all([
+          getRecentlyPlayed(),
+          getFavoriteRooms(),
+          getOfflinePlaylists(),
+          calculateStorageUsageKb(),
+        ]);
+        setRecentTracks(recents);
+        setFavoriteRooms(favs);
+        setOfflinePlaylists(offPlists);
+        setCacheKb(usage);
       }
 
-      // Parallel fetch of public profile, social stats, and listening stats
-      const [profData, socData, statsData] = await Promise.all([
-        getPublicProfile(userId),
-        getProfileSocial(userId),
-        getProfileStats(userId),
-      ]);
+      if (targetId) {
+        // Fetch server profile
+        const [profData, socData, statsData] = await Promise.all([
+          getPublicProfile(targetId).catch(() => null),
+          getProfileSocial(targetId).catch(() => null),
+          getProfileStats(targetId).catch(() => null),
+        ]);
 
-      if (profData) {
-        setProfile(profData.user);
-        setPlaylists(profData.playlists || []);
-      }
-      if (socData) {
-        setSocial(socData);
-        setFollowing(socData.is_following);
-      }
-      if (statsData) {
-        setStats(statsData);
+        if (profData) {
+          setProfile(profData.user);
+          setPlaylists(profData.playlists || []);
+        } else if (isMine) {
+          // Fallback self profile
+          setProfile({
+            id: targetId,
+            display_name: session.user?.display_name || 'Jammer',
+            username: session.user?.discord_username || session.user?.display_name || 'jammer',
+            bio: 'OpenJam Music Explorer',
+            avatar_url: session.user?.avatar_url || null,
+          } as PublicProfile);
+        }
+
+        if (socData) {
+          setSocial(socData);
+          setFollowing(socData.is_following);
+        }
+        if (statsData) {
+          setStats(statsData);
+        }
+      } else if (isMine) {
+        // Guest user self profile
+        setProfile({
+          id: 'guest',
+          display_name: 'Guest Jammer',
+          username: 'guest',
+          bio: 'Listening anonymously on OpenJam',
+          avatar_url: null,
+        } as PublicProfile);
       }
     } catch {
       toast('Failed to load user profile', 'error');
     } finally {
       setLoading(false);
     }
-  }, [userId, toast]);
+  }, [rawId, toast]);
 
   useEffect(() => {
     void loadData();
@@ -105,7 +188,6 @@ export default function UserProfileScreen() {
     setFollowing(nextState);
     setFollowLoading(true);
 
-    // Optimistically adjust count
     setSocial((prev) =>
       prev
         ? {
@@ -119,7 +201,6 @@ export default function UserProfileScreen() {
     const ok = await toggleFollowUser(profile.id, nextState);
     setFollowLoading(false);
     if (!ok) {
-      // Revert if failed
       setFollowing(!nextState);
       setSocial((prev) =>
         prev
@@ -145,6 +226,23 @@ export default function UserProfileScreen() {
         title: `OpenJam – ${profile.display_name}`,
       });
     } catch {}
+  };
+
+  const handleClearCache = async () => {
+    void hapticHeavy();
+    await clearAllLocalCache();
+    setRecentTracks([]);
+    setFavoriteRooms([]);
+    setOfflinePlaylists([]);
+    setCacheKb(0);
+    toast('Local cache cleared', 'success');
+  };
+
+  const handleSignOut = async () => {
+    void hapticHeavy();
+    await clearSession();
+    toast('Signed out', 'info');
+    router.replace('/');
   };
 
   if (loading) {
@@ -203,13 +301,22 @@ export default function UserProfileScreen() {
       </View>
 
       <FlatList
-        data={playlists}
-        keyExtractor={(item) => item.id}
+        data={
+          isSelf
+            ? selfTab === 'playlists'
+              ? [...playlists, ...offlinePlaylists]
+              : selfTab === 'history'
+                ? recentTracks
+                : selfTab === 'saved'
+                  ? favoriteRooms
+                  : []
+            : playlists
+        }
+        keyExtractor={(item: any, idx) => item.id || item.track_uri || `item-${idx}`}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View style={styles.headerSection}>
-            {/* Banner glow */}
             <LinearGradient
               colors={['rgba(255, 159, 28, 0.15)', 'transparent']}
               style={styles.bannerGlow}
@@ -234,7 +341,7 @@ export default function UserProfileScreen() {
 
             {profile.bio ? <Text style={styles.bioText}>{profile.bio}</Text> : null}
 
-            {/* Social stats & Follow Button */}
+            {/* Social stats & Follow Button (when not self) */}
             <View style={styles.socialRow}>
               <View style={styles.statBox}>
                 <Text style={styles.statValue}>{social?.followers_count ?? 0}</Text>
@@ -246,7 +353,7 @@ export default function UserProfileScreen() {
                 <Text style={styles.statLabel}>Following</Text>
               </View>
 
-              {!isSelf && (
+              {!isSelf ? (
                 <Pressable
                   onPress={handleToggleFollow}
                   disabled={followLoading}
@@ -268,7 +375,7 @@ export default function UserProfileScreen() {
                     </>
                   )}
                 </Pressable>
-              )}
+              ) : null}
             </View>
 
             {/* Listening Metrics Card */}
@@ -276,7 +383,7 @@ export default function UserProfileScreen() {
               <View style={styles.metricItem}>
                 <Headphones size={16} color={colors.amber} />
                 <Text style={styles.metricValue}>
-                  {stats?.total_tracks_listened ?? 0}
+                  {stats?.total_tracks_listened ?? recentTracks.length}
                 </Text>
                 <Text style={styles.metricLabel}>Tracks</Text>
               </View>
@@ -284,7 +391,7 @@ export default function UserProfileScreen() {
               <View style={styles.metricItem}>
                 <Clock size={16} color={colors.amber} />
                 <Text style={styles.metricValue}>
-                  {stats?.total_minutes_listened ?? 0}
+                  {stats?.total_minutes_listened ?? Math.round(recentTracks.length * 3.2)}
                 </Text>
                 <Text style={styles.metricLabel}>Minutes</Text>
               </View>
@@ -292,44 +399,185 @@ export default function UserProfileScreen() {
               <View style={styles.metricItem}>
                 <Disc size={16} color={colors.amber} />
                 <Text style={styles.metricValue}>
-                  {(stats?.rooms_joined ?? 0) + (stats?.rooms_created ?? 0)}
+                  {(stats?.rooms_joined ?? 0) + (stats?.rooms_created ?? 0) || favoriteRooms.length}
                 </Text>
                 <Text style={styles.metricLabel}>Rooms</Text>
               </View>
             </View>
 
-            {/* Playlists section header */}
-            <View style={styles.sectionHeader}>
-              <ListMusic size={15} color={colors.amber} />
-              <Text style={styles.sectionTitle}>PUBLIC PLAYLISTS</Text>
-            </View>
+            {/* Self multi-tab selector */}
+            {isSelf ? (
+              <View style={styles.tabBar}>
+                <Pressable
+                  onPress={() => setSelfTab('playlists')}
+                  style={[styles.tabItem, selfTab === 'playlists' && styles.tabItemActive]}
+                >
+                  <ListMusic size={13} color={selfTab === 'playlists' ? colors.amber : colors.text3} />
+                  <Text style={[styles.tabItemText, selfTab === 'playlists' && styles.tabItemTextActive]}>
+                    Playlists
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => setSelfTab('history')}
+                  style={[styles.tabItem, selfTab === 'history' && styles.tabItemActive]}
+                >
+                  <Clock size={13} color={selfTab === 'history' ? colors.amber : colors.text3} />
+                  <Text style={[styles.tabItemText, selfTab === 'history' && styles.tabItemTextActive]}>
+                    History
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => setSelfTab('saved')}
+                  style={[styles.tabItem, selfTab === 'saved' && styles.tabItemActive]}
+                >
+                  <Bookmark size={13} color={selfTab === 'saved' ? colors.amber : colors.text3} />
+                  <Text style={[styles.tabItemText, selfTab === 'saved' && styles.tabItemTextActive]}>
+                    Saved
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => setSelfTab('settings')}
+                  style={[styles.tabItem, selfTab === 'settings' && styles.tabItemActive]}
+                >
+                  <Sliders size={13} color={selfTab === 'settings' ? colors.amber : colors.text3} />
+                  <Text style={[styles.tabItemText, selfTab === 'settings' && styles.tabItemTextActive]}>
+                    Settings
+                  </Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View style={styles.sectionHeader}>
+                <ListMusic size={15} color={colors.amber} />
+                <Text style={styles.sectionTitle}>PUBLIC PLAYLISTS</Text>
+              </View>
+            )}
+
+            {/* If Settings Tab is active for Self */}
+            {isSelf && selfTab === 'settings' ? (
+              <View style={styles.settingsContainer}>
+                <View style={styles.settingsCard}>
+                  <Text style={styles.settingsCardTitle}>Storage & Cache</Text>
+                  <View style={styles.settingsRow}>
+                    <View>
+                      <Text style={styles.settingsRowLabel}>Local Offline Storage</Text>
+                      <Text style={styles.settingsRowSub}>Cached songs, history & artwork</Text>
+                    </View>
+                    <Text style={styles.settingsValueText}>{cacheKb} KB</Text>
+                  </View>
+                  <Pressable
+                    onPress={handleClearCache}
+                    style={({ pressed }) => [styles.clearCacheBtn, pressed && styles.pressed]}
+                  >
+                    <Trash2 size={14} color={colors.red} />
+                    <Text style={styles.clearCacheBtnText}>Clear Local Cache</Text>
+                  </Pressable>
+                </View>
+
+                <View style={styles.settingsCard}>
+                  <Text style={styles.settingsCardTitle}>Account & Session</Text>
+                  <Pressable
+                    onPress={handleSignOut}
+                    style={({ pressed }) => [styles.signOutBtn, pressed && styles.pressed]}
+                  >
+                    <LogOut size={15} color="#ffffff" />
+                    <Text style={styles.signOutBtnText}>Sign Out & Reset Session</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
           </View>
         }
-        renderItem={({ item }) => (
-          <Pressable
-            onPress={() => {
-              void hapticLight();
-              router.push({ pathname: '/playlist/[id]', params: { id: item.id } });
-            }}
-            style={({ pressed }) => [styles.playlistCard, pressed && styles.pressed]}
-          >
-            <View style={styles.playlistIconWrap}>
-              <Disc size={20} color={colors.amber} />
-            </View>
-            <View style={styles.playlistMeta}>
-              <Text style={styles.playlistName} numberOfLines={1}>
-                {item.name}
-              </Text>
-              <Text style={styles.playlistSub}>
-                {(item.tracks || []).length} tracks
-              </Text>
-            </View>
-          </Pressable>
-        )}
+        renderItem={({ item }: { item: any }) => {
+          if (isSelf && selfTab === 'settings') return null;
+
+          // History Row
+          if (isSelf && selfTab === 'history') {
+            return (
+              <View style={styles.historyRow}>
+                {item.album_art_url ? (
+                  <Image source={{ uri: item.album_art_url }} style={styles.historyArt} contentFit="cover" />
+                ) : (
+                  <View style={[styles.historyArt, styles.artFallback]}>
+                    <Music size={16} color={colors.text3} />
+                  </View>
+                )}
+                <View style={styles.historyMeta}>
+                  <Text style={styles.historyTitle} numberOfLines={1}>
+                    {item.track_name}
+                  </Text>
+                  <Text style={styles.historyArtist} numberOfLines={1}>
+                    {item.artist}
+                  </Text>
+                </View>
+                {item.played_at ? (
+                  <Text style={styles.historyTime}>{formatRelativeTime(item.played_at)}</Text>
+                ) : null}
+              </View>
+            );
+          }
+
+          // Saved Rooms Row
+          if (isSelf && selfTab === 'saved') {
+            return (
+              <Pressable
+                onPress={() => {
+                  void hapticLight();
+                  router.push({ pathname: '/room/[id]', params: { id: item.id } });
+                }}
+                style={({ pressed }) => [styles.savedRoomCard, pressed && styles.pressed]}
+              >
+                <View style={styles.roomIconWrap}>
+                  <Radio size={18} color={colors.amber} />
+                </View>
+                <View style={styles.roomMeta}>
+                  <Text style={styles.roomName} numberOfLines={1}>{item.name}</Text>
+                  <Text style={styles.roomHost} numberOfLines={1}>Host: {item.hostName || 'Jammer'}</Text>
+                </View>
+                <View style={styles.joinPill}>
+                  <Text style={styles.joinPillText}>Join</Text>
+                </View>
+              </Pressable>
+            );
+          }
+
+          // Playlists Card (default)
+          return (
+            <Pressable
+              onPress={() => {
+                void hapticLight();
+                router.push({ pathname: '/playlist/[id]', params: { id: item.id } });
+              }}
+              style={({ pressed }) => [styles.playlistCard, pressed && styles.pressed]}
+            >
+              <View style={styles.playlistIconWrap}>
+                <Disc size={20} color={colors.amber} />
+              </View>
+              <View style={styles.playlistMeta}>
+                <Text style={styles.playlistName} numberOfLines={1}>
+                  {item.name}
+                </Text>
+                <Text style={styles.playlistSub}>
+                  {(item.tracks || []).length} tracks
+                </Text>
+              </View>
+            </Pressable>
+          );
+        }}
         ListEmptyComponent={
-          <View style={styles.emptyWrap}>
-            <Text style={styles.emptyText}>No public playlists created yet</Text>
-          </View>
+          isSelf && selfTab === 'settings' ? null : (
+            <View style={styles.emptyWrap}>
+              <Text style={styles.emptyText}>
+                {isSelf && selfTab === 'history'
+                  ? 'No listening history recorded yet'
+                  : isSelf && selfTab === 'saved'
+                    ? 'No saved rooms pinned yet'
+                    : 'No playlists created yet'}
+              </Text>
+            </View>
+          )
         }
       />
     </SafeAreaView>
@@ -448,8 +696,8 @@ const styles = StyleSheet.create({
     gap: 16,
     marginTop: spacing.md,
     backgroundColor: 'rgba(255, 255, 255, 0.04)',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
     borderRadius: radius.md,
   },
   statBox: {
@@ -464,10 +712,11 @@ const styles = StyleSheet.create({
     color: colors.text3,
     fontFamily: fontFamily.bodyRegular,
     fontSize: 11,
+    marginTop: 1,
   },
   statDivider: {
     width: 1,
-    height: 24,
+    height: 22,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
   followBtn: {
@@ -475,38 +724,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     backgroundColor: colors.amber,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: radius.full,
     marginLeft: 8,
   },
+  followingBtn: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
   followBtnText: {
     color: '#08080a',
-    fontFamily: fontFamily.displayBold,
-    fontSize: 13,
-  },
-  followingBtn: {
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 12,
   },
   followingBtnText: {
     color: '#ffffff',
-    fontFamily: fontFamily.displayBold,
-    fontSize: 13,
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 12,
   },
   metricsCard: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-around',
     width: '100%',
-    backgroundColor: colors.bgSurface,
-    borderRadius: radius.lg,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: radius.md,
     paddingVertical: spacing.md,
     marginTop: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.hairline,
   },
   metricItem: {
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
   },
   metricValue: {
     color: colors.text1,
@@ -516,39 +766,71 @@ const styles = StyleSheet.create({
   metricLabel: {
     color: colors.text3,
     fontFamily: fontFamily.bodyRegular,
-    fontSize: 11,
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  tabBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: radius.full,
+    padding: 3,
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  tabItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 8,
+    borderRadius: radius.full,
+  },
+  tabItemActive: {
+    backgroundColor: 'rgba(255, 159, 28, 0.15)',
+  },
+  tabItemText: {
+    fontFamily: fontFamily.bodyMedium,
+    fontSize: 12,
+    color: colors.text3,
+  },
+  tabItemTextActive: {
+    fontFamily: fontFamily.bodySemiBold,
+    color: colors.amber,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     width: '100%',
     marginTop: spacing.lg,
     marginBottom: spacing.xs,
   },
   sectionTitle: {
-    color: colors.text2,
+    color: colors.amber,
     fontFamily: fontFamily.displayBold,
     fontSize: 12,
-    letterSpacing: 0.6,
+    letterSpacing: 0.8,
   },
   playlistCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: 12,
-    marginHorizontal: spacing.md,
-    marginVertical: 4,
-    borderRadius: radius.md,
+    gap: 12,
     backgroundColor: 'rgba(255, 255, 255, 0.03)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.04)',
-    gap: 12,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
   },
   playlistIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.sm,
+    width: 44,
+    height: 44,
+    borderRadius: 10,
     backgroundColor: 'rgba(255, 159, 28, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -558,7 +840,7 @@ const styles = StyleSheet.create({
   },
   playlistName: {
     color: colors.text1,
-    fontFamily: fontFamily.displaySemiBold,
+    fontFamily: fontFamily.bodySemiBold,
     fontSize: 14,
   },
   playlistSub: {
@@ -567,9 +849,170 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
-  emptyWrap: {
-    paddingVertical: 32,
+  historyRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginHorizontal: spacing.lg,
+    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: 10,
+    marginBottom: 6,
+    gap: 10,
+  },
+  historyArt: {
+    width: 38,
+    height: 38,
+    borderRadius: 6,
+  },
+  artFallback: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  historyMeta: {
+    flex: 1,
+  },
+  historyTitle: {
+    color: colors.text1,
+    fontFamily: fontFamily.bodyMedium,
+    fontSize: 13,
+  },
+  historyArtist: {
+    color: colors.text3,
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  historyTime: {
+    color: colors.text3,
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 10,
+  },
+  savedRoomCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    marginHorizontal: spacing.lg,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 12,
+    marginBottom: 8,
+    gap: 10,
+  },
+  roomIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255, 159, 28, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roomMeta: {
+    flex: 1,
+  },
+  roomName: {
+    color: colors.text1,
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 13,
+  },
+  roomHost: {
+    color: colors.text3,
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  joinPill: {
+    backgroundColor: colors.amber,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: radius.full,
+  },
+  joinPillText: {
+    color: '#08080a',
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 11,
+  },
+  settingsContainer: {
+    width: '100%',
+    paddingTop: spacing.sm,
+    gap: 12,
+  },
+  settingsCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  settingsCardTitle: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 12,
+    color: colors.amber,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: spacing.sm,
+  },
+  settingsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+  },
+  settingsRowLabel: {
+    color: colors.text1,
+    fontFamily: fontFamily.bodyMedium,
+    fontSize: 13,
+  },
+  settingsRowSub: {
+    color: colors.text3,
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  settingsValueText: {
+    color: colors.amber,
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 13,
+  },
+  clearCacheBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(244, 63, 94, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(244, 63, 94, 0.25)',
+    borderRadius: radius.sm,
+    paddingVertical: 9,
+    marginTop: spacing.md,
+  },
+  clearCacheBtnText: {
+    color: colors.red,
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 12,
+  },
+  signOutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#dc2626',
+    borderRadius: radius.sm,
+    paddingVertical: 10,
+    marginTop: spacing.xs,
+  },
+  signOutBtnText: {
+    color: '#ffffff',
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 13,
+  },
+  emptyWrap: {
+    alignItems: 'center',
+    paddingVertical: spacing.xl,
   },
   emptyText: {
     color: colors.text3,

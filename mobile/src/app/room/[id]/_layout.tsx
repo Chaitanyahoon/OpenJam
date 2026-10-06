@@ -208,7 +208,7 @@ export default function RoomLayout() {
   const password = Array.isArray(params.password) ? params.password[0] : params.password;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <InitialNameCtx.Provider value={initialName}>
         <RoomProvider key={id} roomId={id} password={password}>
           <RoomGuards>

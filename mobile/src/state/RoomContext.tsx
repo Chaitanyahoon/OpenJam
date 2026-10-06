@@ -434,7 +434,27 @@ export function RoomProvider({
     const onChatMessage = (m: ChatMessage) => {
       if (!mounted || !m || seenMsgIds.current.has(m.id)) return;
       seenMsgIds.current.add(m.id);
-      setMessages((prev) => [...prev.slice(-199), m]);
+      setMessages((prev) => {
+        // If this message is from current user, check if we have a pending optimistic temp message
+        const isFromMe =
+          (!!meRef.current && (m.user_id === meRef.current.id || m.user_name === meRef.current.display_name)) ||
+          m.user_id === 'me';
+        if (isFromMe) {
+          const optIndex = prev.findIndex(
+            (msg) =>
+              msg.id.startsWith('temp_') &&
+              (msg.user_id === m.user_id || msg.user_id === 'me' || msg.user_name === m.user_name) &&
+              msg.content === m.content,
+          );
+          if (optIndex !== -1) {
+            // Replace optimistic temp message in-place with verified server message
+            const next = [...prev];
+            next[optIndex] = m;
+            return next;
+          }
+        }
+        return [...prev.slice(-199), m];
+      });
       if (!chatFocusedRef.current && m.user_id !== meRef.current?.id) {
         setUnreadChat((n) => n + 1);
       }
@@ -442,9 +462,13 @@ export function RoomProvider({
     const onChatAck = (ack: { id: string; temp_id?: string }) => {
       if (!mounted || !ack?.temp_id) return;
       seenMsgIds.current.add(ack.id);
-      setMessages((prev) =>
-        prev.map((m) => (m.id === ack.temp_id ? { ...m, id: ack.id } : m)),
-      );
+      setMessages((prev) => {
+        const alreadyHasServerMsg = prev.some((m) => m.id === ack.id);
+        if (alreadyHasServerMsg) {
+          return prev.filter((m) => m.id !== ack.temp_id);
+        }
+        return prev.map((m) => (m.id === ack.temp_id ? { ...m, id: ack.id } : m));
+      });
     };
     const onReaction = (r: ReactionEvent) => {
       if (!mounted || !r?.emoji) return;
@@ -583,6 +607,7 @@ export function RoomProvider({
       const text = content.trim();
       if (!text || !socketRef.current) return;
       const tempId = `temp_${Math.random().toString(36).slice(2, 10)}`;
+      seenMsgIds.current.add(tempId);
       const optimistic: ChatMessage = {
         id: tempId,
         user_id: meRef.current?.id ?? 'me',

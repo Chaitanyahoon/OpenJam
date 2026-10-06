@@ -41,6 +41,41 @@ import { hapticLight, hapticMedium, hapticHeavy } from '../utils/haptics';
 
 const DISCOVERY_CHIPS = ['Lofi Beats', 'Synthwave', 'Chillhop', 'Anime OST', 'Jazz Hop', 'Gaming Chill'];
 
+const CURATED_RECOMMENDATIONS = [
+  {
+    track_uri: 'jfKfPfyJRdk',
+    track_name: 'Lofi Hip Hop Chill Beats',
+    artist: 'Lofi Girl',
+    album_art_url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=300&q=80',
+    duration_ms: 180000,
+    tag: 'Lofi',
+  },
+  {
+    track_uri: '4xDzrJKXOOY',
+    track_name: 'Synthwave Night Drive',
+    artist: 'Retro Dreamer',
+    album_art_url: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=300&q=80',
+    duration_ms: 210000,
+    tag: 'Synthwave',
+  },
+  {
+    track_uri: '5qap5aO4i9A',
+    track_name: 'Coffee Shop Acoustic Chill',
+    artist: 'Acoustic Jam',
+    album_art_url: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=300&q=80',
+    duration_ms: 195000,
+    tag: 'Acoustic',
+  },
+  {
+    track_uri: 'DWcJFNfaw9c',
+    track_name: 'Midnight City Dreams',
+    artist: 'Neon Sunset',
+    album_art_url: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&q=80',
+    duration_ms: 240000,
+    tag: 'Electronic',
+  },
+];
+
 function fmtDuration(ms?: number): string {
   if (!ms || ms <= 0) return '';
   const s = Math.floor(ms / 1000);
@@ -400,10 +435,12 @@ export function QueueList() {
                     {nowPlaying ? 'No songs up next' : 'Queue is empty'}
                   </Text>
                   <Text style={styles.emptySub}>
-                    Search for any song above or tap a vibe to keep the music playing:
+                    {nowPlaying
+                      ? 'Add more tracks to keep the music flowing seamlessly:'
+                      : 'Search above or tap + on a recommended track to kick off the session:'}
                   </Text>
                   <View style={styles.emptyPromptRow}>
-                    {DISCOVERY_CHIPS.slice(0, 4).map((chip) => (
+                    {DISCOVERY_CHIPS.map((chip) => (
                       <Pressable
                         key={chip}
                         onPress={() => {
@@ -416,6 +453,40 @@ export function QueueList() {
                         <Sparkles size={11} color={colors.amber} />
                         <Text style={styles.emptyChipText}>{chip}</Text>
                       </Pressable>
+                    ))}
+                  </View>
+
+                  {/* Recommended Starter Tracks Cards */}
+                  <View style={styles.recSection}>
+                    <View style={styles.recHeaderRow}>
+                      <Text style={styles.recSectionTitle}>RECOMMENDED TRACKS</Text>
+                      <Text style={styles.recSectionSub}>1-Tap Quick Add</Text>
+                    </View>
+                    {CURATED_RECOMMENDATIONS.map((track) => (
+                      <View key={track.track_uri} style={styles.recRow}>
+                        <Image source={{ uri: track.album_art_url }} style={styles.recArt} contentFit="cover" />
+                        <View style={styles.recInfo}>
+                          <Text style={styles.recName} numberOfLines={1}>{track.track_name}</Text>
+                          <View style={styles.recMetaRow}>
+                            <Text style={styles.recArtist} numberOfLines={1}>{track.artist}</Text>
+                            <View style={styles.recTagBadge}>
+                              <Text style={styles.recTagText}>{track.tag}</Text>
+                            </View>
+                          </View>
+                        </View>
+                        <Pressable
+                          onPress={() => {
+                            addTrack(track);
+                            toast(`Added "${track.track_name}" to queue`, 'success');
+                            void hapticMedium();
+                          }}
+                          style={({ pressed }) => [styles.recAddBtn, pressed && styles.pressed]}
+                          hitSlop={8}
+                          accessibilityLabel={`Add ${track.track_name} to queue`}
+                        >
+                          <Plus size={16} color={colors.amber} />
+                        </Pressable>
+                      </View>
                     ))}
                   </View>
                 </View>
@@ -983,5 +1054,87 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.75,
+  },
+  recSection: {
+    width: '100%',
+    marginTop: spacing.xl,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  recHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+    paddingHorizontal: 2,
+  },
+  recSectionTitle: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 11.5,
+    color: colors.amber,
+    letterSpacing: 0.8,
+  },
+  recSectionSub: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 11,
+    color: colors.text3,
+  },
+  recRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 12,
+    padding: 8,
+    marginBottom: 8,
+    gap: 10,
+  },
+  recArt: {
+    width: 42,
+    height: 42,
+    borderRadius: 8,
+  },
+  recInfo: {
+    flex: 1,
+  },
+  recName: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 13,
+    color: colors.text1,
+  },
+  recMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  recArtist: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 11,
+    color: colors.text3,
+    flexShrink: 1,
+  },
+  recTagBadge: {
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: radius.full,
+  },
+  recTagText: {
+    fontFamily: fontFamily.bodyMedium,
+    fontSize: 9,
+    color: colors.amber,
+  },
+  recAddBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

@@ -100,7 +100,7 @@ export interface ChatMessage {
   user_id: string;
   user_name: string;
   content: string;
-  timestamp: number;
+  timestamp: number | string;
   avatar_url?: string | null;
   is_system?: boolean;
   system_type?: 'join' | 'leave' | 'host' | 'skip' | 'info';

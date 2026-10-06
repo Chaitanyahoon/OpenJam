@@ -366,18 +366,16 @@ export function ProfileModal({
                 </Pressable>
               ) : null}
 
-              {user?.id ? (
-                <Pressable
-                  onPress={() => {
-                    onClose();
-                    router.push({ pathname: '/profile/[id]', params: { id: user.id } });
-                  }}
-                  style={({ pressed }) => [styles.viewPublicProfileBtn, pressed && styles.pressed]}
-                >
-                  <Text style={styles.viewPublicProfileText}>View Public Profile</Text>
-                  <ChevronRight size={14} color={colors.amber} />
-                </Pressable>
-              ) : null}
+              <Pressable
+                onPress={() => {
+                  onClose();
+                  router.push({ pathname: '/profile/[id]', params: { id: user?.id || 'me' } });
+                }}
+                style={({ pressed }) => [styles.viewPublicProfileBtn, pressed && styles.pressed]}
+              >
+                <Text style={styles.viewPublicProfileText}>Open Full Profile & Library</Text>
+                <ChevronRight size={14} color={colors.amber} />
+              </Pressable>
             </View>
 
             {/* Borderless Listening Stats Strip */}

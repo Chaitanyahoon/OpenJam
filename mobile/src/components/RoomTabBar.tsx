@@ -106,7 +106,7 @@ export function RoomTabBar({ state, navigation }: TabBarProps) {
   const { unreadChat, listeners } = useRoom();
   const current = state.routes[state.index]?.name;
   const showMini = current !== 'player';
-  const bottomPad = Math.max(insets.bottom, 8);
+  const bottomPad = Math.max(insets.bottom, 12);
 
   const go = (routeName: string, index: number) => {
     const event = navigation.emit({

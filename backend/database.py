@@ -379,14 +379,20 @@ def init_db():
 
 
 def safe_isoformat(dt) -> str:
-    """Safely convert a datetime object or raw SQLite string to an ISO 8601 formatted string."""
+    """Safely convert a datetime object or raw SQLite string to an ISO 8601 formatted UTC string."""
     if dt is None:
         return None
     if isinstance(dt, str):
         # Normalize SQLite space separator to 'T'
-        return dt.replace(" ", "T")
+        iso = dt.replace(" ", "T")
+        if not iso.endswith("Z") and "+" not in iso:
+            iso += "Z"
+        return iso
     if hasattr(dt, "isoformat"):
+        if getattr(dt, "tzinfo", None) is None:
+            return dt.isoformat() + "Z"
         return dt.isoformat()
     return str(dt)
+
 
 

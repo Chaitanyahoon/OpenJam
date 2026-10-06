@@ -73,9 +73,20 @@ export function initials(name?: string | null): string {
     .toUpperCase();
 }
 
-function formatTimestamp(ts: number): string {
+function formatTimestamp(ts: number | string): string {
   if (!ts) return '';
-  const d = new Date(ts);
+  let d: Date;
+  if (typeof ts === 'string') {
+    const clean = ts.trim();
+    if (!clean.endsWith('Z') && !clean.includes('+') && !clean.slice(10).includes('-')) {
+      d = new Date(`${clean}Z`);
+    } else {
+      d = new Date(clean);
+    }
+  } else {
+    d = new Date(ts);
+  }
+  if (isNaN(d.getTime())) return '';
   let h = d.getHours();
   const m = d.getMinutes();
   const ampm = h >= 12 ? 'PM' : 'AM';

@@ -76,6 +76,33 @@ export const REACTION_OPTIONS = [
 const DEFAULT_ARTWORK_SIZE = 280;
 const DEFAULT_DISC_SIZE = DEFAULT_ARTWORK_SIZE - 12;
 
+const STARTER_VIBES = [
+  {
+    id: 'lofi',
+    track_name: 'Lofi Hip Hop Chill Beats',
+    artist: 'Lofi Girl',
+    track_uri: 'jfKfPfyJRdk',
+    album_art_url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=300&q=80',
+    duration_ms: 180000,
+  },
+  {
+    id: 'synthwave',
+    track_name: 'Synthwave Night Drive',
+    artist: 'Retro Dreamer',
+    track_uri: '4xDzrJKXOOY',
+    album_art_url: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=300&q=80',
+    duration_ms: 210000,
+  },
+  {
+    id: 'coffee',
+    track_name: 'Coffee Shop Acoustic Chill',
+    artist: 'Acoustic Jam',
+    track_uri: '5qap5aO4i9A',
+    album_art_url: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=300&q=80',
+    duration_ms: 195000,
+  },
+];
+
 function fmt(ms: number): string {
   if (!ms || ms < 0 || !isFinite(ms)) return '0:00';
   const sec = Math.floor(ms / 1000);
@@ -83,8 +110,6 @@ function fmt(ms: number): string {
   const s = sec % 60;
   return `${m}:${s < 10 ? '0' : ''}${s}`;
 }
-
-
 
 const lyricsCache = new Map<string, Lyrics>();
 
@@ -108,6 +133,8 @@ export default function PlayerTab() {
     skipVotes,
     syncReady,
     sendReaction,
+    addTrack,
+    playNow,
   } = useRoom();
   const player = usePlayer();
   const { durationMs } = usePlayerStatus();
@@ -317,7 +344,7 @@ export default function PlayerTab() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.container}
+        contentContainerStyle={[styles.container, !nowPlaying && styles.containerCentered]}
         showsVerticalScrollIndicator={false}
       >
         {/* Prominent Vinyl Turntable Stage (Spotify inspired size, responsive clamped) */}
@@ -665,6 +692,43 @@ export default function PlayerTab() {
                 <Text style={styles.addTrackButtonText}>Add Songs to Queue</Text>
               </LinearGradient>
             </Pressable>
+
+            {/* Quick-Start Instant Vibes */}
+            <View style={styles.starterSection}>
+              <View style={styles.starterHeader}>
+                <Sparkles size={14} color={colors.amber} />
+                <Text style={styles.starterSectionTitle}>Instant Starter Vibes</Text>
+              </View>
+              <View style={styles.starterGrid}>
+                {STARTER_VIBES.map((v) => (
+                  <Pressable
+                    key={v.id}
+                    onPress={() => {
+                      if (canControl) {
+                        playNow(v);
+                      } else {
+                        addTrack(v);
+                      }
+                      void hapticMedium();
+                    }}
+                    style={({ pressed }) => [styles.starterCard, pressed && styles.pressed]}
+                  >
+                    <Image source={{ uri: v.album_art_url }} style={styles.starterArt} contentFit="cover" />
+                    <View style={styles.starterMeta}>
+                      <Text style={styles.starterTitle} numberOfLines={1}>{v.track_name}</Text>
+                      <Text style={styles.starterArtist} numberOfLines={1}>{v.artist}</Text>
+                    </View>
+                    <View style={styles.starterActionBtn}>
+                      {canControl ? (
+                        <Play size={12} color={colors.amber} fill={colors.amber} style={{ marginLeft: 1 }} />
+                      ) : (
+                        <Plus size={14} color={colors.amber} />
+                      )}
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
           </View>
         )}
       </ScrollView>
@@ -1231,5 +1295,74 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.82,
     transform: [{ scale: 0.96 }],
+  },
+  containerCentered: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingVertical: spacing.xl,
+  },
+  starterSection: {
+    width: '100%',
+    marginTop: spacing.xl,
+    paddingTop: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  starterHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: spacing.md,
+    alignSelf: 'flex-start',
+  },
+  starterSectionTitle: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 12,
+    color: colors.amber,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  starterGrid: {
+    gap: 8,
+    width: '100%',
+  },
+  starterCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#12121c',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 14,
+    padding: 8,
+    gap: 12,
+  },
+  starterArt: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+  },
+  starterMeta: {
+    flex: 1,
+  },
+  starterTitle: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 13,
+    color: colors.text1,
+  },
+  starterArtist: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 11,
+    color: colors.text3,
+    marginTop: 2,
+  },
+  starterActionBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
