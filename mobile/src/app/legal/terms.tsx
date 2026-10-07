@@ -4,13 +4,14 @@
  */
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ChevronLeft, FileText } from 'lucide-react-native';
 import { colors, radius, spacing } from '../../theme';
 import { fontFamily } from '../../fonts';
 
 export default function TermsOfServiceScreen() {
+  const insets = useSafeAreaInsets();
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       {/* Top Header */}
@@ -29,7 +30,10 @@ export default function TermsOfServiceScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom, 24) + 24 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.badgeRow}>
@@ -107,6 +111,7 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: colors.bgBase,
+    overflow: 'hidden',
   },
   topBar: {
     flexDirection: 'row',
@@ -117,6 +122,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.hairline,
     backgroundColor: '#0c0c12',
+    maxWidth: 600,
+    width: '100%',
+    alignSelf: 'center',
   },
   barTitle: {
     color: colors.text1,
@@ -145,6 +153,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
     paddingBottom: 48,
+    maxWidth: 600,
+    width: '100%',
+    alignSelf: 'center',
   },
   badgeRow: {
     flexDirection: 'row',

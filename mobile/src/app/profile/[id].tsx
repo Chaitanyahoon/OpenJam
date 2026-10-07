@@ -27,7 +27,7 @@ import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import {
@@ -106,6 +106,7 @@ function formatRelativeTime(timestamp: number): string {
 export default function UserProfileScreen() {
   const params = useLocalSearchParams<{ id: string }>();
   const rawId = Array.isArray(params.id) ? params.id[0] : params.id;
+  const insets = useSafeAreaInsets();
   const toast = useToast();
 
   const [loading, setLoading] = useState(true);
@@ -405,7 +406,10 @@ export default function UserProfileScreen() {
             : playlists
         }
         keyExtractor={(item: any, idx) => item.id || item.track_uri || `item-${idx}`}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom, 20) + 24 },
+        ]}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View style={styles.headerSection}>
@@ -814,6 +818,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.hairline,
     backgroundColor: '#0c0c12',
+    maxWidth: 600,
+    width: '100%',
+    alignSelf: 'center',
   },
   barTitle: {
     color: colors.text1,
@@ -849,6 +856,9 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.displayBold,
   },
   scrollContent: {
+    maxWidth: 600,
+    width: '100%',
+    alignSelf: 'center',
     paddingBottom: 40,
   },
   headerSection: {

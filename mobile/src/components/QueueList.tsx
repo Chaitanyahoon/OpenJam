@@ -734,6 +734,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text1,
     paddingVertical: 0,
+    minWidth: 0,
   },
   clearBtn: {
     paddingLeft: 8,

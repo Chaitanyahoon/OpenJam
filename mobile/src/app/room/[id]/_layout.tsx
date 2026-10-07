@@ -243,6 +243,9 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.hairline,
     backgroundColor: '#0c0c12',
     gap: 12,
+    maxWidth: 600,
+    width: '100%',
+    alignSelf: 'center',
   },
   backBtn: {
     width: 36,

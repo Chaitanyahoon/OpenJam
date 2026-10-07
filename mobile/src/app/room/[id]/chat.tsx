@@ -114,6 +114,9 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.xs,
+    maxWidth: 600,
+    width: '100%',
+    alignSelf: 'center',
   },
   presenceSection: {
     paddingVertical: spacing.xs,

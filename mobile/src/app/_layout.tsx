@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -18,6 +18,7 @@ import { PlayerProvider } from '../audio/PlayerContext';
 import { SocketProvider } from '../state/SocketContext';
 import { ToastProvider } from '../components/ToastContext';
 import { colors } from '../theme';
+import { AppLoadingScreen } from '../components/AppLoadingScreen';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -32,8 +33,13 @@ export default function RootLayout() {
     Poppins_600SemiBold,
   });
 
+  const [splashGone, setSplashGone] = useState(false);
+
   useEffect(() => {
-    if (fontsLoaded) SplashScreen.hideAsync().catch(() => {});
+    if (fontsLoaded) {
+      // Release native splash immediately since AppLoadingScreen continues the branded sequence
+      SplashScreen.hideAsync().catch(() => {});
+    }
   }, [fontsLoaded]);
 
   if (!fontsLoaded) return null;
@@ -57,6 +63,14 @@ export default function RootLayout() {
             <Stack.Screen name="legal/privacy" />
             <Stack.Screen name="legal/terms" />
           </Stack>
+
+          {/* Seamless animated branding loading overlay */}
+          {!splashGone && (
+            <AppLoadingScreen
+              isReady={Boolean(fontsLoaded)}
+              onFinished={() => setSplashGone(true)}
+            />
+          )}
         </ToastProvider>
       </SocketProvider>
     </PlayerProvider>

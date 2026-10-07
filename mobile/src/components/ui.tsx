@@ -140,6 +140,7 @@ const styles = StyleSheet.create({
     fontSize: 16, // 16px prevents iOS auto-zoom on focus
     fontFamily: fontFamily.bodyRegular,
     color: colors.text1,
+    minWidth: 0,
   },
   title: {
     fontFamily: fontFamily.displaySemiBold,

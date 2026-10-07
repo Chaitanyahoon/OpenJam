@@ -426,6 +426,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
     paddingBottom: spacing.xl * 1.5,
+    maxWidth: 600,
+    width: '100%',
+    alignSelf: 'center',
   },
   // Share Card
   shareCard: {

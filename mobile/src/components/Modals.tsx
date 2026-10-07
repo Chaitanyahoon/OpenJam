@@ -26,6 +26,7 @@ import {
   QrCode,
   Headphones,
   Sparkles,
+  KeyRound,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
@@ -99,10 +100,12 @@ export function CreateRoomModal({
   const [error, setError] = useState<string | null>(null);
 
   const rollRoomName = () => {
+    void hapticMedium();
     setName(getRandomRoomName());
   };
 
   const toggleTag = (tag: string) => {
+    void hapticMedium();
     setSelectedTags((prev) =>
       prev.includes(tag) ? prev.filter((t) => t !== tag) : prev.length < 3 ? [...prev, tag] : prev,
     );
@@ -132,6 +135,10 @@ export function CreateRoomModal({
 
   return (
     <Shell visible={visible} onClose={onClose}>
+      <View style={styles.createModalBadge}>
+        <Sparkles size={11} color={colors.amber} strokeWidth={2.4} />
+        <Text style={styles.createModalBadgeText}>LIVE AUDIO ROOM</Text>
+      </View>
       <Title>Start a New Jam</Title>
       <Subtitle style={styles.sub}>Spin up a room in seconds. Invite friends with a link.</Subtitle>
       <View style={styles.gap} />
@@ -326,23 +333,17 @@ export function IdentityModal({
               {/* Brand Emblem with Ambient Aura */}
               <View style={styles.welcomeHeroWrap}>
                 <View style={styles.welcomeEmblemAura} pointerEvents="none" />
-                <Image
-                  source={openjamEmblem}
-                  style={styles.welcomeEmblem}
-                  resizeMode="contain"
-                />
-              </View>
-
-              {/* Pill Badge */}
-              <View style={styles.welcomeBadge}>
-                <Sparkles size={11} color={colors.amber} strokeWidth={2.4} />
-                <Text style={styles.welcomeBadgeText}>LISTEN TOGETHER • REAL-TIME SYNC</Text>
+                <View style={styles.welcomeEmblemWrap}>
+                  <Image
+                    source={openjamEmblem}
+                    style={styles.welcomeEmblem}
+                    resizeMode="contain"
+                  />
+                </View>
               </View>
 
               <Title style={styles.welcomeTitle}>Welcome to OpenJam</Title>
-              <Text style={styles.welcomeSubtitle}>
-                Stream synchronized music in real-time rooms with friends and global music lovers.
-              </Text>
+              <Text style={styles.welcomeSubtitle}>Listen together in sync.</Text>
 
               {/* Sign-In Error Alert Banner */}
               {authError ? (
@@ -355,21 +356,9 @@ export function IdentityModal({
                 </View>
               ) : null}
 
-              {/* Option 1: Discord (Recommended) */}
+              {/* Primary Action: Discord */}
               {onDiscordLogin ? (
-                <View style={styles.authCardDiscord}>
-                  <View style={styles.authCardDiscordHeader}>
-                    <View style={styles.authCardDiscordTitleWrap}>
-                      <Text style={styles.authCardDiscordTitle}>Discord Account</Text>
-                      <View style={styles.recommendedBadge}>
-                        <Text style={styles.recommendedBadgeText}>RECOMMENDED</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.authCardDiscordSub}>
-                      Host rooms, sync custom avatar, save favorites & keep queue rights.
-                    </Text>
-                  </View>
-
+                <View style={styles.discordActionWrap}>
                   <Pressable
                     onPress={() => {
                       onClearError?.();
@@ -386,25 +375,18 @@ export function IdentityModal({
 
               <View style={styles.welcomeDividerRow}>
                 <View style={styles.welcomeDividerLine} />
-                <Text style={styles.welcomeDividerText}>OR INSTANT ACCESS</Text>
+                <Text style={styles.welcomeDividerText}>or</Text>
                 <View style={styles.welcomeDividerLine} />
               </View>
 
-              {/* Option 2: Guest Mode */}
-              <View style={styles.authCardGuest}>
-                <View style={styles.guestCardHeader}>
-                  <Text style={styles.guestCardTitle}>Guest Access</Text>
-                  <Text style={styles.guestCardSub}>
-                    Jump straight into rooms with a temporary nickname. No account needed.
-                  </Text>
-                </View>
-
+              {/* Secondary Action: Instant Guest Access */}
+              <View style={styles.guestActionWrap}>
                 <View style={styles.inputWithDice}>
                   <View style={{ flex: 1 }}>
                     <Field
                       value={name}
                       onChangeText={setName}
-                      placeholder="Enter nickname (or roll one)"
+                      placeholder="Choose a nickname"
                       onSubmitEditing={() => onDone(name.trim() || getRandomName())}
                     />
                   </View>
@@ -436,7 +418,7 @@ export function IdentityModal({
                   hitSlop={10}
                   accessibilityLabel="Browse rooms without signing in"
                 >
-                  <Text style={styles.browseWithoutSignInText}>Just exploring? Browse public rooms</Text>
+                  <Text style={styles.browseWithoutSignInText}>Browse rooms</Text>
                 </Pressable>
               ) : null}
             </ScrollView>
@@ -457,8 +439,19 @@ export function JoinWithCodeModal({
   onJoin: (roomCode: string) => void;
 }) {
   const [code, setCode] = useState('');
+
+  const handleJoin = () => {
+    if (!code.trim()) return;
+    void hapticMedium();
+    onJoin(code.trim());
+  };
+
   return (
     <Shell visible={visible} onClose={onClose}>
+      <View style={styles.createModalBadge}>
+        <KeyRound size={11} color={colors.amber} strokeWidth={2.4} />
+        <Text style={styles.createModalBadgeText}>DIRECT ACCESS</Text>
+      </View>
       <Title>Join with Code</Title>
       <Subtitle style={styles.sub}>Enter room ID or paste room link to jump straight in.</Subtitle>
       <View style={styles.gap} />
@@ -468,12 +461,12 @@ export function JoinWithCodeModal({
         placeholder="e.g. openjam-lounge or room link"
         autoCapitalize="none"
         autoCorrect={false}
-        onSubmitEditing={() => code.trim() && onJoin(code.trim())}
+        onSubmitEditing={handleJoin}
       />
       <View style={styles.gap} />
       <PrimaryButton
         title="Join Room"
-        onPress={() => code.trim() && onJoin(code.trim())}
+        onPress={handleJoin}
         disabled={!code.trim()}
       />
     </Shell>
@@ -805,6 +798,29 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.09)',
     borderRadius: 24,
     padding: spacing.lg,
+    maxWidth: 480,
+    width: '100%',
+    alignSelf: 'center',
+    overflow: 'hidden',
+  },
+  createModalBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255, 159, 28, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.25)',
+    borderRadius: radius.full,
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
+    alignSelf: 'flex-start',
+    marginBottom: spacing.xs + 2,
+  },
+  createModalBadgeText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 9,
+    letterSpacing: 1,
+    color: colors.amber,
   },
   sub: { marginTop: 4 },
   gap: { height: spacing.md },
@@ -871,11 +887,11 @@ const styles = StyleSheet.create({
   },
   closeModalBtn: {
     position: 'absolute',
-    top: 14,
-    right: 14,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    top: 16,
+    right: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1058,22 +1074,29 @@ const styles = StyleSheet.create({
   },
   welcomeEmblemAura: {
     position: 'absolute',
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: 'rgba(255, 159, 28, 0.18)',
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    backgroundColor: 'rgba(255, 159, 28, 0.16)',
     shadowColor: colors.amber,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.65,
-    shadowRadius: 20,
+    shadowRadius: 22,
     elevation: 6,
   },
-  welcomeEmblem: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+  welcomeEmblemWrap: {
+    width: 82,
+    height: 82,
+    borderRadius: 41,
+    backgroundColor: 'rgba(18, 18, 26, 0.85)',
     borderWidth: 1.5,
     borderColor: 'rgba(255, 159, 28, 0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  welcomeEmblem: {
+    width: 70,
+    height: 70,
   },
   welcomeBadge: {
     flexDirection: 'row',
@@ -1102,13 +1125,11 @@ const styles = StyleSheet.create({
   },
   welcomeSubtitle: {
     fontFamily: fontFamily.bodyRegular,
-    fontSize: 12.5,
-    lineHeight: 18,
+    fontSize: 14,
     color: colors.text2,
     textAlign: 'center',
-    maxWidth: 300,
     marginTop: 4,
-    marginBottom: spacing.md,
+    marginBottom: spacing.lg,
   },
   authErrorCard: {
     width: '100%',
@@ -1136,53 +1157,14 @@ const styles = StyleSheet.create({
     color: '#fecdd3',
     lineHeight: 16,
   },
-  authCardDiscord: {
+  discordActionWrap: {
     width: '100%',
-    backgroundColor: 'rgba(88, 101, 242, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(88, 101, 242, 0.32)',
-    borderRadius: radius.lg,
-    padding: spacing.md,
-  },
-  authCardDiscordHeader: {
-    marginBottom: spacing.sm,
-  },
-  authCardDiscordTitleWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 3,
-  },
-  authCardDiscordTitle: {
-    fontFamily: fontFamily.bodySemiBold,
-    fontSize: 14,
-    color: '#ffffff',
-  },
-  recommendedBadge: {
-    backgroundColor: 'rgba(88, 101, 242, 0.25)',
-    borderWidth: 1,
-    borderColor: 'rgba(88, 101, 242, 0.5)',
-    borderRadius: radius.full,
-    paddingHorizontal: 7,
-    paddingVertical: 1.5,
-  },
-  recommendedBadgeText: {
-    fontFamily: fontFamily.bodySemiBold,
-    fontSize: 8.5,
-    letterSpacing: 0.8,
-    color: '#c7d2fe',
-  },
-  authCardDiscordSub: {
-    fontFamily: fontFamily.bodyRegular,
-    fontSize: 11.5,
-    lineHeight: 16,
-    color: '#cbd5e1',
   },
   welcomeDividerRow: {
     width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: spacing.md - 2,
+    marginVertical: spacing.md,
   },
   welcomeDividerLine: {
     flex: 1,
@@ -1190,34 +1172,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
   welcomeDividerText: {
-    fontFamily: fontFamily.bodySemiBold,
-    fontSize: 9.5,
-    letterSpacing: 1.2,
-    color: colors.text3,
-    marginHorizontal: spacing.sm,
-  },
-  authCardGuest: {
-    width: '100%',
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: radius.lg,
-    padding: spacing.md,
-  },
-  guestCardHeader: {
-    marginBottom: spacing.xs,
-  },
-  guestCardTitle: {
-    fontFamily: fontFamily.bodySemiBold,
-    fontSize: 14,
-    color: '#ffffff',
-    marginBottom: 2,
-  },
-  guestCardSub: {
     fontFamily: fontFamily.bodyRegular,
-    fontSize: 11.5,
-    lineHeight: 16,
-    color: colors.text2,
+    fontSize: 12,
+    color: colors.text3,
+    marginHorizontal: spacing.md,
+  },
+  guestActionWrap: {
+    width: '100%',
   },
   browseWithoutSignInBtn: {
     paddingVertical: 12,

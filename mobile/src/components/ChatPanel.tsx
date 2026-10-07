@@ -331,6 +331,9 @@ export const ChatPanel = forwardRef<ChatPanelRef, { onMentionUser?: (name: strin
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    maxWidth: 600,
+    width: '100%',
+    alignSelf: 'center',
   },
   list: {
     flex: 1,
@@ -532,6 +535,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: fontFamily.bodyRegular,
     color: colors.text1,
+    minWidth: 0,
   },
   sendBtn: {
     width: 44,

@@ -176,6 +176,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#12121c',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+    maxWidth: 600,
+    width: '100%',
+    alignSelf: 'center',
   },
   miniProgressBg: {
     height: 2,
@@ -237,6 +240,9 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     paddingTop: 6,
     backgroundColor: '#0c0c12',
+    maxWidth: 600,
+    width: '100%',
+    alignSelf: 'center',
   },
   tab: {
     flex: 1,

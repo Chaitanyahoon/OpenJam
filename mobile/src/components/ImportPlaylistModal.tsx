@@ -20,6 +20,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import {
   X,
@@ -136,6 +137,8 @@ export function ImportPlaylistModal({
   };
 
   const source = detectSource(url);
+  const insets = useSafeAreaInsets();
+  const bottomPad = Math.max(insets.bottom, 20) + 12;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -144,7 +147,7 @@ export function ImportPlaylistModal({
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.sheetWrap}
         >
-          <View style={styles.sheetContainer}>
+          <View style={[styles.sheetContainer, { paddingBottom: bottomPad }]}>
             {/* Header */}
             <View style={styles.sheetHeader}>
               <View style={styles.headerLeft}>
@@ -339,6 +342,8 @@ const styles = StyleSheet.create({
   },
   sheetWrap: {
     width: '100%',
+    maxWidth: 580,
+    alignSelf: 'center',
   },
   sheetContainer: {
     backgroundColor: '#121217',
@@ -348,7 +353,6 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.1)',
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
-    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
     maxHeight: '85%',
   },
   sheetHeader: {
@@ -410,6 +414,7 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     color: colors.text1,
     paddingVertical: 0,
+    minWidth: 0,
   },
   inputClearBtn: {
     padding: 4,

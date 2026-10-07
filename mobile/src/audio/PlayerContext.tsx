@@ -26,6 +26,7 @@ import {
   type YouTubeAudioBridgeRef,
 } from './YouTubeAudioBridge';
 import { getBackendUrl } from '../api';
+import { getVaultTrack, recordVaultTrackPlayed } from '../storage/vault';
 
 export interface LockScreenMeta {
   title: string;
@@ -116,6 +117,32 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const loadTrack = useCallback(
     async (urlOrId: string, meta: LockScreenMeta): Promise<void> => {
+      // 1. Direct local sandboxed file playback
+      if (urlOrId && urlOrId.startsWith('file://')) {
+        ytBridgeRef.current?.pause();
+        setActiveDriver('expo');
+        setYtPlaying(false);
+        player.replace({ uri: urlOrId });
+        player.volume = volumeRef.current;
+        player.play();
+        return;
+      }
+
+      // 2. Check if track is pre-cached in sandboxed offline vault
+      try {
+        const vaultTrack = await getVaultTrack(urlOrId);
+        if (vaultTrack && vaultTrack.local_file_uri) {
+          ytBridgeRef.current?.pause();
+          setActiveDriver('expo');
+          setYtPlaying(false);
+          player.replace({ uri: vaultTrack.local_file_uri });
+          player.volume = volumeRef.current;
+          player.play();
+          void recordVaultTrackPlayed(urlOrId);
+          return;
+        }
+      } catch {}
+
       let ytId = parseYouTubeId(urlOrId);
 
       // If it's a search title or query with spaces, resolve via backend search/resolve endpoint
@@ -143,8 +170,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         sampleRef.current = { at: Date.now(), posMs: 0, playing: true };
         setYtPlaying(true);
         ytBridgeRef.current?.loadVideo(ytId, 0, true, volumeRef.current);
-      } else if (urlOrId && urlOrId.startsWith('http')) {
-        // Direct stream URL
+      } else if (urlOrId && (urlOrId.startsWith('http') || urlOrId.startsWith('file://'))) {
+        // Direct stream URL or file URI
         ytBridgeRef.current?.pause();
         setActiveDriver('expo');
         setYtPlaying(false);

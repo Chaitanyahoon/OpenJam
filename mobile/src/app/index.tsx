@@ -35,6 +35,7 @@ import {
   Plus,
   Bookmark,
   Radio,
+  HardDrive,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
@@ -52,6 +53,7 @@ import {
 } from '../api';
 import { useSocket } from '../state/SocketContext';
 import { RoomCard } from '../components/RoomCard';
+import { RoomCardSkeletonList } from '../components/RoomCardSkeleton';
 import {
   CreateRoomModal,
   IdentityModal,
@@ -99,6 +101,7 @@ export default function Landing() {
   const [user, setUser] = useState<ApiUser | null>(null);
   const [rooms, setRooms] = useState<RoomSummary[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
   const [selectedGenre, setSelectedGenre] = useState('All');
   const [refreshing, setRefreshing] = useState(false);
   const [showIdentity, setShowIdentity] = useState(false);
@@ -372,7 +375,9 @@ export default function Landing() {
     );
   }, [rooms, searchQuery, selectedGenre]);
 
-  const initials = user ? (user.display_name || '?').slice(0, 2).toUpperCase() : '?';
+  const initials = user
+    ? (user.display_name || user.discord_username || '?').slice(0, 2).toUpperCase()
+    : '?';
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
@@ -388,9 +393,10 @@ export default function Landing() {
         data={filteredRooms}
         keyExtractor={(r) => r.id}
         showsVerticalScrollIndicator={false}
+        style={styles.flatList}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: Math.max(insets.bottom, 24) + 64 },
+          { flexGrow: 1, paddingBottom: Math.max(insets.bottom, 16) + 20 },
         ]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.amber} />
@@ -407,7 +413,7 @@ export default function Landing() {
                     resizeMode="contain"
                   />
                 </View>
-                <Text style={styles.brandName}>
+                <Text style={styles.brandName} maxFontSizeMultiplier={1.2}>
                   Open<Text style={styles.brandNameAmber}>Jam</Text>
                 </Text>
               </View>
@@ -436,13 +442,19 @@ export default function Landing() {
                           styles.userInitialsMini,
                           !user.discord_id && styles.guestInitialsMini,
                         ]}
+                        maxFontSizeMultiplier={1.0}
                       >
                         {initials}
                       </Text>
                     </View>
                   )}
-                  <Text style={styles.userName} numberOfLines={1}>
-                    {user.discord_username ? `@${user.discord_username}` : user.display_name}
+                  <Text
+                    style={styles.userName}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                    maxFontSizeMultiplier={1.2}
+                  >
+                    {user.discord_username ? `@${user.discord_username}` : (user.display_name || 'Jammer')}
                   </Text>
                   <View
                     style={[
@@ -458,7 +470,7 @@ export default function Landing() {
                   accessibilityLabel="Sign in or join as guest"
                 >
                   <LogIn size={15} color="#ffffff" strokeWidth={2.4} />
-                  <Text style={styles.discordPillText}>Sign In</Text>
+                  <Text style={styles.discordPillText} maxFontSizeMultiplier={1.2}>Sign In</Text>
                 </Pressable>
               )}
             </View>
@@ -470,25 +482,30 @@ export default function Landing() {
             >
               {/* Badge */}
               <View style={styles.versionBadge}>
-                <Sparkles size={12} color={colors.amber} />
+                <Sparkles size={11} color={colors.amber} />
                 <Text style={styles.versionText}>OPEN JAM V2</Text>
               </View>
 
               {/* Main Title with Animated Slogan Ticker */}
               <Text style={styles.heroTitle}>
-                Listen Together.{'\n'}
+                Listen Together.{' '}
                 <SloganTicker />
               </Text>
 
               <Text style={styles.heroSubtitle}>
-                Create a room or jump into any community jam. High-fidelity audio, synchronized with zero latency.
+                Synchronized music listening with zero audio latency.
               </Text>
 
               {/* Action Buttons: Create Room & Join with Code */}
               <View style={styles.heroActions}>
                 <Pressable
-                  onPress={() => (user ? setShowCreate(true) : setShowProfile(true))}
+                  onPress={() => {
+                    void hapticMedium();
+                    if (user) setShowCreate(true);
+                    else setShowIdentity(true);
+                  }}
                   style={({ pressed }) => [styles.instantBtnWrap, pressed && styles.pressed]}
+                  accessibilityLabel="Create Instant Jam"
                 >
                   <LinearGradient
                     colors={['#ffb03a', '#ff9f1c']}
@@ -496,21 +513,27 @@ export default function Landing() {
                     end={{ x: 1, y: 1 }}
                     style={styles.instantBtn}
                   >
-                    <Sparkles size={16} color="#08080a" />
+                    <Sparkles size={15} color="#08080a" />
                     <Text style={styles.instantBtnText}>Instant Jam</Text>
                   </LinearGradient>
                 </Pressable>
 
                 <Pressable
-                  onPress={() => setShowJoinWithCode(true)}
-                  style={({ pressed }) => [styles.joinCodeBtn, pressed && styles.pressed]}
+                  onPress={() => {
+                    void hapticMedium();
+                    setShowJoinWithCode(true);
+                  }}
+                  style={({ pressed }) => [
+                    styles.joinCodeBtn,
+                    pressed && styles.pressed,
+                  ]}
+                  accessibilityLabel="Join with Code"
                 >
-                  <KeyRound size={15} color="#ffffff" />
+                  <KeyRound size={14} color="#ffffff" />
                   <Text style={styles.joinCodeBtnText}>Join with Code</Text>
                 </Pressable>
               </View>
 
-              {/* Trust Sub-banner */}
               <View style={styles.trustBanner}>
                 <Text style={styles.trustText}>Discord Sync</Text>
                 <Text style={styles.trustDot}>•</Text>
@@ -537,6 +560,7 @@ export default function Landing() {
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.pinnedScroll}
+                  style={styles.pinnedScrollView}
                 >
                   {favoriteRooms.map((fav) => (
                     <Pressable
@@ -586,14 +610,26 @@ export default function Landing() {
                     LIVE ROOMS ({filteredRooms.length})
                   </Text>
                 </View>
+
+                <Pressable
+                  onPress={() => router.push('/offline')}
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.offlineVaultBtn, pressed && styles.pressed]}
+                  accessibilityLabel="Open Offline Audio Vault"
+                >
+                  <HardDrive size={12} color={colors.amber} />
+                  <Text style={styles.offlineVaultBtnText}>Offline Vault</Text>
+                </Pressable>
               </View>
 
               {/* Search Field */}
-              <View style={styles.searchWrap}>
-                <Search size={16} color={colors.text3} />
+              <View style={[styles.searchWrap, searchFocused && styles.searchWrapFocused]}>
+                <Search size={16} color={searchFocused ? colors.amber : colors.text3} />
                 <TextInput
                   value={searchQuery}
                   onChangeText={setSearchQuery}
+                  onFocus={() => setSearchFocused(true)}
+                  onBlur={() => setSearchFocused(false)}
                   placeholder="Search rooms, DJs, genres..."
                   placeholderTextColor={colors.text3}
                   style={styles.searchInput}
@@ -601,8 +637,16 @@ export default function Landing() {
                   autoCorrect={false}
                 />
                 {searchQuery ? (
-                  <Pressable onPress={() => setSearchQuery('')} hitSlop={10}>
-                    <X size={15} color={colors.text3} />
+                  <Pressable
+                    onPress={() => {
+                      void hapticMedium();
+                      setSearchQuery('');
+                    }}
+                    hitSlop={12}
+                    style={styles.clearSearchBtn}
+                    accessibilityLabel="Clear search"
+                  >
+                    <X size={15} color={colors.amber} strokeWidth={2.4} />
                   </Pressable>
                 ) : null}
               </View>
@@ -612,17 +656,29 @@ export default function Landing() {
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.genreScroll}
+                style={styles.genreScrollView}
               >
                 {GENRES.map((g) => {
                   const active = selectedGenre === g;
                   return (
                     <Pressable
                       key={g}
-                      onPress={() => setSelectedGenre(g)}
-                      style={[styles.genreChip, active && styles.genreChipActive]}
+                      onPress={() => {
+                        void hapticMedium();
+                        setSelectedGenre(g);
+                      }}
+                      style={({ pressed }) => [
+                        styles.genreChip,
+                        active && styles.genreChipActive,
+                        pressed && styles.pressed,
+                      ]}
+                      accessibilityLabel={`Filter by ${g}`}
                     >
                       {active ? <View style={styles.genreActiveDot} /> : null}
-                      <Text style={[styles.genreText, active && styles.genreTextActive]}>
+                      <Text
+                        style={[styles.genreText, active && styles.genreTextActive]}
+                        maxFontSizeMultiplier={1.2}
+                      >
                         {g}
                       </Text>
                     </Pressable>
@@ -643,36 +699,68 @@ export default function Landing() {
         )}
         ListEmptyComponent={
           ready ? (
-            <Animated.View entering={FadeInDown.duration(300)} style={styles.loungeCard}>
-              <View style={styles.loungeBadge}>
-                <View style={styles.loungeDot} />
-                <Text style={styles.loungeBadgeText}>24/7 COMMUNITY STATION</Text>
-              </View>
-              <Text style={styles.loungeTitle}>OpenJam Live Lounge</Text>
-              <Text style={styles.loungeDesc}>
-                The official community radio is broadcasting synchronized chill beats right now. Jump straight in or spin up your own live room!
-              </Text>
-              <View style={styles.loungeActions}>
+            searchQuery.trim().length > 0 ? (
+              <Animated.View entering={FadeInDown.duration(250)} style={styles.searchEmptyCard}>
+                <View style={styles.searchEmptyIconWrap}>
+                  <Search size={22} color={colors.amber} strokeWidth={2.2} />
+                </View>
+                <Text style={styles.searchEmptyTitle}>No Rooms Found</Text>
+                <Text style={styles.searchEmptyDesc}>
+                  No live rooms match "{searchQuery.trim()}". Try checking another vibe keyword or clear your filter.
+                </Text>
                 <Pressable
-                  onPress={() => openRoom({ id: 'openjam-lounge' })}
-                  style={({ pressed }) => [styles.loungeTuneBtn, pressed && styles.pressed]}
+                  onPress={() => {
+                    void hapticMedium();
+                    setSearchQuery('');
+                    setSelectedGenre('All');
+                  }}
+                  style={({ pressed }) => [styles.clearSearchFilterBtn, pressed && styles.pressed]}
+                  accessibilityLabel="Clear search and filters"
                 >
-                  <Play size={13} color="#08080a" fill="#08080a" />
-                  <Text style={styles.loungeTuneText}>Tune In (Live Lounge)</Text>
+                  <Text style={styles.clearSearchFilterText}>Clear Search & Filters</Text>
                 </Pressable>
-                <Pressable
-                  onPress={() => (user ? setShowCreate(true) : setShowProfile(true))}
-                  style={({ pressed }) => [styles.loungeInstantBtn, pressed && styles.pressed]}
-                >
-                  <Plus size={14} color="#ffffff" strokeWidth={2.4} />
-                  <Text style={styles.loungeInstantText}>Create Room</Text>
-                </Pressable>
-              </View>
-            </Animated.View>
-          ) : null
+              </Animated.View>
+            ) : (
+              <Animated.View entering={FadeInDown.duration(300)} style={styles.loungeCard}>
+                <View style={styles.loungeBadge}>
+                  <View style={styles.loungeDot} />
+                  <Text style={styles.loungeBadgeText}>24/7 COMMUNITY STATION</Text>
+                </View>
+                <Text style={styles.loungeTitle}>OpenJam Live Lounge</Text>
+                <Text style={styles.loungeDesc}>
+                  The official community radio is broadcasting synchronized chill beats right now. Jump straight in or spin up your own live room!
+                </Text>
+                <View style={styles.loungeActions}>
+                  <Pressable
+                    onPress={() => {
+                      void hapticMedium();
+                      openRoom({ id: 'openjam-lounge' });
+                    }}
+                    style={({ pressed }) => [styles.loungeTuneBtn, pressed && styles.pressed]}
+                  >
+                    <Play size={13} color="#08080a" fill="#08080a" />
+                    <Text style={styles.loungeTuneText}>Tune In (Live Lounge)</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      void hapticMedium();
+                      if (user) setShowCreate(true);
+                      else setShowIdentity(true);
+                    }}
+                    style={({ pressed }) => [styles.loungeInstantBtn, pressed && styles.pressed]}
+                  >
+                    <Plus size={14} color="#ffffff" strokeWidth={2.4} />
+                    <Text style={styles.loungeInstantText}>Create Room</Text>
+                  </Pressable>
+                </View>
+              </Animated.View>
+            )
+          ) : (
+            <RoomCardSkeletonList count={2} />
+          )
         }
         ListFooterComponent={
-          <View style={styles.footerSection}>
+          <View style={[styles.footerSection, { paddingBottom: Math.max(insets.bottom, 16) + 12 }]}>
             <View style={styles.footerLinksRow}>
               <Pressable
                 onPress={() => router.push('/legal/privacy')}
@@ -752,6 +840,11 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: '#08080a',
+    overflow: 'hidden',
+  },
+  flatList: {
+    flex: 1,
+    overflow: 'hidden',
   },
   ambientBloom: {
     position: 'absolute',
@@ -772,39 +865,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: spacing.md,
+    paddingVertical: 10,
     maxWidth: 600,
     width: '100%',
     alignSelf: 'center',
+    gap: 8,
   },
   navLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
+    flexShrink: 0,
   },
   brandLogoWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 159, 28, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 159, 28, 0.28)',
-    shadowColor: colors.amber,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
-    elevation: 3,
   },
   brandLogo: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 28,
+    height: 28,
   },
   brandName: {
     fontFamily: fontFamily.displayBold,
-    fontSize: 21,
+    fontSize: 19,
     color: '#ffffff',
     letterSpacing: -0.5,
   },
@@ -815,22 +901,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#5865F2',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: radius.full,
-    gap: 6,
+    gap: 5,
     shadowColor: '#5865F2',
-    shadowOffset: { width: 0, height: 3 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowRadius: 6,
+    elevation: 3,
+    flexShrink: 0,
   },
   discordPillIcon: {
-    fontSize: 14,
+    fontSize: 13,
   },
   discordPillText: {
     fontFamily: fontFamily.bodySemiBold,
-    fontSize: 13,
+    fontSize: 12,
     color: '#ffffff',
   },
   discordUserChip: {
@@ -840,29 +927,34 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(88, 101, 242, 0.3)',
     borderRadius: radius.full,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    gap: 7,
-    maxWidth: 160,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    gap: 6,
+    maxWidth: 180,
+    flexShrink: 1,
   },
   discordAvatarMini: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    overflow: 'hidden',
+    flexShrink: 0,
   },
   discordAvatarFallback: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: '#5865F2',
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   discordOnlineDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
     backgroundColor: '#22c55e',
+    flexShrink: 0,
   },
   guestUserChip: {
     backgroundColor: 'rgba(255, 159, 28, 0.12)',
@@ -876,33 +968,38 @@ const styles = StyleSheet.create({
   },
   guestOnlineDot: {
     backgroundColor: colors.amber,
+    flexShrink: 0,
   },
   userInitialsMini: {
     fontFamily: fontFamily.bodySemiBold,
-    fontSize: 10,
+    fontSize: 9.5,
     color: '#ffffff',
   },
   userName: {
     fontFamily: fontFamily.bodySemiBold,
-    fontSize: 12,
+    fontSize: 11,
     color: colors.text1,
+    flexShrink: 1,
+    minWidth: 0,
   },
   heroGlassCard: {
     maxWidth: 600,
     width: '100%',
     alignSelf: 'center',
-    borderRadius: 24,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
-    padding: spacing.lg,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
     alignItems: 'center',
     marginTop: spacing.xs,
-    marginBottom: spacing.md,
+    marginBottom: 14,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.6,
-    shadowRadius: 36,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.45,
+    shadowRadius: 20,
+    elevation: 6,
+    overflow: 'hidden',
   },
   versionBadge: {
     flexDirection: 'row',
@@ -911,29 +1008,29 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 159, 28, 0.3)',
     borderRadius: radius.full,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    gap: 6,
-    marginBottom: spacing.sm,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    gap: 5,
+    marginBottom: 8,
   },
   versionPulseDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
     backgroundColor: colors.amber,
   },
   versionText: {
     fontFamily: fontFamily.bodySemiBold,
     fontSize: 10,
     color: colors.amber,
-    letterSpacing: 1.2,
+    letterSpacing: 1.1,
   },
   heroTitle: {
     fontFamily: fontFamily.displayBold,
-    fontSize: 32,
+    fontSize: 23,
     color: '#ffffff',
-    letterSpacing: -1,
-    lineHeight: 38,
+    letterSpacing: -0.5,
+    lineHeight: 29,
     marginTop: 2,
     textAlign: 'center',
   },
@@ -942,13 +1039,13 @@ const styles = StyleSheet.create({
   },
   heroSubtitle: {
     fontFamily: fontFamily.bodyRegular,
-    fontSize: 13,
-    color: colors.text3,
+    fontSize: 12.5,
+    color: colors.text2,
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 17,
     maxWidth: 320,
-    marginTop: 8,
-    marginBottom: spacing.lg,
+    marginTop: 4,
+    marginBottom: 14,
   },
   heroActions: {
     width: '100%',
@@ -962,22 +1059,22 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     overflow: 'hidden',
     shadowColor: colors.amber,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5,
   },
   instantBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 13,
+    gap: 6,
+    paddingVertical: 10.5,
     borderRadius: radius.full,
   },
   instantBtnText: {
     fontFamily: fontFamily.bodySemiBold,
-    fontSize: 15,
+    fontSize: 13.5,
     color: '#08080a',
     letterSpacing: 0.2,
   },
@@ -986,8 +1083,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 13,
+    gap: 6,
+    paddingVertical: 10.5,
     borderRadius: radius.full,
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderWidth: 1,
@@ -995,7 +1092,7 @@ const styles = StyleSheet.create({
   },
   joinCodeBtnText: {
     fontFamily: fontFamily.bodySemiBold,
-    fontSize: 14,
+    fontSize: 13,
     color: '#ffffff',
   },
   trustBanner: {
@@ -1003,15 +1100,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    marginTop: spacing.md,
+    marginTop: 12,
   },
   trustText: {
     fontFamily: fontFamily.bodyRegular,
-    fontSize: 11,
+    fontSize: 10.5,
     color: 'rgba(255, 255, 255, 0.45)',
   },
   trustDot: {
-    fontSize: 10,
+    fontSize: 9,
     color: 'rgba(255, 255, 255, 0.25)',
   },
   pinnedSection: {
@@ -1052,9 +1149,14 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: colors.amber,
   },
+  pinnedScrollView: {
+    marginHorizontal: -spacing.md,
+  },
   pinnedScroll: {
     gap: 10,
     paddingVertical: 4,
+    paddingLeft: spacing.md,
+    paddingRight: spacing.md + 14,
   },
   pinnedCard: {
     width: 156,
@@ -1127,32 +1229,48 @@ const styles = StyleSheet.create({
     maxWidth: 600,
     width: '100%',
     alignSelf: 'center',
-    marginTop: spacing.sm,
-    marginBottom: spacing.xs,
+    marginTop: 6,
+    marginBottom: 4,
   },
   toolbarHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing.sm,
+    marginBottom: 6,
     paddingHorizontal: 2,
   },
   liveIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
   },
   livePulseDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: '#22c55e',
   },
   liveHeaderText: {
     fontFamily: fontFamily.bodySemiBold,
-    fontSize: 12,
-    letterSpacing: 1.2,
+    fontSize: 11.5,
+    letterSpacing: 1.1,
     color: colors.text2,
+  },
+  offlineVaultBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4.5,
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
+    borderRadius: radius.full,
+    backgroundColor: 'rgba(255, 159, 28, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.22)',
+  },
+  offlineVaultBtnText: {
+    fontFamily: fontFamily.displayMedium,
+    fontSize: 10.5,
+    color: colors.amber,
   },
   searchWrap: {
     flexDirection: 'row',
@@ -1160,36 +1278,50 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.09)',
-    borderRadius: radius.md,
+    borderRadius: 12,
     paddingHorizontal: 12,
-    height: 44,
-    marginBottom: spacing.sm,
+    height: 42,
+    marginBottom: 10,
+    gap: 8,
+  },
+  searchWrapFocused: {
+    borderColor: 'rgba(255, 159, 28, 0.45)',
+    backgroundColor: 'rgba(255, 159, 28, 0.05)',
   },
   searchIcon: {
-    fontSize: 14,
-    marginRight: 8,
+    fontSize: 13,
+    marginRight: 6,
   },
   searchInput: {
     flex: 1,
     fontFamily: fontFamily.bodyRegular,
-    fontSize: 14,
+    fontSize: 13.5,
     color: '#ffffff',
     paddingVertical: 0,
+    minWidth: 0,
+  },
+  clearSearchBtn: {
+    padding: 4,
   },
   clearSearch: {
-    fontSize: 12,
+    fontSize: 11,
     color: colors.text3,
-    padding: 4,
+    padding: 2,
+  },
+  genreScrollView: {
+    marginHorizontal: -spacing.md,
   },
   genreScroll: {
     gap: 8,
     paddingVertical: 4,
+    paddingLeft: spacing.md,
+    paddingRight: spacing.md + 14,
   },
   genreChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingHorizontal: 13,
+    paddingVertical: 6.5,
     borderRadius: radius.full,
     backgroundColor: 'rgba(255, 255, 255, 0.04)',
     borderWidth: 1,
@@ -1200,11 +1332,11 @@ const styles = StyleSheet.create({
     borderColor: colors.amber,
   },
   genreActiveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
     backgroundColor: colors.amber,
-    marginRight: 6,
+    marginRight: 5,
   },
   genreText: {
     fontFamily: fontFamily.bodyMedium,
@@ -1219,6 +1351,57 @@ const styles = StyleSheet.create({
     maxWidth: 600,
     width: '100%',
     alignSelf: 'center',
+  },
+  searchEmptyCard: {
+    maxWidth: 600,
+    width: '100%',
+    alignSelf: 'center',
+    backgroundColor: 'rgba(18, 18, 26, 0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: radius.lg,
+    padding: spacing.xl,
+    alignItems: 'center',
+    marginTop: spacing.md,
+  },
+  searchEmptyIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.3)',
+  },
+  searchEmptyTitle: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 18,
+    color: '#ffffff',
+    marginBottom: 6,
+  },
+  searchEmptyDesc: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 13,
+    color: colors.text2,
+    textAlign: 'center',
+    lineHeight: 18,
+    maxWidth: 320,
+    marginBottom: spacing.md,
+  },
+  clearSearchFilterBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: radius.full,
+    backgroundColor: 'rgba(255, 159, 28, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.4)',
+  },
+  clearSearchFilterText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 13,
+    color: colors.amber,
   },
   loungeCard: {
     maxWidth: 600,
@@ -1310,9 +1493,9 @@ const styles = StyleSheet.create({
   },
   footerSection: {
     alignItems: 'center',
-    paddingTop: spacing.xl,
-    paddingBottom: 40,
-    gap: 8,
+    paddingTop: spacing.md,
+    paddingBottom: 20,
+    gap: 6,
   },
   footerLinksRow: {
     flexDirection: 'row',

@@ -65,6 +65,8 @@ import {
   hapticHeavy,
 } from '../../../utils/haptics';
 
+const openjamEmblem = require('../../../../assets/images/openjam-emblem.png');
+
 export const REACTION_OPTIONS = [
   { id: 'heart', label: 'Love', icon: <Heart size={14} color="#ef4444" fill="#ef4444" /> },
   { id: 'fire', label: 'Fire', icon: <Flame size={14} color="#f97316" fill="#f97316" /> },
@@ -378,10 +380,16 @@ export default function PlayerTab() {
               />
             ) : (
               <LinearGradient
-                colors={['#1e1e2d', '#0d0d14']}
+                colors={['#1c1c28', '#0c0c12']}
                 style={[styles.art, styles.artFallback]}
               >
-                <Music size={56} color={colors.amber} opacity={0.4} />
+                <View style={styles.sleeveFallbackEmblemWrap}>
+                  <Image
+                    source={openjamEmblem}
+                    style={styles.sleeveFallbackEmblem}
+                    contentFit="contain"
+                  />
+                </View>
                 <Text style={styles.artEmptyText}>OpenJam</Text>
               </LinearGradient>
             )}
@@ -758,6 +766,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     alignItems: 'center',
     paddingBottom: spacing.xl * 2,
+    maxWidth: 600,
+    width: '100%',
+    alignSelf: 'center',
   },
   // Vinyl turntable stage
   turntableStage: {
@@ -858,8 +869,27 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.displayBold,
     fontSize: 16,
     color: colors.text3,
-    marginTop: 6,
+    marginTop: 8,
     letterSpacing: 1,
+  },
+  sleeveFallbackEmblemWrap: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: 'rgba(255, 159, 28, 0.1)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 159, 28, 0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.amber,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    elevation: 4,
+  },
+  sleeveFallbackEmblem: {
+    width: 62,
+    height: 62,
   },
   // Spotify Track Info Row
   trackInfoRow: {
@@ -995,7 +1025,7 @@ const styles = StyleSheet.create({
     width: '100%',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: -4,
+    marginTop: 4,
     marginBottom: spacing.md,
   },
   time: {

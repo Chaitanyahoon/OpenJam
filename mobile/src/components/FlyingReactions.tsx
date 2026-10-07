@@ -4,7 +4,7 @@
  * 100% Vector Lucide icons — zero cartoon text emojis.
  */
 import React, { useEffect } from 'react';
-import { Dimensions, StyleSheet, View } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -14,8 +14,6 @@ import Animated, {
 import { Flame, Heart, Music, Sparkles, ThumbsUp } from 'lucide-react-native';
 import { useRoom, type FlyingReaction } from '../state/RoomContext';
 import { colors } from '../theme';
-
-const { width: W, height: H } = Dimensions.get('window');
 
 function renderReactionIcon(key: string) {
   const norm = (key || '').toLowerCase();
@@ -44,6 +42,7 @@ function FloatingEmoji({
   reaction: FlyingReaction;
   onDone: (key: string) => void;
 }) {
+  const { width: W, height: H } = useWindowDimensions();
   const y = useSharedValue(H * 0.75);
   const x = useSharedValue(W * (0.25 + Math.random() * 0.5));
   const opacity = useSharedValue(1);

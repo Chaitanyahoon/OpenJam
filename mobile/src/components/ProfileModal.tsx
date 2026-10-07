@@ -47,6 +47,7 @@ import {
   Headphones,
   Vibrate,
   Bell,
+  HardDrive,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
@@ -421,6 +422,24 @@ export function ProfileModal({
               >
                 <Text style={styles.viewPublicProfileText}>Open Full Profile & Library</Text>
                 <ChevronRight size={14} color={colors.amber} />
+              </Pressable>
+
+              <Pressable
+                onPress={() => {
+                  onClose();
+                  router.push('/offline');
+                }}
+                style={({ pressed }) => [styles.offlineVaultCtaBtn, pressed && styles.pressed]}
+                accessibilityLabel="Open Offline Audio Vault"
+              >
+                <View style={styles.offlineVaultCtaLeft}>
+                  <HardDrive size={14} color={colors.amber} />
+                  <Text style={styles.offlineVaultCtaText}>Offline Audio Vault</Text>
+                </View>
+                <View style={styles.offlineVaultCtaRight}>
+                  <Text style={styles.offlineVaultCtaBadge}>Ready Offline</Text>
+                  <ChevronRight size={13} color={colors.text3} />
+                </View>
               </Pressable>
             </View>
 
@@ -955,6 +974,9 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    maxWidth: 600,
+    width: '100%',
+    alignSelf: 'center',
   },
   sheetHeader: {
     flexDirection: 'row',
@@ -1107,6 +1129,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.bodyRegular,
     fontSize: 13,
     color: colors.text1,
+    minWidth: 0,
   },
   inlineRollBtn: {
     padding: 7,
@@ -1485,6 +1508,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.bodyRegular,
     fontSize: 12,
     color: colors.text1,
+    minWidth: 0,
   },
   createPlaylistBtn: {
     padding: 8,
@@ -1557,6 +1581,38 @@ const styles = StyleSheet.create({
     color: colors.amber,
     fontFamily: fontFamily.displaySemiBold,
     fontSize: 12,
+  },
+  offlineVaultCtaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: radius.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  offlineVaultCtaLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  offlineVaultCtaText: {
+    color: '#ffffff',
+    fontFamily: fontFamily.displaySemiBold,
+    fontSize: 12,
+  },
+  offlineVaultCtaRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  offlineVaultCtaBadge: {
+    color: colors.text3,
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 10,
   },
   legalLinksBlock: {
     marginTop: spacing.md,

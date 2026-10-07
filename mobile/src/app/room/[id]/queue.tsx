@@ -15,5 +15,12 @@ export default function QueueTab() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bgBase },
-  container: { flex: 1, paddingHorizontal: spacing.md, paddingTop: spacing.sm },
+  container: {
+    flex: 1,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    maxWidth: 600,
+    width: '100%',
+    alignSelf: 'center',
+  },
 });
