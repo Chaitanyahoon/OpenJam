@@ -91,15 +91,13 @@ jobs:
           APP_VERSION=$(node -p "require('./mobile/package.json').version")
           echo "App Version: $APP_VERSION"
 
-          # Package versioned, latest, and legacy filenames for maximum compatibility
+          # Package versioned and latest APK binaries
           cp "$APK_PATH" "build-output/openjam-v${APP_VERSION}.apk"
           cp "$APK_PATH" "build-output/openjam-latest.apk"
-          cp "$APK_PATH" "build-output/openjam-v1.0.0.apk"
 
           cd build-output
           sha256sum "openjam-v${APP_VERSION}.apk" > "openjam-v${APP_VERSION}.apk.sha256"
           sha256sum "openjam-latest.apk" > "openjam-latest.apk.sha256"
-          sha256sum "openjam-v1.0.0.apk" > "openjam-v1.0.0.apk.sha256"
           cat "openjam-v${APP_VERSION}.apk.sha256"
 
       - name: Upload APK Artifact
