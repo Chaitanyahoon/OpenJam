@@ -25,3 +25,5 @@ demo_video/
 node_modules/
 /package.json
 /package-lock.json
+*.apk
+local.properties

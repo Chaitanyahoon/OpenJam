@@ -25,11 +25,15 @@ import {
   UserX,
   QrCode,
   Headphones,
+  Sparkles,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
 import { Field, PrimaryButton, Title, Subtitle } from './ui';
 import { createRoom, type ApiUser } from '../api';
+import { hapticMedium } from '../utils/haptics';
+
+const openjamEmblem = require('../../assets/images/openjam-emblem.png');
 
 function Shell({
   visible,
@@ -254,6 +258,7 @@ export function IdentityModal({
   const initials = (user?.display_name || name.trim() || '?').slice(0, 2).toUpperCase();
 
   const rollName = () => {
+    void hapticMedium();
     setName(getRandomName());
   };
 
@@ -273,82 +278,14 @@ export function IdentityModal({
                 onClose();
               }}
               style={styles.closeModalBtn}
-              hitSlop={10}
+              hitSlop={12}
+              accessibilityLabel="Close welcome sheet"
             >
-              <X size={15} color={colors.text3} />
+              <X size={16} color={colors.text2} />
             </Pressable>
           ) : null}
 
-          {authError ? (
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{ alignItems: 'center' }}
-            >
-              <View style={styles.errorIconWrap}>
-                <AlertCircle size={36} color={colors.amber} />
-              </View>
-
-              <Title style={{ textAlign: 'center', marginTop: 12 }}>
-                Discord Sign-In Failed
-              </Title>
-              <Subtitle style={[styles.sub, { textAlign: 'center', maxWidth: 280 }]}>
-                {authError}
-              </Subtitle>
-
-              {onDiscordLogin ? (
-                <Pressable
-                  onPress={() => {
-                    onClearError?.();
-                    onDiscordLogin();
-                  }}
-                  style={({ pressed }) => [styles.discordLoginBtn, { width: '100%' }, pressed && styles.pressed]}
-                >
-                  <RefreshCw size={17} color="#ffffff" strokeWidth={2.4} />
-                  <Text style={styles.discordLoginBtnText}>Try Discord Again</Text>
-                </Pressable>
-              ) : null}
-
-              <View style={[styles.dividerRow, { width: '100%' }]}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>or continue as guest</Text>
-                <View style={styles.dividerLine} />
-              </View>
-
-              <View style={[styles.inputWithDice, { width: '100%', marginTop: 0 }]}>
-                <View style={{ flex: 1 }}>
-                  <Field
-                    value={name}
-                    onChangeText={setName}
-                    placeholder="Enter nickname (or roll one)"
-                    onSubmitEditing={() => onDone(name.trim() || getRandomName())}
-                  />
-                </View>
-                <Pressable onPress={rollName} style={styles.diceBtn} accessibilityLabel="Roll random nickname">
-                  <Shuffle size={20} color={colors.amber} />
-                </Pressable>
-              </View>
-
-              <View style={{ height: 12 }} />
-              <PrimaryButton
-                title={name.trim() ? `Continue as "${name.trim()}"` : 'Quick Guest Access'}
-                onPress={() => onDone(name.trim() || getRandomName())}
-              />
-
-              {onClose ? (
-                <Pressable
-                  onPress={() => {
-                    onClearError?.();
-                    onClose();
-                  }}
-                  style={({ pressed }) => [styles.browseWithoutSignInBtn, pressed && styles.pressed]}
-                  hitSlop={8}
-                >
-                  <Text style={styles.browseWithoutSignInText}>Browse Rooms Without Signing In</Text>
-                </Pressable>
-              ) : null}
-            </ScrollView>
-          ) : isDiscord ? (
+          {isDiscord ? (
             <View style={{ alignItems: 'center' }}>
               {user?.avatar_url ? (
                 <Image source={{ uri: user.avatar_url }} style={styles.discordAvatarLarge} />
@@ -384,66 +321,122 @@ export function IdentityModal({
             <ScrollView
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{ alignItems: 'center' }}
+              contentContainerStyle={styles.welcomeScrollContent}
             >
-              {/* Brand Aura Icon */}
-              <View style={styles.brandHeroIconWrap}>
-                <Headphones size={32} color={colors.amber} strokeWidth={2.2} />
+              {/* Brand Emblem with Ambient Aura */}
+              <View style={styles.welcomeHeroWrap}>
+                <View style={styles.welcomeEmblemAura} pointerEvents="none" />
+                <Image
+                  source={openjamEmblem}
+                  style={styles.welcomeEmblem}
+                  resizeMode="contain"
+                />
               </View>
 
-              <Title style={{ textAlign: 'center', marginTop: 12 }}>Welcome to OpenJam</Title>
-              <Subtitle style={[styles.sub, { textAlign: 'center', maxWidth: 280, marginTop: 4 }]}>
-                Listen to music together in real-time sync with friends and community rooms.
-              </Subtitle>
+              {/* Pill Badge */}
+              <View style={styles.welcomeBadge}>
+                <Sparkles size={11} color={colors.amber} strokeWidth={2.4} />
+                <Text style={styles.welcomeBadgeText}>LISTEN TOGETHER • REAL-TIME SYNC</Text>
+              </View>
 
-              {/* Option 1: Discord */}
-              {onDiscordLogin ? (
-                <Pressable
-                  onPress={() => {
-                    onDiscordLogin();
-                  }}
-                  style={({ pressed }) => [styles.discordLoginBtn, { width: '100%' }, pressed && styles.pressed]}
-                >
-                  <LogIn size={18} color="#ffffff" strokeWidth={2.4} />
-                  <Text style={styles.discordLoginBtnText}>Sign in with Discord</Text>
-                </Pressable>
+              <Title style={styles.welcomeTitle}>Welcome to OpenJam</Title>
+              <Text style={styles.welcomeSubtitle}>
+                Stream synchronized music in real-time rooms with friends and global music lovers.
+              </Text>
+
+              {/* Sign-In Error Alert Banner */}
+              {authError ? (
+                <View style={styles.authErrorCard}>
+                  <View style={styles.authErrorHeader}>
+                    <AlertCircle size={15} color={colors.red} />
+                    <Text style={styles.authErrorTitle}>Sign-in Interrupted</Text>
+                  </View>
+                  <Text style={styles.authErrorDesc}>{authError}</Text>
+                </View>
               ) : null}
 
-              <View style={[styles.dividerRow, { width: '100%' }]}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>or continue as guest</Text>
-                <View style={styles.dividerLine} />
-              </View>
+              {/* Option 1: Discord (Recommended) */}
+              {onDiscordLogin ? (
+                <View style={styles.authCardDiscord}>
+                  <View style={styles.authCardDiscordHeader}>
+                    <View style={styles.authCardDiscordTitleWrap}>
+                      <Text style={styles.authCardDiscordTitle}>Discord Account</Text>
+                      <View style={styles.recommendedBadge}>
+                        <Text style={styles.recommendedBadgeText}>RECOMMENDED</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.authCardDiscordSub}>
+                      Host rooms, sync custom avatar, save favorites & keep queue rights.
+                    </Text>
+                  </View>
 
-              {/* Option 2: Guest Profile */}
-              <View style={[styles.inputWithDice, { width: '100%', marginTop: 0 }]}>
-                <View style={{ flex: 1 }}>
-                  <Field
-                    value={name}
-                    onChangeText={setName}
-                    placeholder="Enter nickname (or roll one)"
-                    onSubmitEditing={() => onDone(name.trim() || getRandomName())}
-                  />
+                  <Pressable
+                    onPress={() => {
+                      onClearError?.();
+                      onDiscordLogin();
+                    }}
+                    style={({ pressed }) => [styles.discordLoginBtn, pressed && styles.pressed]}
+                    accessibilityLabel="Continue with Discord"
+                  >
+                    <LogIn size={18} color="#ffffff" strokeWidth={2.4} />
+                    <Text style={styles.discordLoginBtnText}>Continue with Discord</Text>
+                  </Pressable>
                 </View>
-                <Pressable onPress={rollName} style={styles.diceBtn} accessibilityLabel="Roll random nickname">
-                  <Shuffle size={20} color={colors.amber} />
-                </Pressable>
+              ) : null}
+
+              <View style={styles.welcomeDividerRow}>
+                <View style={styles.welcomeDividerLine} />
+                <Text style={styles.welcomeDividerText}>OR INSTANT ACCESS</Text>
+                <View style={styles.welcomeDividerLine} />
               </View>
 
-              <View style={{ height: 12 }} />
-              <PrimaryButton
-                title={name.trim() ? `Continue as "${name.trim()}"` : 'Quick Guest Access'}
-                onPress={() => onDone(name.trim() || getRandomName())}
-              />
+              {/* Option 2: Guest Mode */}
+              <View style={styles.authCardGuest}>
+                <View style={styles.guestCardHeader}>
+                  <Text style={styles.guestCardTitle}>Guest Access</Text>
+                  <Text style={styles.guestCardSub}>
+                    Jump straight into rooms with a temporary nickname. No account needed.
+                  </Text>
+                </View>
 
-              {/* Option 3: Browse without signing in */}
+                <View style={styles.inputWithDice}>
+                  <View style={{ flex: 1 }}>
+                    <Field
+                      value={name}
+                      onChangeText={setName}
+                      placeholder="Enter nickname (or roll one)"
+                      onSubmitEditing={() => onDone(name.trim() || getRandomName())}
+                    />
+                  </View>
+                  <Pressable
+                    onPress={rollName}
+                    style={({ pressed }) => [styles.diceBtn, pressed && styles.pressed]}
+                    accessibilityLabel="Roll random nickname"
+                    hitSlop={6}
+                  >
+                    <Shuffle size={18} color={colors.amber} strokeWidth={2.2} />
+                  </Pressable>
+                </View>
+
+                <View style={{ height: 10 }} />
+                <PrimaryButton
+                  title={name.trim() ? `Continue as "${name.trim()}"` : 'Enter as Guest'}
+                  onPress={() => onDone(name.trim() || getRandomName())}
+                />
+              </View>
+
+              {/* Option 3: Passive Exploration */}
               {onClose ? (
                 <Pressable
-                  onPress={onClose}
+                  onPress={() => {
+                    onClearError?.();
+                    onClose();
+                  }}
                   style={({ pressed }) => [styles.browseWithoutSignInBtn, pressed && styles.pressed]}
-                  hitSlop={8}
+                  hitSlop={10}
+                  accessibilityLabel="Browse rooms without signing in"
                 >
-                  <Text style={styles.browseWithoutSignInText}>Browse Rooms Without Signing In</Text>
+                  <Text style={styles.browseWithoutSignInText}>Just exploring? Browse public rooms</Text>
                 </Pressable>
               ) : null}
             </ScrollView>
@@ -807,10 +800,10 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   sheet: {
-    backgroundColor: colors.bgSurface,
+    backgroundColor: '#0d0d12',
     borderWidth: 1,
-    borderColor: colors.hairline,
-    borderRadius: radius.lg,
+    borderColor: 'rgba(255, 255, 255, 0.09)',
+    borderRadius: 24,
     padding: spacing.lg,
   },
   sub: { marginTop: 4 },
@@ -852,13 +845,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
   },
   diceBtn: {
-    width: 48,
-    height: 48,
+    width: 44,
+    height: 44,
     borderRadius: radius.md,
-    backgroundColor: 'rgba(255, 159, 28, 0.15)',
+    backgroundColor: 'rgba(255, 159, 28, 0.14)',
     borderWidth: 1,
     borderColor: 'rgba(255, 159, 28, 0.35)',
     alignItems: 'center',
@@ -880,9 +873,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 14,
     right: 14,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1052,41 +1045,188 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.8,
   },
-  brandHeroIconWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(255, 159, 28, 0.12)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 159, 28, 0.35)',
+  welcomeScrollContent: {
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.xs,
-    shadowColor: colors.amber,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 4,
+    paddingVertical: 2,
   },
-  errorIconWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(255, 159, 28, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 159, 28, 0.3)',
+  welcomeHeroWrap: {
+    position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 2,
     marginBottom: spacing.xs,
+  },
+  welcomeEmblemAura: {
+    position: 'absolute',
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: 'rgba(255, 159, 28, 0.18)',
+    shadowColor: colors.amber,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.65,
+    shadowRadius: 20,
+    elevation: 6,
+  },
+  welcomeEmblem: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 159, 28, 0.45)',
+  },
+  welcomeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255, 159, 28, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.25)',
+    borderRadius: radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 3.5,
+    marginTop: 8,
+    marginBottom: 6,
+  },
+  welcomeBadgeText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 9.5,
+    letterSpacing: 1.1,
+    color: colors.amber,
+  },
+  welcomeTitle: {
+    textAlign: 'center',
+    fontSize: 22,
+    color: '#ffffff',
+    letterSpacing: -0.4,
+  },
+  welcomeSubtitle: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 12.5,
+    lineHeight: 18,
+    color: colors.text2,
+    textAlign: 'center',
+    maxWidth: 300,
+    marginTop: 4,
+    marginBottom: spacing.md,
+  },
+  authErrorCard: {
+    width: '100%',
+    backgroundColor: 'rgba(244, 63, 94, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(244, 63, 94, 0.35)',
+    borderRadius: radius.md,
+    padding: spacing.sm + 2,
+    marginBottom: spacing.md,
+  },
+  authErrorHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  authErrorTitle: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 12.5,
+    color: colors.red,
+  },
+  authErrorDesc: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 11.5,
+    color: '#fecdd3',
+    lineHeight: 16,
+  },
+  authCardDiscord: {
+    width: '100%',
+    backgroundColor: 'rgba(88, 101, 242, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(88, 101, 242, 0.32)',
+    borderRadius: radius.lg,
+    padding: spacing.md,
+  },
+  authCardDiscordHeader: {
+    marginBottom: spacing.sm,
+  },
+  authCardDiscordTitleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 3,
+  },
+  authCardDiscordTitle: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 14,
+    color: '#ffffff',
+  },
+  recommendedBadge: {
+    backgroundColor: 'rgba(88, 101, 242, 0.25)',
+    borderWidth: 1,
+    borderColor: 'rgba(88, 101, 242, 0.5)',
+    borderRadius: radius.full,
+    paddingHorizontal: 7,
+    paddingVertical: 1.5,
+  },
+  recommendedBadgeText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 8.5,
+    letterSpacing: 0.8,
+    color: '#c7d2fe',
+  },
+  authCardDiscordSub: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 11.5,
+    lineHeight: 16,
+    color: '#cbd5e1',
+  },
+  welcomeDividerRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: spacing.md - 2,
+  },
+  welcomeDividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  welcomeDividerText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 9.5,
+    letterSpacing: 1.2,
+    color: colors.text3,
+    marginHorizontal: spacing.sm,
+  },
+  authCardGuest: {
+    width: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: radius.lg,
+    padding: spacing.md,
+  },
+  guestCardHeader: {
+    marginBottom: spacing.xs,
+  },
+  guestCardTitle: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 14,
+    color: '#ffffff',
+    marginBottom: 2,
+  },
+  guestCardSub: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 11.5,
+    lineHeight: 16,
+    color: colors.text2,
   },
   browseWithoutSignInBtn: {
-    paddingVertical: 10,
+    paddingVertical: 12,
     alignItems: 'center',
-    marginTop: 6,
+    marginTop: spacing.xs,
   },
   browseWithoutSignInText: {
     fontFamily: fontFamily.bodyRegular,
-    fontSize: 13,
+    fontSize: 12.5,
     color: colors.text3,
   },
   listenerModalAvatar: {

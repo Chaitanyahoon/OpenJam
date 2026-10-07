@@ -68,7 +68,7 @@ import { requestFirstLaunchPermissions } from '../permissions';
 // Complete WebBrowser session if returning from OAuth
 WebBrowser.maybeCompleteAuthSession();
 
-const openjamLogo = require('../../assets/images/openjam-logo.png');
+const openjamLogo = require('../../assets/images/openjam-emblem.png');
 
 const GENRES = ['All', 'Lofi & Chill', 'Synthwave', 'Hip Hop', 'Ambient'];
 const SLOGANS = ['In Sync.', 'With Friends.', 'In Real-Time.', 'In Harmony.'];
@@ -400,11 +400,13 @@ export default function Landing() {
             {/* Top Bar Navigation: Left Logo + Wordmark, Right Discord Auth */}
             <View style={styles.navBar}>
               <View style={styles.navLeft}>
-                <Image
-                  source={openjamLogo}
-                  style={styles.brandLogo}
-                  resizeMode="contain"
-                />
+                <View style={styles.brandLogoWrap}>
+                  <Image
+                    source={openjamLogo}
+                    style={styles.brandLogo}
+                    resizeMode="contain"
+                  />
+                </View>
                 <Text style={styles.brandName}>
                   Open<Text style={styles.brandNameAmber}>Jam</Text>
                 </Text>
@@ -451,7 +453,7 @@ export default function Landing() {
                 </Pressable>
               ) : (
                 <Pressable
-                  onPress={() => setShowProfile(true)}
+                  onPress={() => setShowIdentity(true)}
                   style={({ pressed }) => [styles.discordLoginPill, pressed && styles.pressed]}
                   accessibilityLabel="Sign in or join as guest"
                 >
@@ -778,15 +780,31 @@ const styles = StyleSheet.create({
   navLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
+  },
+  brandLogoWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 159, 28, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.28)',
+    shadowColor: colors.amber,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 3,
   },
   brandLogo: {
-    width: 32,
-    height: 32,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
   },
   brandName: {
     fontFamily: fontFamily.displayBold,
-    fontSize: 20,
+    fontSize: 21,
     color: '#ffffff',
     letterSpacing: -0.5,
   },
