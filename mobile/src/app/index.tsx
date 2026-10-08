@@ -319,7 +319,7 @@ export default function Landing() {
     if (track.roomId) {
       openRoom({ id: track.roomId });
     } else {
-      openRoom({ id: 'openjam-lounge' });
+      toast('Select or start a live room to play this song', 'info');
     }
   };
 
@@ -403,7 +403,7 @@ export default function Landing() {
         }
         ListHeaderComponent={
           <View style={styles.headerContainer}>
-            {/* Top Bar Navigation: Left Logo + Wordmark, Right Discord Auth */}
+            {/* Top Bar Navigation: Left Logo + Wordmark, Right Vault & Profile */}
             <View style={styles.navBar}>
               <View style={styles.navLeft}>
                 <View style={styles.brandLogoWrap}>
@@ -418,73 +418,84 @@ export default function Landing() {
                 </Text>
               </View>
 
-              {user ? (
+              <View style={styles.navRight}>
                 <Pressable
-                  onPress={() => setShowProfile(true)}
-                  style={({ pressed }) => [
-                    styles.discordUserChip,
-                    !user.discord_id && styles.guestUserChip,
-                    pressed && styles.pressed,
-                  ]}
-                  accessibilityLabel="View profile"
+                  onPress={() => {
+                    void hapticMedium();
+                    router.push('/offline');
+                  }}
+                  style={({ pressed }) => [styles.navVaultBtn, pressed && styles.pressed]}
+                  hitSlop={8}
+                  accessibilityLabel="Open Offline Audio Vault"
                 >
-                  {user.avatar_url ? (
-                    <Image source={{ uri: user.avatar_url }} style={styles.discordAvatarMini} />
-                  ) : (
+                  <HardDrive size={16} color={colors.amber} />
+                </Pressable>
+
+                {user ? (
+                  <Pressable
+                    onPress={() => setShowProfile(true)}
+                    style={({ pressed }) => [
+                      styles.discordUserChip,
+                      !user.discord_id && styles.guestUserChip,
+                      pressed && styles.pressed,
+                    ]}
+                    accessibilityLabel="View profile"
+                  >
+                    {user.avatar_url ? (
+                      <Image source={{ uri: user.avatar_url }} style={styles.discordAvatarMini} />
+                    ) : (
+                      <View
+                        style={[
+                          styles.discordAvatarFallback,
+                          !user.discord_id && styles.guestAvatarFallback,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.userInitialsMini,
+                            !user.discord_id && styles.guestInitialsMini,
+                          ]}
+                          maxFontSizeMultiplier={1.0}
+                        >
+                          {initials}
+                        </Text>
+                      </View>
+                    )}
+                    <Text
+                      style={styles.userName}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                      maxFontSizeMultiplier={1.2}
+                    >
+                      {user.discord_username ? `@${user.discord_username}` : (user.display_name || 'Jammer')}
+                    </Text>
                     <View
                       style={[
-                        styles.discordAvatarFallback,
-                        !user.discord_id && styles.guestAvatarFallback,
+                        styles.discordOnlineDot,
+                        !user.discord_id && styles.guestOnlineDot,
                       ]}
-                    >
-                      <Text
-                        style={[
-                          styles.userInitialsMini,
-                          !user.discord_id && styles.guestInitialsMini,
-                        ]}
-                        maxFontSizeMultiplier={1.0}
-                      >
-                        {initials}
-                      </Text>
-                    </View>
-                  )}
-                  <Text
-                    style={styles.userName}
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                    maxFontSizeMultiplier={1.2}
+                    />
+                  </Pressable>
+                ) : (
+                  <Pressable
+                    onPress={() => setShowIdentity(true)}
+                    style={({ pressed }) => [styles.discordLoginPill, pressed && styles.pressed]}
+                    accessibilityLabel="Sign in or join as guest"
                   >
-                    {user.discord_username ? `@${user.discord_username}` : (user.display_name || 'Jammer')}
-                  </Text>
-                  <View
-                    style={[
-                      styles.discordOnlineDot,
-                      !user.discord_id && styles.guestOnlineDot,
-                    ]}
-                  />
-                </Pressable>
-              ) : (
-                <Pressable
-                  onPress={() => setShowIdentity(true)}
-                  style={({ pressed }) => [styles.discordLoginPill, pressed && styles.pressed]}
-                  accessibilityLabel="Sign in or join as guest"
-                >
-                  <LogIn size={15} color="#ffffff" strokeWidth={2.4} />
-                  <Text style={styles.discordPillText} maxFontSizeMultiplier={1.2}>Sign In</Text>
-                </Pressable>
-              )}
+                    <LogIn size={15} color="#ffffff" strokeWidth={2.4} />
+                    <Text style={styles.discordPillText} maxFontSizeMultiplier={1.2}>Sign In</Text>
+                  </Pressable>
+                )}
+              </View>
             </View>
 
-            {/* Streamlined Hero Stage */}
-            <LinearGradient
-              colors={['rgba(24, 24, 34, 0.85)', 'rgba(10, 10, 14, 0.95)']}
-              style={styles.heroGlassCard}
-            >
-              {/* Badge */}
-              <View style={styles.versionBadge}>
-                <Sparkles size={11} color={colors.amber} />
-                <Text style={styles.versionText}>OPEN JAM V2</Text>
-              </View>
+            {/* Streamlined Music Action Deck */}
+            <View style={styles.heroGlassCard}>
+              <LinearGradient
+                colors={['rgba(24, 24, 34, 0.90)', 'rgba(12, 12, 18, 0.96)']}
+                style={StyleSheet.absoluteFill}
+                pointerEvents="none"
+              />
 
               {/* Main Title with Animated Slogan Ticker */}
               <Text style={styles.heroTitle}>
@@ -504,18 +515,18 @@ export default function Landing() {
                     if (user) setShowCreate(true);
                     else setShowIdentity(true);
                   }}
-                  style={({ pressed }) => [styles.instantBtnWrap, pressed && styles.pressed]}
+                  style={({ pressed }) => [styles.instantBtn, pressed && styles.pressed]}
                   accessibilityLabel="Create Instant Jam"
                 >
                   <LinearGradient
                     colors={['#ffb03a', '#ff9f1c']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
-                    style={styles.instantBtn}
-                  >
-                    <Sparkles size={15} color="#08080a" />
-                    <Text style={styles.instantBtnText}>Instant Jam</Text>
-                  </LinearGradient>
+                    style={StyleSheet.absoluteFill}
+                    pointerEvents="none"
+                  />
+                  <Sparkles size={16} color="#08080a" strokeWidth={2.4} />
+                  <Text style={styles.instantBtnText}>Instant Jam</Text>
                 </Pressable>
 
                 <Pressable
@@ -529,19 +540,11 @@ export default function Landing() {
                   ]}
                   accessibilityLabel="Join with Code"
                 >
-                  <KeyRound size={14} color="#ffffff" />
+                  <KeyRound size={15} color="#ffffff" strokeWidth={2.2} />
                   <Text style={styles.joinCodeBtnText}>Join with Code</Text>
                 </Pressable>
               </View>
-
-              <View style={styles.trustBanner}>
-                <Text style={styles.trustText}>Discord Sync</Text>
-                <Text style={styles.trustDot}>•</Text>
-                <Text style={styles.trustText}>Free Forever</Text>
-                <Text style={styles.trustDot}>•</Text>
-                <Text style={styles.trustText}>Zero Latency</Text>
-              </View>
-            </LinearGradient>
+            </View>
 
             {/* Pinned Stations Carousel (1-Tap Re-entry) */}
             {favoriteRooms.length > 0 && (
@@ -721,36 +724,44 @@ export default function Landing() {
                 </Pressable>
               </Animated.View>
             ) : (
-              <Animated.View entering={FadeInDown.duration(300)} style={styles.loungeCard}>
-                <View style={styles.loungeBadge}>
-                  <View style={styles.loungeDot} />
-                  <Text style={styles.loungeBadgeText}>24/7 COMMUNITY STATION</Text>
+              <Animated.View entering={FadeInDown.duration(300)} style={styles.feedEmptyCard}>
+                <View style={styles.feedEmptyIconWrap}>
+                  <Radio size={24} color={colors.amber} strokeWidth={2.2} />
                 </View>
-                <Text style={styles.loungeTitle}>OpenJam Live Lounge</Text>
-                <Text style={styles.loungeDesc}>
-                  The official community radio is broadcasting synchronized chill beats right now. Jump straight in or spin up your own live room!
+                <Text style={styles.feedEmptyTitle}>No Active Jam Rooms</Text>
+                <Text style={styles.feedEmptyDesc}>
+                  No one is broadcasting right now. Be the first DJ to spin up a live session, or explore music saved in your Offline Vault!
                 </Text>
-                <View style={styles.loungeActions}>
-                  <Pressable
-                    onPress={() => {
-                      void hapticMedium();
-                      openRoom({ id: 'openjam-lounge' });
-                    }}
-                    style={({ pressed }) => [styles.loungeTuneBtn, pressed && styles.pressed]}
-                  >
-                    <Play size={13} color="#08080a" fill="#08080a" />
-                    <Text style={styles.loungeTuneText}>Tune In (Live Lounge)</Text>
-                  </Pressable>
+                <View style={styles.feedEmptyActions}>
                   <Pressable
                     onPress={() => {
                       void hapticMedium();
                       if (user) setShowCreate(true);
                       else setShowIdentity(true);
                     }}
-                    style={({ pressed }) => [styles.loungeInstantBtn, pressed && styles.pressed]}
+                    style={({ pressed }) => [styles.feedEmptyCreateBtn, pressed && styles.pressed]}
+                    accessibilityLabel="Start a Live Jam Room"
                   >
-                    <Plus size={14} color="#ffffff" strokeWidth={2.4} />
-                    <Text style={styles.loungeInstantText}>Create Room</Text>
+                    <LinearGradient
+                      colors={['#ffb03a', '#ff9f1c']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.feedEmptyCreateGradient}
+                    >
+                      <Sparkles size={15} color="#08080a" strokeWidth={2.4} />
+                      <Text style={styles.feedEmptyCreateText}>Start a Jam Room</Text>
+                    </LinearGradient>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      void hapticMedium();
+                      router.push('/offline');
+                    }}
+                    style={({ pressed }) => [styles.feedEmptyVaultBtn, pressed && styles.pressed]}
+                    accessibilityLabel="Open Offline Audio Vault"
+                  >
+                    <HardDrive size={14} color={colors.amber} />
+                    <Text style={styles.feedEmptyVaultText}>Offline Vault</Text>
                   </Pressable>
                 </View>
               </Animated.View>
@@ -874,37 +885,53 @@ const styles = StyleSheet.create({
   navLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
     flexShrink: 0,
   },
   brandLogoWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
   },
   brandLogo: {
-    width: 28,
-    height: 28,
+    width: 30,
+    height: 30,
   },
   brandName: {
     fontFamily: fontFamily.displayBold,
-    fontSize: 19,
+    fontSize: 21,
     color: '#ffffff',
     letterSpacing: -0.5,
   },
   brandNameAmber: {
     color: colors.amber,
   },
+  navRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
+  },
+  navVaultBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   discordLoginPill: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#5865F2',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: radius.full,
-    gap: 5,
+    gap: 6,
     shadowColor: '#5865F2',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.35,
@@ -917,7 +944,7 @@ const styles = StyleSheet.create({
   },
   discordPillText: {
     fontFamily: fontFamily.bodySemiBold,
-    fontSize: 12,
+    fontSize: 12.5,
     color: '#ffffff',
   },
   discordUserChip: {
@@ -927,32 +954,32 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(88, 101, 242, 0.3)',
     borderRadius: radius.full,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     gap: 6,
-    maxWidth: 180,
+    maxWidth: 190,
     flexShrink: 1,
   },
   discordAvatarMini: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     overflow: 'hidden',
     flexShrink: 0,
   },
   discordAvatarFallback: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: '#5865F2',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
   discordOnlineDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: '#22c55e',
     flexShrink: 0,
   },
@@ -977,7 +1004,7 @@ const styles = StyleSheet.create({
   },
   userName: {
     fontFamily: fontFamily.bodySemiBold,
-    fontSize: 11,
+    fontSize: 12,
     color: colors.text1,
     flexShrink: 1,
     minWidth: 0,
@@ -989,11 +1016,11 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
-    paddingVertical: 18,
-    paddingHorizontal: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 18,
     alignItems: 'center',
     marginTop: spacing.xs,
-    marginBottom: 14,
+    marginBottom: spacing.md,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.45,
@@ -1027,10 +1054,10 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     fontFamily: fontFamily.displayBold,
-    fontSize: 23,
+    fontSize: 22,
     color: '#ffffff',
-    letterSpacing: -0.5,
-    lineHeight: 29,
+    letterSpacing: -0.4,
+    lineHeight: 28,
     marginTop: 2,
     textAlign: 'center',
   },
@@ -1039,13 +1066,13 @@ const styles = StyleSheet.create({
   },
   heroSubtitle: {
     fontFamily: fontFamily.bodyRegular,
-    fontSize: 12.5,
+    fontSize: 13.5,
     color: colors.text2,
     textAlign: 'center',
-    lineHeight: 17,
-    maxWidth: 320,
+    lineHeight: 19,
+    maxWidth: 340,
     marginTop: 4,
-    marginBottom: 14,
+    marginBottom: 16,
   },
   heroActions: {
     width: '100%',
@@ -1054,27 +1081,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  instantBtnWrap: {
+  instantBtn: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    paddingVertical: 12,
     borderRadius: radius.full,
     overflow: 'hidden',
+    position: 'relative',
     shadowColor: colors.amber,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 10,
     elevation: 5,
   },
-  instantBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10.5,
-    borderRadius: radius.full,
-  },
   instantBtnText: {
     fontFamily: fontFamily.bodySemiBold,
-    fontSize: 13.5,
+    fontSize: 14,
     color: '#08080a',
     letterSpacing: 0.2,
   },
@@ -1083,33 +1108,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10.5,
+    gap: 7,
+    paddingVertical: 12,
     borderRadius: radius.full,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.12)',
   },
   joinCodeBtnText: {
     fontFamily: fontFamily.bodySemiBold,
-    fontSize: 13,
+    fontSize: 13.5,
     color: '#ffffff',
-  },
-  trustBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 12,
-  },
-  trustText: {
-    fontFamily: fontFamily.bodyRegular,
-    fontSize: 10.5,
-    color: 'rgba(255, 255, 255, 0.45)',
-  },
-  trustDot: {
-    fontSize: 9,
-    color: 'rgba(255, 255, 255, 0.25)',
   },
   pinnedSection: {
     maxWidth: 600,
@@ -1403,90 +1412,83 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.amber,
   },
-  loungeCard: {
+  feedEmptyCard: {
     maxWidth: 600,
     width: '100%',
     alignSelf: 'center',
     backgroundColor: 'rgba(18, 18, 26, 0.85)',
     borderWidth: 1,
     borderColor: 'rgba(255, 159, 28, 0.25)',
-    borderRadius: radius.lg,
-    padding: spacing.lg,
+    borderRadius: 20,
+    padding: 22,
+    alignItems: 'center',
     marginTop: spacing.md,
   },
-  loungeBadge: {
-    flexDirection: 'row',
+  feedEmptyIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 159, 28, 0.3)',
     alignItems: 'center',
-    gap: 6,
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255, 159, 28, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 159, 28, 0.35)',
-    borderRadius: radius.full,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    marginBottom: spacing.sm,
+    justifyContent: 'center',
+    marginBottom: 12,
   },
-  loungeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.amber,
-  },
-  loungeBadgeText: {
-    fontFamily: fontFamily.bodySemiBold,
-    fontSize: 10,
-    color: colors.amber,
-    letterSpacing: 1,
-  },
-  loungeTitle: {
+  feedEmptyTitle: {
     fontFamily: fontFamily.displayBold,
     fontSize: 18,
     color: '#ffffff',
     marginBottom: 6,
+    textAlign: 'center',
   },
-  loungeDesc: {
+  feedEmptyDesc: {
     fontFamily: fontFamily.bodyRegular,
     fontSize: 13,
     color: colors.text2,
-    lineHeight: 18,
-    marginBottom: spacing.md,
+    lineHeight: 19,
+    textAlign: 'center',
+    marginBottom: 16,
+    maxWidth: 300,
   },
-  loungeActions: {
+  feedEmptyActions: {
+    width: '100%',
     flexDirection: 'row',
     gap: 10,
   },
-  loungeTuneBtn: {
+  feedEmptyCreateBtn: {
     flex: 1,
+    borderRadius: radius.full,
+    overflow: 'hidden',
+  },
+  feedEmptyCreateGradient: {
     flexDirection: 'row',
-    backgroundColor: colors.amber,
-    paddingVertical: 10,
-    borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 7,
+    paddingVertical: 11,
   },
-  loungeTuneText: {
+  feedEmptyCreateText: {
     fontFamily: fontFamily.bodySemiBold,
-    fontSize: 13,
+    fontSize: 13.5,
     color: '#08080a',
   },
-  loungeInstantBtn: {
+  feedEmptyVaultBtn: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    paddingVertical: 10,
-    borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 7,
+    paddingVertical: 11,
+    borderRadius: radius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
-  loungeInstantText: {
+  feedEmptyVaultText: {
     fontFamily: fontFamily.bodySemiBold,
     fontSize: 13,
-    color: '#ffffff',
+    color: colors.amber,
   },
   pressed: {
     opacity: 0.8,

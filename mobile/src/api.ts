@@ -136,71 +136,22 @@ export async function clearSession(): Promise<void> {
   await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY, NAME_KEY]);
 }
 
-export const COMMUNITY_ROOMS: RoomSummary[] = [
-  {
-    id: 'openjam-lounge',
-    name: '24/7 Lofi & Chill Lounge',
-    description: 'OpenJam Official Community Lounge — synchronized chill beats 24/7.',
-    host_name: 'OpenJam Radio',
-    listener_count: 24,
-    is_private: false,
-    genre_tags: ['lofi', 'chill', 'beats'],
-    now_playing: {
-      track_name: 'Midnight Dreams',
-      artist: 'Kalaido & Lofi Beats',
-      album_art_url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=500',
-    },
-  },
-  {
-    id: 'synthwave-station',
-    name: 'Synthwave Sunset',
-    description: 'Neon retro driving beats synced across the world.',
-    host_name: 'RetroWave FM',
-    listener_count: 17,
-    is_private: false,
-    genre_tags: ['synthwave', 'electronic', 'neon'],
-    now_playing: {
-      track_name: 'Resonance & Retrowave',
-      artist: 'HOME & Synth Beats',
-      album_art_url: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=500',
-    },
-  },
-  {
-    id: 'the-aux-cord',
-    name: 'The Aux Cord (Open Deck)',
-    description: 'Anyone can queue tracks. Free-for-all listening room.',
-    host_name: 'Open Jammer',
-    listener_count: 11,
-    is_private: false,
-    genre_tags: ['hiphop', 'r&b', 'indie'],
-    now_playing: {
-      track_name: 'Blinding Lights',
-      artist: 'The Weeknd',
-      album_art_url: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500',
-    },
-  },
-];
+export const COMMUNITY_ROOMS: RoomSummary[] = [];
 
 export async function getRooms(): Promise<RoomSummary[]> {
   try {
     const data = await request<{ rooms: any[] }>('/rooms');
-    const liveRooms = (data.rooms ?? []).map((r) => ({
-      ...r,
-      now_playing: r.now_playing || r.current_track || null,
-      genre_tags: r.genre_tags && r.genre_tags.length > 0 ? r.genre_tags : ['music', 'live'],
-    }));
+    const liveRooms = (data.rooms ?? [])
+      .filter((r) => r.id !== 'openjam-lounge')
+      .map((r) => ({
+        ...r,
+        now_playing: r.now_playing || r.current_track || null,
+        genre_tags: r.genre_tags && r.genre_tags.length > 0 ? r.genre_tags : ['music', 'live'],
+      }));
 
-    if (liveRooms.length === 0) {
-      return COMMUNITY_ROOMS;
-    }
-
-    const hasLounge = liveRooms.some((r: RoomSummary) => r.id === 'openjam-lounge');
-    if (!hasLounge) {
-      return [COMMUNITY_ROOMS[0], ...liveRooms];
-    }
     return liveRooms;
   } catch (err) {
-    return COMMUNITY_ROOMS;
+    return [];
   }
 }
 

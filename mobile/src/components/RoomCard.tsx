@@ -173,8 +173,6 @@ export function RoomCard({
   const coverUrl = rawCover?.trim();
   const isValidHttpUrl = !!coverUrl && (coverUrl.startsWith('http://') || coverUrl.startsWith('https://'));
   const hasValidCover = isValidHttpUrl && !imageError;
-  const isLounge = room.id === 'openjam-lounge';
-
   useEffect(() => {
     void isRoomFavorited(room.id).then(setFavorited);
   }, [room.id]);
@@ -245,7 +243,7 @@ export function RoomCard({
             <View
               style={[
                 styles.badge,
-                isLounge ? styles.badgeLounge : room.is_private ? styles.badgePrivate : styles.badgeLive,
+                room.is_private ? styles.badgePrivate : styles.badgeLive,
               ]}
             >
               {room.is_private ? (
@@ -254,7 +252,7 @@ export function RoomCard({
                 <View
                   style={[
                     styles.badgeDot,
-                    { backgroundColor: isLounge ? colors.amber : colors.red },
+                    { backgroundColor: colors.red },
                   ]}
                 />
               )}
@@ -262,11 +260,10 @@ export function RoomCard({
                 style={[
                   styles.badgeText,
                   room.is_private && { color: '#e9d5ff' },
-                  isLounge && { color: colors.amber },
                 ]}
                 maxFontSizeMultiplier={1.15}
               >
-                {isLounge ? '24/7 Lounge' : room.is_private ? 'Private' : 'LIVE'}
+                {room.is_private ? 'Private' : 'LIVE'}
               </Text>
             </View>
 

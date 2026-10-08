@@ -458,7 +458,7 @@ export function JoinWithCodeModal({
       <Field
         value={code}
         onChangeText={setCode}
-        placeholder="e.g. openjam-lounge or room link"
+        placeholder="e.g. synthwave-chill or room link"
         autoCapitalize="none"
         autoCorrect={false}
         onSubmitEditing={handleJoin}

@@ -25,6 +25,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -141,13 +142,17 @@ export default function PlayerTab() {
   const player = usePlayer();
   const { durationMs } = usePlayerStatus();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const isRoomEmpty = !nowPlaying;
 
-  // Dynamically clamp turntable stage so compact devices (e.g. 360dp width or 640px height) never push controls off screen or overflow horizontally
+  // Dynamically clamp turntable stage so compact devices never push controls off screen or overflow
   const maxAvailableWidth = windowWidth - spacing.lg * 2;
   const maxStageWidth = Math.min(maxAvailableWidth, 340);
-  const artworkSize = Math.max(160, Math.min(Math.floor(maxStageWidth / 1.08), windowHeight * 0.32, 280));
+  const artworkSize = isRoomEmpty
+    ? Math.min(136, Math.floor(windowHeight * 0.18))
+    : Math.max(160, Math.min(Math.floor(maxStageWidth / 1.08), windowHeight * 0.32, 280));
   const discSize = artworkSize - 12;
-  const maxSlide = Math.min(Math.round(artworkSize * 0.08), Math.max(0, maxStageWidth - artworkSize));
+  const maxSlide = isRoomEmpty ? 0 : Math.min(Math.round(artworkSize * 0.08), Math.max(0, maxStageWidth - artworkSize));
 
   const [pos, setPos] = useState(0);
   useEffect(() => {
@@ -348,11 +353,20 @@ export default function PlayerTab() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.container, !nowPlaying && styles.containerCentered]}
+        contentContainerStyle={[
+          styles.container,
+          { paddingBottom: Math.max(insets.bottom, 16) + 84 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* Prominent Vinyl Turntable Stage (Spotify inspired size, responsive clamped) */}
-        <View style={[styles.turntableStage, { width: artworkSize + maxSlide, height: artworkSize }]}>
+        <View
+          style={[
+            styles.turntableStage,
+            { width: artworkSize + maxSlide, height: artworkSize },
+            isRoomEmpty && styles.turntableStageEmpty,
+          ]}
+        >
           {/* Circular Vinyl Record sliding out behind sleeve */}
           <Animated.View
             style={[
@@ -779,6 +793,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: spacing.md,
     marginBottom: spacing.lg,
+  },
+  turntableStageEmpty: {
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
   },
   turntableDisc: {
     position: 'absolute',
@@ -1276,49 +1294,49 @@ const styles = StyleSheet.create({
   emptyContainer: {
     width: '100%',
     alignItems: 'center',
-    paddingVertical: spacing.xl,
+    paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
   },
   emptyTitle: {
     fontFamily: fontFamily.displayBold,
-    fontSize: 22,
+    fontSize: 20,
     color: colors.text1,
-    marginTop: spacing.md,
+    marginTop: spacing.xs,
   },
   emptySubtitle: {
     fontFamily: fontFamily.bodyRegular,
-    fontSize: 14,
+    fontSize: 13,
     color: colors.text3,
     textAlign: 'center',
-    marginTop: 6,
-    lineHeight: 20,
-    maxWidth: 280,
+    marginTop: 4,
+    lineHeight: 18,
+    maxWidth: 290,
   },
   addTrackButton: {
-    marginTop: spacing.xl,
+    marginTop: spacing.md,
     borderRadius: 24,
     overflow: 'hidden',
     shadowColor: colors.amber,
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
-    shadowRadius: 14,
-    elevation: 6,
+    shadowRadius: 12,
+    elevation: 5,
   },
   addTrackGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.xl,
-    paddingVertical: 14,
+    paddingVertical: 12,
     gap: 8,
   },
   addTrackGlyph: {
-    fontSize: 18,
+    fontSize: 16,
     color: '#08080a',
     fontWeight: 'bold',
   },
   addTrackButtonText: {
     fontFamily: fontFamily.bodySemiBold,
-    fontSize: 15,
+    fontSize: 14.5,
     color: '#08080a',
   },
   disabled: {
@@ -1329,14 +1347,12 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.96 }],
   },
   containerCentered: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingVertical: spacing.xl,
+    paddingVertical: 0,
   },
   starterSection: {
     width: '100%',
-    marginTop: spacing.xl,
-    paddingTop: spacing.lg,
+    marginTop: spacing.lg,
+    paddingTop: spacing.md,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.08)',
   },

@@ -170,7 +170,7 @@ function RoomGuards({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (roomClosed) {
       Alert.alert('Room closed', 'The host closed this room.', [
-        { text: 'OK', onPress: () => router.back() },
+        { text: 'OK', onPress: () => router.replace('/') },
       ]);
     }
   }, [roomClosed]);
@@ -179,7 +179,7 @@ function RoomGuards({ children }: { children: React.ReactNode }) {
     if (joinError) {
       Alert.alert('Could not join', joinError, [
         { text: 'Retry', onPress: () => retryJoin() },
-        { text: 'Back', onPress: () => router.back(), style: 'cancel' },
+        { text: 'Back', onPress: () => router.replace('/'), style: 'cancel' },
       ]);
     }
   }, [joinError, retryJoin]);
@@ -193,7 +193,7 @@ function RoomGuards({ children }: { children: React.ReactNode }) {
         onClose={() => setShowLeave(false)}
         onConfirm={() => {
           setShowLeave(false);
-          router.back();
+          router.replace('/');
         }}
       />
     </LeaveCtx.Provider>
