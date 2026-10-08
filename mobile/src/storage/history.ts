@@ -387,3 +387,20 @@ export async function isFavoriteTrack(trackUri: string): Promise<boolean> {
     return false;
   }
 }
+
+let pendingSoloQueue: TrackInfo[] | null = null;
+let pendingSoloAutoplayTrack: TrackInfo | null = null;
+
+export function setPendingSoloQueue(tracks: TrackInfo[], playTrack?: TrackInfo): void {
+  pendingSoloQueue = tracks;
+  pendingSoloAutoplayTrack = playTrack || tracks[0] || null;
+}
+
+export function consumePendingSoloQueue(): { tracks: TrackInfo[]; playTrack: TrackInfo | null } | null {
+  if (!pendingSoloQueue) return null;
+  const result = { tracks: pendingSoloQueue, playTrack: pendingSoloAutoplayTrack };
+  pendingSoloQueue = null;
+  pendingSoloAutoplayTrack = null;
+  return result;
+}
+

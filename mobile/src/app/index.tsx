@@ -40,6 +40,10 @@ import {
   Headphones,
   WifiOff,
   ArrowRight,
+  Heart,
+  Clock,
+  Shuffle,
+  Music,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
@@ -67,8 +71,18 @@ import {
   RoomPasswordModal,
 } from '../components/Modals';
 import { ProfileModal } from '../components/ProfileModal';
-import { getFavoriteRooms, type FavoriteRoom, type PlayedTrack } from '../storage/history';
-import { hapticMedium } from '../utils/haptics';
+import {
+  getFavoriteRooms,
+  type FavoriteRoom,
+  type PlayedTrack,
+  getFavoriteTracks,
+  subscribeFavoriteTracks,
+  getRecentlyPlayed,
+  clearRecentlyPlayed,
+  setPendingSoloQueue,
+} from '../storage/history';
+import type { TrackInfo } from '../sync/protocol';
+import { hapticMedium, hapticLight } from '../utils/haptics';
 import { useToast } from '../components/ToastContext';
 import { registerPushToken } from '../notifications';
 import { requestFirstLaunchPermissions } from '../permissions';
@@ -116,6 +130,8 @@ export default function Landing() {
   const [showJoinWithCode, setShowJoinWithCode] = useState(false);
   const [pwRoom, setPwRoom] = useState<RoomSummary | null>(null);
   const [favoriteRooms, setFavoriteRooms] = useState<FavoriteRoom[]>([]);
+  const [favoriteTracks, setFavoriteTracks] = useState<TrackInfo[]>([]);
+  const [recentTracks, setRecentTracks] = useState<PlayedTrack[]>([]);
   const [ready, setReady] = useState(false);
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -137,6 +153,24 @@ export default function Landing() {
     } catch {}
   }, []);
 
+  const loadHistoryAndFavorites = useCallback(async () => {
+    try {
+      const [favs, recents] = await Promise.all([
+        getFavoriteTracks(),
+        getRecentlyPlayed(),
+      ]);
+      setFavoriteTracks(favs);
+      setRecentTracks(recents);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    const unsub = subscribeFavoriteTracks((favs) => {
+      setFavoriteTracks(favs);
+    });
+    return unsub;
+  }, []);
+
   const loadRooms = useCallback(async () => {
     try {
       const data = await getRooms();
@@ -145,12 +179,14 @@ export default function Landing() {
       // Handled in api.ts fallback
     }
     await loadFavorites();
-  }, [loadFavorites]);
+    await loadHistoryAndFavorites();
+  }, [loadFavorites, loadHistoryAndFavorites]);
 
   useFocusEffect(
     useCallback(() => {
       void loadFavorites();
-    }, [loadFavorites]),
+      void loadHistoryAndFavorites();
+    }, [loadFavorites, loadHistoryAndFavorites]),
   );
 
   // Initial session & rooms load (0ms optimistic paint + background revalidation)
@@ -366,12 +402,46 @@ export default function Landing() {
 
   const handleProfilePlayTrack = (track: PlayedTrack) => {
     setShowProfile(false);
+    setPendingSoloQueue([track], track);
     if (track.roomId && track.roomId !== 'solo') {
-      openRoom({ id: track.roomId });
+      openRoom({ id: track.roomId, name: track.roomName });
     } else {
       openRoom({ id: 'solo', name: 'Solo Jam' });
     }
   };
+
+  const handleShufflePlayLiked = () => {
+    if (favoriteTracks.length === 0) return;
+    void hapticMedium();
+    const shuffled = [...favoriteTracks].sort(() => Math.random() - 0.5);
+    setPendingSoloQueue(shuffled, shuffled[0]);
+    openRoom({ id: 'solo', name: 'Liked Songs' });
+  };
+
+  const handlePlayLikedTrack = (track: TrackInfo) => {
+    void hapticLight();
+    const otherTracks = favoriteTracks.filter((t) => t.track_uri !== track.track_uri);
+    setPendingSoloQueue([track, ...otherTracks], track);
+    openRoom({ id: 'solo', name: 'Liked Songs' });
+  };
+
+  const handlePlayRecentTrack = (track: PlayedTrack) => {
+    void hapticLight();
+    setPendingSoloQueue([track], track);
+    if (track.roomId && track.roomId !== 'solo') {
+      openRoom({ id: track.roomId, name: track.roomName });
+    } else {
+      openRoom({ id: 'solo', name: 'Solo Jam' });
+    }
+  };
+
+  const handleClearRecent = async () => {
+    void hapticLight();
+    await clearRecentlyPlayed();
+    setRecentTracks([]);
+    toast('Listening history cleared', 'info');
+  };
+
 
   const openRoom = (room: RoomSummary | { id: string; name?: string }, password = '') => {
     router.push({
@@ -609,6 +679,131 @@ export default function Landing() {
                 </View>
               </View>
             </View>
+
+            {/* 1-Tap Liked Songs Shelf */}
+            {favoriteTracks.length > 0 && (
+              <View style={styles.likedSection}>
+                <View style={styles.likedHeader}>
+                  <View style={styles.likedTitleWrap}>
+                    <Heart size={13} color="#ef4444" fill="#ef4444" />
+                    <Text style={styles.likedTitle}>LIKED SONGS</Text>
+                    <View style={styles.likedCountBadge}>
+                      <Text style={styles.likedCountText}>{favoriteTracks.length}</Text>
+                    </View>
+                  </View>
+
+                  <Pressable
+                    onPress={handleShufflePlayLiked}
+                    style={({ pressed }) => [styles.likedShufflePill, pressed && styles.pressed]}
+                    accessibilityLabel="Shuffle Play all liked songs"
+                  >
+                    <Shuffle size={12} color="#08080a" strokeWidth={2.4} />
+                    <Text style={styles.likedShufflePillText}>Shuffle Play</Text>
+                  </Pressable>
+                </View>
+
+                {/* Horizontal carousel of liked songs */}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.likedScroll}
+                  style={styles.likedScrollView}
+                >
+                  {favoriteTracks.map((trk) => (
+                    <Pressable
+                      key={trk.track_uri}
+                      onPress={() => handlePlayLikedTrack(trk)}
+                      style={({ pressed }) => [styles.likedTrackCard, pressed && styles.pressed]}
+                    >
+                      <View style={styles.likedArtWrap}>
+                        {trk.album_art_url ? (
+                          <Image
+                            source={{ uri: trk.album_art_url }}
+                            style={styles.likedArtImage}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View style={styles.likedArtFallback}>
+                            <Music size={20} color={colors.amber} />
+                          </View>
+                        )}
+                        <View style={styles.likedPlayOverlay}>
+                          <Play size={10} color="#08080a" fill="#08080a" />
+                        </View>
+                      </View>
+                      <Text style={styles.likedTrackName} numberOfLines={1}>
+                        {trk.track_name}
+                      </Text>
+                      <Text style={styles.likedTrackArtist} numberOfLines={1}>
+                        {trk.artist || 'Unknown Artist'}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
+            {/* 1-Tap Recently Played Shelf */}
+            {recentTracks.length > 0 && (
+              <View style={styles.recentSection}>
+                <View style={styles.recentHeader}>
+                  <View style={styles.recentTitleWrap}>
+                    <Clock size={13} color={colors.amber} />
+                    <Text style={styles.recentTitle}>RECENTLY PLAYED</Text>
+                    <View style={styles.recentCountBadge}>
+                      <Text style={styles.recentCountText}>{recentTracks.length}</Text>
+                    </View>
+                  </View>
+
+                  <Pressable
+                    onPress={handleClearRecent}
+                    hitSlop={8}
+                    style={({ pressed }) => [styles.recentClearBtn, pressed && styles.pressed]}
+                    accessibilityLabel="Clear recently played history"
+                  >
+                    <Text style={styles.recentClearText}>Clear</Text>
+                  </Pressable>
+                </View>
+
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.recentScroll}
+                  style={styles.recentScrollView}
+                >
+                  {recentTracks.slice(0, 15).map((trk) => (
+                    <Pressable
+                      key={`${trk.track_uri}-${trk.playedAt}`}
+                      onPress={() => handlePlayRecentTrack(trk)}
+                      style={({ pressed }) => [styles.recentTrackCard, pressed && styles.pressed]}
+                    >
+                      <View style={styles.recentArtWrap}>
+                        {trk.album_art_url ? (
+                          <Image
+                            source={{ uri: trk.album_art_url }}
+                            style={styles.recentArtImage}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View style={styles.recentArtFallback}>
+                            <Music size={18} color={colors.amber} />
+                          </View>
+                        )}
+                        <View style={styles.recentPlayOverlay}>
+                          <Play size={9} color="#08080a" fill="#08080a" />
+                        </View>
+                      </View>
+                      <Text style={styles.recentTrackName} numberOfLines={1}>
+                        {trk.track_name}
+                      </Text>
+                      <Text style={styles.recentTrackArtist} numberOfLines={1}>
+                        {trk.artist || 'Unknown'}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
 
             {/* Pinned Stations Carousel (1-Tap Re-entry) */}
             {favoriteRooms.length > 0 && (
@@ -1239,6 +1434,219 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     color: '#ffffff',
   },
+  likedSection: {
+    maxWidth: 600,
+    width: '100%',
+    alignSelf: 'center',
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  likedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+    paddingHorizontal: 2,
+  },
+  likedTitleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  likedTitle: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 12,
+    letterSpacing: 1.2,
+    color: colors.text2,
+  },
+  likedCountBadge: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderRadius: radius.full,
+    paddingHorizontal: 7,
+    paddingVertical: 1,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+  },
+  likedCountText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 10,
+    color: '#ef4444',
+  },
+  likedShufflePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.amber,
+    borderRadius: radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  likedShufflePillText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 11,
+    color: '#08080a',
+  },
+  likedScrollView: {
+    marginHorizontal: -spacing.md,
+  },
+  likedScroll: {
+    gap: 12,
+    paddingVertical: 4,
+    paddingLeft: spacing.md,
+    paddingRight: spacing.md + 14,
+  },
+  likedTrackCard: {
+    width: 120,
+  },
+  likedArtWrap: {
+    width: 120,
+    height: 120,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    marginBottom: 6,
+    position: 'relative',
+  },
+  likedArtImage: {
+    width: '100%',
+    height: '100%',
+  },
+  likedArtFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 159, 28, 0.08)',
+  },
+  likedPlayOverlay: {
+    position: 'absolute',
+    right: 6,
+    bottom: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.amber,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 3,
+  },
+  likedTrackName: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 12,
+    color: '#ffffff',
+    marginBottom: 2,
+  },
+  likedTrackArtist: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 10.5,
+    color: colors.text3,
+  },
+
+  recentSection: {
+    maxWidth: 600,
+    width: '100%',
+    alignSelf: 'center',
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  recentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+    paddingHorizontal: 2,
+  },
+  recentTitleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  recentTitle: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 12,
+    letterSpacing: 1.2,
+    color: colors.text2,
+  },
+  recentCountBadge: {
+    backgroundColor: 'rgba(255, 159, 28, 0.15)',
+    borderRadius: radius.full,
+    paddingHorizontal: 7,
+    paddingVertical: 1,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.3)',
+  },
+  recentCountText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 10,
+    color: colors.amber,
+  },
+  recentClearBtn: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  recentClearText: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 11,
+    color: colors.text3,
+  },
+  recentScrollView: {
+    marginHorizontal: -spacing.md,
+  },
+  recentScroll: {
+    gap: 12,
+    paddingVertical: 4,
+    paddingLeft: spacing.md,
+    paddingRight: spacing.md + 14,
+  },
+  recentTrackCard: {
+    width: 110,
+  },
+  recentArtWrap: {
+    width: 110,
+    height: 110,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    marginBottom: 6,
+    position: 'relative',
+  },
+  recentArtImage: {
+    width: '100%',
+    height: '100%',
+  },
+  recentArtFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 159, 28, 0.08)',
+  },
+  recentPlayOverlay: {
+    position: 'absolute',
+    right: 6,
+    bottom: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.amber,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 3,
+  },
+  recentTrackName: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 12,
+    color: '#ffffff',
+    marginBottom: 2,
+  },
+  recentTrackArtist: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 10,
+    color: colors.text3,
+  },
+
   pinnedSection: {
     maxWidth: 600,
     width: '100%',

@@ -72,3 +72,152 @@ export async function registerPushToken(): Promise<string | null> {
     return null;
   }
 }
+
+// Media playback notification constants
+export const MEDIA_NOTIFICATION_ID = 'openjam-media-playback';
+export const MEDIA_CHANNEL_ID = 'openjam-media-playback-channel';
+export const MEDIA_CATEGORY_ID = 'openjam-media-category';
+
+export const MEDIA_ACTIONS = {
+  PREV: 'ACTION_PREV',
+  PLAY_PAUSE: 'ACTION_PLAY_PAUSE',
+  NEXT: 'ACTION_NEXT',
+} as const;
+
+let mediaChannelConfigured = false;
+
+export async function setupMediaPlaybackNotification(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  if (mediaChannelConfigured) return;
+  try {
+    await Notifications.setNotificationChannelAsync(MEDIA_CHANNEL_ID, {
+      name: 'OpenJam Music Playback',
+      importance: Notifications.AndroidImportance.LOW,
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      sound: null,
+      enableVibrate: false,
+      showBadge: false,
+    });
+
+    await Notifications.setNotificationCategoryAsync(MEDIA_CATEGORY_ID, [
+      {
+        identifier: MEDIA_ACTIONS.PREV,
+        buttonTitle: '⏮ Prev',
+        options: { opensAppToForeground: false },
+      },
+      {
+        identifier: MEDIA_ACTIONS.PLAY_PAUSE,
+        buttonTitle: '⏯ Play/Pause',
+        options: { opensAppToForeground: false },
+      },
+      {
+        identifier: MEDIA_ACTIONS.NEXT,
+        buttonTitle: '⏭ Skip',
+        options: { opensAppToForeground: false },
+      },
+    ]);
+
+    mediaChannelConfigured = true;
+  } catch (err) {
+    console.warn('[notifications] Failed to configure media playback channel:', err);
+  }
+}
+
+export interface MediaNotificationMeta {
+  title: string;
+  artist?: string;
+  isPlaying: boolean;
+  roomId?: string;
+  artworkUrl?: string;
+}
+
+let lastNotificationState = '';
+
+export async function updateMediaNotification(meta: MediaNotificationMeta): Promise<void> {
+  if (Platform.OS !== 'android' && Platform.OS !== 'ios') return;
+  if (!meta.title) {
+    await dismissMediaNotification();
+    return;
+  }
+
+  // Deduplicate identical successive notification calls
+  const stateKey = `${meta.title}::${meta.artist}::${meta.isPlaying}::${meta.roomId}`;
+  if (stateKey === lastNotificationState) return;
+  lastNotificationState = stateKey;
+
+  try {
+    await setupMediaPlaybackNotification();
+
+    const playSymbol = meta.isPlaying ? '▶' : '⏸';
+    const subtext = meta.artist
+      ? `${playSymbol} ${meta.artist}`
+      : `${playSymbol} ${meta.isPlaying ? 'Playing on OpenJam' : 'Paused'}`;
+
+    await Notifications.scheduleNotificationAsync({
+      identifier: MEDIA_NOTIFICATION_ID,
+      content: {
+        title: meta.title,
+        body: subtext,
+        categoryIdentifier: MEDIA_CATEGORY_ID,
+        sticky: meta.isPlaying,
+        autoDismiss: false,
+        color: '#ff9f1c',
+        data: {
+          action: 'open_room',
+          roomId: meta.roomId || 'solo',
+        },
+      },
+      trigger: null,
+    });
+  } catch (err) {
+    // Graceful fallback if background notification permission denied
+  }
+}
+
+export async function dismissMediaNotification(): Promise<void> {
+  if (Platform.OS !== 'android' && Platform.OS !== 'ios') return;
+  lastNotificationState = '';
+  try {
+    await Notifications.dismissNotificationAsync(MEDIA_NOTIFICATION_ID);
+  } catch {}
+}
+
+export type MediaActionCallback = (action: 'prev' | 'play_pause' | 'next') => void;
+const mediaActionListeners = new Set<MediaActionCallback>();
+let globalResponseSub: Notifications.EventSubscription | null = null;
+
+export function registerMediaActionListener(callback: MediaActionCallback): () => void {
+  mediaActionListeners.add(callback);
+
+  if (!globalResponseSub && (Platform.OS === 'android' || Platform.OS === 'ios')) {
+    try {
+      globalResponseSub = Notifications.addNotificationResponseReceivedListener((response) => {
+        const actionId = response.actionIdentifier;
+        let action: 'prev' | 'play_pause' | 'next' | null = null;
+        if (actionId === MEDIA_ACTIONS.PREV) action = 'prev';
+        else if (actionId === MEDIA_ACTIONS.PLAY_PAUSE) action = 'play_pause';
+        else if (actionId === MEDIA_ACTIONS.NEXT) action = 'next';
+
+        if (action) {
+          for (const listener of mediaActionListeners) {
+            try {
+              listener(action);
+            } catch (err) {
+              console.warn('[notifications] Media listener error:', err);
+            }
+          }
+        }
+      });
+    } catch {}
+  }
+
+  return () => {
+    mediaActionListeners.delete(callback);
+    if (mediaActionListeners.size === 0 && globalResponseSub) {
+      try {
+        globalResponseSub.remove();
+      } catch {}
+      globalResponseSub = null;
+    }
+  };
+}

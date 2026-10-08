@@ -21,6 +21,9 @@ import { colors } from '../theme';
 import { AppLoadingScreen } from '../components/AppLoadingScreen';
 import { NetworkGuard } from '../components/NetworkGuard';
 
+import * as Notifications from 'expo-notifications';
+import { router } from 'expo-router';
+
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
@@ -42,6 +45,29 @@ export default function RootLayout() {
       SplashScreen.hideAsync().catch(() => {});
     }
   }, [fontsLoaded]);
+
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      if (
+        response.actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER ||
+        !response.actionIdentifier
+      ) {
+        const data = response.notification.request.content.data as
+          | { action?: string; roomId?: string }
+          | undefined;
+        if (data?.action === 'open_room' && data?.roomId) {
+          if (data.roomId === 'solo') {
+            router.push('/room/solo');
+          } else {
+            router.push({ pathname: '/room/[id]', params: { id: data.roomId } });
+          }
+        }
+      }
+    });
+    return () => {
+      sub.remove();
+    };
+  }, []);
 
   if (!fontsLoaded) return null;
 

@@ -18,7 +18,12 @@ import { useSocket } from './SocketContext';
 import { usePlayer } from '../audio/PlayerContext';
 import { SyncEngine } from '../sync/engine';
 import { streamUrl, getStoredSession, deleteRoom, updateRoom, type ApiUser } from '../api';
-import { recordTrackPlayed } from '../storage/history';
+import { recordTrackPlayed, consumePendingSoloQueue } from '../storage/history';
+import {
+  updateMediaNotification,
+  dismissMediaNotification,
+  registerMediaActionListener,
+} from '../notifications';
 import { useToast } from '../components/ToastContext';
 import {
   C2S,
@@ -1001,6 +1006,74 @@ export function RoomProvider({
     }
     socketRef.current?.emit(C2S.PREVIOUS_TRACK, { room_id: roomId });
   }, [canControl, roomId, isSolo]);
+
+  // Ingest pending solo queue (e.g. from Liked Songs Shuffle or Recently Played on Home)
+  useEffect(() => {
+    if (!isSolo) return;
+    const pending = consumePendingSoloQueue();
+    if (!pending || pending.tracks.length === 0) return;
+
+    const queueItems: QueueItem[] = pending.tracks.map((t, idx) => ({
+      queue_item_id: `solo_${Date.now()}_${idx}`,
+      track_uri: t.track_uri,
+      track_name: t.track_name,
+      artist: t.artist,
+      album_art_url: t.album_art_url,
+      duration_ms: t.duration_ms,
+      added_by: 'You',
+      votes: 0,
+    }));
+
+    if (pending.playTrack) {
+      const restQueue = queueItems.filter(
+        (q) => q.track_uri !== pending.playTrack!.track_uri,
+      );
+      setQueue(restQueue);
+      playNow(pending.playTrack);
+    } else {
+      setQueue(queueItems.slice(1));
+      playNow(pending.tracks[0]);
+    }
+  }, [isSolo, playNow]);
+
+  // Sync persistent Android notification & lock screen media controls
+  useEffect(() => {
+    if (nowPlaying?.track_name) {
+      void updateMediaNotification({
+        title: nowPlaying.track_name,
+        artist: nowPlaying.artist,
+        isPlaying,
+        roomId,
+        artworkUrl: nowPlaying.album_art_url,
+      });
+    } else {
+      void dismissMediaNotification();
+    }
+  }, [nowPlaying?.track_name, nowPlaying?.artist, nowPlaying?.album_art_url, isPlaying, roomId]);
+
+  // Clean up media notification on room unmount
+  useEffect(() => {
+    return () => {
+      void dismissMediaNotification();
+    };
+  }, []);
+
+  // Listen to media notification actions (Play/Pause, Next, Prev)
+  useEffect(() => {
+    const unregister = registerMediaActionListener((action) => {
+      if (action === 'play_pause') {
+        togglePlay();
+      } else if (action === 'next') {
+        nextTrack();
+      } else if (action === 'prev') {
+        previousTrack();
+      }
+    });
+    return () => {
+      unregister();
+    };
+  }, [togglePlay, nextTrack, previousTrack]);
+
 
   const toggleRepeat = useCallback(() => {
     if (!canControl) return;
