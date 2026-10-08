@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
 
-const openjamLogo = require('../../assets/images/openjam_mark_transparent.png');
+const openjamLogo = require('../../assets/images/openjam-emblem.png');
 
 interface AppLoadingScreenProps {
   isReady: boolean;
