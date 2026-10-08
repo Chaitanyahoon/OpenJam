@@ -27,7 +27,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, useNavigation } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   cancelAnimation,
@@ -53,20 +53,21 @@ import {
   Flame,
   Sparkles,
   ThumbsUp,
+  Search,
+  Disc3,
 } from 'lucide-react-native';
-import { colors, spacing } from '../../../theme';
+import { colors, radius, spacing } from '../../../theme';
 import { fontFamily } from '../../../fonts';
 import { useRoom } from '../../../state/RoomContext';
 import { usePlayer, usePlayerStatus } from '../../../audio/PlayerContext';
 import { fetchLyrics, type Lyrics, activeLyricIndex } from '../../../audio/lyrics';
+import { useToast } from '../../../components/ToastContext';
 import {
   hapticSelection,
   hapticMedium,
   hapticLight,
   hapticHeavy,
 } from '../../../utils/haptics';
-
-const openjamEmblem = require('../../../../assets/images/openjam-emblem.png');
 
 export const REACTION_OPTIONS = [
   { id: 'heart', label: 'Love', icon: <Heart size={14} color="#ef4444" fill="#ef4444" /> },
@@ -139,18 +140,18 @@ export default function PlayerTab() {
     addTrack,
     playNow,
   } = useRoom();
+  const toast = useToast();
   const player = usePlayer();
   const { durationMs } = usePlayerStatus();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const isRoomEmpty = !nowPlaying;
 
-  // Dynamically clamp turntable stage so compact devices never push controls off screen or overflow
+  // Responsive turntable sizing
   const maxAvailableWidth = windowWidth - spacing.lg * 2;
   const maxStageWidth = Math.min(maxAvailableWidth, 340);
-  const artworkSize = isRoomEmpty
-    ? Math.min(136, Math.floor(windowHeight * 0.18))
-    : Math.max(160, Math.min(Math.floor(maxStageWidth / 1.08), windowHeight * 0.32, 280));
+  const artworkSize = Math.max(160, Math.min(Math.floor(maxStageWidth / 1.08), windowHeight * 0.32, 280));
+  const emptyPlatterSize = Math.max(136, Math.min(176, Math.floor(windowHeight * 0.2)));
   const discSize = artworkSize - 12;
   const maxSlide = isRoomEmpty ? 0 : Math.min(Math.round(artworkSize * 0.08), Math.max(0, maxStageWidth - artworkSize));
 
@@ -173,6 +174,7 @@ export default function PlayerTab() {
   // Turntable animation values
   const vinylRotation = useSharedValue(0);
   const vinylSlide = useSharedValue(0);
+  const idleRotation = useSharedValue(0);
 
   useEffect(() => {
     if (isPlaying) {
@@ -188,11 +190,28 @@ export default function PlayerTab() {
     }
   }, [isPlaying, maxSlide, vinylRotation, vinylSlide]);
 
+  // Gentle hypnotic idle spin for empty turntable deck
+  useEffect(() => {
+    if (isRoomEmpty) {
+      idleRotation.value = withRepeat(
+        withTiming(idleRotation.value + 360, { duration: 18000, easing: Easing.linear }),
+        -1,
+        false,
+      );
+    } else {
+      cancelAnimation(idleRotation);
+    }
+  }, [isRoomEmpty, idleRotation]);
+
   const vinylDiscAnimatedStyle = useAnimatedStyle(() => ({
     transform: [
       { translateX: vinylSlide.value },
       { rotate: `${vinylRotation.value}deg` },
     ],
+  }));
+
+  const idlePlatterAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${idleRotation.value}deg` }],
   }));
 
   const duration =
@@ -336,8 +355,14 @@ export default function PlayerTab() {
     seekToMs(targetMs);
   };
 
-  const goQueue = () =>
-    router.push({ pathname: '/room/[id]/queue', params: { id: roomId } });
+  const navigation = useNavigation<any>();
+  const goQueue = () => {
+    try {
+      navigation.navigate('queue');
+    } catch {
+      router.navigate({ pathname: '/room/[id]/queue', params: { id: roomId } });
+    }
+  };
 
   const art = nowPlaying?.album_art_url;
 
@@ -359,56 +384,95 @@ export default function PlayerTab() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Prominent Vinyl Turntable Stage (Spotify inspired size, responsive clamped) */}
-        <View
-          style={[
-            styles.turntableStage,
-            { width: artworkSize + maxSlide, height: artworkSize },
-            isRoomEmpty && styles.turntableStageEmpty,
-          ]}
-        >
-          {/* Circular Vinyl Record sliding out behind sleeve */}
-          <Animated.View
+        {isRoomEmpty ? (
+          /* Spotify Jam Inspired Authentic Turntable Deck (Waiting for track) */
+          <View style={[styles.emptyDeckStage, { width: emptyPlatterSize + 32, height: emptyPlatterSize + 16 }]}>
+            {/* Ambient amber backglow aura */}
+            <View style={styles.emptyDeckAura} pointerEvents="none" />
+
+            {/* Circular Vinyl Platter with hypnotic idle rotation */}
+            <Animated.View
+              style={[
+                styles.emptyPlatterDisc,
+                idlePlatterAnimatedStyle,
+                {
+                  width: emptyPlatterSize,
+                  height: emptyPlatterSize,
+                  borderRadius: emptyPlatterSize / 2,
+                },
+              ]}
+            >
+              {/* Concentric micro-grooves */}
+              <View style={styles.platterGroove1} />
+              <View style={styles.platterGroove2} />
+              <View style={styles.platterGroove3} />
+              <View style={styles.platterGroove4} />
+
+              {/* Center Vinyl Label */}
+              <View style={styles.emptyCenterLabel}>
+                <Disc3 size={18} color="#08080a" strokeWidth={2.4} />
+                <Text style={styles.emptyCenterLabelText}>33⅓ RPM</Text>
+                <View style={styles.discCenterHole} />
+              </View>
+            </Animated.View>
+
+            {/* Stylized Tone-Arm in Rest Position */}
+            <View style={styles.toneArmAssembly} pointerEvents="none">
+              <View style={styles.toneArmPivot} />
+              <View style={styles.toneArmRod} />
+              <View style={styles.toneArmCartridge} />
+            </View>
+          </View>
+        ) : (
+          /* Prominent Vinyl Turntable Stage (Active Track) */
+          <View
             style={[
-              styles.turntableDisc,
-              vinylDiscAnimatedStyle,
-              { width: discSize, height: discSize, borderRadius: discSize / 2 },
+              styles.turntableStage,
+              { width: artworkSize + maxSlide, height: artworkSize },
             ]}
           >
-            <View style={styles.discGroove1} />
-            <View style={styles.discGroove2} />
-            <View style={styles.discGroove3} />
-            <View style={styles.discCenterLabel}>
-              <View style={styles.discCenterHole} />
-            </View>
-          </Animated.View>
+            {/* Circular Vinyl Record sliding out behind sleeve */}
+            <Animated.View
+              style={[
+                styles.turntableDisc,
+                vinylDiscAnimatedStyle,
+                { width: discSize, height: discSize, borderRadius: discSize / 2 },
+              ]}
+            >
+              <View style={styles.discGroove1} />
+              <View style={styles.discGroove2} />
+              <View style={styles.discGroove3} />
+              <View style={styles.discCenterLabel}>
+                <View style={styles.discCenterHole} />
+              </View>
+            </Animated.View>
 
-          {/* Square Album Cover Sleeve */}
-          <View style={[styles.sleeveCard, { width: artworkSize, height: artworkSize }]}>
-            {art ? (
-              <Image
-                source={{ uri: art }}
-                style={styles.art}
-                contentFit="cover"
-                transition={300}
-              />
-            ) : (
-              <LinearGradient
-                colors={['#1c1c28', '#0c0c12']}
-                style={[styles.art, styles.artFallback]}
-              >
-                <View style={styles.sleeveFallbackEmblemWrap}>
-                  <Image
-                    source={openjamEmblem}
-                    style={styles.sleeveFallbackEmblem}
-                    contentFit="contain"
-                  />
-                </View>
-                <Text style={styles.artEmptyText}>OpenJam</Text>
-              </LinearGradient>
-            )}
+            {/* Square Album Cover Sleeve */}
+            <View style={[styles.sleeveCard, { width: artworkSize, height: artworkSize }]}>
+              {art ? (
+                <Image
+                  source={{ uri: art }}
+                  style={styles.art}
+                  contentFit="cover"
+                  transition={300}
+                />
+              ) : (
+                <LinearGradient
+                  colors={['#242434', '#12121c', '#08080c']}
+                  style={[styles.art, styles.artFallback]}
+                >
+                  <View style={styles.artFallbackVinylRing}>
+                    <Disc3 size={38} color={colors.amber} />
+                  </View>
+                  <Text style={styles.artFallbackTitle} numberOfLines={1}>
+                    {nowPlaying?.track_name || 'Analog Vinyl Edition'}
+                  </Text>
+                  <Text style={styles.artFallbackSub}>OPENJAM SESSION</Text>
+                </LinearGradient>
+              )}
+            </View>
           </View>
-        </View>
+        )}
 
         {nowPlaying ? (
           <>
@@ -696,60 +760,118 @@ export default function PlayerTab() {
             ) : null}
           </>
         ) : (
-          /* Empty Room State — Be the DJ */
+          /* Empty Room State — Spotify Jam Collaborative Deck */
           <View style={styles.emptyContainer}>
+            {/* Collaborative Session Status Pill */}
+            <View style={styles.emptySessionPill}>
+              <View style={styles.emptyLiveDot} />
+              <Text style={styles.emptySessionText}>
+                {isHost ? 'You are the Room Host' : 'Collaborative Jam'} · Anyone can add music
+              </Text>
+            </View>
+
             <Text style={styles.emptyTitle}>The queue is empty</Text>
             <Text style={styles.emptySubtitle}>
-              Be the first to queue up your favorite songs and kick off the session!
+              Search any track, paste a link, or pick a starter vibe below to kick off the session!
             </Text>
+
+            {/* Spotify-style Direct Quick Search Bar */}
+            <Pressable
+              onPress={goQueue}
+              style={({ pressed }) => [styles.emptySearchCard, pressed && styles.pressed]}
+              accessibilityLabel="Search tracks to add"
+            >
+              <View style={styles.emptySearchIconWrap}>
+                <Search size={16} color={colors.amber} />
+              </View>
+              <Text style={styles.emptySearchPlaceholder}>
+                Search songs, artists, or paste links…
+              </Text>
+              <View style={styles.emptySearchAddBtn}>
+                <Plus size={14} color="#08080a" strokeWidth={3} />
+              </View>
+            </Pressable>
+
+            {/* Big Prominent Add Track Button */}
             <Pressable
               onPress={goQueue}
               style={({ pressed }) => [styles.addTrackButton, pressed && styles.pressed]}
+              accessibilityLabel="Add songs to queue"
             >
               <LinearGradient
                 colors={['#ffb03a', '#ff9f1c']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.addTrackGradient}
+                pointerEvents="none"
               >
                 <Plus size={18} color="#08080a" strokeWidth={2.6} />
                 <Text style={styles.addTrackButtonText}>Add Songs to Queue</Text>
               </LinearGradient>
             </Pressable>
 
-            {/* Quick-Start Instant Vibes */}
+            {/* Quick-Start Instant Starter Vibes */}
             <View style={styles.starterSection}>
               <View style={styles.starterHeader}>
                 <Sparkles size={14} color={colors.amber} />
                 <Text style={styles.starterSectionTitle}>Instant Starter Vibes</Text>
+                <Text style={styles.starterSectionSubtitle}>1-tap queue</Text>
               </View>
               <View style={styles.starterGrid}>
                 {STARTER_VIBES.map((v) => (
-                  <Pressable
-                    key={v.id}
-                    onPress={() => {
-                      if (canControl) {
-                        playNow(v);
-                      } else {
-                        addTrack(v);
-                      }
-                      void hapticMedium();
-                    }}
-                    style={({ pressed }) => [styles.starterCard, pressed && styles.pressed]}
-                  >
-                    <Image source={{ uri: v.album_art_url }} style={styles.starterArt} contentFit="cover" />
-                    <View style={styles.starterMeta}>
-                      <Text style={styles.starterTitle} numberOfLines={1}>{v.track_name}</Text>
-                      <Text style={styles.starterArtist} numberOfLines={1}>{v.artist}</Text>
-                    </View>
-                    <View style={styles.starterActionBtn}>
+                  <View key={v.id} style={styles.starterCard}>
+                    <Pressable
+                      style={styles.starterCardMain}
+                      onPress={() => {
+                        if (canControl) {
+                          playNow(v);
+                          toast(`Playing "${v.track_name}"`);
+                        } else {
+                          addTrack(v);
+                          toast(`Added "${v.track_name}" to queue`);
+                        }
+                        void hapticMedium();
+                      }}
+                    >
+                      <Image source={{ uri: v.album_art_url }} style={styles.starterArt} contentFit="cover" />
+                      <View style={styles.starterMeta}>
+                        <Text style={styles.starterTitle} numberOfLines={1}>{v.track_name}</Text>
+                        <Text style={styles.starterArtist} numberOfLines={1}>
+                          {v.artist} · {fmt(v.duration_ms)}
+                        </Text>
+                      </View>
+                    </Pressable>
+
+                    <View style={styles.starterActionsRow}>
                       {canControl ? (
-                        <Play size={12} color={colors.amber} fill={colors.amber} style={{ marginLeft: 1 }} />
-                      ) : (
-                        <Plus size={14} color={colors.amber} />
-                      )}
+                        <Pressable
+                          onPress={() => {
+                            playNow(v);
+                            toast(`Playing "${v.track_name}"`);
+                            void hapticMedium();
+                          }}
+                          style={({ pressed }) => [styles.starterMiniPlayBtn, pressed && styles.pressed]}
+                          hitSlop={6}
+                          accessibilityLabel={`Play ${v.track_name} now`}
+                        >
+                          <Play size={11} color={colors.amber} fill={colors.amber} style={{ marginLeft: 1 }} />
+                        </Pressable>
+                      ) : null}
+                      <Pressable
+                        onPress={() => {
+                          addTrack(v);
+                          toast(`Added "${v.track_name}" to queue`);
+                          void hapticLight();
+                        }}
+                        style={({ pressed }) => [styles.starterAddPill, pressed && styles.pressed]}
+                        hitSlop={6}
+                        accessibilityLabel={`Add ${v.track_name} to queue`}
+                      >
+                        <Plus size={13} color="#08080a" strokeWidth={2.8} />
+                        <Text style={styles.starterAddPillText}>Add</Text>
+                      </Pressable>
                     </View>
-                  </Pressable>
+                  </View>
                 ))}
               </View>
             </View>
@@ -783,6 +905,121 @@ const styles = StyleSheet.create({
     maxWidth: 600,
     width: '100%',
     alignSelf: 'center',
+  },
+  // Empty turntable platter & tone-arm styles
+  emptyDeckStage: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  emptyDeckAura: {
+    position: 'absolute',
+    width: '118%',
+    height: '118%',
+    borderRadius: 9999,
+    backgroundColor: 'rgba(255, 159, 28, 0.08)',
+  },
+  emptyPlatterDisc: {
+    backgroundColor: '#0c0c11',
+    borderWidth: 2.5,
+    borderColor: '#242432',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.8,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  platterGroove1: {
+    position: 'absolute',
+    width: '88%',
+    height: '88%',
+    borderRadius: 9999,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  platterGroove2: {
+    position: 'absolute',
+    width: '74%',
+    height: '74%',
+    borderRadius: 9999,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.04)',
+  },
+  platterGroove3: {
+    position: 'absolute',
+    width: '58%',
+    height: '58%',
+    borderRadius: 9999,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  platterGroove4: {
+    position: 'absolute',
+    width: '42%',
+    height: '42%',
+    borderRadius: 9999,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.04)',
+  },
+  emptyCenterLabel: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.amber,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(0, 0, 0, 0.25)',
+    shadowColor: colors.amber,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  emptyCenterLabelText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 7.5,
+    color: '#08080a',
+    fontWeight: 'bold',
+    letterSpacing: 0.6,
+    marginTop: 1,
+  },
+  toneArmAssembly: {
+    position: 'absolute',
+    right: 2,
+    top: 4,
+    width: 36,
+    height: 80,
+    alignItems: 'center',
+  },
+  toneArmPivot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#262634',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+  },
+  toneArmRod: {
+    width: 2.5,
+    height: 52,
+    backgroundColor: '#71717a',
+    borderRadius: 1,
+    transform: [{ rotate: '16deg' }],
+    marginTop: -2,
+  },
+  toneArmCartridge: {
+    width: 6,
+    height: 10,
+    backgroundColor: colors.amber,
+    borderRadius: 1.5,
+    transform: [{ rotate: '30deg' }],
+    marginTop: -4,
+    marginLeft: 12,
   },
   // Vinyl turntable stage
   turntableStage: {
@@ -877,37 +1114,32 @@ const styles = StyleSheet.create({
   artFallback: {
     alignItems: 'center',
     justifyContent: 'center',
+    padding: spacing.md,
   },
-  artGlyph: {
-    fontSize: 72,
-    color: colors.amber,
-    opacity: 0.35,
-  },
-  artEmptyText: {
-    fontFamily: fontFamily.displayBold,
-    fontSize: 16,
-    color: colors.text3,
-    marginTop: 8,
-    letterSpacing: 1,
-  },
-  sleeveFallbackEmblemWrap: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+  artFallbackVinylRing: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: 'rgba(255, 159, 28, 0.1)',
     borderWidth: 1.5,
     borderColor: 'rgba(255, 159, 28, 0.35)',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: colors.amber,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
-    elevation: 4,
+    marginBottom: spacing.xs,
   },
-  sleeveFallbackEmblem: {
-    width: 62,
-    height: 62,
+  artFallbackTitle: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 14,
+    color: colors.text1,
+    textAlign: 'center',
+    maxWidth: 200,
+  },
+  artFallbackSub: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 10,
+    color: colors.amber,
+    letterSpacing: 1.5,
+    marginTop: 2,
   },
   // Spotify Track Info Row
   trackInfoRow: {
@@ -1290,12 +1522,36 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     opacity: 0.75,
   },
-  // Empty State Styles
+  // Empty State Styles — Spotify Jam Deck
   emptyContainer: {
     width: '100%',
     alignItems: 'center',
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.xs,
     paddingHorizontal: spacing.md,
+  },
+  emptySessionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    marginBottom: spacing.xs,
+  },
+  emptyLiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.green,
+  },
+  emptySessionText: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 11.5,
+    color: colors.text2,
+    letterSpacing: 0.2,
   },
   emptyTitle: {
     fontFamily: fontFamily.displayBold,
@@ -1310,10 +1566,46 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 4,
     lineHeight: 18,
-    maxWidth: 290,
+    maxWidth: 300,
+  },
+  emptySearchCard: {
+    width: '100%',
+    maxWidth: 340,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#111116',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.24)',
+    paddingHorizontal: spacing.md,
+    paddingVertical: 11,
+    marginTop: spacing.md,
+    gap: 10,
+  },
+  emptySearchIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(255, 159, 28, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptySearchPlaceholder: {
+    flex: 1,
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 12.5,
+    color: colors.text3,
+  },
+  emptySearchAddBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.amber,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   addTrackButton: {
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
     borderRadius: 24,
     overflow: 'hidden',
     shadowColor: colors.amber,
@@ -1362,6 +1654,7 @@ const styles = StyleSheet.create({
     gap: 6,
     marginBottom: spacing.md,
     alignSelf: 'flex-start',
+    width: '100%',
   },
   starterSectionTitle: {
     fontFamily: fontFamily.displayBold,
@@ -1370,6 +1663,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
+  starterSectionSubtitle: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 11,
+    color: colors.text3,
+    marginLeft: 'auto',
+  },
   starterGrid: {
     gap: 8,
     width: '100%',
@@ -1377,24 +1676,34 @@ const styles = StyleSheet.create({
   starterCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#12121c',
+    justifyContent: 'space-between',
+    backgroundColor: '#111117',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: 'rgba(255, 255, 255, 0.07)',
     borderRadius: 14,
     padding: 8,
-    gap: 12,
+    paddingHorizontal: 10,
+    gap: 8,
+  },
+  starterCardMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginRight: 6,
   },
   starterArt: {
     width: 44,
     height: 44,
     borderRadius: 8,
+    backgroundColor: '#1a1a24',
   },
   starterMeta: {
     flex: 1,
   },
   starterTitle: {
     fontFamily: fontFamily.bodySemiBold,
-    fontSize: 13,
+    fontSize: 12.5,
     color: colors.text1,
   },
   starterArtist: {
@@ -1403,14 +1712,34 @@ const styles = StyleSheet.create({
     color: colors.text3,
     marginTop: 2,
   },
-  starterActionBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  starterActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  starterMiniPlayBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: 'rgba(255, 159, 28, 0.12)',
     borderWidth: 1,
     borderColor: 'rgba(255, 159, 28, 0.3)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  starterAddPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.amber,
+    paddingHorizontal: 8,
+    paddingVertical: 4.5,
+    borderRadius: radius.full,
+  },
+  starterAddPillText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 11,
+    color: '#08080a',
+    fontWeight: 'bold',
   },
 });
