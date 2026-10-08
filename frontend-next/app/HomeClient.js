@@ -548,6 +548,7 @@ export default function HomePage() {
         if (data.user) {
           setMe(data.user);
           localStorage.setItem('openjam_display_name', data.user.display_name);
+          localStorage.setItem('openjam_cached_user', JSON.stringify(data.user));
           if (data.user.avatar_url) {
             localStorage.setItem('openjam_avatar_url', data.user.avatar_url);
           }
@@ -566,16 +567,48 @@ export default function HomePage() {
       const r = await fetch('/rooms', { credentials: 'include' });
       if (r.ok) {
         const data = await r.json();
-        setRooms(data.rooms || []);
+        const liveRooms = (data.rooms || []).filter((rm) => rm.id !== 'openjam-lounge');
+        setRooms(liveRooms);
+        if (typeof window !== 'undefined' && liveRooms.length > 0) {
+          try {
+            localStorage.setItem('openjam_cached_rooms_v1', JSON.stringify(liveRooms));
+          } catch {}
+        }
       }
     } catch (e) {
       console.error('Error loading rooms:', e);
+      if (typeof window !== 'undefined') {
+        try {
+          const cached = localStorage.getItem('openjam_cached_rooms_v1');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setRooms(parsed);
+            }
+          }
+        } catch {}
+      }
     }
   };
 
   useEffect(() => {
     let currentToken = null;
     if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('openjam_cached_rooms_v1');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setRooms(parsed);
+          }
+        }
+        const cachedUser = localStorage.getItem('openjam_cached_user');
+        if (cachedUser) {
+          const parsedUser = JSON.parse(cachedUser);
+          if (parsedUser) setMe(parsedUser);
+        }
+      } catch {}
+
       const params = new URLSearchParams(window.location.search);
       let token = params.get('token');
       
