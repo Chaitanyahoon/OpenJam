@@ -97,6 +97,44 @@ export function pruneLruVaultPure(
   };
 }
 
+/**
+ * Extracts and deduplicates all session tracks (now playing + upcoming queue)
+ * excluding any tracks that already reside inside the offline vault.
+ */
+export function filterSessionTracksToDownloadPure(
+  nowPlaying: TrackInfo | null,
+  queue: Array<{ track_uri?: string; track_name?: string; artist?: string; album_art_url?: string; duration_ms?: number }>,
+  existingVaultUris: Set<string>,
+): TrackInfo[] {
+  const result: TrackInfo[] = [];
+  const seenUris = new Set<string>();
+
+  if (nowPlaying?.track_uri) {
+    seenUris.add(nowPlaying.track_uri);
+    if (!existingVaultUris.has(nowPlaying.track_uri)) {
+      result.push(nowPlaying);
+    }
+  }
+
+  for (const item of queue) {
+    if (!item?.track_uri) continue;
+    if (seenUris.has(item.track_uri)) continue;
+    seenUris.add(item.track_uri);
+
+    if (!existingVaultUris.has(item.track_uri)) {
+      result.push({
+        track_uri: item.track_uri,
+        track_name: item.track_name || 'Queued Track',
+        artist: item.artist || 'Unknown Artist',
+        album_art_url: item.album_art_url,
+        duration_ms: item.duration_ms,
+      });
+    }
+  }
+
+  return result;
+}
+
 /** Get the sandboxed audio directory path */
 export function getVaultDirectory(): string {
   const base = FileSystem.documentDirectory || '';

@@ -32,6 +32,7 @@ import {
   Trash2,
   Sparkles,
   DownloadCloud,
+  CheckCircle2,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
@@ -40,6 +41,8 @@ import { searchTracks, searchHybridTracks, isPlaylistUrl, type TrackSearchResult
 import { useToast } from './ToastContext';
 import { hapticLight, hapticMedium, hapticHeavy } from '../utils/haptics';
 import { ImportPlaylistModal } from './ImportPlaylistModal';
+import { downloadTrackToVault, getVaultTracks, filterSessionTracksToDownloadPure } from '../storage/vault';
+import type { TrackInfo } from '../sync/protocol';
 
 function fmtDuration(ms?: number): string {
   if (!ms || ms <= 0) return '';
@@ -257,6 +260,46 @@ export function QueueList() {
     void hapticLight();
   };
 
+  const [isSavingVault, setIsSavingVault] = useState(false);
+  const [isVaultSaved, setIsVaultSaved] = useState(false);
+
+  const handleSaveQueueToVault = async () => {
+    try {
+      setIsSavingVault(true);
+      const existing = await getVaultTracks();
+      const existingUris = new Set(existing.map((t) => t.track_uri));
+      const toDownload = filterSessionTracksToDownloadPure(activeTrack, upNextTracks, existingUris);
+
+      if (toDownload.length === 0) {
+        if (!activeTrack && upNextTracks.length === 0) {
+          toast('No tracks to save', 'info');
+        } else {
+          setIsVaultSaved(true);
+          toast('All upcoming tracks already in your vault!', 'info');
+        }
+        return;
+      }
+
+      toast(`Saving ${toDownload.length} track${toDownload.length > 1 ? 's' : ''} to vault…`, 'info');
+      let count = 0;
+      for (const t of toDownload) {
+        try {
+          await downloadTrackToVault(t, false);
+          count++;
+        } catch (e) {
+          console.warn('Queue download error:', e);
+        }
+      }
+      setIsVaultSaved(true);
+      toast(`Saved ${count} track${count > 1 ? 's' : ''} to offline vault!`, 'success');
+      void hapticMedium();
+    } catch {
+      toast('Failed saving queue to vault', 'error');
+    } finally {
+      setIsSavingVault(false);
+    }
+  };
+
   return (
     <View style={styles.container}>
       {/* Search Input Bar */}
@@ -451,6 +494,31 @@ export function QueueList() {
                       <Text style={styles.sectionTitle}>
                         UP NEXT ({upNextTracks.length})
                       </Text>
+                      <Pressable
+                        onPress={handleSaveQueueToVault}
+                        disabled={isSavingVault}
+                        style={({ pressed }) => [
+                          styles.saveVaultBtn,
+                          isVaultSaved && styles.saveVaultBtnSaved,
+                          pressed && styles.pressed,
+                        ]}
+                        hitSlop={6}
+                        accessibilityLabel="Save entire queue to offline vault"
+                      >
+                        {isSavingVault ? (
+                          <ActivityIndicator size="small" color={colors.amber} />
+                        ) : isVaultSaved ? (
+                          <>
+                            <CheckCircle2 size={12} color="#10b981" />
+                            <Text style={[styles.saveVaultText, { color: '#10b981' }]}>Saved</Text>
+                          </>
+                        ) : (
+                          <>
+                            <DownloadCloud size={12} color={colors.amber} />
+                            <Text style={styles.saveVaultText}>Save to Vault</Text>
+                          </>
+                        )}
+                      </Pressable>
                     </View>
                   ) : null}
                 </View>
@@ -805,6 +873,26 @@ const styles = StyleSheet.create({
   dismissText: {
     fontFamily: fontFamily.bodyMedium,
     fontSize: 12,
+    color: colors.amber,
+  },
+  saveVaultBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 9,
+    paddingVertical: 4.5,
+    borderRadius: radius.full,
+    backgroundColor: 'rgba(255, 159, 28, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.25)',
+    gap: 5,
+  },
+  saveVaultBtnSaved: {
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderColor: '#10b981',
+  },
+  saveVaultText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 11,
     color: colors.amber,
   },
   // Search Result Row

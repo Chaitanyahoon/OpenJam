@@ -59,6 +59,40 @@ export function pruneLruVaultPure(
   };
 }
 
+export function filterSessionTracksToDownloadPure(
+  nowPlaying: { track_uri?: string; track_name?: string; artist?: string; album_art_url?: string; duration_ms?: number } | null,
+  queue: Array<{ track_uri?: string; track_name?: string; artist?: string; album_art_url?: string; duration_ms?: number }>,
+  existingVaultUris: Set<string>,
+) {
+  const result: any[] = [];
+  const seenUris = new Set<string>();
+
+  if (nowPlaying?.track_uri) {
+    seenUris.add(nowPlaying.track_uri);
+    if (!existingVaultUris.has(nowPlaying.track_uri)) {
+      result.push(nowPlaying);
+    }
+  }
+
+  for (const item of queue) {
+    if (!item?.track_uri) continue;
+    if (seenUris.has(item.track_uri)) continue;
+    seenUris.add(item.track_uri);
+
+    if (!existingVaultUris.has(item.track_uri)) {
+      result.push({
+        track_uri: item.track_uri,
+        track_name: item.track_name || 'Queued Track',
+        artist: item.artist || 'Unknown Artist',
+        album_art_url: item.album_art_url,
+        duration_ms: item.duration_ms,
+      });
+    }
+  }
+
+  return result;
+}
+
 describe('OpenJam Offline Audio Vault & Storage Engine', () => {
   it('formats byte sizes cleanly for UI gauges', () => {
     assert.strictEqual(formatBytesPure(0), '0.0 MB');
@@ -177,5 +211,39 @@ describe('OpenJam Offline Audio Vault & Storage Engine', () => {
     const result = pruneLruVaultPure(tracks, 10000);
     assert.strictEqual(result.evicted.length, 0);
     assert.strictEqual(result.kept.length, 1);
+  });
+
+  it('extracts and deduplicates session tracks for 1-tap vault download', () => {
+    const nowPlaying = {
+      track_uri: 'yt:now_playing',
+      track_name: 'Live Song',
+      artist: 'Main Artist',
+    };
+    const queue = [
+      { track_uri: 'yt:upcoming_1', track_name: 'Track 1', artist: 'Artist A' },
+      { track_uri: 'yt:upcoming_2', track_name: 'Track 2', artist: 'Artist B' },
+      { track_uri: 'yt:now_playing', track_name: 'Duplicate Live Song', artist: 'Main Artist' },
+      { track_uri: 'yt:upcoming_1', track_name: 'Duplicate Track 1', artist: 'Artist A' },
+    ];
+    const existingUris = new Set<string>(['yt:upcoming_2']); // Track 2 is already saved
+
+    const toDownload = filterSessionTracksToDownloadPure(nowPlaying, queue, existingUris);
+
+    // Should return nowPlaying and upcoming_1 only (2 items), omitting duplicates and already saved tracks
+    assert.strictEqual(toDownload.length, 2);
+    assert.strictEqual(toDownload[0].track_uri, 'yt:now_playing');
+    assert.strictEqual(toDownload[1].track_uri, 'yt:upcoming_1');
+  });
+
+  it('returns empty array when all session tracks are already in vault or session is empty', () => {
+    const existingUris = new Set<string>(['yt:1', 'yt:2']);
+    const nowPlaying = { track_uri: 'yt:1', track_name: 'Song 1', artist: 'Artist' };
+    const queue = [{ track_uri: 'yt:2', track_name: 'Song 2', artist: 'Artist' }];
+
+    const toDownload = filterSessionTracksToDownloadPure(nowPlaying, queue, existingUris);
+    assert.strictEqual(toDownload.length, 0);
+
+    const emptyDownload = filterSessionTracksToDownloadPure(null, [], existingUris);
+    assert.strictEqual(emptyDownload.length, 0);
   });
 });
