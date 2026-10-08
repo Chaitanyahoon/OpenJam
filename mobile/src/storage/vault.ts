@@ -34,6 +34,50 @@ export interface VaultStats {
   percentUsed: number;
 }
 
+export type DownloadState = 'idle' | 'downloading' | 'completed' | 'error';
+
+export interface TrackDownloadProgress {
+  trackUri: string;
+  state: DownloadState;
+  percent: number;
+  error?: string;
+}
+
+const activeDownloadProgress: Record<string, TrackDownloadProgress> = {};
+const progressListeners = new Set<(progress: Record<string, TrackDownloadProgress>) => void>();
+
+export function getDownloadProgressMap(): Record<string, TrackDownloadProgress> {
+  return { ...activeDownloadProgress };
+}
+
+export function getTrackDownloadProgress(trackUri: string): TrackDownloadProgress | null {
+  return activeDownloadProgress[trackUri] || null;
+}
+
+export function subscribeDownloadProgress(
+  listener: (progress: Record<string, TrackDownloadProgress>) => void,
+): () => void {
+  progressListeners.add(listener);
+  listener({ ...activeDownloadProgress });
+  return () => {
+    progressListeners.delete(listener);
+  };
+}
+
+function updateProgress(trackUri: string, update: Partial<TrackDownloadProgress>) {
+  activeDownloadProgress[trackUri] = {
+    trackUri,
+    state: update.state || 'downloading',
+    percent: update.percent ?? (activeDownloadProgress[trackUri]?.percent || 0),
+    error: update.error,
+  };
+  for (const listener of progressListeners) {
+    try {
+      listener({ ...activeDownloadProgress });
+    } catch {}
+  }
+}
+
 export type DownloadProgressCallback = (receivedBytes: number, totalBytes: number, percent: number) => void;
 
 /** Formats byte counts into human-readable strings (e.g. 4.2 MB) */
@@ -181,7 +225,8 @@ function extractVideoId(uri: string): string | null {
 }
 
 /**
- * Downloads a track stream into the sandboxed offline audio vault.
+ * Downloads a track stream into the sandboxed offline audio vault with automatic
+ * multi-tier retries, fallback stream resolution, and granular progress reporting.
  */
 export async function downloadTrackToVault(
   track: TrackInfo,
@@ -204,84 +249,124 @@ export async function downloadTrackToVault(
   if (existing) {
     const fileInfo = await FileSystem.getInfoAsync(existing.local_file_uri);
     if (fileInfo.exists && fileInfo.size && fileInfo.size > 1000) {
+      updateProgress(track.track_uri, { state: 'completed', percent: 100 });
+      onProgress?.(fileInfo.size, fileInfo.size, 100);
       return existing;
     }
   }
 
-  // Determine remote audio URL
-  let remoteUrl = '';
-  const videoId = extractVideoId(track.track_uri);
-  const backendUrl = getBackendUrl();
+  // Mark starting state
+  updateProgress(track.track_uri, { state: 'downloading', percent: 5 });
+  onProgress?.(0, 100, 5);
 
-  if (videoId) {
-    remoteUrl = `${backendUrl}/stream/${videoId}`;
-  } else if (track.track_uri.startsWith('http')) {
-    remoteUrl = track.track_uri;
-  } else {
-    // Resolve track name via search resolve
+  const backendUrl = getBackendUrl();
+  let videoId = extractVideoId(track.track_uri);
+
+  // If not a direct video ID, resolve via backend search
+  if (!videoId && !track.track_uri.startsWith('http')) {
     try {
-      const resp = await fetch(`${backendUrl}/search/resolve?q=${encodeURIComponent(track.track_name + ' ' + (track.artist || ''))}`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      const query = `${track.track_name} ${track.artist || ''}`.trim();
+      const resp = await fetch(`${backendUrl}/search/resolve?q=${encodeURIComponent(query)}`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
       if (resp.ok) {
         const data = await resp.json();
         if (data?.video_id) {
-          remoteUrl = `${backendUrl}/stream/${data.video_id}`;
+          videoId = data.video_id;
         }
       }
-    } catch {}
+    } catch (resolveErr) {
+      console.warn('[Vault] Track resolution warning:', resolveErr);
+    }
   }
 
-  if (!remoteUrl) {
+  // Candidate URLs with fallback qualities and cache-busting
+  const candidateUrls: string[] = [];
+  if (videoId) {
+    candidateUrls.push(`${backendUrl}/stream/${videoId}`);
+    candidateUrls.push(`${backendUrl}/stream/${videoId}?low=true`);
+    candidateUrls.push(`${backendUrl}/stream/${videoId}?nocache=true`);
+  } else if (track.track_uri.startsWith('http')) {
+    candidateUrls.push(track.track_uri);
+  }
+
+  if (candidateUrls.length === 0) {
+    updateProgress(track.track_uri, { state: 'error', percent: 0, error: 'Could not resolve audio stream' });
     throw new Error(`Could not resolve downloadable audio stream for "${track.track_name}"`);
   }
 
-  // Clean filename for local storage
   const safeFilename = `${track.track_uri.replace(/[^a-zA-Z0-9_-]/g, '_')}_${Date.now()}.m4a`;
   const localTargetUri = `${vaultDir}${safeFilename}`;
 
-  // Download with progress callback
-  let downloadResumable: FileSystem.DownloadResumable;
-  if (onProgress) {
-    downloadResumable = FileSystem.createDownloadResumable(
-      remoteUrl,
-      localTargetUri,
-      {},
-      (downloadProgress) => {
-        const total = downloadProgress.totalBytesExpectedToWrite;
-        const current = downloadProgress.totalBytesWritten;
-        const pct = total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 0;
-        onProgress(current, total, pct);
-      },
-    );
-    await downloadResumable.downloadAsync();
-  } else {
-    await FileSystem.downloadAsync(remoteUrl, localTargetUri);
-  }
+  let success = false;
+  let lastError: any = null;
 
-  // Verify downloaded file integrity
-  const stat = await FileSystem.getInfoAsync(localTargetUri);
-  if (!stat.exists || !stat.size || stat.size < 1000) {
+  for (let attempt = 0; attempt < candidateUrls.length; attempt++) {
+    const candidateUrl = candidateUrls[attempt];
     try {
-      await FileSystem.deleteAsync(localTargetUri, { idempotent: true });
-    } catch {}
-    throw new Error('Downloaded audio stream was empty or corrupt');
+      const downloadResumable = FileSystem.createDownloadResumable(
+        candidateUrl,
+        localTargetUri,
+        {},
+        (downloadProgress) => {
+          const total = downloadProgress.totalBytesExpectedToWrite;
+          const current = downloadProgress.totalBytesWritten;
+          const pct = total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 25;
+          updateProgress(track.track_uri, { state: 'downloading', percent: Math.max(5, pct) });
+          onProgress?.(current, total, pct);
+        },
+      );
+      await downloadResumable.downloadAsync();
+
+      const stat = await FileSystem.getInfoAsync(localTargetUri);
+      if (stat.exists && stat.size && stat.size > 1000) {
+        success = true;
+        break;
+      } else {
+        try {
+          await FileSystem.deleteAsync(localTargetUri, { idempotent: true });
+        } catch {}
+      }
+    } catch (downloadErr) {
+      lastError = downloadErr;
+      try {
+        await FileSystem.deleteAsync(localTargetUri, { idempotent: true });
+      } catch {}
+      // Brief pause before trying fallback stream
+      if (attempt < candidateUrls.length - 1) {
+        await new Promise((r) => setTimeout(r, 600));
+      }
+    }
   }
 
+  if (!success) {
+    updateProgress(track.track_uri, { state: 'error', percent: 0, error: lastError?.message || 'Download failed' });
+    throw new Error(`Failed to download audio for "${track.track_name}". Server may be busy, please retry.`);
+  }
+
+  const stat = await FileSystem.getInfoAsync(localTargetUri);
+  const fileSize = stat.exists && 'size' in stat ? (stat.size ?? 0) : 0;
   const now = Date.now();
   const vaultEntry: VaultTrack = {
     ...track,
     local_file_uri: localTargetUri,
-    file_size_bytes: stat.size,
+    file_size_bytes: fileSize,
     downloaded_at: now,
     is_liked: isLiked,
     last_played_at: now,
     play_count: 0,
   };
 
-  // Update vault registry in AsyncStorage
   const allTracks = await getVaultTracks();
   const filtered = allTracks.filter((t) => t.track_uri !== track.track_uri);
   const updated = [vaultEntry, ...filtered];
   await AsyncStorage.setItem(VAULT_INDEX_KEY, JSON.stringify(updated));
+
+  updateProgress(track.track_uri, { state: 'completed', percent: 100 });
+  onProgress?.(fileSize, fileSize, 100);
 
   return vaultEntry;
 }
@@ -291,6 +376,12 @@ export async function downloadTrackToVault(
  */
 export async function deleteTrackFromVault(trackUri: string): Promise<boolean> {
   try {
+    delete activeDownloadProgress[trackUri];
+    for (const listener of progressListeners) {
+      try {
+        listener({ ...activeDownloadProgress });
+      } catch {}
+    }
     const allTracks = await getVaultTracks();
     const target = allTracks.find((t) => t.track_uri === trackUri);
     if (!target) return false;

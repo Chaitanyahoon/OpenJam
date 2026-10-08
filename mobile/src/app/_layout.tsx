@@ -19,6 +19,7 @@ import { SocketProvider } from '../state/SocketContext';
 import { ToastProvider } from '../components/ToastContext';
 import { colors } from '../theme';
 import { AppLoadingScreen } from '../components/AppLoadingScreen';
+import { NetworkGuard } from '../components/NetworkGuard';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -48,29 +49,32 @@ export default function RootLayout() {
     <PlayerProvider>
       <SocketProvider>
         <ToastProvider>
-          <StatusBar style="light" />
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: colors.bgBase },
-              animation: 'slide_from_right',
-            }}
-          >
-            <Stack.Screen name="index" />
-            <Stack.Screen name="room/[id]" />
-            <Stack.Screen name="playlist/[id]" />
-            <Stack.Screen name="profile/[id]" />
-            <Stack.Screen name="legal/privacy" />
-            <Stack.Screen name="legal/terms" />
-          </Stack>
+          <NetworkGuard>
+            <StatusBar style="light" />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: colors.bgBase },
+                animation: 'slide_from_right',
+              }}
+            >
+              <Stack.Screen name="index" />
+              <Stack.Screen name="offline/index" />
+              <Stack.Screen name="room/[id]" />
+              <Stack.Screen name="playlist/[id]" />
+              <Stack.Screen name="profile/[id]" />
+              <Stack.Screen name="legal/privacy" />
+              <Stack.Screen name="legal/terms" />
+            </Stack>
 
-          {/* Seamless animated branding loading overlay */}
-          {!splashGone && (
-            <AppLoadingScreen
-              isReady={Boolean(fontsLoaded)}
-              onFinished={() => setSplashGone(true)}
-            />
-          )}
+            {/* Seamless animated branding loading overlay */}
+            {!splashGone && (
+              <AppLoadingScreen
+                isReady={Boolean(fontsLoaded)}
+                onFinished={() => setSplashGone(true)}
+              />
+            )}
+          </NetworkGuard>
         </ToastProvider>
       </SocketProvider>
     </PlayerProvider>

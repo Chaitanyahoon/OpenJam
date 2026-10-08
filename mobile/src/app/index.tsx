@@ -37,6 +37,9 @@ import {
   Bookmark,
   Radio,
   HardDrive,
+  Headphones,
+  WifiOff,
+  ArrowRight,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
@@ -363,10 +366,10 @@ export default function Landing() {
 
   const handleProfilePlayTrack = (track: PlayedTrack) => {
     setShowProfile(false);
-    if (track.roomId) {
+    if (track.roomId && track.roomId !== 'solo') {
       openRoom({ id: track.roomId });
     } else {
-      toast('Select or start a live room to play this song', 'info');
+      openRoom({ id: 'solo', name: 'Solo Jam' });
     }
   };
 
@@ -554,16 +557,15 @@ export default function Landing() {
                 Synchronized music listening with zero audio latency.
               </Text>
 
-              {/* Action Buttons: Create Room & Join with Code */}
+              {/* Action Buttons: Solo Jam + Social Jam Actions */}
               <View style={styles.heroActions}>
                 <Pressable
                   onPress={() => {
                     void hapticMedium();
-                    if (user) setShowCreate(true);
-                    else setShowIdentity(true);
+                    openRoom({ id: 'solo', name: 'Solo Jam' });
                   }}
-                  style={({ pressed }) => [styles.instantBtn, pressed && styles.pressed]}
-                  accessibilityLabel="Create Instant Jam"
+                  style={({ pressed }) => [styles.soloBtn, pressed && styles.pressed]}
+                  accessibilityLabel="Start Solo Jam"
                 >
                   <LinearGradient
                     colors={['#ffb03a', '#ff9f1c']}
@@ -572,24 +574,39 @@ export default function Landing() {
                     style={StyleSheet.absoluteFill}
                     pointerEvents="none"
                   />
-                  <Sparkles size={16} color="#08080a" strokeWidth={2.4} />
-                  <Text style={styles.instantBtnText}>Instant Jam</Text>
+                  <Headphones size={17} color="#08080a" strokeWidth={2.4} />
+                  <Text style={styles.soloBtnText}>Solo Jam • Listen Immediately</Text>
                 </Pressable>
 
-                <Pressable
-                  onPress={() => {
-                    void hapticMedium();
-                    setShowJoinWithCode(true);
-                  }}
-                  style={({ pressed }) => [
-                    styles.joinCodeBtn,
-                    pressed && styles.pressed,
-                  ]}
-                  accessibilityLabel="Join with Code"
-                >
-                  <KeyRound size={15} color="#ffffff" strokeWidth={2.2} />
-                  <Text style={styles.joinCodeBtnText}>Join with Code</Text>
-                </Pressable>
+                <View style={styles.heroSecondaryActions}>
+                  <Pressable
+                    onPress={() => {
+                      void hapticMedium();
+                      if (user) setShowCreate(true);
+                      else setShowIdentity(true);
+                    }}
+                    style={({ pressed }) => [styles.instantBtnSecondary, pressed && styles.pressed]}
+                    accessibilityLabel="Create Live Room"
+                  >
+                    <Sparkles size={14} color="#ffffff" strokeWidth={2.2} />
+                    <Text style={styles.instantSecondaryText}>Create Live Room</Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => {
+                      void hapticMedium();
+                      setShowJoinWithCode(true);
+                    }}
+                    style={({ pressed }) => [
+                      styles.joinCodeBtn,
+                      pressed && styles.pressed,
+                    ]}
+                    accessibilityLabel="Join with Code"
+                  >
+                    <KeyRound size={14} color="#ffffff" strokeWidth={2.2} />
+                    <Text style={styles.joinCodeBtnText}>Join Code</Text>
+                  </Pressable>
+                </View>
               </View>
             </View>
 
@@ -1133,10 +1150,55 @@ const styles = StyleSheet.create({
   },
   heroActions: {
     width: '100%',
+    flexDirection: 'column',
+    gap: 10,
+    alignItems: 'stretch',
+    justifyContent: 'center',
+  },
+  soloBtn: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 13,
+    borderRadius: radius.full,
+    overflow: 'hidden',
+    position: 'relative',
+    shadowColor: colors.amber,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  soloBtnText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 14.5,
+    color: '#08080a',
+    letterSpacing: 0.2,
+  },
+  heroSecondaryActions: {
+    width: '100%',
     flexDirection: 'row',
     gap: 10,
     alignItems: 'center',
+  },
+  instantBtnSecondary: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
+    gap: 7,
+    paddingVertical: 11,
+    borderRadius: radius.full,
+    backgroundColor: 'rgba(255, 159, 28, 0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.35)',
+  },
+  instantSecondaryText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 13,
+    color: colors.amber,
   },
   instantBtn: {
     flex: 1,
@@ -1166,7 +1228,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 7,
-    paddingVertical: 12,
+    paddingVertical: 11,
     borderRadius: radius.full,
     backgroundColor: 'rgba(255, 255, 255, 0.06)',
     borderWidth: 1,

@@ -335,6 +335,18 @@ export async function removeTrackFromOfflinePlaylist(
   }
 }
 
+const favoriteListeners = new Set<(favorites: TrackInfo[]) => void>();
+
+export function subscribeFavoriteTracks(
+  listener: (favorites: TrackInfo[]) => void,
+): () => void {
+  favoriteListeners.add(listener);
+  void getFavoriteTracks().then((favs) => listener(favs));
+  return () => {
+    favoriteListeners.delete(listener);
+  };
+}
+
 export async function getFavoriteTracks(): Promise<TrackInfo[]> {
   try {
     const raw = await AsyncStorage.getItem(FAVORITE_TRACKS_KEY);
@@ -356,6 +368,11 @@ export async function toggleFavoriteTrack(track: TrackInfo): Promise<boolean> {
       updated = [track, ...list];
     }
     await AsyncStorage.setItem(FAVORITE_TRACKS_KEY, JSON.stringify(updated));
+    for (const listener of favoriteListeners) {
+      try {
+        listener(updated);
+      } catch {}
+    }
     return !exists;
   } catch {
     return false;

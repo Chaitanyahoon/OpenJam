@@ -44,6 +44,7 @@ export type RoomConnectionState = 'joining' | 'connected' | 'reconnecting' | 'of
 
 interface RoomApi {
   roomId: string;
+  isSolo: boolean;
   roomName: string;
   isHost: boolean;
   canControl: boolean;
@@ -124,31 +125,39 @@ export function RoomProvider({
   const player = usePlayer();
   const toast = useToast();
 
-  const [roomName, setRoomName] = useState('');
-  const [isHost, setIsHost] = useState(false);
+  const isSolo = roomId === 'solo' || roomId.startsWith('solo');
+
+  const [roomName, setRoomName] = useState(isSolo ? 'Solo Jam' : '');
+  const [isHost, setIsHost] = useState(isSolo);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [nowPlaying, setNowPlaying] = useState<TrackInfo | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [loop, setLoop] = useState(false);
-  const [listeners, setListeners] = useState<ListenerInfo[]>([]);
+  const [listeners, setListeners] = useState<ListenerInfo[]>(
+    isSolo
+      ? [{ user_id: 'solo_user', user_name: 'You', is_host: true, avatar_url: null }]
+      : [],
+  );
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [unreadChat, setUnreadChat] = useState(0);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [reactions, setReactions] = useState<FlyingReaction[]>([]);
   const [skipVotes, setSkipVotes] = useState({ votes: 0, required: 0 });
-  const [guestControls, setGuestControls] = useState(false);
-  const [syncReady, setSyncReady] = useState(false);
-  const [connectionState, setConnectionState] = useState<RoomConnectionState>('joining');
+  const [guestControls, setGuestControls] = useState(isSolo);
+  const [syncReady, setSyncReady] = useState(isSolo);
+  const [connectionState, setConnectionState] = useState<RoomConnectionState>(
+    isSolo ? 'connected' : 'joining',
+  );
   const [joinError, setJoinError] = useState<string | null>(null);
   const [roomClosed, setRoomClosed] = useState(false);
   const [me, setMe] = useState<ApiUser | null>(null);
-  const canControl = isHost || guestControls;
+  const canControl = isHost || guestControls || isSolo;
 
   const engineRef = useRef(new SyncEngine());
   const trackUriRef = useRef<string | null>(null);
   const playingRef = useRef(false);
   const loopRef = useRef(false);
-  const isHostRef = useRef(false);
+  const isHostRef = useRef(isSolo);
   const hostIdRef = useRef<string | null>(null);
   const meRef = useRef<ApiUser | null>(null);
   const chatFocusedRef = useRef(false);
@@ -271,6 +280,7 @@ export function RoomProvider({
   );
 
   const doJoin = useCallback(async () => {
+    if (isSolo) return;
     const s = socketRef.current;
     if (!s) return;
     engineRef.current.reset();
@@ -291,15 +301,23 @@ export function RoomProvider({
     });
     // kick off offset measurement immediately
     s.emit(C2S.SYNC_PING, { t0: Date.now() });
-  }, [roomId, password, startJoinTimeout]);
+  }, [roomId, password, startJoinTimeout, isSolo]);
 
   const retryJoin = useCallback(() => {
+    if (isSolo) return;
     setJoinError(null);
     setConnectionState('joining');
     void doJoin();
-  }, [doJoin]);
+  }, [doJoin, isSolo]);
 
   useEffect(() => {
+    if (isSolo) {
+      setSyncReady(true);
+      setConnectionState('connected');
+      setIsHost(true);
+      isHostRef.current = true;
+      return;
+    }
     let mounted = true;
     let pingTimer: ReturnType<typeof setInterval> | null = null;
     let activeSocket: ReturnType<typeof useSocket>['socket'] = null;
@@ -636,19 +654,68 @@ export function RoomProvider({
   // leave on unmount
   useEffect(() => {
     return () => {
-      socketRef.current?.emit(C2S.LEAVE_ROOM, { room_id: roomId });
+      if (!isSolo) {
+        socketRef.current?.emit(C2S.LEAVE_ROOM, { room_id: roomId });
+      }
     };
-  }, [roomId]);
+  }, [roomId, isSolo]);
+
+  // Solo Mode: automatically advance queue on track completion
+  useEffect(() => {
+    if (!isSolo) return;
+    player.setOnTrackEnded(() => {
+      if (loopRef.current) {
+        void playerRef.current.seekToMs(0);
+        playerRef.current.play();
+        return;
+      }
+      setQueue((prevQueue) => {
+        if (prevQueue.length > 0) {
+          const [next, ...rest] = prevQueue;
+          const nextTrackInfo: TrackInfo = {
+            track_uri: next.track_uri,
+            track_name: next.track_name,
+            artist: next.artist,
+            album_art_url: next.album_art_url,
+            duration_ms: next.duration_ms,
+          };
+          setNowPlaying(nextTrackInfo);
+          trackUriRef.current = next.track_uri;
+          setIsPlaying(true);
+          playingRef.current = true;
+          recordTrackPlayed(nextTrackInfo, { id: 'solo', name: 'Solo Jam' });
+          void playerRef.current
+            .loadTrack(next.track_uri, {
+              title: next.track_name,
+              artist: next.artist,
+              artworkUrl: next.album_art_url,
+            })
+            .then(() => {
+              playerRef.current.play();
+            });
+          return rest;
+        } else {
+          setIsPlaying(false);
+          playingRef.current = false;
+          return [];
+        }
+      });
+    });
+    return () => {
+      player.setOnTrackEnded(null);
+    };
+  }, [isSolo, player]);
 
   const emitPlaybackUpdate = useCallback(
     (isPlaying: boolean) => {
+      if (isSolo) return;
       socketRef.current?.emit(C2S.PLAYBACK_UPDATE, {
         room_id: roomId,
         position_ms: Math.round(playerRef.current.positionMs()),
         is_playing: isPlaying,
       });
     },
-    [roomId],
+    [roomId, isSolo],
   );
 
   const sendChat = useCallback(
@@ -694,6 +761,26 @@ export function RoomProvider({
 
   const addTrack = useCallback(
     (track: TrackInfo) => {
+      if (isSolo) {
+        const newItem: QueueItem = {
+          queue_item_id: `solo_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          track_uri: track.track_uri,
+          track_name: track.track_name,
+          artist: track.artist,
+          album_art_url: track.album_art_url,
+          duration_ms: track.duration_ms,
+          added_by: meRef.current?.display_name || 'You',
+          votes: 0,
+        };
+        setQueue((prev) => [...prev, newItem]);
+        if (!nowPlaying && !playingRef.current) {
+          playNow(track);
+        } else {
+          toast(`Added "${track.track_name}" to queue`, 'success');
+        }
+        return;
+      }
+
       // Check for duplicate in queue or now playing
       const normUri = track.track_uri?.trim().toLowerCase();
       const normName = track.track_name?.trim().toLowerCase();
@@ -744,12 +831,31 @@ export function RoomProvider({
       }
       emitAdd(socketRef.current);
     },
-    [roomId, queue, nowPlaying, connect, toast],
+    [roomId, queue, nowPlaying, connect, toast, isSolo],
   );
 
   const addMultipleTracks = useCallback(
     (tracks: TrackInfo[]) => {
       if (!tracks || tracks.length === 0) return;
+      if (isSolo) {
+        const newItems: QueueItem[] = tracks.map((t, idx) => ({
+          queue_item_id: `solo_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 6)}`,
+          track_uri: t.track_uri,
+          track_name: t.track_name,
+          artist: t.artist,
+          album_art_url: t.album_art_url,
+          duration_ms: t.duration_ms,
+          added_by: meRef.current?.display_name || 'You',
+          votes: 0,
+        }));
+        setQueue((prev) => [...prev, ...newItems]);
+        if (!nowPlaying && tracks.length > 0) {
+          playNow(tracks[0]);
+        }
+        toast(`Added ${tracks.length} tracks to queue`, 'success');
+        return;
+      }
+
       const emitAddMultiple = (s: typeof socketRef.current) => {
         s?.emit(C2S.ADD_MULTIPLE_TO_QUEUE, {
           room_id: roomId,
@@ -777,12 +883,31 @@ export function RoomProvider({
       }
       emitAddMultiple(socketRef.current);
     },
-    [roomId, connect, toast],
+    [roomId, connect, toast, isSolo, nowPlaying],
   );
 
   const playNow = useCallback(
     (track: TrackInfo) => {
       if (!canControl) return;
+      if (isSolo) {
+        setNowPlaying(track);
+        trackUriRef.current = track.track_uri;
+        setIsPlaying(true);
+        playingRef.current = true;
+        recordTrackPlayed(track, { id: 'solo', name: 'Solo Jam' });
+        void playerRef.current
+          .loadTrack(track.track_uri, {
+            title: track.track_name,
+            artist: track.artist,
+            artworkUrl: track.album_art_url,
+          })
+          .then(() => {
+            playerRef.current.play();
+          });
+        toast(`Playing "${track.track_name}"`, 'success');
+        return;
+      }
+
       socketRef.current?.emit(C2S.PLAY_NOW, {
         room_id: roomId,
         track_uri: track.track_uri,
@@ -807,7 +932,7 @@ export function RoomProvider({
       );
       toast(`Playing "${track.track_name}"`, 'success');
     },
-    [canControl, roomId, roomName, applyPlaybackSync, toast],
+    [canControl, roomId, roomName, applyPlaybackSync, toast, isSolo],
   );
 
   const voteTrack = useCallback(
@@ -839,33 +964,73 @@ export function RoomProvider({
     else p.pause();
     playingRef.current = next;
     setIsPlaying(next);
-    emitPlaybackUpdate(next);
-  }, [canControl, emitPlaybackUpdate]);
+    if (!isSolo) {
+      emitPlaybackUpdate(next);
+    }
+  }, [canControl, emitPlaybackUpdate, isSolo]);
 
   const nextTrack = useCallback(() => {
     if (!canControl) return;
+    if (isSolo) {
+      if (queue.length > 0) {
+        const [next, ...rest] = queue;
+        setQueue(rest);
+        playNow({
+          track_uri: next.track_uri,
+          track_name: next.track_name,
+          artist: next.artist,
+          album_art_url: next.album_art_url,
+          duration_ms: next.duration_ms,
+        });
+      } else {
+        toast('End of queue', 'info');
+      }
+      return;
+    }
     socketRef.current?.emit(C2S.NEXT_TRACK, { room_id: roomId });
-  }, [canControl, roomId]);
+  }, [canControl, roomId, isSolo, queue, playNow, toast]);
 
   const previousTrack = useCallback(() => {
     if (!canControl) return;
+    if (isSolo) {
+      void playerRef.current.seekToMs(0);
+      playerRef.current.play();
+      setIsPlaying(true);
+      playingRef.current = true;
+      return;
+    }
     socketRef.current?.emit(C2S.PREVIOUS_TRACK, { room_id: roomId });
-  }, [canControl, roomId]);
+  }, [canControl, roomId, isSolo]);
 
   const toggleRepeat = useCallback(() => {
     if (!canControl) return;
     const next = !loopRef.current;
-    socketRef.current?.emit(C2S.TOGGLE_REPEAT, { room_id: roomId, loop: next });
-    // server echoes back via playback_sync -> loop; optimistic flip for snappiness
     loopRef.current = next;
     setLoop(next);
-  }, [canControl, roomId]);
+    if (isSolo) {
+      toast(next ? 'Loop enabled' : 'Loop disabled', 'info');
+      return;
+    }
+    socketRef.current?.emit(C2S.TOGGLE_REPEAT, { room_id: roomId, loop: next });
+  }, [canControl, roomId, isSolo, toast]);
 
   const shuffleQueue = useCallback(() => {
     if (!isHostRef.current) return;
+    if (isSolo) {
+      setQueue((prev) => {
+        const shuffled = [...prev];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        return shuffled;
+      });
+      toast('Queue shuffled', 'info');
+      return;
+    }
     socketRef.current?.emit(C2S.SHUFFLE_QUEUE, { room_id: roomId });
     toast('Queue shuffled', 'info');
-  }, [roomId, toast]);
+  }, [roomId, toast, isSolo]);
 
   const toggleGuestControls = useCallback(() => {
     if (!isHostRef.current) return;
@@ -907,14 +1072,23 @@ export function RoomProvider({
   const seekToMs = useCallback(
     (ms: number) => {
       if (!canControl) return;
-      void playerRef.current.seekToMs(ms).then(() => emitPlaybackUpdate(true));
+      void playerRef.current.seekToMs(ms).then(() => {
+        if (!isSolo) emitPlaybackUpdate(true);
+      });
     },
-    [canControl, emitPlaybackUpdate],
+    [canControl, emitPlaybackUpdate, isSolo],
   );
 
   const removeTrack = useCallback(
     (queueItemId: string) => {
       if (!isHost || !queueItemId) return;
+      if (isSolo) {
+        setQueue((prev) =>
+          prev.filter((item) => item.queue_item_id !== queueItemId && item.id !== queueItemId),
+        );
+        toast('Track removed', 'info');
+        return;
+      }
       socketRef.current?.emit(C2S.REMOVE_FROM_QUEUE, {
         room_id: roomId,
         queue_item_id: queueItemId,
@@ -924,16 +1098,18 @@ export function RoomProvider({
       );
       toast('Track removed', 'info');
     },
-    [isHost, roomId, toast],
+    [isHost, roomId, toast, isSolo],
   );
 
   const reorderQueue = useCallback(
     (orderedIds: string[]) => {
       if (!orderedIds || orderedIds.length === 0) return;
-      socketRef.current?.emit(C2S.REORDER_QUEUE, {
-        room_id: roomId,
-        ordered_ids: orderedIds,
-      });
+      if (!isSolo) {
+        socketRef.current?.emit(C2S.REORDER_QUEUE, {
+          room_id: roomId,
+          ordered_ids: orderedIds,
+        });
+      }
       setQueue((prev) => {
         const itemMap = new Map(prev.map((item) => [item.queue_item_id || item.id || '', item]));
         const updated: QueueItem[] = [];
@@ -950,7 +1126,7 @@ export function RoomProvider({
         return updated;
       });
     },
-    [roomId],
+    [roomId, isSolo],
   );
 
   const transferHost = useCallback(
@@ -1038,6 +1214,7 @@ export function RoomProvider({
   const value = useMemo<RoomApi>(
     () => ({
       roomId,
+      isSolo,
       roomName,
       isHost,
       canControl,
@@ -1084,7 +1261,7 @@ export function RoomProvider({
       updateRoomDetails,
     }),
     [
-      roomId, roomName, isHost, canControl, connectionState, queue, nowPlaying, isPlaying,
+      roomId, isSolo, roomName, isHost, canControl, connectionState, queue, nowPlaying, isPlaying,
       loop, listeners, messages, unreadChat, typingUsers, reactions, skipVotes, guestControls, syncReady,
       joinError, roomClosed, me, retryJoin, toggleGuestControls, sendChat, sendReaction, dismissReaction,
       addTrack, addMultipleTracks, playNow, voteTrack, voteSkip, togglePlay, nextTrack, previousTrack,

@@ -52,6 +52,8 @@ import {
   clearVault,
   downloadTrackToVault,
   formatBytesPure,
+  subscribeDownloadProgress,
+  type TrackDownloadProgress,
 } from '../../storage/vault';
 import {
   getFavoriteTracks,
@@ -60,6 +62,7 @@ import {
   type OfflinePlaylist,
 } from '../../storage/history';
 import { createRoom } from '../../api';
+import { subscribeNetworkState, isDeviceOnline } from '../../utils/network';
 import type { TrackInfo } from '../../sync/protocol';
 
 export default function OfflineVaultScreen() {
@@ -84,6 +87,22 @@ export default function OfflineVaultScreen() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [activePlayingUri, setActivePlayingUri] = useState<string | null>(null);
+
+  // Network Connectivity Status
+  const [isOnline, setIsOnline] = useState(isDeviceOnline());
+  useEffect(() => {
+    return subscribeNetworkState((online) => {
+      setIsOnline(online);
+    });
+  }, []);
+
+  // Download Progress Mapping
+  const [downloadProgressMap, setDownloadProgressMap] = useState<Record<string, TrackDownloadProgress>>({});
+  useEffect(() => {
+    return subscribeDownloadProgress((progressMap) => {
+      setDownloadProgressMap({ ...progressMap });
+    });
+  }, []);
 
   // Batch downloading status
   const [isBatchDownloading, setIsBatchDownloading] = useState(false);
@@ -308,6 +327,26 @@ export default function OfflineVaultScreen() {
         </Pressable>
       </View>
 
+      {/* Network Connectivity Status Strip */}
+      {!isOnline ? (
+        <View style={styles.offlineNoticeBanner}>
+          <WifiOff size={13} color="#f59e0b" />
+          <Text style={styles.offlineNoticeText}>
+            No internet connection • Playing from local vault storage
+          </Text>
+        </View>
+      ) : (
+        <Pressable
+          onPress={() => router.replace('/')}
+          style={({ pressed }) => [styles.onlineReturnBanner, pressed && styles.pressed]}
+        >
+          <Radio size={13} color="#10b981" />
+          <Text style={styles.onlineReturnText}>
+            Connection restored • Tap to return to Home
+          </Text>
+        </Pressable>
+      )}
+
       {/* Storage Gauge Card */}
       <View style={[styles.storageCard, isCompact && styles.storageCardCompact]}>
         <View style={styles.storageCardHeader}>
@@ -470,7 +509,8 @@ export default function OfflineVaultScreen() {
           ]}
           renderItem={({ item }) => {
             const isDownloaded = vaultTracks.some((vt) => vt.track_uri === item.track_uri);
-            const isDownloading = downloadingTrackUris.has(item.track_uri);
+            const prog = downloadProgressMap[item.track_uri];
+            const isDownloading = downloadingTrackUris.has(item.track_uri) || prog?.state === 'downloading';
             const isCurrentPlaying = activePlayingUri === item.track_uri && isPlaying;
             const fileSize = (item as VaultTrack).file_size_bytes;
 
@@ -512,7 +552,12 @@ export default function OfflineVaultScreen() {
                 {/* Status & Actions */}
                 <View style={styles.trackActions}>
                   {isDownloading ? (
-                    <ActivityIndicator size="small" color={colors.amber} />
+                    <View style={styles.downloadProgressPill}>
+                      <ActivityIndicator size="small" color={colors.amber} />
+                      <Text style={styles.downloadProgressText}>
+                        {prog?.percent ? `${prog.percent}%` : 'Saving…'}
+                      </Text>
+                    </View>
                   ) : isDownloaded ? (
                     <>
                       <View style={styles.downloadedPill}>
@@ -917,5 +962,59 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.75,
+  },
+  offlineNoticeBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.25)',
+    borderRadius: radius.md,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.xs,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  offlineNoticeText: {
+    fontFamily: fontFamily.bodyMedium,
+    fontSize: 11,
+    color: '#f59e0b',
+    flex: 1,
+  },
+  onlineReturnBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.25)',
+    borderRadius: radius.md,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.xs,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  onlineReturnText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 11,
+    color: '#10b981',
+    flex: 1,
+  },
+  downloadProgressPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.3)',
+    borderRadius: radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  downloadProgressText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 10,
+    color: colors.amber,
   },
 });

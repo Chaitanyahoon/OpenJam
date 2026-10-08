@@ -67,12 +67,14 @@ function RoomHeader() {
     }
   }, [roomId, roomName, initialName]);
 
-  const displayName = roomName || initialName || 'OpenJam Room';
+  const isSolo = roomId === 'solo' || roomId.startsWith('solo');
+  const displayName = isSolo ? 'Solo Jam' : roomName || initialName || 'OpenJam Room';
   const host = listeners.find((l) => l.is_host);
-  const hostName = host?.user_name || 'Host';
+  const hostName = isSolo ? 'You' : host?.user_name || 'Host';
 
-  const indicatorColor =
-    connectionState === 'connected' && syncReady
+  const indicatorColor = isSolo
+    ? colors.amber
+    : connectionState === 'connected' && syncReady
       ? colors.green
       : connectionState === 'offline'
         ? colors.red
@@ -82,10 +84,16 @@ function RoomHeader() {
     <View style={styles.header}>
       {/* Back / Leave button */}
       <Pressable
-        onPress={() => triggerLeave()}
+        onPress={() => {
+          if (isSolo) {
+            router.replace('/');
+          } else {
+            triggerLeave();
+          }
+        }}
         hitSlop={14}
         style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}
-        accessibilityLabel="Leave room"
+        accessibilityLabel={isSolo ? 'Return home' : 'Leave room'}
       >
         <ChevronLeft size={22} color={colors.text1} />
       </Pressable>
@@ -108,40 +116,46 @@ function RoomHeader() {
           {host?.avatar_url ? (
             <Image source={{ uri: host.avatar_url }} style={styles.hostMiniAvatar} />
           ) : (
-            <View style={[styles.hostMiniFallback, { backgroundColor: nameColor(hostName) }]}>
-              <Text style={styles.hostMiniInitials}>{initials(hostName)}</Text>
+            <View style={[styles.hostMiniFallback, { backgroundColor: isSolo ? colors.amber : nameColor(hostName) }]}>
+              <Text style={styles.hostMiniInitials}>{isSolo ? 'SJ' : initials(hostName)}</Text>
             </View>
           )}
           <Text style={styles.headerSub} numberOfLines={1} ellipsizeMode="tail">
-            DJ <Text style={styles.hostBold}>{hostName}</Text> • {listeners.length} listening
+            {isSolo ? (
+              <Text style={styles.hostBold}>Personal Mode • Instant Play</Text>
+            ) : (
+              <>DJ <Text style={styles.hostBold}>{hostName}</Text> • {listeners.length} listening</>
+            )}
           </Text>
         </View>
       </View>
 
       {/* Right actions: Bookmark + Share (Icon-only) */}
       <View style={styles.headerActions}>
-        <Pressable
-          onPress={handleToggleBookmark}
-          hitSlop={12}
-          style={({ pressed }) => [
-            styles.actionIconBtn,
-            favorited && styles.actionIconBtnActive,
-            pressed && styles.pressed,
-          ]}
-          accessibilityLabel={favorited ? 'Unpin room' : 'Pin room to favorites'}
-        >
-          <Bookmark
-            size={16}
-            color={favorited ? colors.amber : colors.text2}
-            fill={favorited ? colors.amber : 'transparent'}
-          />
-        </Pressable>
+        {!isSolo && (
+          <Pressable
+            onPress={handleToggleBookmark}
+            hitSlop={12}
+            style={({ pressed }) => [
+              styles.actionIconBtn,
+              favorited && styles.actionIconBtnActive,
+              pressed && styles.pressed,
+            ]}
+            accessibilityLabel={favorited ? 'Unpin room' : 'Pin room to favorites'}
+          >
+            <Bookmark
+              size={16}
+              color={favorited ? colors.amber : colors.text2}
+              fill={favorited ? colors.amber : 'transparent'}
+            />
+          </Pressable>
+        )}
 
         <Pressable
           onPress={shareRoom}
           hitSlop={12}
           style={({ pressed }) => [styles.actionIconBtn, pressed && styles.pressed]}
-          accessibilityLabel="Share room"
+          accessibilityLabel={isSolo ? 'Share OpenJam' : 'Share room'}
         >
           <Share2 size={16} color={colors.text2} />
         </Pressable>
@@ -151,12 +165,17 @@ function RoomHeader() {
 }
 
 function RoomGuards({ children }: { children: React.ReactNode }) {
-  const { roomClosed, joinError, retryJoin } = useRoom();
+  const { roomClosed, joinError, retryJoin, roomId } = useRoom();
   const [showLeave, setShowLeave] = useState(false);
+  const isSolo = roomId === 'solo' || roomId.startsWith('solo');
 
   // Android hardware back → show leave modal instead of instant exit; dismiss if open
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (isSolo) {
+        router.replace('/');
+        return true;
+      }
       if (showLeave) {
         setShowLeave(false);
         return true;
@@ -165,7 +184,7 @@ function RoomGuards({ children }: { children: React.ReactNode }) {
       return true; // prevent default back
     });
     return () => sub.remove();
-  }, [showLeave]);
+  }, [showLeave, isSolo]);
 
   useEffect(() => {
     if (roomClosed) {

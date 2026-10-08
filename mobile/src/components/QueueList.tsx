@@ -10,6 +10,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -24,8 +25,6 @@ import {
   Plus,
   Play,
   ChevronLeft,
-  ChevronUp,
-  ChevronDown,
   Music,
   ListMusic,
   ArrowBigUp,
@@ -33,15 +32,28 @@ import {
   Sparkles,
   DownloadCloud,
   CheckCircle2,
+  Heart,
+  GripVertical,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
 import { useRoom } from '../state/RoomContext';
 import { searchTracks, searchHybridTracks, isPlaylistUrl, type TrackSearchResult } from '../api';
 import { useToast } from './ToastContext';
-import { hapticLight, hapticMedium, hapticHeavy } from '../utils/haptics';
+import { hapticLight, hapticMedium, hapticHeavy, hapticSelection } from '../utils/haptics';
 import { ImportPlaylistModal } from './ImportPlaylistModal';
-import { downloadTrackToVault, getVaultTracks, filterSessionTracksToDownloadPure } from '../storage/vault';
+import {
+  downloadTrackToVault,
+  getVaultTracks,
+  filterSessionTracksToDownloadPure,
+  subscribeDownloadProgress,
+  type TrackDownloadProgress,
+} from '../storage/vault';
+import {
+  getFavoriteTracks,
+  toggleFavoriteTrack,
+  subscribeFavoriteTracks,
+} from '../storage/history';
 import type { TrackInfo } from '../sync/protocol';
 
 function fmtDuration(ms?: number): string {
@@ -61,6 +73,54 @@ function extractYouTubeId(urlOrQuery: string): string | null {
   const streamMatch = clean.match(/(?:\/stream\/|^yt:|^ytid:)([a-zA-Z0-9_-]{11})(?:\?|$)/);
   if (streamMatch && streamMatch[1]) return streamMatch[1];
   return null;
+}
+
+function QueueRowDragHandle({
+  index,
+  total,
+  onMoveUp,
+  onMoveDown,
+}: {
+  index: number;
+  total: number;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+}) {
+  const lastDy = useRef(0);
+  const pan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 3,
+      onPanResponderGrant: () => {
+        lastDy.current = 0;
+        void hapticSelection();
+      },
+      onPanResponderMove: (_, gesture) => {
+        const delta = gesture.dy - lastDy.current;
+        if (delta < -28 && index > 0) {
+          lastDy.current = gesture.dy;
+          onMoveUp();
+          void hapticLight();
+        } else if (delta > 28 && index < total - 1) {
+          lastDy.current = gesture.dy;
+          onMoveDown();
+          void hapticLight();
+        }
+      },
+      onPanResponderRelease: () => {
+        lastDy.current = 0;
+      },
+      onPanResponderTerminate: () => {
+        lastDy.current = 0;
+      },
+    })
+  ).current;
+
+  return (
+    <View {...pan.panHandlers} style={styles.dragHandle} accessibilityLabel="Drag to reorder track">
+      <GripVertical size={16} color={colors.text3} />
+    </View>
+  );
 }
 
 export function QueueList() {
@@ -260,6 +320,39 @@ export function QueueList() {
     void hapticLight();
   };
 
+  // Universal Favorites / Likes in Queue
+  const [favUris, setFavUris] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    let active = true;
+    void getFavoriteTracks().then((favs) => {
+      if (active) setFavUris(new Set(favs.map((f) => f.track_uri)));
+    });
+    const unsub = subscribeFavoriteTracks((favs) => {
+      if (active) setFavUris(new Set(favs.map((f) => f.track_uri)));
+    });
+    return () => {
+      active = false;
+      unsub();
+    };
+  }, []);
+
+  const handleToggleLike = async (track: TrackInfo) => {
+    void hapticSelection();
+    const next = await toggleFavoriteTrack(track);
+    toast(next ? 'Added to Liked Songs' : 'Removed from Liked Songs', 'info');
+  };
+
+  // Live Download Progress Subscription
+  const [downloadProgressMap, setDownloadProgressMap] = useState<Record<string, TrackDownloadProgress>>({});
+  useEffect(() => {
+    return subscribeDownloadProgress((map) => {
+      setDownloadProgressMap({ ...map });
+    });
+  }, []);
+
+  const isAnyDownloading = Object.values(downloadProgressMap).some((p) => p.state === 'downloading');
+
   const [isSavingVault, setIsSavingVault] = useState(false);
   const [isVaultSaved, setIsVaultSaved] = useState(false);
 
@@ -401,6 +494,26 @@ export function QueueList() {
                   <Text style={styles.resultDuration}>{fmtDuration(item.duration_ms)}</Text>
                 ) : null}
                 <View style={styles.resultActionsRow}>
+                  <Pressable
+                    onPress={() =>
+                      handleToggleLike({
+                        track_uri: item.uri,
+                        track_name: item.name,
+                        artist: item.artist,
+                        album_art_url: item.album_art_url,
+                        duration_ms: item.duration_ms,
+                      })
+                    }
+                    style={styles.resultLikeBtn}
+                    hitSlop={8}
+                    accessibilityLabel={favUris.has(item.uri) ? 'Unlike track' : 'Like track'}
+                  >
+                    <Heart
+                      size={15}
+                      color={favUris.has(item.uri) ? '#ef4444' : colors.text3}
+                      fill={favUris.has(item.uri) ? '#ef4444' : 'transparent'}
+                    />
+                  </Pressable>
                   {canControl ? (
                     <Pressable
                       onPress={() => {
@@ -485,6 +598,18 @@ export function QueueList() {
                             {fmtDuration(activeTrack.duration_ms)}
                           </Text>
                         ) : null}
+                        <Pressable
+                          onPress={() => handleToggleLike(activeTrack)}
+                          style={({ pressed }) => [styles.nowPlayingLikeBtn, pressed && styles.pressed]}
+                          hitSlop={8}
+                          accessibilityLabel={favUris.has(activeTrack.track_uri) ? 'Unlike song' : 'Like song'}
+                        >
+                          <Heart
+                            size={18}
+                            color={favUris.has(activeTrack.track_uri) ? '#ef4444' : colors.text3}
+                            fill={favUris.has(activeTrack.track_uri) ? '#ef4444' : 'transparent'}
+                          />
+                        </Pressable>
                       </View>
                     </View>
                   ) : null}
@@ -496,7 +621,7 @@ export function QueueList() {
                       </Text>
                       <Pressable
                         onPress={handleSaveQueueToVault}
-                        disabled={isSavingVault}
+                        disabled={isSavingVault || isAnyDownloading}
                         style={({ pressed }) => [
                           styles.saveVaultBtn,
                           isVaultSaved && styles.saveVaultBtnSaved,
@@ -505,8 +630,13 @@ export function QueueList() {
                         hitSlop={6}
                         accessibilityLabel="Save entire queue to offline vault"
                       >
-                        {isSavingVault ? (
-                          <ActivityIndicator size="small" color={colors.amber} />
+                        {isSavingVault || isAnyDownloading ? (
+                          <>
+                            <ActivityIndicator size="small" color={colors.amber} />
+                            <Text style={[styles.saveVaultText, { color: colors.amber, marginLeft: 4 }]}>
+                              Saving…
+                            </Text>
+                          </>
                         ) : isVaultSaved ? (
                           <>
                             <CheckCircle2 size={12} color="#10b981" />
@@ -613,6 +743,20 @@ export function QueueList() {
                       </Pressable>
                     ) : null}
 
+                    {/* Universal Song Like Button */}
+                    <Pressable
+                      onPress={() => handleToggleLike(item)}
+                      style={({ pressed }) => [styles.rowLikeBtn, pressed && styles.pressed]}
+                      hitSlop={8}
+                      accessibilityLabel={favUris.has(item.track_uri) ? 'Unlike song' : 'Like song'}
+                    >
+                      <Heart
+                        size={15}
+                        color={favUris.has(item.track_uri) ? '#ef4444' : colors.text3}
+                        fill={favUris.has(item.track_uri) ? '#ef4444' : 'transparent'}
+                      />
+                    </Pressable>
+
                     {/* Upvote Pill */}
                     <Pressable
                       onPress={() => {
@@ -638,39 +782,14 @@ export function QueueList() {
                       </View>
                     </Pressable>
 
-                    {/* Host Reorder / Nudge buttons */}
+                    {/* Touch Drag Reorder Handle (Replaces chevron arrows) */}
                     {canControl && upNextTracks.length > 1 ? (
-                      <View style={styles.nudgeCol}>
-                        <Pressable
-                          onPress={() => handleNudge(index, 'up')}
-                          disabled={index === 0}
-                          style={({ pressed }) => [
-                            styles.nudgeBtn,
-                            index === 0 && styles.nudgeBtnDisabled,
-                            pressed && styles.pressed,
-                          ]}
-                          hitSlop={6}
-                          accessibilityLabel="Move track up"
-                        >
-                          <ChevronUp size={11} color={index === 0 ? colors.text3 : colors.text2} />
-                        </Pressable>
-                        <Pressable
-                          onPress={() => handleNudge(index, 'down')}
-                          disabled={index === upNextTracks.length - 1}
-                          style={({ pressed }) => [
-                            styles.nudgeBtn,
-                            index === upNextTracks.length - 1 && styles.nudgeBtnDisabled,
-                            pressed && styles.pressed,
-                          ]}
-                          hitSlop={6}
-                          accessibilityLabel="Move track down"
-                        >
-                          <ChevronDown
-                            size={11}
-                            color={index === upNextTracks.length - 1 ? colors.text3 : colors.text2}
-                          />
-                        </Pressable>
-                      </View>
+                      <QueueRowDragHandle
+                        index={index}
+                        total={upNextTracks.length}
+                        onMoveUp={() => handleNudge(index, 'up')}
+                        onMoveDown={() => handleNudge(index, 'down')}
+                      />
                     ) : null}
 
                     {/* Host Remove */}
@@ -1095,25 +1214,32 @@ const styles = StyleSheet.create({
     color: colors.amber,
     fontFamily: fontFamily.bodySemiBold,
   },
-  nudgeCol: {
-    flexDirection: 'column',
+  dragHandle: {
+    width: 28,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
-    marginRight: 4,
+    marginRight: 2,
   },
-  nudgeBtn: {
-    width: 24,
-    height: 18,
-    borderRadius: 4,
+  rowLikeBtn: {
+    width: 28,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
-  nudgeBtnDisabled: {
-    opacity: 0.25,
+  nowPlayingLikeBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 6,
+  },
+  resultLikeBtn: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 2,
   },
   removeBtn: {
     width: 32,

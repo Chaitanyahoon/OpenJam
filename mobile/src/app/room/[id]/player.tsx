@@ -57,6 +57,9 @@ import {
   DownloadCloud,
   CheckCircle2,
   HardDrive,
+  ListMusic,
+  Headphones,
+  AlertCircle,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../../../theme';
 import { fontFamily } from '../../../fonts';
@@ -68,7 +71,14 @@ import {
   downloadTrackToVault,
   getVaultTracks,
   filterSessionTracksToDownloadPure,
+  subscribeDownloadProgress,
+  type TrackDownloadProgress,
 } from '../../../storage/vault';
+import {
+  toggleFavoriteTrack,
+  isFavoriteTrack,
+  subscribeFavoriteTracks,
+} from '../../../storage/history';
 import type { TrackInfo } from '../../../sync/protocol';
 import {
   hapticSelection,
@@ -127,6 +137,7 @@ const lyricsCache = new Map<string, Lyrics>();
 export default function PlayerTab() {
   const {
     roomId,
+    isSolo,
     roomName,
     nowPlaying,
     isPlaying,
@@ -174,6 +185,85 @@ export default function PlayerTab() {
   const [lyrics, setLyrics] = useState<Lyrics>({ lines: [], synced: false });
   const [lyricsLoading, setLyricsLoading] = useState(false);
   const lyricsScrollRef = useRef<ScrollView>(null);
+
+  // Universal Song Like & Reactive State
+  const [isLiked, setIsLiked] = useState(false);
+  useEffect(() => {
+    if (!nowPlaying?.track_uri) {
+      setIsLiked(false);
+      return;
+    }
+    let active = true;
+    void isFavoriteTrack(nowPlaying.track_uri).then((fav) => {
+      if (active) setIsLiked(fav);
+    });
+    const unsub = subscribeFavoriteTracks((favs) => {
+      if (active) {
+        setIsLiked(favs.some((f) => f.track_uri === nowPlaying.track_uri));
+      }
+    });
+    return () => {
+      active = false;
+      unsub();
+    };
+  }, [nowPlaying?.track_uri]);
+
+  const handleToggleLike = useCallback(async () => {
+    if (!nowPlaying) return;
+    void hapticMedium();
+    const next = await toggleFavoriteTrack(nowPlaying);
+    setIsLiked(next);
+    toast(next ? 'Added to Liked Songs' : 'Removed from Liked Songs', 'info');
+  }, [nowPlaying, toast]);
+
+  // Current Track Download Progress & Vault Status
+  const [currentDownload, setCurrentDownload] = useState<TrackDownloadProgress | null>(null);
+  const [isTrackDownloaded, setIsTrackDownloaded] = useState(false);
+
+  useEffect(() => {
+    if (!nowPlaying?.track_uri) {
+      setCurrentDownload(null);
+      setIsTrackDownloaded(false);
+      return;
+    }
+    let active = true;
+    void getVaultTracks().then((tracks) => {
+      if (active) {
+        setIsTrackDownloaded(tracks.some((t) => t.track_uri === nowPlaying.track_uri));
+      }
+    });
+    const unsub = subscribeDownloadProgress((progressMap) => {
+      const prog = progressMap[nowPlaying.track_uri];
+      if (active) {
+        setCurrentDownload(prog ?? null);
+        if (prog?.state === 'completed') {
+          setIsTrackDownloaded(true);
+        }
+      }
+    });
+    return () => {
+      active = false;
+      unsub();
+    };
+  }, [nowPlaying?.track_uri]);
+
+  const handleDownloadCurrentTrack = useCallback(async () => {
+    if (!nowPlaying) return;
+    if (isTrackDownloaded) {
+      toast('Track already in offline vault', 'info');
+      return;
+    }
+    try {
+      void hapticMedium();
+      toast(`Downloading "${nowPlaying.track_name}"…`, 'info');
+      await downloadTrackToVault(nowPlaying, false);
+      setIsTrackDownloaded(true);
+      toast(`Saved to offline vault!`, 'success');
+    } catch (err: any) {
+      console.warn('Failed to download track:', err);
+      toast('Failed to download track', 'error');
+    }
+  }, [nowPlaying, isTrackDownloaded, toast]);
 
   // 1-Tap Offline Vault Session Saver
   const [isSavingVault, setIsSavingVault] = useState(false);
@@ -479,7 +569,7 @@ export default function PlayerTab() {
 
         {nowPlaying ? (
           <>
-            {/* Spotify-style Track Info Row with Save Vault & Lyrics quick action pills */}
+            {/* Spotify-style Track Info Row with Heart on Right */}
             <View style={styles.trackInfoRow}>
               <View style={styles.trackMetaCol}>
                 <Text style={styles.trackName} numberOfLines={1}>
@@ -490,52 +580,18 @@ export default function PlayerTab() {
                 </Text>
               </View>
 
-              <View style={styles.trackActionsRow}>
-                <Pressable
-                  onPress={handleSaveSessionToVault}
-                  disabled={isSavingVault}
-                  style={({ pressed }) => [
-                    styles.actionPill,
-                    isVaultSaved && styles.actionPillSaved,
-                    pressed && styles.pressed,
-                  ]}
-                  hitSlop={8}
-                  accessibilityLabel="Save session to offline vault"
-                >
-                  {isSavingVault ? (
-                    <ActivityIndicator size="small" color={colors.amber} />
-                  ) : isVaultSaved ? (
-                    <>
-                      <CheckCircle2 size={13} color="#10b981" />
-                      <Text style={[styles.actionPillText, { color: '#10b981' }]}>Saved</Text>
-                    </>
-                  ) : (
-                    <>
-                      <DownloadCloud size={13} color={colors.amber} />
-                      <Text style={styles.actionPillText}>Save</Text>
-                    </>
-                  )}
-                </Pressable>
-
-                <Pressable
-                  onPress={() => setLyricsOpen((v) => !v)}
-                  style={({ pressed }) => [
-                    styles.actionPill,
-                    lyricsOpen && styles.actionPillActive,
-                    pressed && styles.pressed,
-                  ]}
-                  hitSlop={8}
-                  accessibilityLabel="Toggle Lyrics"
-                >
-                  <MessageSquareQuote
-                    size={13}
-                    color={lyricsOpen ? colors.amber : colors.text2}
-                  />
-                  <Text style={[styles.actionPillText, lyricsOpen && styles.actionPillTextActive]}>
-                    Lyrics
-                  </Text>
-                </Pressable>
-              </View>
+              <Pressable
+                onPress={handleToggleLike}
+                style={({ pressed }) => [styles.heartBtn, pressed && styles.pressed]}
+                hitSlop={12}
+                accessibilityLabel={isLiked ? 'Unlike track' : 'Like track'}
+              >
+                <Heart
+                  size={24}
+                  color={isLiked ? '#ef4444' : colors.text3}
+                  fill={isLiked ? '#ef4444' : 'transparent'}
+                />
+              </Pressable>
             </View>
 
             {/* Audio Equalizer & Stream Status Bar */}
@@ -695,55 +751,146 @@ export default function PlayerTab() {
               </Pressable>
             </View>
 
-            {/* Minimal In-Sync & Skip Status Strip */}
-            <View style={styles.syncStrip}>
-              <View style={styles.syncStatusLeft}>
-                <View
-                  style={[
-                    styles.syncIndicatorDot,
-                    { backgroundColor: syncReady ? colors.green : colors.amber },
-                  ]}
-                />
-                <Text style={styles.syncStatusText} numberOfLines={1}>
-                  {syncReady ? `In sync with ${roomName || 'Room'}` : 'Syncing live stream…'}
-                </Text>
+            {/* Spotify Phone Player Bottom Utility Deck */}
+            <View style={styles.spotifyBottomDeck}>
+              {/* Left: Audio Route Pill */}
+              <View style={styles.deckRouteBadge}>
+                {isSolo ? (
+                  <>
+                    <Headphones size={14} color={colors.amber} />
+                    <Text style={styles.deckRouteText} numberOfLines={1}>
+                      Solo Audio
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Radio size={14} color={syncReady ? '#10b981' : colors.amber} />
+                    <Text style={styles.deckRouteText} numberOfLines={1}>
+                      {syncReady ? (roomName || 'In Sync') : 'Syncing…'}
+                    </Text>
+                  </>
+                )}
               </View>
 
+              {/* Center: Offline Vault Download Pill with Progress Indicator */}
               <Pressable
-                style={({ pressed }) => [styles.voteSkipPill, pressed && styles.pressed]}
-                onPress={() => {
-                  voteSkip();
-                  void hapticHeavy();
-                }}
+                onPress={handleDownloadCurrentTrack}
+                disabled={currentDownload?.state === 'downloading'}
+                style={({ pressed }) => [
+                  styles.deckVaultPill,
+                  isTrackDownloaded && styles.deckVaultPillSaved,
+                  currentDownload?.state === 'downloading' && styles.deckVaultPillDownloading,
+                  pressed && styles.pressed,
+                ]}
                 hitSlop={8}
-                accessibilityLabel="Vote to skip track"
+                accessibilityLabel="Download song to offline vault"
               >
-                <View style={styles.voteSkipContent}>
-                  <SkipForward size={12} color={colors.amber} fill={colors.amber} />
-                  <Text style={styles.voteSkipText}>
-                    Skip {skipVotes.votes}/{skipVotes.required || '–'}
-                  </Text>
-                </View>
+                {currentDownload?.state === 'downloading' ? (
+                  <>
+                    <ActivityIndicator size="small" color={colors.amber} />
+                    <Text style={[styles.deckVaultPillText, { color: colors.amber }]}>
+                      {currentDownload.percent > 0 ? `${currentDownload.percent}%` : 'Saving…'}
+                    </Text>
+                  </>
+                ) : isTrackDownloaded ? (
+                  <>
+                    <CheckCircle2 size={15} color="#10b981" />
+                    <Text style={[styles.deckVaultPillText, { color: '#10b981' }]}>Saved</Text>
+                  </>
+                ) : (
+                  <>
+                    <DownloadCloud size={15} color={colors.text2} />
+                    <Text style={styles.deckVaultPillText}>Vault</Text>
+                  </>
+                )}
               </Pressable>
+
+              {/* Right: Lyrics & Queue navigation buttons */}
+              <View style={styles.deckRightActions}>
+                <Pressable
+                  onPress={() => setLyricsOpen((v) => !v)}
+                  style={({ pressed }) => [
+                    styles.deckActionBtn,
+                    lyricsOpen && styles.deckActionBtnActive,
+                    pressed && styles.pressed,
+                  ]}
+                  hitSlop={8}
+                  accessibilityLabel="Toggle Lyrics"
+                >
+                  <MessageSquareQuote
+                    size={19}
+                    color={lyricsOpen ? colors.amber : colors.text2}
+                  />
+                </Pressable>
+
+                <Pressable
+                  onPress={goQueue}
+                  style={({ pressed }) => [
+                    styles.deckActionBtn,
+                    pressed && styles.pressed,
+                  ]}
+                  hitSlop={8}
+                  accessibilityLabel="Open Queue"
+                >
+                  <ListMusic size={21} color={colors.text2} />
+                </Pressable>
+              </View>
             </View>
 
-            {/* Compact Quick Reactions Bar */}
-            <View style={styles.reactionsBar}>
-              {REACTION_OPTIONS.map((r) => (
-                <Pressable
-                  key={r.id}
-                  onPress={() => {
-                    sendReaction(r.id);
-                    void hapticLight();
-                  }}
-                  style={({ pressed }) => [styles.reactionPill, pressed && styles.pressed]}
-                  accessibilityLabel={`React with ${r.label}`}
-                >
-                  {r.icon}
-                  <Text style={styles.reactionPillText}>{r.label}</Text>
-                </Pressable>
-              ))}
-            </View>
+            {/* Collaborative Session Strips (Hidden in Solo mode) */}
+            {!isSolo ? (
+              <>
+                {/* Minimal In-Sync & Skip Status Strip */}
+                <View style={styles.syncStrip}>
+                  <View style={styles.syncStatusLeft}>
+                    <View
+                      style={[
+                        styles.syncIndicatorDot,
+                        { backgroundColor: syncReady ? colors.green : colors.amber },
+                      ]}
+                    />
+                    <Text style={styles.syncStatusText} numberOfLines={1}>
+                      {syncReady ? `In sync with ${roomName || 'Room'}` : 'Syncing live stream…'}
+                    </Text>
+                  </View>
+
+                  <Pressable
+                    style={({ pressed }) => [styles.voteSkipPill, pressed && styles.pressed]}
+                    onPress={() => {
+                      voteSkip();
+                      void hapticHeavy();
+                    }}
+                    hitSlop={8}
+                    accessibilityLabel="Vote to skip track"
+                  >
+                    <View style={styles.voteSkipContent}>
+                      <SkipForward size={12} color={colors.amber} fill={colors.amber} />
+                      <Text style={styles.voteSkipText}>
+                        Skip {skipVotes.votes}/{skipVotes.required || '–'}
+                      </Text>
+                    </View>
+                  </Pressable>
+                </View>
+
+                {/* Compact Quick Reactions Bar */}
+                <View style={styles.reactionsBar}>
+                  {REACTION_OPTIONS.map((r) => (
+                    <Pressable
+                      key={r.id}
+                      onPress={() => {
+                        sendReaction(r.id);
+                        void hapticLight();
+                      }}
+                      style={({ pressed }) => [styles.reactionPill, pressed && styles.pressed]}
+                      accessibilityLabel={`React with ${r.label}`}
+                    >
+                      {r.icon}
+                      <Text style={styles.reactionPillText}>{r.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </>
+            ) : null}
 
             {/* Synced Karaoke Lyrics Panel */}
             {lyricsOpen ? (
@@ -811,7 +958,7 @@ export default function PlayerTab() {
               </View>
             ) : null}
 
-            {!canControl ? (
+            {!canControl && !isSolo ? (
               <Text style={styles.guestNotice}>
                 Host controls playback · Your audio stays strictly in sync
               </Text>
@@ -1125,6 +1272,79 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text2,
     marginTop: 3,
+  },
+  heartBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Spotify Bottom Utility Deck
+  spotifyBottomDeck: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    marginTop: spacing.sm,
+    paddingTop: spacing.xs,
+  },
+  deckRouteBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  deckRouteText: {
+    fontFamily: fontFamily.bodyMedium,
+    fontSize: 11,
+    color: colors.text2,
+    maxWidth: 130,
+  },
+  deckRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  deckVaultPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  deckVaultPillSaved: {
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  deckVaultPillDownloading: {
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+    borderColor: 'rgba(255, 159, 28, 0.3)',
+  },
+  deckVaultPillText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 11,
+    color: colors.text2,
+  },
+  deckActionBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  deckActionBtnActive: {
+    backgroundColor: 'rgba(255, 159, 28, 0.2)',
   },
   trackActionsRow: {
     flexDirection: 'row',
