@@ -9,6 +9,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   Image,
   Pressable,
@@ -44,6 +45,7 @@ import {
   clearSession,
   fetchMe,
   getBackendUrl,
+  getCachedRooms,
   getRooms,
   getStoredSession,
   joinAsGuest,
@@ -51,6 +53,7 @@ import {
   type ApiUser,
   type RoomSummary,
 } from '../api';
+import { useAppHeartbeat } from '../utils/heartbeat';
 import { useSocket } from '../state/SocketContext';
 import { RoomCard } from '../components/RoomCard';
 import { RoomCardSkeletonList } from '../components/RoomCardSkeleton';
@@ -111,10 +114,14 @@ export default function Landing() {
   const [pwRoom, setPwRoom] = useState<RoomSummary | null>(null);
   const [favoriteRooms, setFavoriteRooms] = useState<FavoriteRoom[]>([]);
   const [ready, setReady] = useState(false);
+  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const handledTokensRef = useRef<Set<string>>(new Set());
   const authSuccessRef = useRef(false);
   const insets = useSafeAreaInsets();
+
+  // Keep Render awake while OpenJam is open in the foreground
+  useAppHeartbeat();
 
   const promptFirstLaunchPermissions = useCallback(() => {
     void requestFirstLaunchPermissions();
@@ -143,25 +150,65 @@ export default function Landing() {
     }, [loadFavorites]),
   );
 
-  // Initial session & rooms load (first-launch onboarding)
+  // Initial session & rooms load (0ms optimistic paint + background revalidation)
   useEffect(() => {
+    let isMounted = true;
     (async () => {
-      const session = await getStoredSession();
-      if (session.token) {
-        // Refresh full user from backend
-        const latestUser = await fetchMe();
-        setUser(latestUser || session.user);
-        await connect();
+      // 1. Immediately hydrate cached rooms & stored user in 0ms!
+      const [cachedRooms, session] = await Promise.all([
+        getCachedRooms().catch(() => []),
+        getStoredSession().catch(() => ({ token: null, user: null, displayName: null })),
+      ]);
+
+      if (!isMounted) return;
+
+      if (cachedRooms && cachedRooms.length > 0) {
+        setRooms(cachedRooms);
+      }
+      if (session?.user) {
+        setUser(session.user);
+      }
+      // UI is ready to paint immediately from local cache!
+      setReady(true);
+      void loadFavorites();
+
+      // 2. Auth flow
+      if (session?.token) {
+        fetchMe()
+          .then((latestUser) => {
+            if (isMounted && latestUser) setUser(latestUser);
+          })
+          .catch(() => {});
+        connect().catch(() => {});
         registerPushToken().catch(() => {});
         promptFirstLaunchPermissions();
       } else {
-        // Show onboarding / sign in sheet on initial launch if unauthenticated
         setShowIdentity(true);
       }
-      await loadRooms();
-      setReady(true);
+
+      // 3. Background revalidation of live rooms
+      // If network takes > 2.2s (e.g. Render cold start), show subtle sync pill
+      const syncTimer = setTimeout(() => {
+        if (isMounted) setIsSyncingCloud(true);
+      }, 2200);
+
+      try {
+        const liveRooms = await getRooms();
+        if (isMounted) {
+          setRooms(liveRooms);
+        }
+      } catch {
+        // Handled in api.ts fallback
+      } finally {
+        clearTimeout(syncTimer);
+        if (isMounted) setIsSyncingCloud(false);
+      }
     })();
-  }, [connect, loadRooms, promptFirstLaunchPermissions]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [connect, promptFirstLaunchPermissions, loadFavorites]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -612,6 +659,16 @@ export default function Landing() {
                   <Text style={styles.liveHeaderText}>
                     LIVE ROOMS ({filteredRooms.length})
                   </Text>
+                  {isSyncingCloud && (
+                    <View style={styles.syncingCloudBadge}>
+                      <ActivityIndicator
+                        size="small"
+                        color={colors.amber}
+                        style={{ transform: [{ scale: 0.65 }] }}
+                      />
+                      <Text style={styles.syncingCloudText}>Syncing Cloud</Text>
+                    </View>
+                  )}
                 </View>
 
                 <Pressable
@@ -1264,6 +1321,24 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     letterSpacing: 1.1,
     color: colors.text2,
+  },
+  syncingCloudBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 159, 28, 0.1)',
+    borderRadius: radius.full,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.25)',
+    marginLeft: 6,
+  },
+  syncingCloudText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 9.5,
+    color: colors.amber,
+    letterSpacing: 0.2,
   },
   offlineVaultBtn: {
     flexDirection: 'row',

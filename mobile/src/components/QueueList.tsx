@@ -36,7 +36,7 @@ import {
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
 import { useRoom } from '../state/RoomContext';
-import { searchTracks, isPlaylistUrl, type TrackSearchResult } from '../api';
+import { searchTracks, searchHybridTracks, isPlaylistUrl, type TrackSearchResult } from '../api';
 import { useToast } from './ToastContext';
 import { hapticLight, hapticMedium, hapticHeavy } from '../utils/haptics';
 import { ImportPlaylistModal } from './ImportPlaylistModal';
@@ -141,7 +141,12 @@ export function QueueList() {
 
     setSearching(true);
     try {
-      const res = await searchTracks(q);
+      const res = await searchHybridTracks(q, (localMatches) => {
+        if (localMatches.length > 0) {
+          setResults(localMatches);
+          setShowResults(true);
+        }
+      });
       setResults(res);
       setShowResults(true);
     } catch {
@@ -169,7 +174,12 @@ export function QueueList() {
     debounceTimer.current = setTimeout(async () => {
       setSearching(true);
       try {
-        const res = await searchTracks(q);
+        const res = await searchHybridTracks(q, (localMatches) => {
+          if (localMatches.length > 0) {
+            setResults(localMatches);
+            setShowResults(true);
+          }
+        });
         setResults(res);
         setShowResults(true);
       } catch {

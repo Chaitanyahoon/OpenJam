@@ -57,12 +57,16 @@ jobs:
       - name: Install Mobile Dependencies
         run: |
           cd mobile
+          cp .env.example .env
           npm install
 
       - name: Prebuild Native Android Project
         run: |
           cd mobile
-          npx expo prebuild --platform android --clean
+          npx expo prebuild --platform android --clean --no-install
+          # Ensure hermesc compiler binaries have execution permissions on Linux
+          chmod -R +x node_modules/hermes-compiler/hermesc || true
+          chmod -R +x node_modules/react-native/sdks/hermesc || true
 
       - name: Accept Android SDK Licenses
         run: |
@@ -70,12 +74,13 @@ jobs:
 
       - name: Configure Gradle Memory & Build Standalone Release APK
         env:
-          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m"
+          NODE_OPTIONS: "--max-old-space-size=2048"
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=768m -Dorg.gradle.parallel=false"
         run: |
           cd mobile/android
           chmod +x gradlew
-          sed -i 's/-Xmx[0-9]\+m/-Xmx4096m/g' gradle.properties || true
-          ./gradlew assembleRelease --no-daemon -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=1024m"
+          sed -i 's/-Xmx[0-9]\+m/-Xmx3072m/g' gradle.properties || true
+          ./gradlew assembleRelease --no-daemon --stacktrace -Dorg.gradle.jvmargs="-Xmx3072m -XX:MaxMetaspaceSize=768m -Dorg.gradle.parallel=false"
 
       - name: Package APK & Generate Checksum
         run: |

@@ -8,11 +8,15 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getBackendUrl } from './config';
+import { getVaultTracks } from './storage/vault';
+import { getRecentlyPlayed } from './storage/history';
 export { getBackendUrl };
 
 const TOKEN_KEY = 'openjam_token';
 const USER_KEY = 'openjam_user';
 const NAME_KEY = 'openjam_display_name';
+export const ROOMS_CACHE_KEY = 'openjam_cached_rooms_v2';
+const DEFAULT_TIMEOUT_MS = 12000;
 
 export interface ApiUser {
   id: string;
@@ -59,20 +63,35 @@ async function authHeaders(): Promise<Record<string, string>> {
   return headers;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${getBackendUrl()}${path}`, {
-    ...(init || {}),
-    headers: { ...(await authHeaders()), ...(init?.headers || {}) },
-  });
-  if (res.status === 401) {
-    // Purge expired or invalid token to avoid permanent socket authentication loops
-    await clearSession().catch(() => {});
+async function request<T>(path: string, init?: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
+
+  try {
+    const res = await fetch(`${getBackendUrl()}${path}`, {
+      ...(init || {}),
+      headers: { ...(await authHeaders()), ...(init?.headers || {}) },
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    if (res.status === 401) {
+      // Purge expired or invalid token to avoid permanent socket authentication loops
+      await clearSession().catch(() => {});
+    }
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`API ${res.status} ${path}: ${text.slice(0, 200)}`);
+    }
+    return (await res.json()) as T;
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    if (err?.name === 'AbortError') {
+      throw new Error(`API request timed out after ${timeoutMs}ms for ${path}`);
+    }
+    throw err;
   }
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`API ${res.status} ${path}: ${text.slice(0, 200)}`);
-  }
-  return (await res.json()) as T;
 }
 
 /** Create (or refresh) an anonymous guest session. Persists token + user. */
@@ -138,6 +157,19 @@ export async function clearSession(): Promise<void> {
 
 export const COMMUNITY_ROOMS: RoomSummary[] = [];
 
+/**
+ * Retrieve cached rooms snapshot from AsyncStorage (0ms instant access).
+ */
+export async function getCachedRooms(): Promise<RoomSummary[]> {
+  try {
+    const raw = await AsyncStorage.getItem(ROOMS_CACHE_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw) as RoomSummary[];
+  } catch {
+    return [];
+  }
+}
+
 export async function getRooms(): Promise<RoomSummary[]> {
   try {
     const data = await request<{ rooms: any[] }>('/rooms');
@@ -149,9 +181,31 @@ export async function getRooms(): Promise<RoomSummary[]> {
         genre_tags: r.genre_tags && r.genre_tags.length > 0 ? r.genre_tags : ['music', 'live'],
       }));
 
+    if (liveRooms.length > 0) {
+      await AsyncStorage.setItem(ROOMS_CACHE_KEY, JSON.stringify(liveRooms)).catch(() => {});
+    }
     return liveRooms;
   } catch (err) {
-    return [];
+    // SWR fallback: Return cached rooms when offline or Render is waking up
+    const cached = await getCachedRooms();
+    return cached;
+  }
+}
+
+/** Lightweight ping to check / warm up Render backend without hitting DB */
+export async function pingBackend(): Promise<{
+  status: string;
+  uptime_seconds?: number;
+  cold_start?: boolean;
+} | null> {
+  try {
+    return await request<{ status: string; uptime_seconds?: number; cold_start?: boolean }>(
+      '/ping',
+      undefined,
+      6000,
+    );
+  } catch {
+    return null;
   }
 }
 
@@ -205,6 +259,8 @@ export async function searchTracks(query: string): Promise<TrackSearchResult[]> 
   try {
     const data = await request<{ tracks?: TrackSearchResult[] } | TrackSearchResult[]>(
       `/search/tracks?q=${encodeURIComponent(query)}`,
+      undefined,
+      14000,
     );
     if (Array.isArray(data)) return data;
     if (data && Array.isArray(data.tracks)) return data.tracks;
@@ -212,6 +268,92 @@ export async function searchTracks(query: string): Promise<TrackSearchResult[]> 
   } catch {
     return [];
   }
+}
+
+/**
+ * Hybrid Instant Search:
+ * Concurrently queries local Offline Vault tracks and Recently Played history (0ms)
+ * and dispatches remote cloud search.
+ * When local matches exist, calls onLocalFound immediately.
+ * Merges and returns deduplicated results.
+ */
+export async function searchHybridTracks(
+  query: string,
+  onLocalFound?: (matches: TrackSearchResult[]) => void,
+): Promise<TrackSearchResult[]> {
+  const trimmed = query.trim().toLowerCase();
+  if (!trimmed) return [];
+
+  const localMatches: TrackSearchResult[] = [];
+  const seenUris = new Set<string>();
+
+  try {
+    const [vaultTracks, recentTracks] = await Promise.all([
+      getVaultTracks().catch(() => []),
+      getRecentlyPlayed().catch(() => []),
+    ]);
+
+    for (const vt of vaultTracks) {
+      const matchName = vt.track_name && vt.track_name.toLowerCase().includes(trimmed);
+      const matchArtist = vt.artist && vt.artist.toLowerCase().includes(trimmed);
+      if (matchName || matchArtist) {
+        if (!seenUris.has(vt.track_uri)) {
+          seenUris.add(vt.track_uri);
+          localMatches.push({
+            uri: vt.track_uri,
+            name: vt.track_name,
+            artist: vt.artist || 'Offline Vault',
+            album_art_url: vt.album_art_url,
+            duration_ms: vt.duration_ms,
+          });
+        }
+      }
+    }
+
+    for (const rt of recentTracks) {
+      const matchName = rt.track_name && rt.track_name.toLowerCase().includes(trimmed);
+      const matchArtist = rt.artist && rt.artist.toLowerCase().includes(trimmed);
+      if (matchName || matchArtist) {
+        if (!seenUris.has(rt.track_uri)) {
+          seenUris.add(rt.track_uri);
+          localMatches.push({
+            uri: rt.track_uri,
+            name: rt.track_name,
+            artist: rt.artist || 'Recently Played',
+            album_art_url: rt.album_art_url,
+            duration_ms: rt.duration_ms,
+          });
+        }
+      }
+    }
+
+    if (localMatches.length > 0 && onLocalFound) {
+      onLocalFound(localMatches);
+    }
+  } catch {}
+
+  // Next query the cloud backend
+  try {
+    const remote = await searchTracks(query);
+    if (remote && remote.length > 0) {
+      const merged: TrackSearchResult[] = [...remote];
+      for (const loc of localMatches) {
+        if (
+          !merged.some(
+            (m) =>
+              m.uri === loc.uri ||
+              (m.name.toLowerCase() === loc.name.toLowerCase() &&
+                m.artist.toLowerCase() === loc.artist.toLowerCase()),
+          )
+        ) {
+          merged.push(loc);
+        }
+      }
+      return merged;
+    }
+  } catch {}
+
+  return localMatches;
 }
 
 /**
