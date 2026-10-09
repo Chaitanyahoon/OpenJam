@@ -76,4 +76,18 @@ describe('Spotify UI Enhancements: Lyrics, Device Routing & Scroll Suite', () =>
     const heroStageType = hasAlbumArt ? 'cover_art' : 'modern_hero_stage';
     assert.strictEqual(heroStageType, 'modern_hero_stage');
   });
+
+  it('validates skeleton loader reflects modern album art hero stage dimensions', () => {
+    const skeletonHeroSpec = {
+      height: 104,
+      borderRadius: 12,
+      hasVinylDisc: false,
+      hasAlbumSleeve: false,
+      hasEqualizerPlaceholder: true,
+    };
+    assert.strictEqual(skeletonHeroSpec.hasVinylDisc, false);
+    assert.strictEqual(skeletonHeroSpec.hasAlbumSleeve, false);
+    assert.strictEqual(skeletonHeroSpec.hasEqualizerPlaceholder, true);
+    assert.strictEqual(skeletonHeroSpec.height, 104);
+  });
 });

@@ -2,8 +2,8 @@
  * Player tab — Spotify Phone App inspired turntable listening room.
  *
  * Sizing & Layout overhaul:
- * - Responsive prominent album artwork stage scaled to phone width (up to 340px)
- * - 60 FPS spinning vinyl record disc sliding out behind sleeve on playback
+ * - Responsive prominent album artwork stage scaled to phone width (up to 320px)
+ * - Modern 16dp rounded album art card with dynamic ambient aura and live equalizer bars
  * - Bold high-contrast typography (24px track title, 16px artist)
  * - Full-width tactile scrubber with monospace tabular-num timecodes and thumb knob
  * - Spotify transport controls: 72px center Play/Pause with glowing amber aura,

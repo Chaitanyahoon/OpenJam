@@ -354,7 +354,14 @@ export function SpotifyPlayerModal() {
           /* Up Next Queue Panel */
           <View style={styles.queueContainer}>
             <View style={styles.queueHeader}>
-              <Text style={styles.queueHeading}>Up Next</Text>
+              <View>
+                <Text style={styles.queueHeading}>Up Next</Text>
+                <Text style={styles.queueSubheading}>
+                  {queue.length > 0
+                    ? `${queue.length} track${queue.length === 1 ? '' : 's'} in queue`
+                    : 'Queue is empty'}
+                </Text>
+              </View>
               <View style={styles.radioPill}>
                 <Radio size={12} color={colors.amber} />
                 <Text style={styles.radioText}>Spotify Radio Auto-Play On</Text>
@@ -362,50 +369,86 @@ export function SpotifyPlayerModal() {
             </View>
 
             <ScrollView style={styles.queueList} contentContainerStyle={styles.queueContent}>
-              {queue.map((track, idx) => {
-                const isCurrent = idx === currentIndex;
-                return (
-                  <Pressable
-                    key={`${track.track_uri}_${idx}`}
-                    onPress={() => {
-                      void hapticLight();
-                      void playTrack(track);
-                    }}
-                    style={[styles.queueItem, isCurrent && styles.queueItemActive]}
-                  >
+              {/* Section: Now Playing */}
+              {currentTrack && (
+                <View style={styles.queueSection}>
+                  <Text style={styles.queueSectionTitle}>NOW PLAYING</Text>
+                  <View style={[styles.queueItem, styles.queueItemActive]}>
                     <Image
-                      source={{ uri: track.album_art_url || 'https://openjam.fun/default_art.png' }}
+                      source={{ uri: currentTrack.album_art_url || 'https://openjam.fun/default_art.png' }}
                       style={styles.queueItemArt}
                       contentFit="cover"
                     />
                     <View style={styles.queueItemInfo}>
-                      <Text
-                        style={[styles.queueItemTitle, isCurrent && { color: colors.amber }]}
-                        numberOfLines={1}
-                      >
-                        {track.track_name}
+                      <Text style={[styles.queueItemTitle, { color: colors.amber }]} numberOfLines={1}>
+                        {currentTrack.track_name}
                       </Text>
                       <Text style={styles.queueItemArtist} numberOfLines={1}>
-                        {track.artist || 'Unknown Artist'}
+                        {currentTrack.artist || 'Unknown Artist'}
                       </Text>
                     </View>
-                    {isCurrent ? (
-                      <View style={styles.nowPlayingDot} />
-                    ) : (
+                    <View style={styles.queueEqualizerIndicator}>
+                      <View style={[styles.queueEqBar, { height: 12 }]} />
+                      <View style={[styles.queueEqBar, { height: 7 }]} />
+                      <View style={[styles.queueEqBar, { height: 14 }]} />
+                    </View>
+                  </View>
+                </View>
+              )}
+
+              {/* Section: Next In Queue */}
+              <View style={styles.queueSection}>
+                <Text style={styles.queueSectionTitle}>UP NEXT</Text>
+                {queue.filter((_, idx) => idx !== currentIndex).length === 0 ? (
+                  <View style={styles.emptyQueueBox}>
+                    <Sparkles size={20} color={colors.amber} style={{ marginBottom: 6 }} />
+                    <Text style={styles.emptyQueueTitle}>No More Tracks Queued</Text>
+                    <Text style={styles.emptyQueueSubtitle}>
+                      OpenJam Radio will automatically curate matching music when this track finishes.
+                    </Text>
+                  </View>
+                ) : (
+                  queue.map((track, idx) => {
+                    if (idx === currentIndex) return null;
+                    return (
                       <Pressable
-                        onPress={(e) => {
-                          e.stopPropagation();
+                        key={`${track.track_uri}_${idx}`}
+                        onPress={() => {
                           void hapticLight();
-                          removeFromQueue(idx);
+                          void playTrack(track);
                         }}
-                        hitSlop={10}
+                        style={styles.queueItem}
                       >
-                        <Trash2 size={16} color="#666677" />
+                        <Image
+                          source={{ uri: track.album_art_url || 'https://openjam.fun/default_art.png' }}
+                          style={styles.queueItemArt}
+                          contentFit="cover"
+                        />
+                        <View style={styles.queueItemInfo}>
+                          <Text style={styles.queueItemTitle} numberOfLines={1}>
+                            {track.track_name}
+                          </Text>
+                          <Text style={styles.queueItemArtist} numberOfLines={1}>
+                            {track.artist || 'Unknown Artist'}
+                          </Text>
+                        </View>
+                        <Pressable
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            void hapticLight();
+                            removeFromQueue(idx);
+                          }}
+                          hitSlop={10}
+                          style={styles.queueTrashBtn}
+                          accessibilityLabel={`Remove ${track.track_name} from queue`}
+                        >
+                          <Trash2 size={16} color="#888899" />
+                        </Pressable>
                       </Pressable>
-                    )}
-                  </Pressable>
-                );
-              })}
+                    );
+                  })
+                )}
+              </View>
             </ScrollView>
           </View>
         ) : (
@@ -964,6 +1007,23 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#ffffff',
   },
+  queueSubheading: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 12,
+    color: '#888899',
+    marginTop: 2,
+  },
+  queueSection: {
+    marginTop: 14,
+  },
+  queueSectionTitle: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 11,
+    color: '#888899',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
   radioPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1024,6 +1084,45 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: colors.amber,
+  },
+  queueEqualizerIndicator: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 2.5,
+    height: 14,
+    paddingRight: 4,
+  },
+  queueEqBar: {
+    width: 2.5,
+    backgroundColor: colors.amber,
+    borderRadius: 1,
+  },
+  emptyQueueBox: {
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyQueueTitle: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 14,
+    color: '#ffffff',
+    marginBottom: 4,
+  },
+  emptyQueueSubtitle: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 12,
+    color: '#888899',
+    textAlign: 'center',
+    lineHeight: 17,
+    maxWidth: 260,
+  },
+  queueTrashBtn: {
+    padding: 6,
+    borderRadius: radius.full,
   },
   deviceRouteBar: {
     flexDirection: 'row',

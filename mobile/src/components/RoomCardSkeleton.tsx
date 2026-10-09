@@ -33,10 +33,15 @@ export function RoomCardSkeleton() {
         <View style={styles.listenersPlaceholder} />
       </View>
 
-      {/* Center Artwork / Vinyl Area Placeholder */}
-      <View style={styles.vinylContainer}>
-        <View style={styles.albumSleeve} />
-        <View style={styles.vinylDisc} />
+      {/* Center Artwork Hero Stage Placeholder (Zero Vinyl) */}
+      <View style={styles.heroPlaceholderStage}>
+        <View style={styles.heroIconPlaceholder} />
+        <View style={styles.heroEqPlaceholder}>
+          <View style={[styles.heroEqBar, { height: 8 }]} />
+          <View style={[styles.heroEqBar, { height: 14 }]} />
+          <View style={[styles.heroEqBar, { height: 10 }]} />
+          <View style={[styles.heroEqBar, { height: 12 }]} />
+        </View>
       </View>
 
       {/* Bottom Content Placeholders */}
@@ -101,30 +106,34 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     backgroundColor: 'rgba(255, 255, 255, 0.06)',
   },
-  vinylContainer: {
-    height: 88,
-    backgroundColor: 'rgba(12, 12, 16, 0.65)',
+  heroPlaceholderStage: {
+    height: 104,
+    backgroundColor: 'rgba(13, 13, 20, 0.75)',
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    flexDirection: 'row',
+    gap: 8,
     position: 'relative',
     overflow: 'hidden',
   },
-  albumSleeve: {
-    width: 66,
-    height: 66,
-    borderRadius: radius.sm,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  heroIconPlaceholder: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 159, 28, 0.1)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 159, 28, 0.2)',
   },
-  vinylDisc: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.07)',
-    marginLeft: -18,
+  heroEqPlaceholder: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 3,
+    height: 14,
+  },
+  heroEqBar: {
+    width: 3,
+    backgroundColor: 'rgba(255, 159, 28, 0.3)',
+    borderRadius: 1.5,
   },
   bottomSection: {
     rowGap: 6,
