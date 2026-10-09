@@ -514,27 +514,25 @@ export default function PlayerTab() {
         style={styles.scroll}
         contentContainerStyle={[
           styles.container,
-          { paddingBottom: Math.max(insets.bottom, 16) + 84 },
+          { paddingBottom: Math.max(insets.bottom, 16) + 110 },
         ]}
         showsVerticalScrollIndicator={false}
       >
         {isRoomEmpty ? (
           /* Modern Minimalist Waiting Stage */
-          <View style={[styles.emptyArtworkCard, { width: artworkSize, height: Math.min(artworkSize, 220) }]}>
+          <View style={[styles.emptyArtworkCard, { width: artworkSize, height: Math.min(artworkSize, 180) }]}>
             <LinearGradient
               colors={['#1c1c28', '#12121c', '#0a0a0f']}
               style={styles.emptyArtworkGradient}
             >
               <View style={styles.emptyArtworkPulseGlow} />
               <View style={styles.emptyArtworkIconWrap}>
-                <Music size={36} color={colors.amber} />
+                <Music size={32} color={colors.amber} />
               </View>
               <Text style={styles.emptyArtworkTitle}>Waiting for Music</Text>
-              <Text style={styles.emptyArtworkSubtitle}>OPENJAM COLLABORATIVE SESSION</Text>
-              <View style={styles.emptyArtworkPill}>
-                <View style={styles.emptyArtworkLiveDot} />
-                <Text style={styles.emptyArtworkPillText}>Ready to Jam</Text>
-              </View>
+              <Text style={styles.emptyArtworkSubtitle}>
+                {isHost ? 'You are the Room Host · Anyone can add music' : 'Collaborative Jam · Ready to listen'}
+              </Text>
             </LinearGradient>
           </View>
         ) : (
@@ -569,7 +567,7 @@ export default function PlayerTab() {
 
         {nowPlaying ? (
           <>
-            {/* Spotify-style Track Info Row with Heart on Right */}
+            {/* Spotify-style Track Info Row with Vault & Heart on Right */}
             <View style={styles.trackInfoRow}>
               <View style={styles.trackMetaCol}>
                 <Text style={styles.trackName} numberOfLines={1}>
@@ -580,18 +578,38 @@ export default function PlayerTab() {
                 </Text>
               </View>
 
-              <Pressable
-                onPress={handleToggleLike}
-                style={({ pressed }) => [styles.heartBtn, pressed && styles.pressed]}
-                hitSlop={12}
-                accessibilityLabel={isLiked ? 'Unlike track' : 'Like track'}
-              >
-                <Heart
-                  size={24}
-                  color={isLiked ? '#ef4444' : colors.text3}
-                  fill={isLiked ? '#ef4444' : 'transparent'}
-                />
-              </Pressable>
+              <View style={styles.trackActionsRow}>
+                {/* Save to Offline Vault */}
+                <Pressable
+                  onPress={handleDownloadCurrentTrack}
+                  disabled={currentDownload?.state === 'downloading'}
+                  style={({ pressed }) => [styles.actionIconBtn, pressed && styles.pressed]}
+                  hitSlop={10}
+                  accessibilityLabel="Download song to offline vault"
+                >
+                  {currentDownload?.state === 'downloading' ? (
+                    <ActivityIndicator size="small" color={colors.amber} />
+                  ) : isTrackDownloaded ? (
+                    <CheckCircle2 size={22} color="#10b981" />
+                  ) : (
+                    <DownloadCloud size={22} color={colors.text3} />
+                  )}
+                </Pressable>
+
+                {/* Like / Heart */}
+                <Pressable
+                  onPress={handleToggleLike}
+                  style={({ pressed }) => [styles.heartBtn, pressed && styles.pressed]}
+                  hitSlop={12}
+                  accessibilityLabel={isLiked ? 'Unlike track' : 'Like track'}
+                >
+                  <Heart
+                    size={24}
+                    color={isLiked ? '#ef4444' : colors.text3}
+                    fill={isLiked ? '#ef4444' : 'transparent'}
+                  />
+                </Pressable>
+              </View>
             </View>
 
             {/* Audio Equalizer & Stream Status Bar */}
@@ -751,146 +769,34 @@ export default function PlayerTab() {
               </Pressable>
             </View>
 
-            {/* Spotify Phone Player Bottom Utility Deck */}
-            <View style={styles.spotifyBottomDeck}>
-              {/* Left: Audio Route Pill */}
+            {/* Minimal Utility Row: Live Session Route & Lyrics Toggle */}
+            <View style={styles.minimalUtilityRow}>
               <View style={styles.deckRouteBadge}>
-                {isSolo ? (
-                  <>
-                    <Headphones size={14} color={colors.amber} />
-                    <Text style={styles.deckRouteText} numberOfLines={1}>
-                      Solo Audio
-                    </Text>
-                  </>
-                ) : (
-                  <>
-                    <Radio size={14} color={syncReady ? '#10b981' : colors.amber} />
-                    <Text style={styles.deckRouteText} numberOfLines={1}>
-                      {syncReady ? (roomName || 'In Sync') : 'Syncing…'}
-                    </Text>
-                  </>
-                )}
+                <Radio size={13} color={syncReady ? '#10b981' : colors.amber} />
+                <Text style={styles.deckRouteText} numberOfLines={1}>
+                  {isSolo ? 'Solo Jam' : (syncReady ? 'Live Session' : 'Syncing…')}
+                </Text>
               </View>
 
-              {/* Center: Offline Vault Download Pill with Progress Indicator */}
               <Pressable
-                onPress={handleDownloadCurrentTrack}
-                disabled={currentDownload?.state === 'downloading'}
+                onPress={() => setLyricsOpen((v) => !v)}
                 style={({ pressed }) => [
-                  styles.deckVaultPill,
-                  isTrackDownloaded && styles.deckVaultPillSaved,
-                  currentDownload?.state === 'downloading' && styles.deckVaultPillDownloading,
+                  styles.lyricsPillBtn,
+                  lyricsOpen && styles.lyricsPillBtnActive,
                   pressed && styles.pressed,
                 ]}
                 hitSlop={8}
-                accessibilityLabel="Download song to offline vault"
+                accessibilityLabel="Toggle Lyrics"
               >
-                {currentDownload?.state === 'downloading' ? (
-                  <>
-                    <ActivityIndicator size="small" color={colors.amber} />
-                    <Text style={[styles.deckVaultPillText, { color: colors.amber }]}>
-                      {currentDownload.percent > 0 ? `${currentDownload.percent}%` : 'Saving…'}
-                    </Text>
-                  </>
-                ) : isTrackDownloaded ? (
-                  <>
-                    <CheckCircle2 size={15} color="#10b981" />
-                    <Text style={[styles.deckVaultPillText, { color: '#10b981' }]}>Saved</Text>
-                  </>
-                ) : (
-                  <>
-                    <DownloadCloud size={15} color={colors.text2} />
-                    <Text style={styles.deckVaultPillText}>Vault</Text>
-                  </>
-                )}
+                <MessageSquareQuote
+                  size={15}
+                  color={lyricsOpen ? colors.amber : colors.text2}
+                />
+                <Text style={[styles.lyricsPillText, lyricsOpen && styles.lyricsPillTextActive]}>
+                  Lyrics
+                </Text>
               </Pressable>
-
-              {/* Right: Lyrics & Queue navigation buttons */}
-              <View style={styles.deckRightActions}>
-                <Pressable
-                  onPress={() => setLyricsOpen((v) => !v)}
-                  style={({ pressed }) => [
-                    styles.deckActionBtn,
-                    lyricsOpen && styles.deckActionBtnActive,
-                    pressed && styles.pressed,
-                  ]}
-                  hitSlop={8}
-                  accessibilityLabel="Toggle Lyrics"
-                >
-                  <MessageSquareQuote
-                    size={19}
-                    color={lyricsOpen ? colors.amber : colors.text2}
-                  />
-                </Pressable>
-
-                <Pressable
-                  onPress={goQueue}
-                  style={({ pressed }) => [
-                    styles.deckActionBtn,
-                    pressed && styles.pressed,
-                  ]}
-                  hitSlop={8}
-                  accessibilityLabel="Open Queue"
-                >
-                  <ListMusic size={21} color={colors.text2} />
-                </Pressable>
-              </View>
             </View>
-
-            {/* Collaborative Session Strips (Hidden in Solo mode) */}
-            {!isSolo ? (
-              <>
-                {/* Minimal In-Sync & Skip Status Strip */}
-                <View style={styles.syncStrip}>
-                  <View style={styles.syncStatusLeft}>
-                    <View
-                      style={[
-                        styles.syncIndicatorDot,
-                        { backgroundColor: syncReady ? colors.green : colors.amber },
-                      ]}
-                    />
-                    <Text style={styles.syncStatusText} numberOfLines={1}>
-                      {syncReady ? `In sync with ${roomName || 'Room'}` : 'Syncing live stream…'}
-                    </Text>
-                  </View>
-
-                  <Pressable
-                    style={({ pressed }) => [styles.voteSkipPill, pressed && styles.pressed]}
-                    onPress={() => {
-                      voteSkip();
-                      void hapticHeavy();
-                    }}
-                    hitSlop={8}
-                    accessibilityLabel="Vote to skip track"
-                  >
-                    <View style={styles.voteSkipContent}>
-                      <SkipForward size={12} color={colors.amber} fill={colors.amber} />
-                      <Text style={styles.voteSkipText}>
-                        Skip {skipVotes.votes}/{skipVotes.required || '–'}
-                      </Text>
-                    </View>
-                  </Pressable>
-                </View>
-
-                {/* Compact Quick Reactions Bar */}
-                <View style={styles.reactionsBar}>
-                  {REACTION_OPTIONS.map((r) => (
-                    <Pressable
-                      key={r.id}
-                      onPress={() => {
-                        sendReaction(r.id);
-                        void hapticLight();
-                      }}
-                      style={({ pressed }) => [styles.reactionPill, pressed && styles.pressed]}
-                      accessibilityLabel={`React with ${r.label}`}
-                    >
-                      {r.icon}
-                      <Text style={styles.reactionPillText}>{r.label}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </>
-            ) : null}
 
             {/* Synced Karaoke Lyrics Panel */}
             {lyricsOpen ? (
@@ -967,19 +873,6 @@ export default function PlayerTab() {
         ) : (
           /* Empty Room State — Spotify Jam Collaborative Deck */
           <View style={styles.emptyContainer}>
-            {/* Collaborative Session Status Pill */}
-            <View style={styles.emptySessionPill}>
-              <View style={styles.emptyLiveDot} />
-              <Text style={styles.emptySessionText}>
-                {isHost ? 'You are the Room Host' : 'Collaborative Jam'} · Anyone can add music
-              </Text>
-            </View>
-
-            <Text style={styles.emptyTitle}>The queue is empty</Text>
-            <Text style={styles.emptySubtitle}>
-              Search any track, paste a link, or pick a starter vibe below to kick off the session!
-            </Text>
-
             {/* Spotify-style Direct Quick Search Bar */}
             <Pressable
               onPress={goQueue}
@@ -995,24 +888,6 @@ export default function PlayerTab() {
               <View style={styles.emptySearchAddBtn}>
                 <Plus size={14} color="#08080a" strokeWidth={3} />
               </View>
-            </Pressable>
-
-            {/* Big Prominent Add Track Button */}
-            <Pressable
-              onPress={goQueue}
-              style={({ pressed }) => [styles.addTrackButton, pressed && styles.pressed]}
-              accessibilityLabel="Add songs to queue"
-            >
-              <LinearGradient
-                colors={['#ffb03a', '#ff9f1c']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.addTrackGradient}
-                pointerEvents="none"
-              >
-                <Plus size={18} color="#08080a" strokeWidth={2.6} />
-                <Text style={styles.addTrackButtonText}>Add Songs to Queue</Text>
-              </LinearGradient>
             </Pressable>
 
             {/* Quick-Start Instant Starter Vibes */}
@@ -1279,15 +1154,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Spotify Bottom Utility Deck
-  spotifyBottomDeck: {
+  actionIconBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  // Minimal Utility Row: Live Session Route & Lyrics Toggle
+  minimalUtilityRow: {
     width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 4,
-    marginTop: spacing.sm,
-    paddingTop: spacing.xs,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
   },
   deckRouteBadge: {
     flexDirection: 'row',
@@ -1306,45 +1189,28 @@ const styles = StyleSheet.create({
     color: colors.text2,
     maxWidth: 130,
   },
-  deckRightActions: {
+  lyricsPillBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-  },
-  deckVaultPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 16,
-    paddingHorizontal: 10,
+    gap: 6,
     paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
-  deckVaultPillSaved: {
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    borderColor: 'rgba(16, 185, 129, 0.3)',
+  lyricsPillBtnActive: {
+    backgroundColor: 'rgba(255, 159, 28, 0.18)',
+    borderColor: colors.amber,
   },
-  deckVaultPillDownloading: {
-    backgroundColor: 'rgba(255, 159, 28, 0.12)',
-    borderColor: 'rgba(255, 159, 28, 0.3)',
-  },
-  deckVaultPillText: {
+  lyricsPillText: {
     fontFamily: fontFamily.bodySemiBold,
-    fontSize: 11,
+    fontSize: 12,
     color: colors.text2,
   },
-  deckActionBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  deckActionBtnActive: {
-    backgroundColor: 'rgba(255, 159, 28, 0.2)',
+  lyricsPillTextActive: {
+    color: colors.amber,
   },
   trackActionsRow: {
     flexDirection: 'row',
@@ -1532,81 +1398,7 @@ const styles = StyleSheet.create({
     color: '#08080a',
     marginLeft: 2,
   },
-  // Minimal In-Sync Status Strip
-  syncStrip: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.07)',
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginTop: spacing.xs,
-  },
-  syncStatusLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: 8,
-  },
-  syncIndicatorDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-  },
-  syncStatusText: {
-    fontFamily: fontFamily.bodyMedium,
-    fontSize: 12,
-    color: colors.text2,
-    flexShrink: 1,
-  },
-  voteSkipPill: {
-    backgroundColor: 'rgba(255, 159, 28, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 159, 28, 0.28)',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  voteSkipContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  voteSkipText: {
-    fontFamily: fontFamily.bodySemiBold,
-    fontSize: 11,
-    color: colors.amber,
-  },
-  // Compact Quick Reactions Strip
-  reactionsBar: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: spacing.sm,
-    gap: 6,
-  },
-  reactionPill: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    paddingVertical: 8,
-    borderRadius: 12,
-  },
-  reactionPillText: {
-    fontFamily: fontFamily.bodyMedium,
-    fontSize: 10.5,
-    color: colors.text2,
-  },
+
   // Synced Karaoke Lyrics Card
   lyricsCard: {
     width: '100%',
@@ -1712,45 +1504,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.md,
   },
-  emptySessionPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    marginBottom: spacing.xs,
-  },
-  emptyLiveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.green,
-  },
-  emptySessionText: {
-    fontFamily: fontFamily.bodyRegular,
-    fontSize: 11.5,
-    color: colors.text2,
-    letterSpacing: 0.2,
-  },
-  emptyTitle: {
-    fontFamily: fontFamily.displayBold,
-    fontSize: 20,
-    color: colors.text1,
-    marginTop: spacing.xs,
-  },
-  emptySubtitle: {
-    fontFamily: fontFamily.bodyRegular,
-    fontSize: 13,
-    color: colors.text3,
-    textAlign: 'center',
-    marginTop: 4,
-    lineHeight: 18,
-    maxWidth: 300,
-  },
   emptySearchCard: {
     width: '100%',
     maxWidth: 340,
@@ -1786,33 +1539,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.amber,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  addTrackButton: {
-    marginTop: spacing.sm,
-    borderRadius: 24,
-    overflow: 'hidden',
-    shadowColor: colors.amber,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  addTrackGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.xl,
-    paddingVertical: 12,
-    gap: 8,
-  },
-  addTrackGlyph: {
-    fontSize: 16,
-    color: '#08080a',
-    fontWeight: 'bold',
-  },
-  addTrackButtonText: {
-    fontFamily: fontFamily.bodySemiBold,
-    fontSize: 14.5,
-    color: '#08080a',
   },
   disabled: {
     opacity: 0.35,
