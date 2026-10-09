@@ -58,6 +58,7 @@ import {
 } from '../storage/vault';
 import { hapticLight, hapticMedium } from '../utils/haptics';
 import { useToast } from './ToastContext';
+import { getAmbientPalette } from '../utils/palette';
 import type { TrackInfo } from '../sync/protocol';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -102,9 +103,19 @@ export function SpotifyPlayerModal() {
   const [currentPosMs, setCurrentPosMs] = useState(0);
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [scrubRatio, setScrubRatio] = useState(0);
+  const [scrubSpeed, setScrubSpeed] = useState(1.0);
   const [showQueue, setShowQueue] = useState(false);
   const [isDownloaded, setIsDownloaded] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<TrackDownloadProgress | null>(null);
+
+  const lastTouchXRef = useRef(0);
+  const startYRef = useRef(0);
+  const trackBarWidthRef = useRef(SCREEN_WIDTH - 64);
+
+  const palette = useMemo(
+    () => getAmbientPalette(currentTrack?.track_name, currentTrack?.artist, currentTrack?.album_art_url),
+    [currentTrack?.track_name, currentTrack?.artist, currentTrack?.album_art_url],
+  );
 
   // Poll current position smoothly
   useEffect(() => {
@@ -137,8 +148,22 @@ export function SpotifyPlayerModal() {
     return unsub;
   }, [currentTrack]);
 
-  // Progress Bar PanResponder for smooth tactile scrubbing
-  const trackBarWidthRef = useRef(SCREEN_WIDTH - 64);
+  // Header Swipe-Down PanResponder to collapse modal
+  const headerPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gestureState) => gestureState.dy > 12,
+        onPanResponderRelease: (_, gestureState) => {
+          if (gestureState.dy > 45 || gestureState.vy > 0.4) {
+            void hapticLight();
+            setPlayerModalOpen(false);
+          }
+        },
+      }),
+    [setPlayerModalOpen],
+  );
+
+  // Continuous Vertical Deflection Precision Scrubber
   const panResponder = useMemo(
     () =>
       PanResponder.create({
@@ -147,13 +172,25 @@ export function SpotifyPlayerModal() {
         onPanResponderGrant: (evt) => {
           setIsScrubbing(true);
           const touchX = evt.nativeEvent.locationX;
-          const ratio = Math.max(0, Math.min(1, touchX / trackBarWidthRef.current));
-          setScrubRatio(ratio);
+          const initialRatio = Math.max(0, Math.min(1, touchX / trackBarWidthRef.current));
+          setScrubRatio(initialRatio);
+          lastTouchXRef.current = evt.nativeEvent.pageX;
+          startYRef.current = evt.nativeEvent.pageY;
+          setScrubSpeed(1.0);
         },
         onPanResponderMove: (evt) => {
-          const touchX = evt.nativeEvent.locationX;
-          const ratio = Math.max(0, Math.min(1, touchX / trackBarWidthRef.current));
-          setScrubRatio(ratio);
+          const currentX = evt.nativeEvent.pageX;
+          const currentY = evt.nativeEvent.pageY;
+          const deltaX = currentX - lastTouchXRef.current;
+          const deflectionY = Math.max(0, currentY - startYRef.current);
+
+          // Spotify deflection damping: S(Y) = clamp(1.0 - 0.009 * max(0, Y - 30), 0.1, 1.0)
+          const speed = Math.max(0.1, Math.min(1.0, 1.0 - 0.009 * Math.max(0, deflectionY - 30)));
+          setScrubSpeed(speed);
+
+          const deltaRatio = (deltaX * speed) / trackBarWidthRef.current;
+          setScrubRatio((prev) => Math.max(0, Math.min(1, prev + deltaRatio)));
+          lastTouchXRef.current = currentX;
         },
         onPanResponderRelease: async () => {
           const finalRatio = scrubRatio;
@@ -161,6 +198,7 @@ export function SpotifyPlayerModal() {
           await seekToMs(targetMs);
           setCurrentPosMs(targetMs);
           setIsScrubbing(false);
+          setScrubSpeed(1.0);
           void hapticLight();
         },
       }),
@@ -204,12 +242,12 @@ export function SpotifyPlayerModal() {
     >
       <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <LinearGradient
-          colors={['#18151f', '#0c0a12', '#060608']}
+          colors={[palette.top, palette.mid, palette.bottom]}
           style={StyleSheet.absoluteFill}
         />
 
-        {/* Top Header Bar */}
-        <View style={styles.header}>
+        {/* Top Header Bar with Swipe-Down Gesture */}
+        <View style={styles.header} {...headerPanResponder.panHandlers}>
           <Pressable
             onPress={() => {
               void hapticLight();
@@ -305,7 +343,7 @@ export function SpotifyPlayerModal() {
           <View style={styles.mainContent}>
             {/* Album Artwork Stage */}
             <View style={styles.artworkStage}>
-              <View style={styles.artworkGlow} />
+              <View style={[styles.artworkGlow, { backgroundColor: palette.glow }]} />
               <Image
                 source={{
                   uri: currentTrack.album_art_url || 'https://openjam.fun/default_art.png',
@@ -335,14 +373,26 @@ export function SpotifyPlayerModal() {
               >
                 <Heart
                   size={26}
-                  color={isLiked ? colors.amber : '#9999aa'}
-                  fill={isLiked ? colors.amber : 'transparent'}
+                  color={isLiked ? palette.accent : '#9999aa'}
+                  fill={isLiked ? palette.accent : 'transparent'}
                 />
               </Pressable>
             </View>
 
-            {/* Scrubbable Progress Bar */}
+            {/* Scrubbable Progress Bar with Precision Deflection Feedback */}
             <View style={styles.progressSection}>
+              {isScrubbing && scrubSpeed < 0.95 && (
+                <View style={[styles.scrubTooltipPill, { borderColor: palette.accent }]}>
+                  <Sparkles size={11} color={palette.accent} style={{ marginRight: 4 }} />
+                  <Text style={[styles.scrubTooltipText, { color: palette.accent }]}>
+                    {scrubSpeed <= 0.25
+                      ? 'Fine Scrubbing (0.1x)'
+                      : scrubSpeed <= 0.55
+                      ? 'Quarter-Speed Scrubbing (0.25x)'
+                      : 'Half-Speed Scrubbing (0.5x)'}
+                  </Text>
+                </View>
+              )}
               <View
                 style={styles.progressTrack}
                 onLayout={(e) => {
@@ -350,7 +400,12 @@ export function SpotifyPlayerModal() {
                 }}
                 {...panResponder.panHandlers}
               >
-                <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
+                <View
+                  style={[
+                    styles.progressFill,
+                    { width: `${progressPercent}%`, backgroundColor: palette.accent },
+                  ]}
+                />
                 <View style={[styles.progressThumb, { left: `${progressPercent}%` }]} />
               </View>
 
@@ -570,6 +625,22 @@ const styles = StyleSheet.create({
   },
   heartBtn: {
     padding: 6,
+  },
+  scrubTooltipPill: {
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(18, 18, 24, 0.92)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  scrubTooltipText: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 10.5,
+    letterSpacing: 0.3,
   },
   progressSection: {
     marginVertical: 12,
