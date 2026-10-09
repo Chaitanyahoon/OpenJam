@@ -64,6 +64,8 @@ export interface PlayerControls {
   updateMeta: (meta: LockScreenMeta) => void;
   volume: number;
   setVolume: (v: number) => void;
+  duckVolume: (targetRatio?: number, durationMs?: number) => void;
+  restoreVolume: (durationMs?: number) => void;
   isSeekingRecently: () => boolean;
   setOnTrackEnded: (cb: (() => void) | null) => void;
   setOnTrackError: (cb: ((code: number | string) => void) | null) => void;
@@ -207,6 +209,24 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         player.replace({ uri: urlOrId });
         player.volume = volumeRef.current;
         player.play();
+        if (player && typeof (player as any).setActiveForLockScreen === 'function') {
+          try {
+            (player as any).setActiveForLockScreen(
+              true,
+              {
+                title: meta.title || 'OpenJam Offline Track',
+                artist: meta.artist || 'OpenJam Vault',
+                albumTitle: 'OpenJam Audio Vault',
+                artworkUrl: meta.artworkUrl,
+              },
+              {
+                showSeekForward: true,
+                showSeekBackward: true,
+                isLiveStream: false,
+              },
+            );
+          } catch {}
+        }
         return;
       }
 
@@ -221,6 +241,24 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           player.volume = volumeRef.current;
           player.play();
           void recordVaultTrackPlayed(urlOrId);
+          if (player && typeof (player as any).setActiveForLockScreen === 'function') {
+            try {
+              (player as any).setActiveForLockScreen(
+                true,
+                {
+                  title: meta.title || vaultTrack.track_name,
+                  artist: meta.artist || vaultTrack.artist,
+                  albumTitle: 'OpenJam Audio Vault',
+                  artworkUrl: meta.artworkUrl || vaultTrack.album_art_url,
+                },
+                {
+                  showSeekForward: true,
+                  showSeekBackward: true,
+                  isLiveStream: false,
+                },
+              );
+            } catch {}
+          }
           return;
         }
       } catch {}
@@ -399,6 +437,39 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       player.volume = clamped;
       ytBridgeRef.current?.setVolume(clamped);
       setVolumeState(clamped);
+    },
+    [player],
+  );
+
+  const duckVolume = useCallback(
+    (targetRatio = 0.2, durationMs = 200) => {
+      const startVolume = volumeRef.current;
+      const startTime = Date.now();
+      const interval = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(1, elapsed / durationMs);
+        const current = startVolume - (startVolume - startVolume * targetRatio) * progress;
+        player.volume = current;
+        ytBridgeRef.current?.setVolume(current);
+        if (progress >= 1) clearInterval(interval);
+      }, 25);
+    },
+    [player],
+  );
+
+  const restoreVolume = useCallback(
+    (durationMs = 200) => {
+      const startVolume = player.volume;
+      const targetVolume = volumeRef.current;
+      const startTime = Date.now();
+      const interval = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(1, elapsed / durationMs);
+        const current = startVolume + (targetVolume - startVolume) * progress;
+        player.volume = current;
+        ytBridgeRef.current?.setVolume(current);
+        if (progress >= 1) clearInterval(interval);
+      }, 25);
     },
     [player],
   );
@@ -671,6 +742,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       updateMeta,
       volume,
       setVolume,
+      duckVolume,
+      restoreVolume,
       isSeekingRecently,
       setOnTrackEnded,
       setOnTrackError,
@@ -705,6 +778,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       updateMeta,
       volume,
       setVolume,
+      duckVolume,
+      restoreVolume,
       isSeekingRecently,
       setOnTrackEnded,
       setOnTrackError,
