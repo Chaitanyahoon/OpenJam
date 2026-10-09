@@ -23,6 +23,7 @@ import { NetworkGuard } from '../components/NetworkGuard';
 
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -72,37 +73,39 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
-    <PlayerProvider>
-      <SocketProvider>
-        <ToastProvider>
-          <NetworkGuard>
-            <StatusBar style="light" />
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: colors.bgBase },
-                animation: 'slide_from_right',
-              }}
-            >
-              <Stack.Screen name="index" />
-              <Stack.Screen name="offline/index" />
-              <Stack.Screen name="room/[id]" />
-              <Stack.Screen name="playlist/[id]" />
-              <Stack.Screen name="profile/[id]" />
-              <Stack.Screen name="legal/privacy" />
-              <Stack.Screen name="legal/terms" />
-            </Stack>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bgBase }}>
+      <PlayerProvider>
+        <SocketProvider>
+          <ToastProvider>
+            <NetworkGuard>
+              <StatusBar style="light" />
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  contentStyle: { backgroundColor: colors.bgBase },
+                  animation: 'slide_from_right',
+                }}
+              >
+                <Stack.Screen name="index" />
+                <Stack.Screen name="offline/index" />
+                <Stack.Screen name="room/[id]" />
+                <Stack.Screen name="playlist/[id]" />
+                <Stack.Screen name="profile/[id]" />
+                <Stack.Screen name="legal/privacy" />
+                <Stack.Screen name="legal/terms" />
+              </Stack>
 
-            {/* Seamless animated branding loading overlay */}
-            {!splashGone && (
-              <AppLoadingScreen
-                isReady={Boolean(fontsLoaded)}
-                onFinished={() => setSplashGone(true)}
-              />
-            )}
-          </NetworkGuard>
-        </ToastProvider>
-      </SocketProvider>
-    </PlayerProvider>
+              {/* Seamless animated branding loading overlay */}
+              {!splashGone && (
+                <AppLoadingScreen
+                  isReady={Boolean(fontsLoaded)}
+                  onFinished={() => setSplashGone(true)}
+                />
+              )}
+            </NetworkGuard>
+          </ToastProvider>
+        </SocketProvider>
+      </PlayerProvider>
+    </GestureHandlerRootView>
   );
 }

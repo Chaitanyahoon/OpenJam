@@ -47,7 +47,7 @@ export interface FlyingReaction extends ReactionEvent {
 
 export type RoomConnectionState = 'joining' | 'connected' | 'reconnecting' | 'offline';
 
-interface RoomApi {
+export interface RoomApi {
   roomId: string;
   isSolo: boolean;
   roomName: string;
@@ -1350,4 +1350,8 @@ export function useRoom(): RoomApi {
   const ctx = useContext(Ctx);
   if (!ctx) throw new Error('useRoom must be used inside RoomProvider');
   return ctx;
+}
+
+export function useOptionalRoom(): RoomApi | null {
+  return useContext(Ctx);
 }
