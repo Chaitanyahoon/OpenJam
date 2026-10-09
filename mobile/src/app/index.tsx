@@ -48,7 +48,15 @@ import {
   Home,
   User,
 } from 'lucide-react-native';
-import { getVaultTracks, subscribeDownloadProgress } from '../storage/vault';
+import {
+  getVaultTracks,
+  getVaultStats,
+  formatBytesPure,
+  type VaultTrack,
+  type VaultStats,
+  subscribeDownloadProgress,
+} from '../storage/vault';
+import { useNetworkStatus } from '../utils/network';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
 import {
@@ -144,12 +152,26 @@ export default function Landing() {
   const [ready, setReady] = useState(false);
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [homeCategory, setHomeCategory] = useState<'All' | 'Music' | 'Live Rooms'>('All');
+  const isOnline = useNetworkStatus();
+  const prevOnlineRef = useRef(isOnline);
+  const [showReconnectedPill, setShowReconnectedPill] = useState(false);
+  const [vaultTracks, setVaultTracks] = useState<VaultTrack[]>([]);
+  const [vaultStats, setVaultStats] = useState<VaultStats | null>(null);
+  const [homeCategory, setHomeCategory] = useState<'All' | 'Music' | 'Live Rooms' | 'Downloaded'>('All');
   const flatListRef = useRef<FlatList>(null);
   const searchInputRef = useRef<TextInput>(null);
   const handledTokensRef = useRef<Set<string>>(new Set());
   const authSuccessRef = useRef(false);
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    if (!prevOnlineRef.current && isOnline) {
+      setShowReconnectedPill(true);
+      const timer = setTimeout(() => setShowReconnectedPill(false), 2800);
+      return () => clearTimeout(timer);
+    }
+    prevOnlineRef.current = isOnline;
+  }, [isOnline]);
 
   // Keep Render awake while OpenJam is open in the foreground
   useAppHeartbeat();
@@ -167,13 +189,16 @@ export default function Landing() {
 
   const loadHistoryAndFavorites = useCallback(async () => {
     try {
-      const [favs, recents, vault] = await Promise.all([
+      const [favs, recents, vault, stats] = await Promise.all([
         getFavoriteTracks(),
         getRecentlyPlayed(),
         getVaultTracks(),
+        getVaultStats(),
       ]);
       setFavoriteTracks(favs);
       setRecentTracks(recents);
+      setVaultTracks(vault);
+      setVaultStats(stats);
       setDownloadedUris(new Set(vault.map((t) => t.track_uri)));
     } catch {}
   }, []);
@@ -183,7 +208,9 @@ export default function Landing() {
       setFavoriteTracks(favs);
     });
     const unsubVault = subscribeDownloadProgress(() => {
-      void getVaultTracks().then((tracks) => {
+      void Promise.all([getVaultTracks(), getVaultStats()]).then(([tracks, stats]) => {
+        setVaultTracks(tracks);
+        setVaultStats(stats);
         setDownloadedUris(new Set(tracks.map((t) => t.track_uri)));
       });
     });
@@ -506,8 +533,41 @@ export default function Landing() {
   };
 
   const handleRoomPress = (room: RoomSummary) => {
+    if (!isOnline) {
+      void hapticMedium();
+      toast('Live rooms require internet. Starting solo session instead.', 'info');
+      void handleStartSoloJam();
+      return;
+    }
     if (room.is_private) setPwRoom(room);
     else openRoom(room);
+  };
+
+  const handlePlayVaultTrack = (track: VaultTrack) => {
+    void hapticLight();
+    const currentTrackInfo: TrackInfo = {
+      track_uri: track.local_file_uri || track.track_uri,
+      track_name: track.track_name,
+      artist: track.artist,
+      album_art_url: track.album_art_url,
+      duration_ms: track.duration_ms,
+    };
+    const queueList: TrackInfo[] = vaultTracks.map((t) => ({
+      track_uri: t.local_file_uri || t.track_uri,
+      track_name: t.track_name,
+      artist: t.artist,
+      album_art_url: t.album_art_url,
+      duration_ms: t.duration_ms,
+    }));
+    void playTrack(currentTrackInfo, queueList, { sourceTitle: 'Offline Vault' });
+    setPlayerModalOpen(true);
+  };
+
+  const handleShuffleVault = () => {
+    if (vaultTracks.length === 0) return;
+    void hapticMedium();
+    const shuffled = [...vaultTracks].sort(() => Math.random() - 0.5);
+    handlePlayVaultTrack(shuffled[0]);
   };
 
   const handleJoinWithCode = (rawCode: string) => {
@@ -597,12 +657,13 @@ export default function Landing() {
       {
         id: 'vault',
         title: 'Offline Vault',
-        subtitle: downloadedUris.size > 0 ? `${downloadedUris.size} offline` : 'Saved Audio',
+        subtitle: vaultTracks.length > 0 ? `${vaultTracks.length} offline` : 'Saved Audio',
         gradient: ['#b45309', '#f59e0b'] as [string, string],
         icon: <HardDrive size={20} color="#ffffff" />,
         onPress: () => {
           void hapticMedium();
-          router.push('/offline');
+          setHomeCategory('Downloaded');
+          flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
         },
         isPlaying: false,
       },
@@ -642,8 +703,29 @@ export default function Landing() {
         onPress: () => void handlePlayPresetGenre('ambient'),
         isPlaying: false,
       },
-      favoriteRooms.length > 0
+      (!isOnline || favoriteRooms.length === 0)
         ? {
+            id: 'create-room',
+            title: isOnline ? 'Create Jam Room' : 'Offline Vault',
+            subtitle: isOnline ? 'Broadcast Live' : 'Browse Local Files',
+            gradient: ['#065f46', '#10b981'] as [string, string],
+            icon: isOnline ? (
+              <Plus size={20} color="#ffffff" strokeWidth={2.4} />
+            ) : (
+              <HardDrive size={20} color="#ffffff" />
+            ),
+            onPress: () => {
+              void hapticMedium();
+              if (isOnline) {
+                if (user) setShowCreate(true);
+                else setShowIdentity(true);
+              } else {
+                setHomeCategory('Downloaded');
+              }
+            },
+            isPlaying: false,
+          }
+        : {
             id: 'fav-room',
             title: favoriteRooms[0].name,
             subtitle: favoriteRooms[0].hostName ? `DJ ${favoriteRooms[0].hostName}` : 'Pinned Station',
@@ -654,29 +736,17 @@ export default function Landing() {
               openRoom({ id: favoriteRooms[0].id, name: favoriteRooms[0].name });
             },
             isPlaying: false,
-          }
-        : {
-            id: 'create-room',
-            title: 'Create Jam Room',
-            subtitle: 'Broadcast Live',
-            gradient: ['#065f46', '#10b981'] as [string, string],
-            icon: <Plus size={20} color="#ffffff" strokeWidth={2.4} />,
-            onPress: () => {
-              void hapticMedium();
-              if (user) setShowCreate(true);
-              else setShowIdentity(true);
-            },
-            isPlaying: false,
           },
       {
         id: 'join-code',
-        title: 'Join with Code',
-        subtitle: 'Private Room',
+        title: isOnline ? 'Join with Code' : 'Manage Storage',
+        subtitle: isOnline ? 'Private Room' : 'View Storage',
         gradient: ['#1e293b', '#475569'] as [string, string],
-        icon: <KeyRound size={20} color="#ffffff" />,
+        icon: isOnline ? <KeyRound size={20} color="#ffffff" /> : <HardDrive size={20} color="#ffffff" />,
         onPress: () => {
           void hapticMedium();
-          setShowJoinWithCode(true);
+          if (isOnline) setShowJoinWithCode(true);
+          else router.push('/offline');
         },
         isPlaying: false,
       },
@@ -684,6 +754,8 @@ export default function Landing() {
   }, [
     currentTrack,
     favoriteTracks,
+    vaultTracks,
+    isOnline,
     downloadedUris,
     playing,
     pwRoom,
@@ -733,7 +805,7 @@ export default function Landing() {
 
       <FlatList
         ref={flatListRef}
-        data={homeCategory === 'Music' ? [] : filteredRooms}
+        data={!isOnline || homeCategory === 'Music' || homeCategory === 'Downloaded' ? [] : filteredRooms}
         keyExtractor={(r) => r.id}
         showsVerticalScrollIndicator={false}
         style={styles.flatList}
@@ -765,7 +837,7 @@ export default function Landing() {
                 <Pressable
                   onPress={() => {
                     void hapticMedium();
-                    router.push('/offline');
+                    setHomeCategory('Downloaded');
                   }}
                   style={({ pressed }) => [styles.navVaultBtn, pressed && styles.pressed]}
                   hitSlop={8}
@@ -832,9 +904,28 @@ export default function Landing() {
               </View>
             </View>
 
+            {/* Spotify-style Floating Network Status Pill */}
+            {!isOnline && (
+              <View style={styles.networkStatusPillOffline}>
+                <WifiOff size={13} color="#f59e0b" strokeWidth={2.4} />
+                <Text style={styles.networkStatusTextOffline}>
+                  Offline Mode • Playing Saved Vault Music
+                </Text>
+              </View>
+            )}
+
+            {showReconnectedPill && isOnline && (
+              <View style={styles.networkStatusPillOnline}>
+                <CheckCircle2 size={13} color="#10b981" strokeWidth={2.4} />
+                <Text style={styles.networkStatusTextOnline}>
+                  Back Online • Live Rooms Synced
+                </Text>
+              </View>
+            )}
+
             {/* Spotify-style Top Filter Chips */}
             <View style={styles.topFilterChipsRow}>
-              {(['All', 'Music', 'Live Rooms'] as const).map((cat) => {
+              {(['All', 'Music', 'Live Rooms', 'Downloaded'] as const).map((cat) => {
                 const active = homeCategory === cat;
                 return (
                   <Pressable
@@ -865,7 +956,7 @@ export default function Landing() {
             </View>
 
             {/* Spotify 2-Column, 4-Row Quick Access Grid ("Jump Back In") */}
-            {(homeCategory === 'All' || homeCategory === 'Music') && (
+            {(homeCategory === 'All' || homeCategory === 'Music' || homeCategory === 'Downloaded') && (
               <View style={styles.quickAccessSection}>
                 <View style={styles.quickAccessGrid}>
                   {quickAccessItems.map((item) => (
@@ -1171,8 +1262,118 @@ export default function Landing() {
               </View>
             )}
 
+            {/* Unified Offline Music Vault Shelf (Adaptive replacement when offline or Downloaded selected) */}
+            {(!isOnline || homeCategory === 'Downloaded') && (
+              <View style={styles.vaultShelfSection}>
+                <View style={styles.vaultShelfHeader}>
+                  <View style={styles.vaultShelfTitleWrap}>
+                    <HardDrive size={15} color={colors.amber} />
+                    <Text style={styles.vaultShelfTitle}>OFFLINE VAULT</Text>
+                    <View style={styles.vaultShelfBadge}>
+                      <Text style={styles.vaultShelfBadgeText}>{vaultTracks.length}</Text>
+                    </View>
+                    {vaultStats && (
+                      <Text style={styles.vaultShelfGaugeText}>
+                        • {vaultStats.formattedSize}
+                      </Text>
+                    )}
+                  </View>
+
+                  {vaultTracks.length > 0 && (
+                    <Pressable
+                      onPress={handleShuffleVault}
+                      style={({ pressed }) => [styles.vaultShuffleBtn, pressed && styles.pressed]}
+                      accessibilityLabel="Shuffle offline vault"
+                    >
+                      <Shuffle size={12} color="#08080a" strokeWidth={2.4} />
+                      <Text style={styles.vaultShuffleText}>Shuffle Play</Text>
+                    </Pressable>
+                  )}
+                </View>
+
+                {vaultTracks.length > 0 ? (
+                  <View style={styles.vaultTrackList}>
+                    {vaultTracks.map((trk) => {
+                      const isTrkPlaying = Boolean(
+                        currentTrack &&
+                          (currentTrack.track_uri === trk.track_uri ||
+                            currentTrack.track_uri === trk.local_file_uri),
+                      );
+                      return (
+                        <Pressable
+                          key={trk.track_uri}
+                          onPress={() => handlePlayVaultTrack(trk)}
+                          style={({ pressed }) => [
+                            styles.vaultTrackRow,
+                            isTrkPlaying && styles.vaultTrackRowActive,
+                            pressed && styles.pressed,
+                          ]}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Play ${trk.track_name} by ${trk.artist}`}
+                        >
+                          <View style={styles.vaultArtWrap}>
+                            {trk.album_art_url ? (
+                              <Image
+                                source={{ uri: trk.album_art_url }}
+                                style={styles.vaultArtImage}
+                                resizeMode="cover"
+                              />
+                            ) : (
+                              <View style={styles.vaultArtFallback}>
+                                <Music size={18} color={colors.amber} />
+                              </View>
+                            )}
+                            <View style={styles.vaultReadyBadge}>
+                              <CheckCircle2 size={10} color="#10b981" />
+                            </View>
+                          </View>
+
+                          <View style={styles.vaultTrackMeta}>
+                            <Text
+                              style={[
+                                styles.vaultTrackName,
+                                isTrkPlaying && styles.vaultTrackNameActive,
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {trk.track_name}
+                            </Text>
+                            <Text style={styles.vaultTrackArtist} numberOfLines={1}>
+                              {trk.artist || 'Unknown'} {trk.file_size_bytes ? `• ${formatBytesPure(trk.file_size_bytes)}` : ''}
+                            </Text>
+                          </View>
+
+                          <View style={styles.vaultPlayBtn}>
+                            <Play
+                              size={12}
+                              color={isTrkPlaying ? colors.amber : '#ffffff'}
+                              fill={isTrkPlaying ? colors.amber : '#ffffff'}
+                            />
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                ) : (
+                  <View style={styles.vaultEmptyCard}>
+                    <HardDrive size={24} color={colors.amber} />
+                    <Text style={styles.vaultEmptyTitle}>No Downloaded Songs</Text>
+                    <Text style={styles.vaultEmptySubtitle}>
+                      Like songs or tap Download in the Offline Vault to listen without internet.
+                    </Text>
+                    <Pressable
+                      onPress={() => router.push('/offline')}
+                      style={({ pressed }) => [styles.vaultManageBtn, pressed && styles.pressed]}
+                    >
+                      <Text style={styles.vaultManageBtnText}>Manage Downloads</Text>
+                    </Pressable>
+                  </View>
+                )}
+              </View>
+            )}
+
             {/* Live Rooms Section Toolbar & Genre Filter */}
-            {(homeCategory === 'All' || homeCategory === 'Live Rooms') && (
+            {isOnline && homeCategory !== 'Downloaded' && (homeCategory === 'All' || homeCategory === 'Live Rooms') && (
               <View style={styles.roomsToolbar}>
                 <View style={styles.toolbarHeader}>
                   <View style={styles.liveIndicator}>
@@ -1281,7 +1482,7 @@ export default function Landing() {
           </View>
         )}
         ListEmptyComponent={
-          homeCategory === 'Music' ? null : ready ? (
+          !isOnline || homeCategory === 'Music' || homeCategory === 'Downloaded' ? null : ready ? (
             searchQuery.trim().length > 0 ? (
               <Animated.View entering={FadeInDown.duration(250)} style={styles.searchEmptyCard}>
                 <View style={styles.searchEmptyIconWrap}>
@@ -1429,20 +1630,31 @@ export default function Landing() {
         <Pressable
           onPress={() => {
             void hapticLight();
+            setHomeCategory('All');
             flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
           }}
           style={styles.bottomNavItem}
           accessibilityRole="button"
           accessibilityLabel="Home tab"
         >
-          <Home size={22} color={colors.amber} />
-          <Text style={[styles.bottomNavLabel, styles.bottomNavLabelActive]}>Home</Text>
+          <Home
+            size={22}
+            color={homeCategory === 'All' ? colors.amber : '#8e8e9f'}
+          />
+          <Text
+            style={[
+              styles.bottomNavLabel,
+              homeCategory === 'All' && styles.bottomNavLabelActive,
+            ]}
+          >
+            Home
+          </Text>
         </Pressable>
 
         <Pressable
           onPress={() => {
             void hapticLight();
-            if (homeCategory === 'Music') {
+            if (homeCategory === 'Music' || homeCategory === 'Downloaded') {
               setHomeCategory('Live Rooms');
             }
             searchInputRef.current?.focus();
@@ -1472,14 +1684,25 @@ export default function Landing() {
         <Pressable
           onPress={() => {
             void hapticMedium();
-            router.push('/offline');
+            setHomeCategory('Downloaded');
+            flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
           }}
           style={styles.bottomNavItem}
           accessibilityRole="button"
           accessibilityLabel="Offline Vault tab"
         >
-          <HardDrive size={22} color="#8e8e9f" />
-          <Text style={styles.bottomNavLabel}>Vault</Text>
+          <HardDrive
+            size={22}
+            color={homeCategory === 'Downloaded' ? colors.amber : '#8e8e9f'}
+          />
+          <Text
+            style={[
+              styles.bottomNavLabel,
+              homeCategory === 'Downloaded' && styles.bottomNavLabelActive,
+            ]}
+          >
+            Vault
+          </Text>
         </Pressable>
 
         <Pressable
@@ -1503,6 +1726,202 @@ export default function Landing() {
 }
 
 const styles = StyleSheet.create({
+  // Floating network status pills
+  networkStatusPillOffline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.28)',
+    borderRadius: radius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    alignSelf: 'center',
+    marginBottom: 8,
+  },
+  networkStatusTextOffline: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 11.5,
+    color: '#f59e0b',
+  },
+  networkStatusPillOnline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    borderRadius: radius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    alignSelf: 'center',
+    marginBottom: 8,
+  },
+  networkStatusTextOnline: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 11.5,
+    color: '#10b981',
+  },
+
+  // Vault shelf on Home
+  vaultShelfSection: {
+    marginTop: 10,
+    marginBottom: 20,
+  },
+  vaultShelfHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  vaultShelfTitleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  vaultShelfTitle: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 13,
+    color: '#ffffff',
+    letterSpacing: 0.5,
+  },
+  vaultShelfBadge: {
+    backgroundColor: 'rgba(255, 159, 28, 0.18)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: radius.full,
+  },
+  vaultShelfBadgeText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 10,
+    color: colors.amber,
+  },
+  vaultShelfGaugeText: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 11,
+    color: '#8e8e9f',
+  },
+  vaultShuffleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.amber,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.full,
+  },
+  vaultShuffleText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 11,
+    color: '#08080a',
+  },
+  vaultTrackList: {
+    gap: 6,
+  },
+  vaultTrackRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: 8,
+    padding: 8,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.04)',
+  },
+  vaultTrackRowActive: {
+    backgroundColor: 'rgba(255, 159, 28, 0.08)',
+    borderColor: 'rgba(255, 159, 28, 0.25)',
+  },
+  vaultArtWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 6,
+    overflow: 'hidden',
+    backgroundColor: '#16161f',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  vaultArtImage: {
+    width: 44,
+    height: 44,
+  },
+  vaultArtFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vaultReadyBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: 'rgba(8, 8, 10, 0.85)',
+    borderRadius: 6,
+    padding: 1,
+  },
+  vaultTrackMeta: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  vaultTrackName: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 13,
+    color: '#ffffff',
+  },
+  vaultTrackNameActive: {
+    color: colors.amber,
+  },
+  vaultTrackArtist: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 11,
+    color: '#8e8e9f',
+    marginTop: 2,
+  },
+  vaultPlayBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vaultEmptyCard: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    gap: 8,
+  },
+  vaultEmptyTitle: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 15,
+    color: '#ffffff',
+  },
+  vaultEmptySubtitle: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 12,
+    color: '#8e8e9f',
+    textAlign: 'center',
+    maxWidth: 260,
+  },
+  vaultManageBtn: {
+    marginTop: 8,
+    backgroundColor: 'rgba(255, 159, 28, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.3)',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: radius.full,
+  },
+  vaultManageBtnText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 12,
+    color: colors.amber,
+  },
+
   // Spotify Filter Chips
   topFilterChipsRow: {
     flexDirection: 'row',

@@ -5,6 +5,7 @@
  * Uses periodic heartbeat and lightweight fetch pings to detect
  * network/WiFi disconnects and notify subscribers.
  */
+import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 import { getBackendUrl } from '../config';
 
@@ -13,6 +14,18 @@ type NetworkListener = (isOnline: boolean) => void;
 let isOnlineState = true;
 const listeners = new Set<NetworkListener>();
 let monitorInterval: ReturnType<typeof setInterval> | null = null;
+
+export function useNetworkStatus(): boolean {
+  const [online, setOnline] = useState<boolean>(isOnlineState);
+
+  useEffect(() => {
+    return subscribeNetworkState((status) => {
+      setOnline(status);
+    });
+  }, []);
+
+  return online;
+}
 
 function restartMonitor() {
   if (monitorInterval) {

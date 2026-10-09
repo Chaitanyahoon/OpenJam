@@ -6,13 +6,11 @@
  * When connectivity returns, informs the user so they can rejoin live jams.
  */
 import React, { useEffect, useRef } from 'react';
-import { router, usePathname } from 'expo-router';
 import { useToast } from './ToastContext';
 import { subscribeNetworkState } from '../utils/network';
 import { hapticMedium } from '../utils/haptics';
 
 export function NetworkGuard({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
   const toast = useToast();
   const isFirstCheck = useRef(true);
   const wasOffline = useRef(false);
@@ -23,36 +21,27 @@ export function NetworkGuard({ children }: { children: React.ReactNode }) {
         isFirstCheck.current = false;
         if (!isOnline) {
           wasOffline.current = true;
-          if (pathname !== '/offline') {
-            void hapticMedium();
-            toast('Offline mode active — showing saved vault music', 'info');
-            router.replace('/offline');
-          }
+          void hapticMedium();
+          toast('Offline mode active • Playing saved vault music', 'info');
         }
         return;
       }
 
       if (!isOnline) {
         wasOffline.current = true;
-        if (pathname !== '/offline') {
-          void hapticMedium();
-          toast('Network disconnected — switched to Offline Vault', 'info');
-          router.replace('/offline');
-        }
+        void hapticMedium();
+        toast('Network disconnected • Switched to Offline Vault', 'info');
       } else {
         if (wasOffline.current) {
           wasOffline.current = false;
-          if (pathname === '/offline') {
-            void hapticMedium();
-            toast('Internet restored! Welcome back to OpenJam.', 'success');
-            router.replace('/');
-          }
+          void hapticMedium();
+          toast('Internet restored! Welcome back to OpenJam.', 'success');
         }
       }
     });
 
     return unsub;
-  }, [pathname, toast]);
+  }, [toast]);
 
   return <>{children}</>;
 }

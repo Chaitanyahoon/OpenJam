@@ -9,7 +9,7 @@ import type { ExpoConfig } from 'expo/config';
 const config: ExpoConfig = {
   name: 'OpenJam',
   slug: 'openjam-mobile',
-  version: '1.0.6',
+  version: '1.0.7',
   orientation: 'portrait',
   icon: './assets/images/icon.png',
   scheme: 'openjam',
@@ -17,7 +17,7 @@ const config: ExpoConfig = {
   assetBundlePatterns: ['**/*'],
   android: {
     package: 'fun.openjam.app',
-    versionCode: 6,
+    versionCode: 7,
     adaptiveIcon: {
       backgroundColor: '#08080a',
       foregroundImage: './assets/images/android-icon-foreground.png',
