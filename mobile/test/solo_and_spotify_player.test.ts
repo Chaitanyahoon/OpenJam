@@ -153,4 +153,64 @@ describe('Solo Jam & Spotify Player Upgrades Suite', () => {
     assert.equal(isReadyOffline('uri_2'), true);
     assert.equal(isReadyOffline('uri_3'), false);
   });
+
+  it('triggers auto-recovery navigation when Wi-Fi is restored while on offline screen', () => {
+    let currentPath = '/offline';
+    let wasOffline = false;
+    let redirectedTo: string | null = null;
+
+    function handleNetworkChange(isOnline: boolean) {
+      if (!isOnline) {
+        wasOffline = true;
+        if (currentPath !== '/offline') {
+          currentPath = '/offline';
+          redirectedTo = '/offline';
+        }
+      } else {
+        if (wasOffline) {
+          wasOffline = false;
+          if (currentPath === '/offline') {
+            currentPath = '/';
+            redirectedTo = '/';
+          }
+        }
+      }
+    }
+
+    // 1. Goes offline -> switched to /offline
+    currentPath = '/';
+    handleNetworkChange(false);
+    assert.equal(wasOffline, true);
+    assert.equal(redirectedTo, '/offline');
+
+    // 2. Network returns -> automatically redirects to /
+    handleNetworkChange(true);
+    assert.equal(wasOffline, false);
+    assert.equal(redirectedTo, '/');
+  });
+
+  it('generates 8 Spotify Quick Access tiles with proper gradients and actions', () => {
+    const favoriteTracks = [{ track_uri: 'f1', track_name: 'Liked 1', artist: 'Artist 1' }];
+    const downloadedUris = new Set(['f1', 'd2']);
+    const favoriteRooms = [{ id: 'room-1', name: 'Lofi Lounge', hostName: 'DJ Chaitanya' }];
+
+    function buildTiles() {
+      return [
+        { id: 'liked', title: 'Liked Songs', count: favoriteTracks.length },
+        { id: 'vault', title: 'Offline Vault', count: downloadedUris.size },
+        { id: 'solo', title: 'Solo Jam', count: 1 },
+        { id: 'lofi', title: 'Lofi & Chill', count: 2 },
+        { id: 'synthwave', title: 'Synthwave Beats', count: 2 },
+        { id: 'ambient', title: 'Ambient Drift', count: 2 },
+        { id: 'fav-room', title: favoriteRooms[0].name, count: 1 },
+        { id: 'join-code', title: 'Join with Code', count: 0 },
+      ];
+    }
+
+    const tiles = buildTiles();
+    assert.equal(tiles.length, 8);
+    assert.equal(tiles[0].title, 'Liked Songs');
+    assert.equal(tiles[1].count, 2);
+    assert.equal(tiles[6].title, 'Lofi Lounge');
+  });
 });

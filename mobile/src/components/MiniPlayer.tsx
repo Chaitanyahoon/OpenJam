@@ -12,7 +12,7 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
-import { Heart, Play, Pause } from 'lucide-react-native';
+import { Heart, Play, Pause, Speaker } from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
 import { usePlayer, usePlayerStatus } from '../audio/PlayerContext';
@@ -86,8 +86,21 @@ export function MiniPlayer({ bottomOffset = 0 }: { bottomOffset?: number }) {
             </Text>
           </View>
 
-          {/* Quick Actions (Like + Play/Pause) */}
+          {/* Quick Actions (Output Device + Like + Play/Pause) */}
           <View style={styles.actions}>
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation();
+                void hapticLight();
+                setPlayerModalOpen(true);
+              }}
+              hitSlop={8}
+              style={styles.actionBtn}
+              accessibilityLabel="Audio devices and controls"
+            >
+              <Speaker size={18} color="#9999aa" />
+            </Pressable>
+
             <Pressable
               onPress={(e) => {
                 e.stopPropagation();

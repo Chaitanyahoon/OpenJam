@@ -460,7 +460,7 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
         async def _try_cobalt():
             try:
                 from backend.services.cobalt import get_cobalt_stream_url
-                res = await asyncio.wait_for(get_cobalt_stream_url(video_id), timeout=2.0)
+                res = await asyncio.wait_for(get_cobalt_stream_url(video_id), timeout=4.5)
                 if res and (res.startswith("http://") or res.startswith("https://")):
                     logger.info(f"[Resolver Race] Cobalt won for {video_id}")
                     return res
@@ -471,7 +471,7 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
         async def _try_invidious():
             try:
                 from backend.services.invidious import get_stream_url as get_invidious_stream_url
-                res = await asyncio.wait_for(get_invidious_stream_url(video_id), timeout=2.2)
+                res = await asyncio.wait_for(get_invidious_stream_url(video_id), timeout=5.0)
                 if res and (res.startswith("http://") or res.startswith("https://")):
                     logger.info(f"[Resolver Race] Invidious won for {video_id}")
                     return res
@@ -491,11 +491,11 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
                         "nocheckcertificate": True,
                         "ignoreerrors": True,
                         "skip_download": True,
-                        "socket_timeout": 2.0,
+                        "socket_timeout": 5.0,
                     }
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                         return ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
-                info = await asyncio.wait_for(loop.run_in_executor(None, extract), timeout=2.5)
+                info = await asyncio.wait_for(loop.run_in_executor(None, extract), timeout=5.5)
                 if info:
                     res = info.get("url")
                     if not res and "formats" in info:
@@ -527,7 +527,7 @@ async def _resolve_audio_url(video_id: str, low: bool = False) -> str | None:
                             break
                     except Exception:
                         pass
-            await asyncio.wait_for(_race(), timeout=2.8)
+            await asyncio.wait_for(_race(), timeout=6.5)
         except Exception:
             pass
         finally:

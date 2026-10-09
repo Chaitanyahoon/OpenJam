@@ -15,28 +15,38 @@ export function NetworkGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const toast = useToast();
   const isFirstCheck = useRef(true);
+  const wasOffline = useRef(false);
 
   useEffect(() => {
     const unsub = subscribeNetworkState((isOnline) => {
       if (isFirstCheck.current) {
         isFirstCheck.current = false;
-        if (!isOnline && pathname !== '/offline') {
-          void hapticMedium();
-          toast('Offline mode active — showing saved vault music', 'info');
-          router.replace('/offline');
+        if (!isOnline) {
+          wasOffline.current = true;
+          if (pathname !== '/offline') {
+            void hapticMedium();
+            toast('Offline mode active — showing saved vault music', 'info');
+            router.replace('/offline');
+          }
         }
         return;
       }
 
       if (!isOnline) {
+        wasOffline.current = true;
         if (pathname !== '/offline') {
           void hapticMedium();
           toast('Network disconnected — switched to Offline Vault', 'info');
           router.replace('/offline');
         }
       } else {
-        if (pathname === '/offline') {
-          toast('Internet restored! Ready to stream live jams.', 'success');
+        if (wasOffline.current) {
+          wasOffline.current = false;
+          if (pathname === '/offline') {
+            void hapticMedium();
+            toast('Internet restored! Welcome back to OpenJam.', 'success');
+            router.replace('/');
+          }
         }
       }
     });

@@ -45,6 +45,8 @@ import {
   Shuffle,
   Music,
   CheckCircle2,
+  Home,
+  User,
 } from 'lucide-react-native';
 import { getVaultTracks, subscribeDownloadProgress } from '../storage/vault';
 import { colors, radius, spacing } from '../theme';
@@ -142,6 +144,9 @@ export default function Landing() {
   const [ready, setReady] = useState(false);
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [homeCategory, setHomeCategory] = useState<'All' | 'Music' | 'Live Rooms'>('All');
+  const flatListRef = useRef<FlatList>(null);
+  const searchInputRef = useRef<TextInput>(null);
   const handledTokensRef = useRef<Set<string>>(new Set());
   const authSuccessRef = useRef(false);
   const insets = useSafeAreaInsets();
@@ -516,6 +521,177 @@ export default function Landing() {
     openRoom({ id: clean });
   };
 
+  const handlePlayPresetGenre = async (genre: 'lofi' | 'synthwave' | 'ambient') => {
+    void hapticMedium();
+    const presets: Record<string, TrackInfo[]> = {
+      lofi: [
+        {
+          track_uri: 'jfKfPfyJRdk',
+          track_name: 'Lofi Hip Hop Chill Beats',
+          artist: 'Lofi Girl',
+          album_art_url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=300&q=80',
+          duration_ms: 180000,
+        },
+        {
+          track_uri: '5qap5aO4i9A',
+          track_name: 'Lofi Beats to Relax',
+          artist: 'ChilledCow',
+          album_art_url: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&q=80',
+          duration_ms: 200000,
+        },
+      ],
+      synthwave: [
+        {
+          track_uri: '4xDzrJKXOOY',
+          track_name: 'Synthwave Night Drive',
+          artist: 'Retro Dreamer',
+          album_art_url: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=300&q=80',
+          duration_ms: 210000,
+        },
+        {
+          track_uri: 'MVPTGNGiI-4',
+          track_name: 'Neon Horizon',
+          artist: 'Kavinsky Mix',
+          album_art_url: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&q=80',
+          duration_ms: 225000,
+        },
+      ],
+      ambient: [
+        {
+          track_uri: 'DWcJFNfaw90',
+          track_name: 'Weightless Deep Ambient',
+          artist: 'Marconi Union',
+          album_art_url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=300&q=80',
+          duration_ms: 300000,
+        },
+        {
+          track_uri: 'S4mC7N3U6Bw',
+          track_name: 'Celestial Meditation',
+          artist: 'Zen Atmosphere',
+          album_art_url: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=300&q=80',
+          duration_ms: 280000,
+        },
+      ],
+    };
+    const tracks = presets[genre] || presets.lofi;
+    const title = genre === 'lofi' ? 'Lofi & Chill' : genre === 'synthwave' ? 'Synthwave Beats' : 'Ambient Drift';
+    await playTrack(tracks[0], tracks, { sourceTitle: title });
+    setPlayerModalOpen(true);
+  };
+
+  const quickAccessItems = useMemo(() => {
+    const isLikedPlaying = Boolean(
+      currentTrack && favoriteTracks.some((t) => t.track_uri === currentTrack.track_uri),
+    );
+
+    return [
+      {
+        id: 'liked',
+        title: 'Liked Songs',
+        subtitle: favoriteTracks.length > 0 ? `${favoriteTracks.length} tracks` : 'Favorites',
+        gradient: ['#5b21b6', '#7c3aed'] as [string, string],
+        icon: <Heart size={20} color="#ffffff" fill="#ffffff" />,
+        onPress: handleShufflePlayLiked,
+        isPlaying: isLikedPlaying,
+      },
+      {
+        id: 'vault',
+        title: 'Offline Vault',
+        subtitle: downloadedUris.size > 0 ? `${downloadedUris.size} offline` : 'Saved Audio',
+        gradient: ['#b45309', '#f59e0b'] as [string, string],
+        icon: <HardDrive size={20} color="#ffffff" />,
+        onPress: () => {
+          void hapticMedium();
+          router.push('/offline');
+        },
+        isPlaying: false,
+      },
+      {
+        id: 'solo',
+        title: 'Solo Jam',
+        subtitle: 'Play Instantly',
+        gradient: ['#0284c7', '#06b6d4'] as [string, string],
+        icon: <Headphones size={20} color="#ffffff" />,
+        onPress: () => void handleStartSoloJam(),
+        isPlaying: playing && !pwRoom,
+      },
+      {
+        id: 'lofi',
+        title: 'Lofi & Chill',
+        subtitle: 'Study & Relax',
+        gradient: ['#db2777', '#f97316'] as [string, string],
+        icon: <Radio size={20} color="#ffffff" />,
+        onPress: () => void handlePlayPresetGenre('lofi'),
+        isPlaying: false,
+      },
+      {
+        id: 'synthwave',
+        title: 'Synthwave Beats',
+        subtitle: 'Retro Drive',
+        gradient: ['#7c3aed', '#ec4899'] as [string, string],
+        icon: <Sparkles size={20} color="#ffffff" />,
+        onPress: () => void handlePlayPresetGenre('synthwave'),
+        isPlaying: false,
+      },
+      {
+        id: 'ambient',
+        title: 'Ambient Drift',
+        subtitle: 'Calm & Sleep',
+        gradient: ['#1e1b4b', '#3b82f6'] as [string, string],
+        icon: <Music size={20} color="#ffffff" />,
+        onPress: () => void handlePlayPresetGenre('ambient'),
+        isPlaying: false,
+      },
+      favoriteRooms.length > 0
+        ? {
+            id: 'fav-room',
+            title: favoriteRooms[0].name,
+            subtitle: favoriteRooms[0].hostName ? `DJ ${favoriteRooms[0].hostName}` : 'Pinned Station',
+            gradient: ['#065f46', '#10b981'] as [string, string],
+            icon: <Radio size={20} color="#ffffff" />,
+            onPress: () => {
+              void hapticMedium();
+              openRoom({ id: favoriteRooms[0].id, name: favoriteRooms[0].name });
+            },
+            isPlaying: false,
+          }
+        : {
+            id: 'create-room',
+            title: 'Create Jam Room',
+            subtitle: 'Broadcast Live',
+            gradient: ['#065f46', '#10b981'] as [string, string],
+            icon: <Plus size={20} color="#ffffff" strokeWidth={2.4} />,
+            onPress: () => {
+              void hapticMedium();
+              if (user) setShowCreate(true);
+              else setShowIdentity(true);
+            },
+            isPlaying: false,
+          },
+      {
+        id: 'join-code',
+        title: 'Join with Code',
+        subtitle: 'Private Room',
+        gradient: ['#1e293b', '#475569'] as [string, string],
+        icon: <KeyRound size={20} color="#ffffff" />,
+        onPress: () => {
+          void hapticMedium();
+          setShowJoinWithCode(true);
+        },
+        isPlaying: false,
+      },
+    ];
+  }, [
+    currentTrack,
+    favoriteTracks,
+    downloadedUris,
+    playing,
+    pwRoom,
+    favoriteRooms,
+    user,
+    handleShufflePlayLiked,
+  ]);
+
   const filteredRooms = useMemo(() => {
     let list = rooms;
     if (selectedGenre !== 'All') {
@@ -556,13 +732,14 @@ export default function Landing() {
       </View>
 
       <FlatList
-        data={filteredRooms}
+        ref={flatListRef}
+        data={homeCategory === 'Music' ? [] : filteredRooms}
         keyExtractor={(r) => r.id}
         showsVerticalScrollIndicator={false}
         style={styles.flatList}
         contentContainerStyle={[
           styles.scrollContent,
-          { flexGrow: 1, paddingBottom: Math.max(insets.bottom, 16) + 20 },
+          { flexGrow: 1, paddingBottom: Math.max(insets.bottom, 16) + 120 },
         ]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.amber} />
@@ -655,6 +832,82 @@ export default function Landing() {
               </View>
             </View>
 
+            {/* Spotify-style Top Filter Chips */}
+            <View style={styles.topFilterChipsRow}>
+              {(['All', 'Music', 'Live Rooms'] as const).map((cat) => {
+                const active = homeCategory === cat;
+                return (
+                  <Pressable
+                    key={cat}
+                    onPress={() => {
+                      void hapticLight();
+                      setHomeCategory(cat);
+                    }}
+                    style={({ pressed }) => [
+                      styles.topFilterChip,
+                      active && styles.topFilterChipActive,
+                      pressed && styles.pressed,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Filter by ${cat}`}
+                  >
+                    <Text
+                      style={[
+                        styles.topFilterChipText,
+                        active && styles.topFilterChipTextActive,
+                      ]}
+                    >
+                      {cat}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Spotify 2-Column, 4-Row Quick Access Grid ("Jump Back In") */}
+            {(homeCategory === 'All' || homeCategory === 'Music') && (
+              <View style={styles.quickAccessSection}>
+                <View style={styles.quickAccessGrid}>
+                  {quickAccessItems.map((item) => (
+                    <Pressable
+                      key={item.id}
+                      onPress={item.onPress}
+                      style={({ pressed }) => [
+                        styles.quickAccessCard,
+                        pressed && styles.quickAccessCardPressed,
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel={item.title}
+                    >
+                      <LinearGradient
+                        colors={item.gradient}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.quickAccessCover}
+                      >
+                        {item.icon}
+                      </LinearGradient>
+                      <View style={styles.quickAccessInfo}>
+                        <Text style={styles.quickAccessTitle} numberOfLines={2}>
+                          {item.title}
+                        </Text>
+                        {item.subtitle ? (
+                          <Text style={styles.quickAccessSubtitle} numberOfLines={1}>
+                            {item.subtitle}
+                          </Text>
+                        ) : null}
+                      </View>
+                      {item.isPlaying ? (
+                        <View style={styles.quickAccessPlayingIndicator}>
+                          <View style={styles.quickAccessPulseDot} />
+                        </View>
+                      ) : null}
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            )}
+
             {/* Streamlined Music Action Deck */}
             <View style={styles.heroGlassCard}>
               <LinearGradient
@@ -726,7 +979,7 @@ export default function Landing() {
             </View>
 
             {/* 1-Tap Liked Songs Shelf */}
-            {favoriteTracks.length > 0 && (
+            {(homeCategory === 'All' || homeCategory === 'Music') && favoriteTracks.length > 0 && (
               <View style={styles.likedSection}>
                 <View style={styles.likedHeader}>
                   <View style={styles.likedTitleWrap}>
@@ -794,7 +1047,7 @@ export default function Landing() {
             )}
 
             {/* 1-Tap Recently Played Shelf */}
-            {recentTracks.length > 0 && (
+            {(homeCategory === 'All' || homeCategory === 'Music') && recentTracks.length > 0 && (
               <View style={styles.recentSection}>
                 <View style={styles.recentHeader}>
                   <View style={styles.recentTitleWrap}>
@@ -861,7 +1114,7 @@ export default function Landing() {
             )}
 
             {/* Pinned Stations Carousel (1-Tap Re-entry) */}
-            {favoriteRooms.length > 0 && (
+            {(homeCategory === 'All' || homeCategory === 'Live Rooms') && favoriteRooms.length > 0 && (
               <View style={styles.pinnedSection}>
                 <View style={styles.pinnedHeader}>
                   <View style={styles.pinnedTitleWrap}>
@@ -919,100 +1172,103 @@ export default function Landing() {
             )}
 
             {/* Live Rooms Section Toolbar & Genre Filter */}
-            <View style={styles.roomsToolbar}>
-              <View style={styles.toolbarHeader}>
-                <View style={styles.liveIndicator}>
-                  <View style={styles.livePulseDot} />
-                  <Text style={styles.liveHeaderText}>
-                    LIVE ROOMS ({filteredRooms.length})
-                  </Text>
-                  {isSyncingCloud && (
-                    <View style={styles.syncingCloudBadge}>
-                      <ActivityIndicator
-                        size="small"
-                        color={colors.amber}
-                        style={{ transform: [{ scale: 0.65 }] }}
-                      />
-                      <Text style={styles.syncingCloudText}>Syncing Cloud</Text>
-                    </View>
-                  )}
+            {(homeCategory === 'All' || homeCategory === 'Live Rooms') && (
+              <View style={styles.roomsToolbar}>
+                <View style={styles.toolbarHeader}>
+                  <View style={styles.liveIndicator}>
+                    <View style={styles.livePulseDot} />
+                    <Text style={styles.liveHeaderText}>
+                      LIVE ROOMS ({filteredRooms.length})
+                    </Text>
+                    {isSyncingCloud && (
+                      <View style={styles.syncingCloudBadge}>
+                        <ActivityIndicator
+                          size="small"
+                          color={colors.amber}
+                          style={{ transform: [{ scale: 0.65 }] }}
+                        />
+                        <Text style={styles.syncingCloudText}>Syncing Cloud</Text>
+                      </View>
+                    )}
+                  </View>
+
+                  <Pressable
+                    onPress={() => router.push('/offline')}
+                    hitSlop={8}
+                    style={({ pressed }) => [styles.offlineVaultBtn, pressed && styles.pressed]}
+                    accessibilityLabel="Open Offline Audio Vault"
+                  >
+                    <HardDrive size={12} color={colors.amber} />
+                    <Text style={styles.offlineVaultBtnText}>Offline Vault</Text>
+                  </Pressable>
                 </View>
 
-                <Pressable
-                  onPress={() => router.push('/offline')}
-                  hitSlop={8}
-                  style={({ pressed }) => [styles.offlineVaultBtn, pressed && styles.pressed]}
-                  accessibilityLabel="Open Offline Audio Vault"
-                >
-                  <HardDrive size={12} color={colors.amber} />
-                  <Text style={styles.offlineVaultBtnText}>Offline Vault</Text>
-                </Pressable>
-              </View>
-
-              {/* Search Field */}
-              <View style={[styles.searchWrap, searchFocused && styles.searchWrapFocused]}>
-                <Search size={16} color={searchFocused ? colors.amber : colors.text3} />
-                <TextInput
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  onFocus={() => setSearchFocused(true)}
-                  onBlur={() => setSearchFocused(false)}
-                  placeholder="Search rooms, DJs, genres..."
-                  placeholderTextColor={colors.text3}
-                  style={styles.searchInput}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                {searchQuery ? (
-                  <Pressable
-                    onPress={() => {
-                      void hapticMedium();
-                      setSearchQuery('');
-                    }}
-                    hitSlop={12}
-                    style={styles.clearSearchBtn}
-                    accessibilityLabel="Clear search"
-                  >
-                    <X size={15} color={colors.amber} strokeWidth={2.4} />
-                  </Pressable>
-                ) : null}
-              </View>
-
-              {/* Genre Filter Chips */}
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.genreScroll}
-                style={styles.genreScrollView}
-              >
-                {GENRES.map((g) => {
-                  const active = selectedGenre === g;
-                  return (
+                {/* Search Field */}
+                <View style={[styles.searchWrap, searchFocused && styles.searchWrapFocused]}>
+                  <Search size={16} color={searchFocused ? colors.amber : colors.text3} />
+                  <TextInput
+                    ref={searchInputRef}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    onFocus={() => setSearchFocused(true)}
+                    onBlur={() => setSearchFocused(false)}
+                    placeholder="Search rooms, DJs, genres..."
+                    placeholderTextColor={colors.text3}
+                    style={styles.searchInput}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  {searchQuery ? (
                     <Pressable
-                      key={g}
                       onPress={() => {
                         void hapticMedium();
-                        setSelectedGenre(g);
+                        setSearchQuery('');
                       }}
-                      style={({ pressed }) => [
-                        styles.genreChip,
-                        active && styles.genreChipActive,
-                        pressed && styles.pressed,
-                      ]}
-                      accessibilityLabel={`Filter by ${g}`}
+                      hitSlop={12}
+                      style={styles.clearSearchBtn}
+                      accessibilityLabel="Clear search"
                     >
-                      {active ? <View style={styles.genreActiveDot} /> : null}
-                      <Text
-                        style={[styles.genreText, active && styles.genreTextActive]}
-                        maxFontSizeMultiplier={1.2}
-                      >
-                        {g}
-                      </Text>
+                      <X size={15} color={colors.amber} strokeWidth={2.4} />
                     </Pressable>
-                  );
-                })}
-              </ScrollView>
-            </View>
+                  ) : null}
+                </View>
+
+                {/* Genre Filter Chips */}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.genreScroll}
+                  style={styles.genreScrollView}
+                >
+                  {GENRES.map((g) => {
+                    const active = selectedGenre === g;
+                    return (
+                      <Pressable
+                        key={g}
+                        onPress={() => {
+                          void hapticMedium();
+                          setSelectedGenre(g);
+                        }}
+                        style={({ pressed }) => [
+                          styles.genreChip,
+                          active && styles.genreChipActive,
+                          pressed && styles.pressed,
+                        ]}
+                        accessibilityLabel={`Filter by ${g}`}
+                      >
+                        {active ? <View style={styles.genreActiveDot} /> : null}
+                        <Text
+                          style={[styles.genreText, active && styles.genreTextActive]}
+                          maxFontSizeMultiplier={1.2}
+                        >
+                          {g}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            )}
           </View>
         }
         renderItem={({ item }) => (
@@ -1025,7 +1281,7 @@ export default function Landing() {
           </View>
         )}
         ListEmptyComponent={
-          ready ? (
+          homeCategory === 'Music' ? null : ready ? (
             searchQuery.trim().length > 0 ? (
               <Animated.View entering={FadeInDown.duration(250)} style={styles.searchEmptyCard}>
                 <View style={styles.searchEmptyIconWrap}>
@@ -1167,12 +1423,202 @@ export default function Landing() {
           if (room) openRoom(room, password);
         }}
       />
-      <MiniPlayer bottomOffset={insets.bottom} />
+
+      {/* Spotify Bottom Navigation Bar */}
+      <View style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, 6) }]}>
+        <Pressable
+          onPress={() => {
+            void hapticLight();
+            flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+          }}
+          style={styles.bottomNavItem}
+          accessibilityRole="button"
+          accessibilityLabel="Home tab"
+        >
+          <Home size={22} color={colors.amber} />
+          <Text style={[styles.bottomNavLabel, styles.bottomNavLabelActive]}>Home</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => {
+            void hapticLight();
+            if (homeCategory === 'Music') {
+              setHomeCategory('Live Rooms');
+            }
+            searchInputRef.current?.focus();
+          }}
+          style={styles.bottomNavItem}
+          accessibilityRole="button"
+          accessibilityLabel="Search tab"
+        >
+          <Search size={22} color="#8e8e9f" />
+          <Text style={styles.bottomNavLabel}>Search</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => {
+            void handleStartSoloJam();
+          }}
+          style={styles.bottomNavItem}
+          accessibilityRole="button"
+          accessibilityLabel="Solo Jam tab"
+        >
+          <Headphones size={22} color={playing ? colors.amber : '#8e8e9f'} />
+          <Text style={[styles.bottomNavLabel, playing && styles.bottomNavLabelActive]}>
+            Solo Jam
+          </Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => {
+            void hapticMedium();
+            router.push('/offline');
+          }}
+          style={styles.bottomNavItem}
+          accessibilityRole="button"
+          accessibilityLabel="Offline Vault tab"
+        >
+          <HardDrive size={22} color="#8e8e9f" />
+          <Text style={styles.bottomNavLabel}>Vault</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => {
+            void hapticLight();
+            if (user) setShowProfile(true);
+            else setShowIdentity(true);
+          }}
+          style={styles.bottomNavItem}
+          accessibilityRole="button"
+          accessibilityLabel="Profile tab"
+        >
+          <User size={22} color="#8e8e9f" />
+          <Text style={styles.bottomNavLabel}>Profile</Text>
+        </Pressable>
+      </View>
+
+      <MiniPlayer bottomOffset={Math.max(insets.bottom, 6) + 54} />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  // Spotify Filter Chips
+  topFilterChipsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 6,
+    marginBottom: 12,
+  },
+  topFilterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: radius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  topFilterChipActive: {
+    backgroundColor: colors.amber,
+  },
+  topFilterChipText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 12.5,
+    color: '#ffffff',
+  },
+  topFilterChipTextActive: {
+    color: '#08080a',
+  },
+
+  // Spotify Quick Access Grid (2-Column, 4-Row)
+  quickAccessSection: {
+    marginBottom: 14,
+  },
+  quickAccessGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 8,
+  },
+  quickAccessCard: {
+    width: '48.8%',
+    height: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 6,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  quickAccessCardPressed: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    transform: [{ scale: 0.985 }],
+  },
+  quickAccessCover: {
+    width: 52,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickAccessInfo: {
+    flex: 1,
+    paddingHorizontal: 8,
+    justifyContent: 'center',
+  },
+  quickAccessTitle: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 11.5,
+    color: '#ffffff',
+    lineHeight: 15,
+  },
+  quickAccessSubtitle: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 10,
+    color: '#8e8e9f',
+    marginTop: 2,
+  },
+  quickAccessPlayingIndicator: {
+    paddingRight: 8,
+  },
+  quickAccessPulseDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.amber,
+  },
+
+  // Spotify Bottom Navigation Bar
+  bottomNav: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    backgroundColor: 'rgba(10, 10, 14, 0.96)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.08)',
+    zIndex: 990,
+  },
+  bottomNavItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 4,
+    gap: 3,
+  },
+  bottomNavLabel: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 10,
+    color: '#8e8e9f',
+  },
+  bottomNavLabelActive: {
+    fontFamily: fontFamily.bodySemiBold,
+    color: colors.amber,
+  },
+
   safe: {
     flex: 1,
     backgroundColor: '#08080a',
