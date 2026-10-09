@@ -266,12 +266,14 @@ export function RoomProvider({
         else p.pause();
         playingRef.current = shouldPlay;
       } else {
-        const drift = Math.abs(p.positionMs() - target);
+        const currentPos = p.positionMs();
+        const evalResult = engineRef.current.evaluateDrift(currentPos, target);
+
         if (shouldPlay !== playingRef.current) {
           if (shouldPlay) p.play();
           else p.pause();
           playingRef.current = shouldPlay;
-        } else if (drift > DRIFT_CORRECT_MS && !p.isSeekingRecently()) {
+        } else if (evalResult.tier === 3 && !p.isSeekingRecently()) {
           await p.seekToMs(target);
         }
       }
