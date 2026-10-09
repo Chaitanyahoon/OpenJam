@@ -132,37 +132,30 @@ jobs:
           COMMIT_SHA=$(git rev-parse --short HEAD)
           COMMIT_MSG=$(git log -1 --pretty=%s)
           BUILD_DATE=$(date -u +"%Y-%m-%d %H:%M UTC")
-          APK_SHA=$(awk '{print $1}' "build-output/openjam-v${APP_VERSION}.apk.sha256")
           FILE_SIZE=$(du -h "build-output/openjam-v${APP_VERSION}.apk" | awk '{print $1}')
 
+          # Extract concise commit highlights
+          RECENT_COMMITS=$(git log -n 5 --pretty=format:"- %s" --no-merges mobile/ | grep -v -i "bump" | head -n 4)
+          if [ -z "$RECENT_COMMITS" ]; then
+            RECENT_COMMITS="- Performance and stability enhancements"
+          fi
+
           cat <<EOF > release_notes.md
-          ## 🎧 OpenJam Android App (${TAG})
+          ### 📲 Download
+          - [openjam-v${APP_VERSION}.apk](https://github.com/Chaitanyahoon/OpenJam/releases/download/${TAG}/openjam-v${APP_VERSION}.apk) (${FILE_SIZE})
+          - [openjam-latest.apk](https://github.com/Chaitanyahoon/OpenJam/releases/download/${TAG}/openjam-latest.apk)
 
-          > **Latest Release Build**: ${BUILD_DATE}  
-          > **Commit**: \`${COMMIT_SHA}\` — ${COMMIT_MSG}  
-          > **Package Version**: \`v${APP_VERSION}\`
-
-          ### 📲 Direct APK Downloads
-          - 📦 **Latest Release APK**: [**openjam-v${APP_VERSION}.apk**](https://github.com/Chaitanyahoon/OpenJam/releases/download/${TAG}/openjam-v${APP_VERSION}.apk) (${FILE_SIZE})
-          - 📦 **Permanent Latest Link**: [**openjam-latest.apk**](https://github.com/Chaitanyahoon/OpenJam/releases/download/${TAG}/openjam-latest.apk)
-          - 🔒 **SHA256 Checksum**: \`${APK_SHA}\`
-
-          ### ✨ Key Features & Stability Improvements
-          - **Synchronized Playback**: Sub-10ms drift-corrected audio streaming across room listeners.
-          - **Host Controls**: Full playback controls, nudging, and queue management for room hosts.
-          - **Universal Importer**: One-tap Spotify & YouTube playlist importing to queue and personal library.
-          - **Optimized Chat**: Deduplicated optimistic messaging with zero double bubbles.
-          - **Android System Parity**: High-Fidelity Audio toggle, haptics, and native Android App Info settings shortcut.
-          - **Responsive Vinyl UI**: Clamped turntable stage preventing horizontal overflow on all screen sizes.
+          ### Highlights
+          ${RECENT_COMMITS}
           EOF
 
           # Create or update GitHub Release
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Updating existing release $TAG..."
-            gh release edit "$TAG" --title "OpenJam Android App ${TAG}" --notes-file release_notes.md --latest
+            gh release edit "$TAG" --title "OpenJam Android v${APP_VERSION}" --notes-file release_notes.md --latest
           else
             echo "Creating new release $TAG..."
-            gh release create "$TAG" --title "OpenJam Android App ${TAG}" --notes-file release_notes.md --latest
+            gh release create "$TAG" --title "OpenJam Android v${APP_VERSION}" --notes-file release_notes.md --latest
           fi
 
           # Upload APK binaries and checksums (--clobber replaces previous files with newest build)
