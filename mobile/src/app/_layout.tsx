@@ -14,7 +14,7 @@ import {
   Poppins_500Medium,
   Poppins_600SemiBold,
 } from '@expo-google-fonts/poppins';
-import { PlayerProvider } from '../audio/PlayerContext';
+import { PlayerProvider, usePlayer } from '../audio/PlayerContext';
 import { SocketProvider } from '../state/SocketContext';
 import { ToastProvider } from '../components/ToastContext';
 import { colors } from '../theme';
@@ -26,6 +26,55 @@ import { router } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+function NotificationBridge() {
+  const { setPlayerModalOpen } = usePlayer();
+
+  useEffect(() => {
+    // 1. Cold start response handling
+    Notifications.getLastNotificationResponseAsync()
+      .then((response) => {
+        if (!response) return;
+        const data = response.notification.request.content.data as
+          | { action?: string; roomId?: string }
+          | undefined;
+        if (data?.action === 'open_room' && data?.roomId) {
+          if (data.roomId === 'solo') {
+            setPlayerModalOpen(true);
+            router.push('/');
+          } else {
+            router.push({ pathname: '/room/[id]', params: { id: data.roomId } });
+          }
+        }
+      })
+      .catch(() => {});
+
+    // 2. Active background listener
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      if (
+        response.actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER ||
+        !response.actionIdentifier
+      ) {
+        const data = response.notification.request.content.data as
+          | { action?: string; roomId?: string }
+          | undefined;
+        if (data?.action === 'open_room' && data?.roomId) {
+          if (data.roomId === 'solo') {
+            setPlayerModalOpen(true);
+            router.push('/');
+          } else {
+            router.push({ pathname: '/room/[id]', params: { id: data.roomId } });
+          }
+        }
+      }
+    });
+    return () => {
+      sub.remove();
+    };
+  }, [setPlayerModalOpen]);
+
+  return null;
+}
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -47,34 +96,12 @@ export default function RootLayout() {
     }
   }, [fontsLoaded]);
 
-  useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      if (
-        response.actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER ||
-        !response.actionIdentifier
-      ) {
-        const data = response.notification.request.content.data as
-          | { action?: string; roomId?: string }
-          | undefined;
-        if (data?.action === 'open_room' && data?.roomId) {
-          if (data.roomId === 'solo') {
-            router.push('/');
-          } else {
-            router.push({ pathname: '/room/[id]', params: { id: data.roomId } });
-          }
-        }
-      }
-    });
-    return () => {
-      sub.remove();
-    };
-  }, []);
-
   if (!fontsLoaded) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bgBase }}>
       <PlayerProvider>
+        <NotificationBridge />
         <SocketProvider>
           <ToastProvider>
             <NetworkGuard>

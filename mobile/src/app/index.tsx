@@ -9,9 +9,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { LinearGradient } from 'expo-linear-gradient';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
-import { HardDrive, Headphones, Heart, KeyRound, Music, Plus, Radio, Sparkles } from 'lucide-react-native';
 
-import { getVaultTracks, getVaultStats, type VaultTrack, type VaultStats, subscribeDownloadProgress } from '../storage/vault';
 import { useNetworkStatus } from '../utils/network';
 import { colors, spacing } from '../theme';
 import { clearSession, fetchMe, getBackendUrl, getCachedRooms, getRooms, getStoredSession, joinAsGuest, saveAuthToken, type ApiUser, type RoomSummary } from '../api';
@@ -20,24 +18,20 @@ import { useSocket } from '../state/SocketContext';
 import { RoomCardSkeletonList } from '../components/RoomCardSkeleton';
 import { CreateRoomModal, IdentityModal, JoinWithCodeModal, RoomPasswordModal } from '../components/Modals';
 import { ProfileModal } from '../components/ProfileModal';
-import { getFavoriteRooms, type FavoriteRoom, type PlayedTrack, getFavoriteTracks, subscribeFavoriteTracks, getRecentlyPlayed, clearRecentlyPlayed } from '../storage/history';
-import type { TrackInfo } from '../sync/protocol';
-import { hapticMedium, hapticLight } from '../utils/haptics';
+import { getFavoriteRooms, type FavoriteRoom, type PlayedTrack, getRecentlyPlayed } from '../storage/history';
+import { hapticMedium } from '../utils/haptics';
 import { useToast } from '../components/ToastContext';
 import { registerPushToken } from '../notifications';
 import { requestFirstLaunchPermissions } from '../permissions';
-import { usePlayer, usePlayerStatus } from '../audio/PlayerContext';
+import { usePlayer } from '../audio/PlayerContext';
+import { SoloSearchModal } from '../components/SoloSearchModal';
+import { MiniPlayer } from '../components/MiniPlayer';
 
 import {
   HomeTopNav,
   NetworkStatusPill,
-  CategoryFilterChips,
-  type HomeCategory,
-  QuickAccessGrid,
   HeroHeader,
-  MusicShelves,
   StationCarousel,
-  PersonalStatsCard,
   GenreFilterBar,
   RoomGridItem,
   RoomGridEmptyState,
@@ -56,42 +50,12 @@ const GENRE_MAP: Record<string, string[]> = {
   'Ambient': ['ambient', 'drone', 'meditation', 'focus', 'atmosphere', 'peaceful'],
 };
 
-const STARTER_TRACKS: TrackInfo[] = [
-  { track_uri: 'jfKfPfyJRdk', track_name: 'Lofi Hip Hop Chill Beats', artist: 'Lofi Girl', album_art_url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=300&q=80', duration_ms: 180000 },
-  { track_uri: '4xDzrJKXOOY', track_name: 'Synthwave Night Drive', artist: 'Retro Dreamer', album_art_url: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=300&q=80', duration_ms: 210000 },
-];
-
-const PRESET_TRACKS: Record<string, { title: string; tracks: TrackInfo[] }> = {
-  lofi: {
-    title: 'Lofi & Chill',
-    tracks: [
-      { track_uri: 'jfKfPfyJRdk', track_name: 'Lofi Hip Hop Chill Beats', artist: 'Lofi Girl', album_art_url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=300&q=80', duration_ms: 180000 },
-      { track_uri: '5qap5aO4i9A', track_name: 'Lofi Beats to Relax', artist: 'ChilledCow', album_art_url: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&q=80', duration_ms: 200000 },
-    ],
-  },
-  synthwave: {
-    title: 'Synthwave Beats',
-    tracks: [
-      { track_uri: '4xDzrJKXOOY', track_name: 'Synthwave Night Drive', artist: 'Retro Dreamer', album_art_url: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=300&q=80', duration_ms: 210000 },
-      { track_uri: 'MVPTGNGiI-4', track_name: 'Neon Horizon', artist: 'Kavinsky Mix', album_art_url: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&q=80', duration_ms: 225000 },
-    ],
-  },
-  ambient: {
-    title: 'Ambient Drift',
-    tracks: [
-      { track_uri: 'DWcJFNfaw90', track_name: 'Weightless Deep Ambient', artist: 'Marconi Union', album_art_url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=300&q=80', duration_ms: 300000 },
-      { track_uri: 'S4mC7N3U6Bw', track_name: 'Celestial Meditation', artist: 'Zen Atmosphere', album_art_url: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=300&q=80', duration_ms: 280000 },
-    ],
-  },
-};
-
 export default function Landing() {
   const { connect, disconnect } = useSocket();
   const toast = useToast();
-  const { currentTrack, playTrack, play, setPlayerModalOpen } = usePlayer();
-  const { playing } = usePlayerStatus();
+  const { playTrack, setPlayerModalOpen } = usePlayer();
 
-  // 21 Top-Level State Variables
+  // Top-Level State Variables
   const [user, setUser] = useState<ApiUser | null>(null);
   const [rooms, setRooms] = useState<RoomSummary[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -102,21 +66,17 @@ export default function Landing() {
   const [showProfile, setShowProfile] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [showJoinWithCode, setShowJoinWithCode] = useState(false);
+  const [showSoloSearch, setShowSoloSearch] = useState(false);
   const [pwRoom, setPwRoom] = useState<RoomSummary | null>(null);
   const [favoriteRooms, setFavoriteRooms] = useState<FavoriteRoom[]>([]);
-  const [favoriteTracks, setFavoriteTracks] = useState<TrackInfo[]>([]);
   const [recentTracks, setRecentTracks] = useState<PlayedTrack[]>([]);
-  const [downloadedUris, setDownloadedUris] = useState<Set<string>>(new Set());
   const [ready, setReady] = useState(false);
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [showReconnectedPill, setShowReconnectedPill] = useState(false);
-  const [vaultTracks, setVaultTracks] = useState<VaultTrack[]>([]);
-  const [vaultStats, setVaultStats] = useState<VaultStats | null>(null);
-  const [homeCategory, setHomeCategory] = useState<HomeCategory>('All');
   const [scrollOffsetY, setScrollOffsetY] = useState(0);
 
-  // 5 Refs
+  // Refs
   const flatListRef = useRef<FlatList>(null);
   const searchInputRef = useRef<TextInput>(null);
   const handledTokensRef = useRef<Set<string>>(new Set());
@@ -147,35 +107,11 @@ export default function Landing() {
     } catch {}
   }, []);
 
-  const loadHistoryAndFavorites = useCallback(async () => {
+  const loadHistory = useCallback(async () => {
     try {
-      const [favs, recents, vault, stats] = await Promise.all([
-        getFavoriteTracks(),
-        getRecentlyPlayed(),
-        getVaultTracks(),
-        getVaultStats(),
-      ]);
-      setFavoriteTracks(favs);
+      const recents = await getRecentlyPlayed();
       setRecentTracks(recents);
-      setVaultTracks(vault);
-      setVaultStats(stats);
-      setDownloadedUris(new Set(vault.map((t) => t.track_uri)));
     } catch {}
-  }, []);
-
-  useEffect(() => {
-    const unsubFav = subscribeFavoriteTracks((favs) => setFavoriteTracks(favs));
-    const unsubVault = subscribeDownloadProgress(() => {
-      void Promise.all([getVaultTracks(), getVaultStats()]).then(([tracks, stats]) => {
-        setVaultTracks(tracks);
-        setVaultStats(stats);
-        setDownloadedUris(new Set(tracks.map((t) => t.track_uri)));
-      });
-    });
-    return () => {
-      unsubFav();
-      unsubVault();
-    };
   }, []);
 
   const loadRooms = useCallback(async () => {
@@ -184,14 +120,14 @@ export default function Landing() {
       setRooms(data);
     } catch {}
     await loadFavorites();
-    await loadHistoryAndFavorites();
-  }, [loadFavorites, loadHistoryAndFavorites]);
+    await loadHistory();
+  }, [loadFavorites, loadHistory]);
 
   useFocusEffect(
     useCallback(() => {
       void loadFavorites();
-      void loadHistoryAndFavorites();
-    }, [loadFavorites, loadHistoryAndFavorites]),
+      void loadHistory();
+    }, [loadFavorites, loadHistory]),
   );
 
   // 0ms Optimistic cache hydration + background revalidation
@@ -367,25 +303,9 @@ export default function Landing() {
     openRoom({ id: roomId });
   };
 
-  const handleStartSoloJam = async () => {
+  const handleStartSoloJam = () => {
     void hapticMedium();
-    if (currentTrack) {
-      if (!playing) play();
-      setPlayerModalOpen(true);
-      return;
-    }
-    if (favoriteTracks.length > 0) {
-      await playTrack(favoriteTracks[0], favoriteTracks, { sourceTitle: 'Liked Songs' });
-      setPlayerModalOpen(true);
-      return;
-    }
-    if (recentTracks.length > 0) {
-      await playTrack(recentTracks[0], recentTracks, { sourceTitle: 'Recently Played' });
-      setPlayerModalOpen(true);
-      return;
-    }
-    await playTrack(STARTER_TRACKS[0], STARTER_TRACKS, { sourceTitle: 'Solo Jam' });
-    setPlayerModalOpen(true);
+    setShowSoloSearch(true);
   };
 
   const handleProfilePlayTrack = (track: PlayedTrack) => {
@@ -394,70 +314,14 @@ export default function Landing() {
     setPlayerModalOpen(true);
   };
 
-  const handleShufflePlayLiked = useCallback(() => {
-    if (favoriteTracks.length === 0) return;
-    void hapticMedium();
-    const shuffled = [...favoriteTracks].sort(() => Math.random() - 0.5);
-    void playTrack(shuffled[0], shuffled, { sourceTitle: 'Liked Songs' });
-    setPlayerModalOpen(true);
-  }, [favoriteTracks, playTrack, setPlayerModalOpen]);
-
-  const handlePlayLikedTrack = (track: TrackInfo) => {
-    void hapticLight();
-    const otherTracks = favoriteTracks.filter((t) => t.track_uri !== track.track_uri);
-    void playTrack(track, [track, ...otherTracks], { sourceTitle: 'Liked Songs' });
-    setPlayerModalOpen(true);
-  };
-
-  const handlePlayRecentTrack = (track: PlayedTrack) => {
-    void hapticLight();
-    void playTrack(track, recentTracks, { sourceTitle: 'Recently Played' });
-    setPlayerModalOpen(true);
-  };
-
-  const handleClearRecent = async () => {
-    void hapticLight();
-    await clearRecentlyPlayed();
-    setRecentTracks([]);
-    toast('Listening history cleared', 'info');
-  };
-
   const handleRoomPress = (room: RoomSummary) => {
     if (!isOnline) {
       void hapticMedium();
-      toast('Live rooms require internet. Starting solo session instead.', 'info');
-      void handleStartSoloJam();
+      toast('Live rooms require internet. Tap Solo Jam for music.', 'info');
       return;
     }
     if (room.is_private) setPwRoom(room);
     else openRoom(room);
-  };
-
-  const handlePlayVaultTrack = (track: VaultTrack) => {
-    void hapticLight();
-    const currentTrackInfo: TrackInfo = {
-      track_uri: track.local_file_uri || track.track_uri,
-      track_name: track.track_name,
-      artist: track.artist,
-      album_art_url: track.album_art_url,
-      duration_ms: track.duration_ms,
-    };
-    const queueList: TrackInfo[] = vaultTracks.map((t) => ({
-      track_uri: t.local_file_uri || t.track_uri,
-      track_name: t.track_name,
-      artist: t.artist,
-      album_art_url: t.album_art_url,
-      duration_ms: t.duration_ms,
-    }));
-    void playTrack(currentTrackInfo, queueList, { sourceTitle: 'Offline Vault' });
-    setPlayerModalOpen(true);
-  };
-
-  const handleShuffleVault = () => {
-    if (vaultTracks.length === 0) return;
-    void hapticMedium();
-    const shuffled = [...vaultTracks].sort(() => Math.random() - 0.5);
-    handlePlayVaultTrack(shuffled[0]);
   };
 
   const handleJoinWithCode = (rawCode: string) => {
@@ -470,53 +334,6 @@ export default function Landing() {
     setShowJoinWithCode(false);
     openRoom({ id: clean });
   };
-
-  const handlePlayPresetGenre = async (genre: 'lofi' | 'synthwave' | 'ambient') => {
-    void hapticMedium();
-    const preset = PRESET_TRACKS[genre] || PRESET_TRACKS.lofi;
-    await playTrack(preset.tracks[0], preset.tracks, { sourceTitle: preset.title });
-    setPlayerModalOpen(true);
-  };
-
-  const quickAccessItems = useMemo(() => {
-    const isLikedPlaying = Boolean(currentTrack && favoriteTracks.some((t) => t.track_uri === currentTrack.track_uri));
-    return [
-      { id: 'liked', title: 'Liked Songs', subtitle: favoriteTracks.length ? `${favoriteTracks.length} tracks` : 'Favorites', gradient: ['#5b21b6', '#7c3aed'] as [string, string], icon: <Heart size={20} color="#fff" fill="#fff" />, onPress: handleShufflePlayLiked, isPlaying: isLikedPlaying },
-      { id: 'vault', title: 'Offline Vault', subtitle: vaultTracks.length ? `${vaultTracks.length} offline` : 'Saved Audio', gradient: ['#b45309', '#f59e0b'] as [string, string], icon: <HardDrive size={20} color="#fff" />, onPress: () => { void hapticMedium(); setHomeCategory('Downloaded'); flatListRef.current?.scrollToOffset({ offset: 0, animated: true }); }, isPlaying: false },
-      { id: 'solo', title: 'Solo Jam', subtitle: 'Play Instantly', gradient: ['#0284c7', '#06b6d4'] as [string, string], icon: <Headphones size={20} color="#fff" />, onPress: () => void handleStartSoloJam(), isPlaying: playing && !pwRoom },
-      { id: 'lofi', title: 'Lofi & Chill', subtitle: 'Study & Relax', gradient: ['#db2777', '#f97316'] as [string, string], icon: <Radio size={20} color="#fff" />, onPress: () => void handlePlayPresetGenre('lofi'), isPlaying: false },
-      { id: 'synthwave', title: 'Synthwave Beats', subtitle: 'Retro Drive', gradient: ['#7c3aed', '#ec4899'] as [string, string], icon: <Sparkles size={20} color="#fff" />, onPress: () => void handlePlayPresetGenre('synthwave'), isPlaying: false },
-      { id: 'ambient', title: 'Ambient Drift', subtitle: 'Deep Atmosphere', gradient: ['#1e1b4b', '#3b82f6'] as [string, string], icon: <Music size={20} color="#fff" />, onPress: () => void handlePlayPresetGenre('ambient'), isPlaying: false },
-      (!isOnline || favoriteRooms.length === 0)
-        ? {
-            id: 'create-room',
-            title: isOnline ? 'Create Jam Room' : 'Offline Vault',
-            subtitle: isOnline ? 'Broadcast Live' : 'Browse Local Files',
-            gradient: ['#065f46', '#10b981'] as [string, string],
-            icon: isOnline ? <Plus size={20} color="#fff" strokeWidth={2.4} /> : <HardDrive size={20} color="#fff" />,
-            onPress: () => { void hapticMedium(); if (isOnline) { if (user) setShowCreate(true); else setShowIdentity(true); } else { setHomeCategory('Downloaded'); } },
-            isPlaying: false,
-          }
-        : {
-            id: 'fav-room',
-            title: favoriteRooms[0].name,
-            subtitle: favoriteRooms[0].hostName ? `DJ ${favoriteRooms[0].hostName}` : 'Pinned Station',
-            gradient: ['#065f46', '#10b981'] as [string, string],
-            icon: <Radio size={20} color="#fff" />,
-            onPress: () => { void hapticMedium(); openRoom({ id: favoriteRooms[0].id, name: favoriteRooms[0].name }); },
-            isPlaying: false,
-          },
-      {
-        id: 'join-code',
-        title: isOnline ? 'Join with Code' : 'Manage Storage',
-        subtitle: isOnline ? 'Private Room' : 'View Storage',
-        gradient: ['#1e293b', '#475569'] as [string, string],
-        icon: isOnline ? <KeyRound size={20} color="#fff" /> : <HardDrive size={20} color="#fff" />,
-        onPress: () => { void hapticMedium(); if (isOnline) setShowJoinWithCode(true); else router.push('/offline'); },
-        isPlaying: false,
-      },
-    ];
-  }, [currentTrack, favoriteTracks, vaultTracks, isOnline, playing, pwRoom, favoriteRooms, user, handleShufflePlayLiked]);
 
   const filteredRooms = useMemo(() => {
     let list = rooms;
@@ -548,7 +365,7 @@ export default function Landing() {
 
       <FlatList
         ref={flatListRef}
-        data={!isOnline || homeCategory === 'Music' || homeCategory === 'Downloaded' ? [] : filteredRooms}
+        data={!isOnline ? [] : filteredRooms}
         keyExtractor={(r) => r.id}
         showsVerticalScrollIndicator={false}
         style={styles.flatList}
@@ -561,46 +378,21 @@ export default function Landing() {
             <HomeTopNav
               user={user}
               initials={initials}
-              onOpenVault={() => { void hapticMedium(); setHomeCategory('Downloaded'); }}
+              onOpenVault={() => { void hapticMedium(); router.push('/offline'); }}
               onOpenProfile={() => setShowProfile(true)}
               onOpenSignIn={() => setShowIdentity(true)}
               bgOpacity={Math.max(0, Math.min(1, (scrollOffsetY - 25) / 50))}
             />
             <NetworkStatusPill isOnline={isOnline} showReconnected={showReconnectedPill} />
-            <CategoryFilterChips selectedCategory={homeCategory} onSelectCategory={setHomeCategory} />
-            {(homeCategory === 'All' || homeCategory === 'Music' || homeCategory === 'Downloaded') && (
-              <QuickAccessGrid items={quickAccessItems} />
-            )}
             <HeroHeader
               onStartSoloJam={handleStartSoloJam}
               onCreateLiveRoom={() => { void hapticMedium(); if (user) setShowCreate(true); else setShowIdentity(true); }}
               onJoinWithCode={() => { void hapticMedium(); setShowJoinWithCode(true); }}
             />
-            {(homeCategory === 'All' || homeCategory === 'Music') && (
-              <MusicShelves
-                favoriteTracks={favoriteTracks}
-                recentTracks={recentTracks}
-                downloadedUris={downloadedUris}
-                onPlayLikedTrack={handlePlayLikedTrack}
-                onShuffleLiked={handleShufflePlayLiked}
-                onPlayRecentTrack={handlePlayRecentTrack}
-                onClearRecent={handleClearRecent}
-              />
-            )}
-            {(homeCategory === 'All' || homeCategory === 'Live Rooms') && favoriteRooms.length > 0 && (
+            {favoriteRooms.length > 0 && (
               <StationCarousel favoriteRooms={favoriteRooms} onOpenRoom={openRoom} />
             )}
-            {(!isOnline || homeCategory === 'Downloaded') && (
-              <PersonalStatsCard
-                vaultTracks={vaultTracks}
-                vaultStats={vaultStats}
-                currentTrackUri={currentTrack?.track_uri}
-                onPlayVaultTrack={handlePlayVaultTrack}
-                onShuffleVault={handleShuffleVault}
-                onManageVault={() => router.push('/offline')}
-              />
-            )}
-            {isOnline && homeCategory !== 'Downloaded' && (homeCategory === 'All' || homeCategory === 'Live Rooms') && (
+            {isOnline && (
               <GenreFilterBar
                 roomCount={filteredRooms.length}
                 isSyncingCloud={isSyncingCloud}
@@ -622,7 +414,7 @@ export default function Landing() {
           <RoomGridItem room={item} onPress={handleRoomPress} onFavoriteToggle={loadFavorites} />
         )}
         ListEmptyComponent={
-          !isOnline || homeCategory === 'Music' || homeCategory === 'Downloaded' ? null : ready ? (
+          !isOnline ? null : ready ? (
             <RoomGridEmptyState
               isSearching={searchQuery.trim().length > 0}
               searchQuery={searchQuery}
@@ -641,6 +433,13 @@ export default function Landing() {
             onPressTerms={() => router.push('/legal/terms')}
           />
         }
+      />
+
+      <MiniPlayer bottomOffset={Math.max(insets.bottom, 12)} />
+
+      <SoloSearchModal
+        visible={showSoloSearch}
+        onClose={() => setShowSoloSearch(false)}
       />
 
       <ProfileModal

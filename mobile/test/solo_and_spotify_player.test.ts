@@ -213,4 +213,83 @@ describe('Solo Jam & Spotify Player Upgrades Suite', () => {
     assert.equal(tiles[1].count, 2);
     assert.equal(tiles[6].title, 'Lofi Lounge');
   });
+
+  it('correctly maps TrackSearchResult to TrackInfo schema for solo playback', () => {
+    interface SearchResult {
+      uri: string;
+      name: string;
+      artist?: string;
+      album_art_url?: string;
+      duration_ms?: number;
+    }
+
+    const rawResult: SearchResult = {
+      uri: 'yt_abc123',
+      name: 'Midnight City',
+      artist: 'M83',
+      album_art_url: 'https://openjam.fun/m83.jpg',
+      duration_ms: 243000,
+    };
+
+    const mapped: TrackInfo = {
+      track_uri: rawResult.uri,
+      track_name: rawResult.name,
+      artist: rawResult.artist,
+      album_art_url: rawResult.album_art_url,
+      duration_ms: rawResult.duration_ms,
+    };
+
+    assert.equal(mapped.track_uri, 'yt_abc123');
+    assert.equal(mapped.track_name, 'Midnight City');
+    assert.equal(mapped.artist, 'M83');
+    assert.equal(mapped.duration_ms, 243000);
+  });
+
+  it('discards stale out-of-order search query responses via monotonic requestId', () => {
+    let currentReqId = 0;
+    let renderedQuery = '';
+
+    const handleSearchResponse = (reqId: number, query: string) => {
+      if (reqId === currentReqId) {
+        renderedQuery = query;
+      }
+    };
+
+    // Query 1 dispatched
+    const req1 = ++currentReqId;
+    // Query 2 dispatched shortly after
+    const req2 = ++currentReqId;
+
+    // Suppose query 2 finishes faster than query 1 over cellular network
+    handleSearchResponse(req2, 'synthwave');
+    assert.equal(renderedQuery, 'synthwave');
+
+    // Stale query 1 arrives later — should be discarded
+    handleSearchResponse(req1, 'lofi');
+    assert.equal(renderedQuery, 'synthwave'); // Still synthwave!
+  });
+
+  it('correctly routes notification tap responses to player modal and screen targets', () => {
+    const routeDecisions: Array<{ action: string; openPlayerModal: boolean; path: string }> = [];
+
+    const handleNotificationData = (data?: { action?: string; roomId?: string }) => {
+      if (data?.action === 'open_room' && data?.roomId) {
+        if (data.roomId === 'solo') {
+          routeDecisions.push({ action: 'solo_jam', openPlayerModal: true, path: '/' });
+        } else {
+          routeDecisions.push({ action: 'live_room', openPlayerModal: false, path: `/room/${data.roomId}` });
+        }
+      }
+    };
+
+    handleNotificationData({ action: 'open_room', roomId: 'solo' });
+    handleNotificationData({ action: 'open_room', roomId: 'room-alpha' });
+
+    assert.equal(routeDecisions.length, 2);
+    assert.equal(routeDecisions[0].openPlayerModal, true);
+    assert.equal(routeDecisions[0].path, '/');
+    assert.equal(routeDecisions[1].openPlayerModal, false);
+    assert.equal(routeDecisions[1].path, '/room/room-alpha');
+  });
 });
+

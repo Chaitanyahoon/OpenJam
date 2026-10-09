@@ -77,6 +77,8 @@ export async function registerPushToken(): Promise<string | null> {
 export const MEDIA_NOTIFICATION_ID = 'openjam-media-playback';
 export const MEDIA_CHANNEL_ID = 'openjam-media-playback-channel';
 export const MEDIA_CATEGORY_ID = 'openjam-media-category';
+export const MEDIA_CATEGORY_PLAYING = 'openjam-media-category-playing';
+export const MEDIA_CATEGORY_PAUSED = 'openjam-media-category-paused';
 
 export const MEDIA_ACTIONS = {
   PREV: 'ACTION_PREV',
@@ -99,20 +101,59 @@ export async function setupMediaPlaybackNotification(): Promise<void> {
       showBadge: false,
     });
 
-    await Notifications.setNotificationCategoryAsync(MEDIA_CATEGORY_ID, [
+    // Playing category (shows Pause button)
+    await Notifications.setNotificationCategoryAsync(MEDIA_CATEGORY_PLAYING, [
       {
         identifier: MEDIA_ACTIONS.PREV,
-        buttonTitle: '⏮ Prev',
+        buttonTitle: 'Previous',
         options: { opensAppToForeground: false },
       },
       {
         identifier: MEDIA_ACTIONS.PLAY_PAUSE,
-        buttonTitle: '⏯ Play/Pause',
+        buttonTitle: 'Pause',
         options: { opensAppToForeground: false },
       },
       {
         identifier: MEDIA_ACTIONS.NEXT,
-        buttonTitle: '⏭ Skip',
+        buttonTitle: 'Next',
+        options: { opensAppToForeground: false },
+      },
+    ]);
+
+    // Paused category (shows Play button)
+    await Notifications.setNotificationCategoryAsync(MEDIA_CATEGORY_PAUSED, [
+      {
+        identifier: MEDIA_ACTIONS.PREV,
+        buttonTitle: 'Previous',
+        options: { opensAppToForeground: false },
+      },
+      {
+        identifier: MEDIA_ACTIONS.PLAY_PAUSE,
+        buttonTitle: 'Play',
+        options: { opensAppToForeground: false },
+      },
+      {
+        identifier: MEDIA_ACTIONS.NEXT,
+        buttonTitle: 'Next',
+        options: { opensAppToForeground: false },
+      },
+    ]);
+
+    // Base category for backward compatibility
+    await Notifications.setNotificationCategoryAsync(MEDIA_CATEGORY_ID, [
+      {
+        identifier: MEDIA_ACTIONS.PREV,
+        buttonTitle: 'Previous',
+        options: { opensAppToForeground: false },
+      },
+      {
+        identifier: MEDIA_ACTIONS.PLAY_PAUSE,
+        buttonTitle: 'Play/Pause',
+        options: { opensAppToForeground: false },
+      },
+      {
+        identifier: MEDIA_ACTIONS.NEXT,
+        buttonTitle: 'Next',
         options: { opensAppToForeground: false },
       },
     ]);
@@ -148,17 +189,17 @@ export async function updateMediaNotification(meta: MediaNotificationMeta): Prom
   try {
     await setupMediaPlaybackNotification();
 
-    const playSymbol = meta.isPlaying ? '▶' : '⏸';
     const subtext = meta.artist
-      ? `${playSymbol} ${meta.artist}`
-      : `${playSymbol} ${meta.isPlaying ? 'Playing on OpenJam' : 'Paused'}`;
+      ? (meta.isPlaying ? meta.artist : `${meta.artist} • Paused`)
+      : (meta.isPlaying ? 'Streaming on OpenJam' : 'Paused');
 
     await Notifications.scheduleNotificationAsync({
       identifier: MEDIA_NOTIFICATION_ID,
       content: {
         title: meta.title,
         body: subtext,
-        categoryIdentifier: MEDIA_CATEGORY_ID,
+        subtitle: meta.roomId ? 'Jam Room' : 'Solo Jam',
+        categoryIdentifier: meta.isPlaying ? MEDIA_CATEGORY_PLAYING : MEDIA_CATEGORY_PAUSED,
         sticky: meta.isPlaying,
         autoDismiss: false,
         color: '#ff9f1c',
