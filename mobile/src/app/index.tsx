@@ -114,6 +114,7 @@ export default function Landing() {
   const [vaultTracks, setVaultTracks] = useState<VaultTrack[]>([]);
   const [vaultStats, setVaultStats] = useState<VaultStats | null>(null);
   const [homeCategory, setHomeCategory] = useState<HomeCategory>('All');
+  const [scrollOffsetY, setScrollOffsetY] = useState(0);
 
   // 5 Refs
   const flatListRef = useRef<FlatList>(null);
@@ -551,6 +552,8 @@ export default function Landing() {
         keyExtractor={(r) => r.id}
         showsVerticalScrollIndicator={false}
         style={styles.flatList}
+        onScroll={(e) => setScrollOffsetY(e.nativeEvent.contentOffset.y)}
+        scrollEventThrottle={16}
         contentContainerStyle={[styles.scrollContent, { flexGrow: 1, paddingBottom: Math.max(insets.bottom, 16) + 120 }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.amber} />}
         ListHeaderComponent={
@@ -561,6 +564,7 @@ export default function Landing() {
               onOpenVault={() => { void hapticMedium(); setHomeCategory('Downloaded'); }}
               onOpenProfile={() => setShowProfile(true)}
               onOpenSignIn={() => setShowIdentity(true)}
+              bgOpacity={Math.max(0, Math.min(1, (scrollOffsetY - 25) / 50))}
             />
             <NetworkStatusPill isOnline={isOnline} showReconnected={showReconnectedPill} />
             <CategoryFilterChips selectedCategory={homeCategory} onSelectCategory={setHomeCategory} />

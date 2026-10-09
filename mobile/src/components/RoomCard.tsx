@@ -22,7 +22,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import { Music, Disc, Play, Bookmark, Radio, Sparkles, Lock, Headphones } from 'lucide-react-native';
+import { Music, Music2, Play, Bookmark, Radio, Sparkles, Lock, Headphones } from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
 import type { RoomSummary } from '../api';
@@ -90,68 +90,81 @@ function EqualizerWave() {
   );
 }
 
-/** Visual analog vinyl turntable stage rendered when no album art is loaded */
-function VinylTurntableStage({
+/** Modern Album Art Hero Stage (No Vinyl) rendered when no cover image is loaded */
+function ModernRoomHeroStage({
   isPlaying,
 }: {
   isLounge?: boolean;
   isPlaying: boolean;
 }) {
-  const rotation = useSharedValue(0);
+  const bar1 = useSharedValue(0.4);
+  const bar2 = useSharedValue(0.7);
+  const bar3 = useSharedValue(0.5);
+  const bar4 = useSharedValue(0.85);
 
   useEffect(() => {
     if (isPlaying) {
-      rotation.value = withRepeat(
-        withTiming(rotation.value + 360, { duration: 6000, easing: Easing.linear }),
+      bar1.value = withRepeat(
+        withSequence(withTiming(0.9, { duration: 320 }), withTiming(0.3, { duration: 320 })),
         -1,
+        true,
+      );
+      bar2.value = withRepeat(
+        withSequence(withTiming(0.3, { duration: 400 }), withTiming(0.95, { duration: 400 })),
+        -1,
+        true,
+      );
+      bar3.value = withRepeat(
+        withSequence(withTiming(0.85, { duration: 280 }), withTiming(0.25, { duration: 280 })),
+        -1,
+        true,
+      );
+      bar4.value = withRepeat(
+        withSequence(withTiming(0.35, { duration: 360 }), withTiming(0.8, { duration: 360 })),
+        -1,
+        true,
       );
     } else {
-      cancelAnimation(rotation);
-      rotation.value = withTiming(rotation.value + 120, {
-        duration: 600,
-        easing: Easing.out(Easing.quad),
-      });
+      cancelAnimation(bar1);
+      cancelAnimation(bar2);
+      cancelAnimation(bar3);
+      cancelAnimation(bar4);
+      bar1.value = withTiming(0.35);
+      bar2.value = withTiming(0.5);
+      bar3.value = withTiming(0.35);
+      bar4.value = withTiming(0.4);
     }
-  }, [isPlaying, rotation]);
+  }, [isPlaying, bar1, bar2, bar3, bar4]);
 
-  const discAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${rotation.value % 360}deg` }],
-  }));
+  const style1 = useAnimatedStyle(() => ({ height: `${bar1.value * 100}%` }));
+  const style2 = useAnimatedStyle(() => ({ height: `${bar2.value * 100}%` }));
+  const style3 = useAnimatedStyle(() => ({ height: `${bar3.value * 100}%` }));
+  const style4 = useAnimatedStyle(() => ({ height: `${bar4.value * 100}%` }));
 
   return (
-    <View style={styles.turntableStage}>
-      {/* Ambient warm radial glow behind the record */}
-      <View
-        style={[
-          styles.turntableAura,
-          isPlaying && styles.turntableAuraActive,
-        ]}
+    <View style={styles.modernHeroStage}>
+      <LinearGradient
+        colors={['rgba(255, 159, 28, 0.18)', 'rgba(88, 101, 242, 0.12)', 'rgba(12, 12, 18, 0.95)']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
       />
+      <View style={[styles.modernHeroAura, isPlaying && styles.modernHeroAuraActive]} />
 
-      {/* Vinyl Record Disc */}
-      <Animated.View
-        style={[
-          styles.vinylRecord,
-          discAnimatedStyle,
-        ]}
-      >
-        {/* Concentric groove rings */}
-        <View style={styles.grooveRing1} />
-        <View style={styles.grooveRing2} />
-        <View style={styles.grooveRing3} />
-
-        {/* Center Vinyl Label */}
-        <View
-          style={[
-            styles.vinylCenterLabel,
-            isPlaying && styles.vinylCenterLabelActive,
-          ]}
-        >
-          <Disc size={13} color={colors.amber} strokeWidth={2.4} />
-          {/* Spindle hole */}
-          <View style={styles.spindleHole} />
+      <View style={styles.modernHeroCenter}>
+        <View style={[styles.modernHeroIconBox, isPlaying && styles.modernHeroIconBoxActive]}>
+          <Music2 size={24} color={colors.amber} />
         </View>
-      </Animated.View>
+
+        {isPlaying && (
+          <View style={styles.modernEqualizerRow}>
+            <Animated.View style={[styles.modernEqBar, style1]} />
+            <Animated.View style={[styles.modernEqBar, style2]} />
+            <Animated.View style={[styles.modernEqBar, style3]} />
+            <Animated.View style={[styles.modernEqBar, style4]} />
+          </View>
+        )}
+      </View>
     </View>
   );
 }
@@ -235,7 +248,7 @@ export function RoomCard({
               />
             </>
           ) : (
-            <VinylTurntableStage isPlaying={isPlaying} />
+            <ModernRoomHeroStage isPlaying={isPlaying} />
           )}
 
           {/* Top Badges Overlay */}
@@ -344,7 +357,7 @@ export function RoomCard({
           <View style={styles.nowPlayingLeft}>
             {isPlaying ? (
               <View style={styles.discIconWrap}>
-                <Disc size={15} color={colors.amber} strokeWidth={2.4} />
+                <Music2 size={15} color={colors.amber} strokeWidth={2.4} />
               </View>
             ) : (
               <View style={styles.radioIconWrap}>
@@ -427,7 +440,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     height: 42,
   },
-  turntableStage: {
+  modernHeroStage: {
     height: 104,
     width: '100%',
     alignItems: 'center',
@@ -435,79 +448,46 @@ const styles = StyleSheet.create({
     backgroundColor: '#0d0d14',
     position: 'relative',
     overflow: 'hidden',
-    paddingTop: 10,
   },
-  turntableAura: {
+  modernHeroAura: {
     position: 'absolute',
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     backgroundColor: 'rgba(255, 159, 28, 0.08)',
   },
-  turntableAuraActive: {
-    backgroundColor: 'rgba(255, 159, 28, 0.18)',
+  modernHeroAuraActive: {
+    backgroundColor: 'rgba(255, 159, 28, 0.22)',
   },
-  vinylRecord: {
-    width: 66,
-    height: 66,
-    borderRadius: 33,
-    backgroundColor: '#111118',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+  modernHeroCenter: {
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-    elevation: 5,
+    gap: 8,
   },
-  grooveRing1: {
-    position: 'absolute',
-    width: 62,
-    height: 62,
-    borderRadius: 31,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  grooveRing2: {
-    position: 'absolute',
+  modernHeroIconBox: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.07)',
-  },
-  grooveRing3: {
-    position: 'absolute',
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  vinylCenterLabel: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 159, 28, 0.2)',
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
     borderWidth: 1.5,
-    borderColor: 'rgba(255, 159, 28, 0.5)',
+    borderColor: 'rgba(255, 159, 28, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  vinylCenterLabelActive: {
-    backgroundColor: 'rgba(255, 159, 28, 0.32)',
+  modernHeroIconBoxActive: {
+    backgroundColor: 'rgba(255, 159, 28, 0.2)',
     borderColor: colors.amber,
   },
-  spindleHole: {
-    position: 'absolute',
-    width: 4.5,
-    height: 4.5,
-    borderRadius: 2.25,
-    backgroundColor: '#08080a',
-    borderWidth: 0.8,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+  modernEqualizerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 3,
+    height: 14,
+  },
+  modernEqBar: {
+    width: 3,
+    backgroundColor: colors.amber,
+    borderRadius: 1.5,
   },
   badgesOverlay: {
     position: 'absolute',

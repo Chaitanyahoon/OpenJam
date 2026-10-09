@@ -13,6 +13,7 @@ export interface HomeTopNavProps {
   onOpenVault: () => void;
   onOpenProfile: () => void;
   onOpenSignIn: () => void;
+  bgOpacity?: number;
 }
 
 export const HomeTopNav: React.FC<HomeTopNavProps> = ({
@@ -21,9 +22,19 @@ export const HomeTopNav: React.FC<HomeTopNavProps> = ({
   onOpenVault,
   onOpenProfile,
   onOpenSignIn,
+  bgOpacity = 0,
 }) => {
   return (
-    <View style={styles.navBar}>
+    <View
+      style={[
+        styles.navBar,
+        bgOpacity > 0 && {
+          backgroundColor: `rgba(8, 8, 10, ${Math.min(0.95, bgOpacity)})`,
+          borderBottomWidth: bgOpacity > 0.4 ? 1 : 0,
+          borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+        },
+      ]}
+    >
       <View style={styles.navLeft}>
         <View style={styles.brandLogoWrap}>
           <Image

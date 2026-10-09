@@ -28,6 +28,13 @@ import {
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import {
   ChevronDown,
   Heart,
@@ -46,10 +53,14 @@ import {
   Sparkles,
   Music2,
   Radio,
+  Headphones,
+  MessageSquareQuote,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
 import { usePlayer, usePlayerStatus } from '../audio/PlayerContext';
+import { useOptionalRoom } from '../state/RoomContext';
+import { fetchLyrics, type Lyrics, activeLyricIndex } from '../audio/lyrics';
 import {
   downloadTrackToVault,
   isTrackDownloaded,
@@ -112,10 +123,65 @@ export function SpotifyPlayerModal() {
   const startYRef = useRef(0);
   const trackBarWidthRef = useRef(SCREEN_WIDTH - 64);
 
+  const optionalRoom = useOptionalRoom();
+
+  const [lyrics, setLyrics] = useState<Lyrics | null>(null);
+  const [lyricsLoading, setLyricsLoading] = useState(false);
+  const [showLyricsModal, setShowLyricsModal] = useState(false);
+  const lyricsScrollRef = useRef<ScrollView>(null);
+
+  const heartScale = useSharedValue(1);
+  const animatedHeartStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: heartScale.value }],
+  }));
+
   const palette = useMemo(
     () => getAmbientPalette(currentTrack?.track_name, currentTrack?.artist, currentTrack?.album_art_url),
     [currentTrack?.track_name, currentTrack?.artist, currentTrack?.album_art_url],
   );
+
+  // Fetch real-time synced lyrics
+  useEffect(() => {
+    if (!currentTrack?.track_name) {
+      setLyrics(null);
+      return;
+    }
+    let cancelled = false;
+    setLyricsLoading(true);
+    fetchLyrics(
+      currentTrack.artist || '',
+      currentTrack.track_name,
+      (durationMs || 180000) / 1000,
+    )
+      .then((l) => {
+        if (!cancelled) {
+          setLyrics(l);
+          setLyricsLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLyricsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentTrack?.track_name, currentTrack?.artist, durationMs]);
+
+  const activeLineIdx = useMemo(() => {
+    if (!lyrics?.lines?.length) return -1;
+    return activeLyricIndex(lyrics.lines, currentPosMs);
+  }, [lyrics, currentPosMs]);
+
+  // Center active lyric line in lyrics sheet
+  useEffect(() => {
+    if (showLyricsModal && activeLineIdx >= 0 && lyricsScrollRef.current) {
+      lyricsScrollRef.current.scrollTo({
+        y: Math.max(0, activeLineIdx * 48 - 140),
+        animated: true,
+      });
+    }
+  }, [activeLineIdx, showLyricsModal]);
 
   // Poll current position smoothly
   useEffect(() => {
@@ -228,6 +294,10 @@ export function SpotifyPlayerModal() {
   };
 
   const handleToggleLike = async () => {
+    heartScale.value = withSequence(
+      withTiming(1.35, { duration: 110 }),
+      withSpring(1.0, { damping: 10, stiffness: 220 }),
+    );
     void hapticMedium();
     const liked = await toggleLike();
     toast(liked ? 'Added to Liked Songs' : 'Removed from Liked Songs', 'info');
@@ -371,11 +441,13 @@ export function SpotifyPlayerModal() {
                 style={styles.heartBtn}
                 accessibilityLabel={isLiked ? 'Unlike song' : 'Like song'}
               >
-                <Heart
-                  size={26}
-                  color={isLiked ? palette.accent : '#9999aa'}
-                  fill={isLiked ? palette.accent : 'transparent'}
-                />
+                <Animated.View style={animatedHeartStyle}>
+                  <Heart
+                    size={26}
+                    color={isLiked ? palette.accent : '#9999aa'}
+                    fill={isLiked ? palette.accent : 'transparent'}
+                  />
+                </Animated.View>
               </Pressable>
             </View>
 
@@ -490,47 +562,161 @@ export function SpotifyPlayerModal() {
               </Pressable>
             </View>
 
-            {/* Bottom Actions Row (Download Offline & Queue toggle) */}
-            <View style={styles.bottomActionsRow}>
-              <Pressable
-                onPress={handleDownload}
-                style={styles.actionBtn}
-                accessibilityLabel="Download song offline"
-              >
-                {downloadProgress?.state === 'downloading' ? (
-                  <View style={styles.downloadProgressWrap}>
-                    <ActivityIndicator size="small" color={colors.amber} />
-                    <Text style={styles.downloadProgressText}>
-                      {downloadProgress.percent}%
-                    </Text>
-                  </View>
-                ) : isDownloaded ? (
-                  <View style={styles.downloadedWrap}>
-                    <CheckCircle2 size={18} color={colors.green} />
-                    <Text style={styles.downloadedText}>Downloaded</Text>
-                  </View>
+            {/* Device Route Bar & Bottom Actions */}
+            <View style={styles.deviceRouteBar}>
+              <View style={styles.deviceRouteLeft}>
+                {optionalRoom?.roomName ? (
+                  <>
+                    <Radio size={13} color="#22c55e" />
+                    <Text style={styles.deviceRouteText}>Jam: {optionalRoom.roomName}</Text>
+                  </>
                 ) : (
-                  <View style={styles.downloadWrap}>
-                    <DownloadCloud size={18} color="#aaaabb" />
-                    <Text style={styles.downloadText}>Save Offline</Text>
+                  <>
+                    <Headphones size={13} color={palette.accent} />
+                    <Text style={[styles.deviceRouteText, { color: palette.accent }]}>Phone Speaker</Text>
+                  </>
+                )}
+              </View>
+
+              <View style={styles.bottomActionsRow}>
+                <Pressable
+                  onPress={handleDownload}
+                  style={styles.actionBtn}
+                  accessibilityLabel="Download song offline"
+                >
+                  {downloadProgress?.state === 'downloading' ? (
+                    <View style={styles.downloadProgressWrap}>
+                      <ActivityIndicator size="small" color={colors.amber} />
+                      <Text style={styles.downloadProgressText}>
+                        {downloadProgress.percent}%
+                      </Text>
+                    </View>
+                  ) : isDownloaded ? (
+                    <View style={styles.downloadedWrap}>
+                      <CheckCircle2 size={16} color={colors.green} />
+                      <Text style={styles.downloadedText}>Saved</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.downloadWrap}>
+                      <DownloadCloud size={16} color="#aaaabb" />
+                      <Text style={styles.downloadText}>Offline</Text>
+                    </View>
+                  )}
+                </Pressable>
+
+                <Pressable
+                  onPress={() => {
+                    void hapticLight();
+                    setShowQueue(true);
+                  }}
+                  style={styles.actionBtn}
+                  accessibilityLabel="View queue"
+                >
+                  <ListMusic size={16} color="#aaaabb" />
+                  <Text style={styles.downloadText}>Queue ({queue.length})</Text>
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Lyrics Peek Card (Spotify Style) */}
+            {lyrics && lyrics.lines.length > 0 && (
+              <Pressable
+                onPress={() => {
+                  void hapticMedium();
+                  setShowLyricsModal(true);
+                }}
+                style={[styles.lyricsPeekCard, { borderColor: `${palette.accent}44` }]}
+                accessibilityLabel="Expand lyrics"
+              >
+                <View style={styles.lyricsPeekHeader}>
+                  <View style={styles.lyricsPeekTitleRow}>
+                    <MessageSquareQuote size={13} color={palette.accent} />
+                    <Text style={[styles.lyricsPeekTitle, { color: palette.accent }]}>LYRICS</Text>
                   </View>
+                  <Text style={styles.lyricsExpandHint}>Tap to expand</Text>
+                </View>
+                <Text style={styles.lyricsCurrentLine} numberOfLines={1}>
+                  {activeLineIdx >= 0 ? lyrics.lines[activeLineIdx].text : lyrics.lines[0]?.text}
+                </Text>
+                {activeLineIdx >= 0 && activeLineIdx + 1 < lyrics.lines.length && (
+                  <Text style={styles.lyricsNextLine} numberOfLines={1}>
+                    {lyrics.lines[activeLineIdx + 1].text}
+                  </Text>
                 )}
               </Pressable>
+            )}
+          </View>
+        )}
 
+        {/* Synced Real-Time Karaoke Lyrics Fullsheet Modal */}
+        <Modal
+          visible={showLyricsModal}
+          animationType="slide"
+          presentationStyle="fullScreen"
+          onRequestClose={() => setShowLyricsModal(false)}
+        >
+          <View style={[styles.lyricsModalContainer, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+            <LinearGradient
+              colors={[palette.top, palette.mid, palette.bottom]}
+              style={StyleSheet.absoluteFill}
+            />
+
+            <View style={styles.lyricsModalHeader}>
               <Pressable
                 onPress={() => {
                   void hapticLight();
-                  setShowQueue(true);
+                  setShowLyricsModal(false);
                 }}
-                style={styles.actionBtn}
-                accessibilityLabel="View queue"
+                hitSlop={14}
+                style={styles.headerBtn}
+                accessibilityLabel="Close lyrics"
               >
-                <ListMusic size={18} color="#aaaabb" />
-                <Text style={styles.downloadText}>Queue ({queue.length})</Text>
+                <ChevronDown size={28} color="#ffffff" />
               </Pressable>
+
+              <View style={styles.headerCenter}>
+                <Text style={styles.headerEyebrow}>KARAOKE LYRICS</Text>
+                <Text style={styles.headerTitle} numberOfLines={1}>
+                  {currentTrack.track_name}
+                </Text>
+              </View>
+
+              <View style={{ width: 40 }} />
             </View>
+
+            <ScrollView
+              ref={lyricsScrollRef}
+              style={styles.lyricsScroll}
+              contentContainerStyle={styles.lyricsContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {lyrics?.lines.map((line, idx) => {
+                const isActive = idx === activeLineIdx;
+                const isPast = idx < activeLineIdx;
+                return (
+                  <Pressable
+                    key={`${line.timeMs}_${idx}`}
+                    onPress={() => {
+                      void hapticLight();
+                      void seekToMs(line.timeMs);
+                    }}
+                    style={[styles.lyricLineRow, isActive && styles.lyricLineRowActive]}
+                  >
+                    <Text
+                      style={[
+                        styles.lyricText,
+                        isActive && styles.lyricTextActive,
+                        isPast && styles.lyricTextPast,
+                      ]}
+                    >
+                      {line.text}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
           </View>
-        )}
+        </Modal>
       </View>
     </Modal>
   );
@@ -838,5 +1024,104 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: colors.amber,
+  },
+  deviceRouteBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+    marginTop: 4,
+    marginBottom: 10,
+  },
+  deviceRouteLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  deviceRouteText: {
+    fontFamily: fontFamily.bodyMedium,
+    fontSize: 12,
+    color: '#ffffff',
+  },
+  lyricsPeekCard: {
+    backgroundColor: 'rgba(0, 0, 0, 0.38)',
+    borderRadius: 16,
+    padding: 14,
+    marginTop: 6,
+    borderWidth: 1,
+  },
+  lyricsPeekHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  lyricsPeekTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  lyricsPeekTitle: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 11,
+    letterSpacing: 1.2,
+  },
+  lyricsExpandHint: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.45)',
+  },
+  lyricsCurrentLine: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 15,
+    color: '#ffffff',
+    lineHeight: 22,
+  },
+  lyricsNextLine: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.5)',
+    marginTop: 2,
+    lineHeight: 18,
+  },
+  lyricsModalContainer: {
+    flex: 1,
+    backgroundColor: '#08080a',
+  },
+  lyricsModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  lyricsScroll: {
+    flex: 1,
+  },
+  lyricsContent: {
+    paddingHorizontal: 24,
+    paddingTop: 40,
+    paddingBottom: 100,
+    gap: 16,
+  },
+  lyricLineRow: {
+    paddingVertical: 6,
+  },
+  lyricLineRowActive: {
+    transform: [{ scale: 1.02 }],
+  },
+  lyricText: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 20,
+    color: 'rgba(255, 255, 255, 0.35)',
+    lineHeight: 30,
+  },
+  lyricTextActive: {
+    fontSize: 24,
+    color: '#ffffff',
+    lineHeight: 34,
+  },
+  lyricTextPast: {
+    color: 'rgba(255, 255, 255, 0.55)',
   },
 });
