@@ -40,9 +40,40 @@ export function notifyNetworkSuccess(): void {
 }
 
 export async function pingConnection(): Promise<boolean> {
+  // 1. Check ultra-fast Google captive portal 204 — universal standard for Android connectivity
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000);
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    const res = await fetch('https://clients3.google.com/generate_204', {
+      method: 'GET',
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (res.status === 204 || (res.status >= 200 && res.status < 400)) {
+      setOnlineState(true);
+      return true;
+    }
+  } catch {}
+
+  // 2. Secondary fallback: Cloudflare global trace
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    const res = await fetch('https://1.1.1.1/cdn-cgi/trace', {
+      method: 'GET',
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (res.status >= 200 && res.status < 400) {
+      setOnlineState(true);
+      return true;
+    }
+  } catch {}
+
+  // 3. Tertiary fallback: Backend /health check
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
     const res = await fetch(`${getBackendUrl()}/health`, {
       method: 'GET',
       signal: controller.signal,

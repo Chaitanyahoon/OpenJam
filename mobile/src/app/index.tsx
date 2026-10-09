@@ -44,7 +44,9 @@ import {
   Clock,
   Shuffle,
   Music,
+  CheckCircle2,
 } from 'lucide-react-native';
+import { getVaultTracks, subscribeDownloadProgress } from '../storage/vault';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
 import {
@@ -86,6 +88,8 @@ import { hapticMedium, hapticLight } from '../utils/haptics';
 import { useToast } from '../components/ToastContext';
 import { registerPushToken } from '../notifications';
 import { requestFirstLaunchPermissions } from '../permissions';
+import { usePlayer, usePlayerStatus } from '../audio/PlayerContext';
+import { MiniPlayer } from '../components/MiniPlayer';
 
 // Complete WebBrowser session if returning from OAuth
 WebBrowser.maybeCompleteAuthSession();
@@ -117,6 +121,8 @@ const SloganTicker = React.memo(function SloganTicker() {
 export default function Landing() {
   const { connect, disconnect } = useSocket();
   const toast = useToast();
+  const { currentTrack, playTrack, play, setPlayerModalOpen } = usePlayer();
+  const { playing } = usePlayerStatus();
 
   const [user, setUser] = useState<ApiUser | null>(null);
   const [rooms, setRooms] = useState<RoomSummary[]>([]);
@@ -132,6 +138,7 @@ export default function Landing() {
   const [favoriteRooms, setFavoriteRooms] = useState<FavoriteRoom[]>([]);
   const [favoriteTracks, setFavoriteTracks] = useState<TrackInfo[]>([]);
   const [recentTracks, setRecentTracks] = useState<PlayedTrack[]>([]);
+  const [downloadedUris, setDownloadedUris] = useState<Set<string>>(new Set());
   const [ready, setReady] = useState(false);
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -155,20 +162,30 @@ export default function Landing() {
 
   const loadHistoryAndFavorites = useCallback(async () => {
     try {
-      const [favs, recents] = await Promise.all([
+      const [favs, recents, vault] = await Promise.all([
         getFavoriteTracks(),
         getRecentlyPlayed(),
+        getVaultTracks(),
       ]);
       setFavoriteTracks(favs);
       setRecentTracks(recents);
+      setDownloadedUris(new Set(vault.map((t) => t.track_uri)));
     } catch {}
   }, []);
 
   useEffect(() => {
-    const unsub = subscribeFavoriteTracks((favs) => {
+    const unsubFav = subscribeFavoriteTracks((favs) => {
       setFavoriteTracks(favs);
     });
-    return unsub;
+    const unsubVault = subscribeDownloadProgress(() => {
+      void getVaultTracks().then((tracks) => {
+        setDownloadedUris(new Set(tracks.map((t) => t.track_uri)));
+      });
+    });
+    return () => {
+      unsubFav();
+      unsubVault();
+    };
   }, []);
 
   const loadRooms = useCallback(async () => {
@@ -400,39 +417,68 @@ export default function Landing() {
     openRoom({ id: roomId });
   };
 
+  const handleStartSoloJam = async () => {
+    void hapticMedium();
+    if (currentTrack) {
+      if (!playing) play();
+      setPlayerModalOpen(true);
+      return;
+    }
+    if (favoriteTracks.length > 0) {
+      await playTrack(favoriteTracks[0], favoriteTracks, { sourceTitle: 'Liked Songs' });
+      setPlayerModalOpen(true);
+      return;
+    }
+    if (recentTracks.length > 0) {
+      await playTrack(recentTracks[0], recentTracks, { sourceTitle: 'Recently Played' });
+      setPlayerModalOpen(true);
+      return;
+    }
+    const starterTracks: TrackInfo[] = [
+      {
+        track_uri: 'jfKfPfyJRdk',
+        track_name: 'Lofi Hip Hop Chill Beats',
+        artist: 'Lofi Girl',
+        album_art_url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=300&q=80',
+        duration_ms: 180000,
+      },
+      {
+        track_uri: '4xDzrJKXOOY',
+        track_name: 'Synthwave Night Drive',
+        artist: 'Retro Dreamer',
+        album_art_url: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=300&q=80',
+        duration_ms: 210000,
+      },
+    ];
+    await playTrack(starterTracks[0], starterTracks, { sourceTitle: 'Solo Jam' });
+    setPlayerModalOpen(true);
+  };
+
   const handleProfilePlayTrack = (track: PlayedTrack) => {
     setShowProfile(false);
-    setPendingSoloQueue([track], track);
-    if (track.roomId && track.roomId !== 'solo') {
-      openRoom({ id: track.roomId, name: track.roomName });
-    } else {
-      openRoom({ id: 'solo', name: 'Solo Jam' });
-    }
+    void playTrack(track, recentTracks, { sourceTitle: 'Recently Played' });
+    setPlayerModalOpen(true);
   };
 
   const handleShufflePlayLiked = () => {
     if (favoriteTracks.length === 0) return;
     void hapticMedium();
     const shuffled = [...favoriteTracks].sort(() => Math.random() - 0.5);
-    setPendingSoloQueue(shuffled, shuffled[0]);
-    openRoom({ id: 'solo', name: 'Liked Songs' });
+    void playTrack(shuffled[0], shuffled, { sourceTitle: 'Liked Songs' });
+    setPlayerModalOpen(true);
   };
 
   const handlePlayLikedTrack = (track: TrackInfo) => {
     void hapticLight();
     const otherTracks = favoriteTracks.filter((t) => t.track_uri !== track.track_uri);
-    setPendingSoloQueue([track, ...otherTracks], track);
-    openRoom({ id: 'solo', name: 'Liked Songs' });
+    void playTrack(track, [track, ...otherTracks], { sourceTitle: 'Liked Songs' });
+    setPlayerModalOpen(true);
   };
 
   const handlePlayRecentTrack = (track: PlayedTrack) => {
     void hapticLight();
-    setPendingSoloQueue([track], track);
-    if (track.roomId && track.roomId !== 'solo') {
-      openRoom({ id: track.roomId, name: track.roomName });
-    } else {
-      openRoom({ id: 'solo', name: 'Solo Jam' });
-    }
+    void playTrack(track, recentTracks, { sourceTitle: 'Recently Played' });
+    setPlayerModalOpen(true);
   };
 
   const handleClearRecent = async () => {
@@ -631,8 +677,7 @@ export default function Landing() {
               <View style={styles.heroActions}>
                 <Pressable
                   onPress={() => {
-                    void hapticMedium();
-                    openRoom({ id: 'solo', name: 'Solo Jam' });
+                    void handleStartSoloJam();
                   }}
                   style={({ pressed }) => [styles.soloBtn, pressed && styles.pressed]}
                   accessibilityLabel="Start Solo Jam"
@@ -730,6 +775,11 @@ export default function Landing() {
                         <View style={styles.likedPlayOverlay}>
                           <Play size={10} color="#08080a" fill="#08080a" />
                         </View>
+                        {downloadedUris.has(trk.track_uri) && (
+                          <View style={styles.downloadedCornerBadge}>
+                            <CheckCircle2 size={10} color="#10b981" />
+                          </View>
+                        )}
                       </View>
                       <Text style={styles.likedTrackName} numberOfLines={1}>
                         {trk.track_name}
@@ -792,6 +842,11 @@ export default function Landing() {
                         <View style={styles.recentPlayOverlay}>
                           <Play size={9} color="#08080a" fill="#08080a" />
                         </View>
+                        {downloadedUris.has(trk.track_uri) && (
+                          <View style={styles.downloadedCornerBadge}>
+                            <CheckCircle2 size={10} color="#10b981" />
+                          </View>
+                        )}
                       </View>
                       <Text style={styles.recentTrackName} numberOfLines={1}>
                         {trk.track_name}
@@ -1112,6 +1167,7 @@ export default function Landing() {
           if (room) openRoom(room, password);
         }}
       />
+      <MiniPlayer bottomOffset={insets.bottom} />
     </SafeAreaView>
   );
 }
@@ -1530,6 +1586,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 3,
+  },
+  downloadedCornerBadge: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    backgroundColor: 'rgba(8, 8, 10, 0.85)',
+    borderRadius: 9,
+    padding: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.5)',
   },
   likedTrackName: {
     fontFamily: fontFamily.displayBold,

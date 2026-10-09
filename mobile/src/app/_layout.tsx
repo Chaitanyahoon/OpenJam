@@ -57,7 +57,7 @@ export default function RootLayout() {
           | undefined;
         if (data?.action === 'open_room' && data?.roomId) {
           if (data.roomId === 'solo') {
-            router.push('/room/solo');
+            router.push('/');
           } else {
             router.push({ pathname: '/room/[id]', params: { id: data.roomId } });
           }

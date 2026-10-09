@@ -310,7 +310,7 @@ export function RoomCard({
 
           <Text
             style={styles.title}
-            numberOfLines={1}
+            numberOfLines={2}
             maxFontSizeMultiplier={1.25}
           >
             {room.name}
@@ -428,39 +428,39 @@ const styles = StyleSheet.create({
     height: 42,
   },
   turntableStage: {
-    height: 136,
+    height: 104,
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#0d0d14',
     position: 'relative',
     overflow: 'hidden',
-    paddingTop: 16,
+    paddingTop: 10,
   },
   turntableAura: {
     position: 'absolute',
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: 'rgba(255, 159, 28, 0.08)',
   },
   turntableAuraActive: {
     backgroundColor: 'rgba(255, 159, 28, 0.18)',
   },
   vinylRecord: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+    width: 66,
+    height: 66,
+    borderRadius: 33,
     backgroundColor: '#111118',
     borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.6,
-    shadowRadius: 10,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 5,
   },
   grooveRing1: {
     position: 'absolute',

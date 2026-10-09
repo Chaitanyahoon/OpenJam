@@ -447,7 +447,7 @@ export function ProfileModal({
             <View style={styles.statsStrip}>
               <View style={styles.statItem}>
                 <Text style={styles.statNumber} numberOfLines={1}>
-                  {stats.totalTracksJammed}
+                  {Math.max(stats.totalTracksJammed, recentTracks.length)}
                 </Text>
                 <Text style={styles.statLabel}>TRACKS</Text>
               </View>
@@ -456,9 +456,15 @@ export function ProfileModal({
 
               <View style={styles.statItem}>
                 <Text style={styles.statNumber} numberOfLines={1}>
-                  {stats.totalMinutesJammed > 999
-                    ? `${(stats.totalMinutesJammed / 1000).toFixed(1)}k`
-                    : `${stats.totalMinutesJammed}m`}
+                  {(() => {
+                    const effectiveMinutes =
+                      stats.totalMinutesJammed > 0
+                        ? stats.totalMinutesJammed
+                        : Math.round(recentTracks.length * 3.5);
+                    return effectiveMinutes > 999
+                      ? `${(effectiveMinutes / 1000).toFixed(1)}k`
+                      : `${effectiveMinutes}m`;
+                  })()}
                 </Text>
                 <Text style={styles.statLabel}>LISTENED</Text>
               </View>

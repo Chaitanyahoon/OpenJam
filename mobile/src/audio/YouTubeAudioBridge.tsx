@@ -75,6 +75,8 @@ const YOUTUBE_HTML = `<!DOCTYPE html>
       });
     }
 
+    var shouldAutoPlay = true;
+
     function onPlayerReady(e) {
       isReady = true;
       try {
@@ -93,6 +95,12 @@ const YOUTUBE_HTML = `<!DOCTYPE html>
       if (e.data === 1 && player) {
         try {
           if (typeof player.unMute === 'function') player.unMute();
+        } catch (err) {}
+      }
+      if (e.data === 5 && player && shouldAutoPlay) {
+        try {
+          if (typeof player.unMute === 'function') player.unMute();
+          if (typeof player.playVideo === 'function') player.playVideo();
         } catch (err) {}
       }
       var cur = player && player.getCurrentTime ? player.getCurrentTime() : 0;
@@ -243,6 +251,7 @@ export const YouTubeAudioBridge = forwardRef<
         mediaPlaybackRequiresUserAction={false}
         allowsInlineMediaPlayback={true}
         androidLayerType="hardware"
+        userAgent="Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
         style={styles.webView}
       />
     </View>
@@ -253,10 +262,10 @@ const styles = StyleSheet.create({
   hardwareContainer: {
     width: 200,
     height: 200,
-    opacity: 0.002,
+    opacity: 0.01,
     position: 'absolute',
-    bottom: 0,
-    right: 0,
+    top: -9999,
+    left: -9999,
     overflow: 'hidden',
   },
   webView: {

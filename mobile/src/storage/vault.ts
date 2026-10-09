@@ -225,6 +225,116 @@ function extractVideoId(uri: string): string | null {
 }
 
 /**
+ * Resolves direct audio stream URLs using client-side extractors (Cobalt, Piped, Invidious)
+ * running on the mobile device's residential/mobile IP to bypass cloud datacenter blocks.
+ */
+export async function resolveDirectAudioStreamUrls(videoId: string): Promise<string[]> {
+  const backendUrl = getBackendUrl();
+  const urls: string[] = [];
+
+  const clientExtractors = [
+    // 1. Piped Instances (Fastest, low latency direct audio streams)
+    async () => {
+      const pipedEndpoints = [
+        `https://pipedapi.adminforge.de/streams/${videoId}`,
+        `https://pipedapi.astartes.nl/streams/${videoId}`,
+        `https://pipedapi.leptons.xyz/streams/${videoId}`,
+        `https://pipedapi.smnz.de/streams/${videoId}`,
+        `https://piped-api.lunar.icu/streams/${videoId}`,
+      ];
+      for (const ep of pipedEndpoints) {
+        try {
+          const c = new AbortController();
+          const t = setTimeout(() => c.abort(), 3500);
+          const res = await fetch(ep, { signal: c.signal });
+          clearTimeout(t);
+          if (res.ok) {
+            const d = await res.json();
+            const streams = d?.audioStreams;
+            if (Array.isArray(streams) && streams.length > 0) {
+              const best = streams.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0))[0];
+              if (best?.url) return best.url;
+            }
+          }
+        } catch {}
+      }
+      return null;
+    },
+
+    // 2. Invidious Instances (Direct audio stream extraction)
+    async () => {
+      const invEndpoints = [
+        `https://invidious.nerdvpn.de/api/v1/videos/${videoId}`,
+        `https://inv.nadeko.net/api/v1/videos/${videoId}`,
+        `https://invidious.tiekoetter.com/api/v1/videos/${videoId}`,
+        `https://iv.ggtyler.dev/api/v1/videos/${videoId}`,
+        `https://invidious.f5.si/api/v1/videos/${videoId}`,
+      ];
+      for (const ep of invEndpoints) {
+        try {
+          const c = new AbortController();
+          const t = setTimeout(() => c.abort(), 3500);
+          const res = await fetch(ep, { signal: c.signal });
+          clearTimeout(t);
+          if (res.ok) {
+            const d = await res.json();
+            const formats = d?.adaptiveFormats || d?.formatStreams || [];
+            const audio = formats.find((f: any) => f.type?.includes('audio') || f.audioQuality);
+            if (audio?.url) return audio.url;
+          }
+        } catch {}
+      }
+      return null;
+    },
+
+    // 3. Cobalt Instances
+    async () => {
+      const cobaltEndpoints = [
+        'https://cobalt-api.kwiatekm.pl',
+        'https://api.cobalt.blackcat.sweeux.org',
+      ];
+      for (const ep of cobaltEndpoints) {
+        try {
+          const c = new AbortController();
+          const t = setTimeout(() => c.abort(), 3500);
+          const res = await fetch(ep, {
+            method: 'POST',
+            headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              url: `https://www.youtube.com/watch?v=${videoId}`,
+              downloadMode: 'audio',
+              audioFormat: 'mp3',
+            }),
+            signal: c.signal,
+          });
+          clearTimeout(t);
+          if (res.ok) {
+            const d = await res.json();
+            if (d?.url && typeof d.url === 'string') return d.url;
+          }
+        } catch {}
+      }
+      return null;
+    },
+  ];
+
+  try {
+    const results = await Promise.allSettled(clientExtractors.map((fn) => fn()));
+    for (const r of results) {
+      if (r.status === 'fulfilled' && r.value) {
+        urls.push(r.value);
+      }
+    }
+  } catch {}
+
+  // Backend stream proxy fallback
+  urls.push(`${backendUrl}/stream/${videoId}`);
+  urls.push(`${backendUrl}/stream/${videoId}?low=true`);
+
+  return urls;
+}
+
+/**
  * Downloads a track stream into the sandboxed offline audio vault with automatic
  * multi-tier retries, fallback stream resolution, and granular progress reporting.
  */
@@ -262,12 +372,12 @@ export async function downloadTrackToVault(
   const backendUrl = getBackendUrl();
   let videoId = extractVideoId(track.track_uri);
 
-  // If not a direct video ID, resolve via backend search
+  // If not a direct video ID, resolve via backend search or client search fallback
   if (!videoId && !track.track_uri.startsWith('http')) {
+    const query = `${track.track_name} ${track.artist || ''}`.trim();
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
-      const query = `${track.track_name} ${track.artist || ''}`.trim();
+      const timeout = setTimeout(() => controller.abort(), 6000);
       const resp = await fetch(`${backendUrl}/search/resolve?q=${encodeURIComponent(query)}`, {
         signal: controller.signal,
       });
@@ -281,14 +391,30 @@ export async function downloadTrackToVault(
     } catch (resolveErr) {
       console.warn('[Vault] Track resolution warning:', resolveErr);
     }
+
+    // Direct client search fallback if backend was sleeping or cold
+    if (!videoId) {
+      try {
+        const searchRes = await fetch(
+          `https://pipedapi.adminforge.de/search?q=${encodeURIComponent(query)}&filter=music_songs`,
+        );
+        if (searchRes.ok) {
+          const sData = await searchRes.json();
+          if (Array.isArray(sData?.items) && sData.items.length > 0) {
+            const first = sData.items[0];
+            const parsed = extractVideoId(first.url || '');
+            if (parsed) videoId = parsed;
+          }
+        }
+      } catch {}
+    }
   }
 
   // Candidate URLs with fallback qualities and cache-busting
   const candidateUrls: string[] = [];
   if (videoId) {
-    candidateUrls.push(`${backendUrl}/stream/${videoId}`);
-    candidateUrls.push(`${backendUrl}/stream/${videoId}?low=true`);
-    candidateUrls.push(`${backendUrl}/stream/${videoId}?nocache=true`);
+    const resolved = await resolveDirectAudioStreamUrls(videoId);
+    candidateUrls.push(...resolved);
   } else if (track.track_uri.startsWith('http')) {
     candidateUrls.push(track.track_uri);
   }

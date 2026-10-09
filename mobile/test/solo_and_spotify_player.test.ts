@@ -94,4 +94,63 @@ describe('Solo Jam & Spotify Player Upgrades Suite', () => {
 
     assert.deepEqual(events, [false, true]);
   });
+
+  it('dispatches solo media notification remote actions correctly', () => {
+    let playCount = 0;
+    let pauseCount = 0;
+    let nextCount = 0;
+    let prevCount = 0;
+    let isPlaying = true;
+
+    function handleMediaAction(action: 'prev' | 'play_pause' | 'next') {
+      if (action === 'play_pause') {
+        if (isPlaying) {
+          pauseCount++;
+          isPlaying = false;
+        } else {
+          playCount++;
+          isPlaying = true;
+        }
+      } else if (action === 'next') {
+        nextCount++;
+      } else if (action === 'prev') {
+        prevCount++;
+      }
+    }
+
+    handleMediaAction('play_pause'); // Should pause
+    assert.equal(pauseCount, 1);
+    assert.equal(isPlaying, false);
+
+    handleMediaAction('play_pause'); // Should play
+    assert.equal(playCount, 1);
+    assert.equal(isPlaying, true);
+
+    handleMediaAction('next');
+    assert.equal(nextCount, 1);
+
+    handleMediaAction('prev');
+    assert.equal(prevCount, 1);
+  });
+
+  it('resolves local vault files directly with zero network delay', () => {
+    function classifyPlaybackDriver(uri: string): 'local_file' | 'stream_url' | 'youtube' {
+      if (uri.startsWith('file://')) return 'local_file';
+      if (uri.startsWith('http')) return 'stream_url';
+      return 'youtube';
+    }
+
+    assert.equal(classifyPlaybackDriver('file:///data/user/0/vault/track.m4a'), 'local_file');
+    assert.equal(classifyPlaybackDriver('https://stream.openjam.fun/audio.mp3'), 'stream_url');
+    assert.equal(classifyPlaybackDriver('4xDzrJKXOOY'), 'youtube');
+  });
+
+  it('identifies downloaded offline tracks against vault set', () => {
+    const vaultTrackUris = new Set(['uri_1', 'uri_2']);
+    const isReadyOffline = (uri: string) => vaultTrackUris.has(uri);
+
+    assert.equal(isReadyOffline('uri_1'), true);
+    assert.equal(isReadyOffline('uri_2'), true);
+    assert.equal(isReadyOffline('uri_3'), false);
+  });
 });

@@ -36,9 +36,11 @@ import {
   Radio,
   Plus,
   Disc,
+  Shuffle,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../../theme';
 import { fontFamily } from '../../fonts';
+import { MiniPlayer } from '../../components/MiniPlayer';
 import {
   getPlaylist,
   createRoom,
@@ -171,20 +173,29 @@ export default function PlaylistDetailScreen() {
     toast('Track removed from playlist', 'info');
   };
 
-  const handlePreviewTrack = async (track: UnifiedTrack) => {
+  const handlePlayPlaylist = async () => {
+    if (tracks.length === 0) return;
+    void hapticMedium();
+    await player.playTrack(tracks[0], tracks, { sourceTitle: title });
+    player.setPlayerModalOpen(true);
+  };
+
+  const handleShufflePlaylist = async () => {
+    if (tracks.length === 0) return;
+    void hapticMedium();
+    const shuffled = [...tracks].sort(() => Math.random() - 0.5);
+    await player.playTrack(shuffled[0], shuffled, { sourceTitle: title });
+    player.setPlayerModalOpen(true);
+  };
+
+  const handleTrackPress = async (track: UnifiedTrack) => {
     void hapticLight();
-    if (playingTrackUri === track.track_uri) {
-      player.pause();
-      setPlayingTrackUri(null);
-    } else {
-      await player.loadTrack(track.track_uri, {
-        title: track.track_name,
-        artist: track.artist,
-        artworkUrl: track.album_art_url,
-      });
-      player.play();
-      setPlayingTrackUri(track.track_uri);
-    }
+    await player.playTrack(track, tracks, { sourceTitle: title });
+    player.setPlayerModalOpen(true);
+  };
+
+  const handlePreviewTrack = async (track: UnifiedTrack) => {
+    void handleTrackPress(track);
   };
 
   const handleQueueAllInRoom = async () => {
@@ -319,21 +330,41 @@ export default function PlaylistDetailScreen() {
               ) : null}
             </View>
 
-            {/* CTA: Start Jam Room */}
-            <Pressable
-              onPress={handleQueueAllInRoom}
-              style={({ pressed }) => [styles.startJamBtn, pressed && styles.pressed]}
-            >
-              <LinearGradient
-                colors={['#ffb03a', '#ff9f1c']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.startJamGradient}
+            {/* Play, Shuffle & Jam Actions */}
+            <View style={styles.playlistActionsRow}>
+              <Pressable
+                onPress={handlePlayPlaylist}
+                style={({ pressed }) => [styles.playPlaylistBtn, pressed && styles.pressed]}
+                accessibilityLabel="Play playlist"
               >
-                <Radio size={16} color="#08080a" />
-                <Text style={styles.startJamText}>Start Room with Playlist</Text>
-              </LinearGradient>
-            </Pressable>
+                <LinearGradient
+                  colors={['#ffb03a', '#ff9f1c']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.playGradient}
+                >
+                  <Play size={16} color="#08080a" fill="#08080a" style={{ marginLeft: 2 }} />
+                  <Text style={styles.playPlaylistText}>Play</Text>
+                </LinearGradient>
+              </Pressable>
+
+              <Pressable
+                onPress={handleShufflePlaylist}
+                style={({ pressed }) => [styles.shufflePlaylistBtn, pressed && styles.pressed]}
+                accessibilityLabel="Shuffle playlist"
+              >
+                <Shuffle size={16} color="#ffffff" strokeWidth={2.2} />
+                <Text style={styles.shufflePlaylistText}>Shuffle</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={handleQueueAllInRoom}
+                style={({ pressed }) => [styles.jamRoomIconBtn, pressed && styles.pressed]}
+                accessibilityLabel="Start Jam Room with friends"
+              >
+                <Radio size={16} color={colors.amber} />
+              </Pressable>
+            </View>
           </View>
         }
         renderItem={({ item, index }) => {
@@ -396,6 +427,7 @@ export default function PlaylistDetailScreen() {
           </View>
         }
       />
+      <MiniPlayer bottomOffset={insets.bottom} />
     </SafeAreaView>
   );
 }
@@ -532,6 +564,57 @@ const styles = StyleSheet.create({
     color: colors.text2,
     fontSize: 12,
     fontFamily: fontFamily.bodyMedium,
+  },
+  playlistActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 8,
+    width: '100%',
+  },
+  playPlaylistBtn: {
+    flex: 2,
+    borderRadius: radius.full,
+    overflow: 'hidden',
+  },
+  playGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+  },
+  playPlaylistText: {
+    color: '#08080a',
+    fontFamily: fontFamily.displayBold,
+    fontSize: 14,
+  },
+  shufflePlaylistBtn: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: radius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  shufflePlaylistText: {
+    color: '#ffffff',
+    fontFamily: fontFamily.displayBold,
+    fontSize: 14,
+  },
+  jamRoomIconBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   startJamBtn: {
     width: '100%',

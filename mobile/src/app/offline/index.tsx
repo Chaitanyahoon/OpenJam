@@ -61,9 +61,11 @@ import {
   toggleFavoriteTrack,
   type OfflinePlaylist,
 } from '../../storage/history';
-import { createRoom } from '../../api';
 import { subscribeNetworkState, isDeviceOnline } from '../../utils/network';
+import { hapticLight } from '../../utils/haptics';
+import { createRoom } from '../../api';
 import type { TrackInfo } from '../../sync/protocol';
+import { MiniPlayer } from '../../components/MiniPlayer';
 
 export default function OfflineVaultScreen() {
   const { width: winWidth, height: winHeight } = useWindowDimensions();
@@ -71,7 +73,7 @@ export default function OfflineVaultScreen() {
   const insets = useSafeAreaInsets();
   const toast = useToast();
 
-  const { loadTrack, play, pause } = usePlayer();
+  const { loadTrack, play, pause, playTrack, setPlayerModalOpen } = usePlayer();
   const { playing: isPlaying } = usePlayerStatus();
 
   const [activeTab, setActiveTab] = useState<'all' | 'liked' | 'playlists'>('all');
@@ -138,21 +140,10 @@ export default function OfflineVaultScreen() {
   // Play an offline track via local file URI
   const handlePlayOfflineTrack = async (track: VaultTrack | TrackInfo) => {
     try {
-      const vTrack = vaultTracks.find((vt) => vt.track_uri === track.track_uri);
-      const targetUri = vTrack?.local_file_uri || track.track_uri;
-
-      if (activePlayingUri === track.track_uri && isPlaying) {
-        pause();
-        return;
-      }
-
+      void hapticLight();
       setActivePlayingUri(track.track_uri);
-      await loadTrack(targetUri, {
-        title: track.track_name,
-        artist: track.artist,
-        artworkUrl: track.album_art_url,
-      });
-      play();
+      await playTrack(track, vaultTracks, { sourceTitle: 'Offline Vault' });
+      setPlayerModalOpen(true);
       toast(`Playing "${track.track_name}" offline`, 'success');
     } catch {
       toast('Failed to play offline track', 'error');
@@ -562,7 +553,7 @@ export default function OfflineVaultScreen() {
                     <>
                       <View style={styles.downloadedPill}>
                         <CheckCircle2 size={12} color="#10b981" />
-                        <Text style={styles.downloadedPillText}>Ready</Text>
+                        <Text style={styles.downloadedPillText}>Ready Offline</Text>
                       </View>
                       <Pressable
                         onPress={() => void handleDeleteTrack(item.track_uri, item.track_name)}
@@ -583,11 +574,19 @@ export default function OfflineVaultScreen() {
                     </Pressable>
                   )}
                 </View>
+
+                {/* Progress bar line for downloading tracks */}
+                {isDownloading && (
+                  <View style={styles.downloadBarTrack}>
+                    <View style={[styles.downloadBarFill, { width: `${Math.max(5, prog?.percent || 5)}%` }]} />
+                  </View>
+                )}
               </View>
             );
           }}
         />
       )}
+      <MiniPlayer bottomOffset={insets.bottom} />
     </SafeAreaView>
   );
 }
@@ -815,6 +814,21 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.04)',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  downloadBarTrack: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  downloadBarFill: {
+    height: 3,
+    backgroundColor: colors.amber,
+    borderRadius: 1.5,
   },
   trackCardActive: {
     borderColor: 'rgba(255, 159, 28, 0.4)',
