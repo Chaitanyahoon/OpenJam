@@ -1,5 +1,7 @@
 """Tests for authentication routes."""
 
+import pytest
+
 def test_get_me_authenticated(client, auth_headers, test_user):
     """Test getting current user info when authenticated."""
     response = client.get("/auth/me", headers=auth_headers)
@@ -100,4 +102,36 @@ def test_admin_trigger_healthcheck_success(client):
     data = response.json()
     assert data["success"] is True
     assert "Background healthcheck task started" in data["message"]
+
+
+@pytest.mark.asyncio
+async def test_socket_connect_rejects_revoked_token(monkeypatch):
+    """Assert socket connect treats revoked session token as anonymous."""
+    from unittest.mock import AsyncMock
+    from backend.middleware.auth import create_session_token, revoke_token
+    from backend.sockets.connection import register_connection_handlers
+
+    token = create_session_token("victim_user", display_name="Victim")
+    revoke_token(token)
+
+    saved_session = {}
+    sio = AsyncMock()
+    async def mock_save_session(sid, session_data):
+        saved_session.update(session_data)
+    sio.save_session.side_effect = mock_save_session
+
+    events = {}
+    def mock_event(func):
+        events[func.__name__] = func
+        return func
+    sio.event = mock_event
+    sio.on = mock_event
+
+    register_connection_handlers(sio)
+
+    connect_handler = events["connect"]
+    await connect_handler("sid_123", {}, auth={"token": token})
+
+    # The saved session should not have the revoked user_id
+    assert saved_session.get("user_id") != "victim_user"
 
