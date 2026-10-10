@@ -1,3 +1,9 @@
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 /** @type {import('next').NextConfig} */
 const isDev = process.env.NODE_ENV === 'development';
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL && process.env.NEXT_PUBLIC_BACKEND_URL !== 'undefined' && process.env.NEXT_PUBLIC_BACKEND_URL !== 'null')
@@ -5,6 +11,7 @@ const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL && process.env.NEXT_PUB
   : (isDev ? 'http://localhost:8000' : 'https://openjam.onrender.com');
 
 const nextConfig = {
+  outputFileTracingRoot: path.join(__dirname, '../'),
   poweredByHeader: false,
   images: {
     remotePatterns: [

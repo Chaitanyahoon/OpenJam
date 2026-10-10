@@ -336,6 +336,13 @@ async def lifespan(app):
         trigger_health_check_if_needed()
     except Exception as e:
         logger.warning(f"Failed to eagerly start Invidious health check: {e}")
+
+    # Evict stale cached audio files if cache exceeded limits during downtime
+    try:
+        from backend.services.audio_stream_engine import audio_stream_engine
+        asyncio.create_task(audio_stream_engine.cleanup_old_cache())
+    except Exception as e:
+        logger.warning(f"Failed to trigger startup audio cache cleanup: {e}")
         
     logger.info("Open Jam startup complete")
     yield

@@ -469,6 +469,9 @@ export async function downloadTrackToVault(
   }
 
   if (!success) {
+    try {
+      await FileSystem.deleteAsync(localTargetUri, { idempotent: true });
+    } catch {}
     updateProgress(track.track_uri, { state: 'error', percent: 0, error: lastError?.message || 'Download failed' });
     throw new Error(`Failed to download audio for "${track.track_name}". Server may be busy, please retry.`);
   }
