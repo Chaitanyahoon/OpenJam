@@ -341,6 +341,7 @@ def stop_sync_loop(room_id: str):
     task = _sync_tasks.pop(room_id, None)
     if task and not task.done():
         task.cancel()
+    _advance_locks.pop(room_id, None)
 
 
 async def evaluate_skip_votes(room_id: str, sio: socketio.AsyncServer):
