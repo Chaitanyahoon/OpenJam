@@ -90,6 +90,15 @@ class QueueManager:
         ).first()
         return item.to_dict() if item else None
 
+    def get_now_playing_batch(self, db: Session, room_ids: list[str]) -> dict[str, dict]:
+        if not room_ids:
+            return {}
+        items = db.query(QueueItem).filter(
+            QueueItem.room_id.in_(room_ids),
+            QueueItem.status == "playing",
+        ).all()
+        return {item.room_id: item.to_dict() for item in items}
+
     def advance_queue(self, db: Session, room_id: str) -> dict | None:
         current = db.query(QueueItem).filter(
             QueueItem.room_id == room_id,
