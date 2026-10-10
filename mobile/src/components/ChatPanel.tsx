@@ -37,7 +37,11 @@ import {
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
-import { useRoom } from '../state/RoomContext';
+import {
+  useRoomChatContext,
+  useRoomReactionsContext,
+  useRoomSession,
+} from '../state/RoomContext';
 import { hapticLight } from '../utils/haptics';
 import { formatChatTimestamp } from '../utils/format';
 
@@ -76,7 +80,9 @@ export function initials(name?: string | null): string {
 
 export const ChatPanel = forwardRef<ChatPanelRef, { onMentionUser?: (name: string) => void }>(
   function ChatPanel({ onMentionUser }, ref) {
-    const { messages, typingUsers, sendChat, setTyping, me, listeners, sendReaction } = useRoom();
+    const { messages, typingUsers, sendChat, setTyping } = useRoomChatContext();
+    const { sendReaction } = useRoomReactionsContext();
+    const { me, listeners } = useRoomSession();
     const [input, setInput] = useState('');
     const listRef = useRef<FlatList>(null);
     const inputRef = useRef<TextInput>(null);
@@ -134,6 +140,11 @@ export const ChatPanel = forwardRef<ChatPanelRef, { onMentionUser?: (name: strin
           keyboardShouldPersistTaps="handled"
           onScroll={handleScroll}
           scrollEventThrottle={16}
+          initialNumToRender={15}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
+          updateCellsBatchingPeriod={50}
           onContentSizeChange={() => {
             if (isNearBottomRef.current) {
               listRef.current?.scrollToEnd({ animated: true });
@@ -188,6 +199,8 @@ export const ChatPanel = forwardRef<ChatPanelRef, { onMentionUser?: (name: strin
                       source={{ uri: item.avatar_url }}
                       style={styles.avatarImg}
                       contentFit="cover"
+                      cachePolicy="memory-disk"
+                      recyclingKey={item.avatar_url}
                       transition={200}
                     />
                   ) : (

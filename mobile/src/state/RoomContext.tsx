@@ -37,64 +37,76 @@ import {
   type SyncPongPayload,
   type TrackInfo,
 } from '../sync/protocol';
-import { useRoomChat } from './useRoomChat';
-import { useRoomReactions, type FlyingReaction } from './useRoomReactions';
+import { useRoomChat, type RoomChatApi } from './useRoomChat';
+import { useRoomReactions, type FlyingReaction, type RoomReactionsApi } from './useRoomReactions';
 
-export type { FlyingReaction };
+export type { FlyingReaction, RoomChatApi, RoomReactionsApi };
 
 const PING_INTERVAL_MS = 30_000;
 const DRIFT_CORRECT_MS = 2500;
 
 export type RoomConnectionState = 'joining' | 'connected' | 'reconnecting' | 'offline';
 
-export interface RoomApi {
+export interface RoomPlaybackApi {
+  nowPlaying: TrackInfo | null;
+  isPlaying: boolean;
+  loop: boolean;
+  syncReady: boolean;
+  skipVotes: { votes: number; required: number };
+  canControl: boolean;
+  togglePlay: () => void;
+  nextTrack: () => void;
+  previousTrack: () => void;
+  toggleRepeat: () => void;
+  seekToMs: (ms: number) => void;
+  voteSkip: () => void;
+}
+
+export interface RoomQueueApi {
+  queue: QueueItem[];
+  nowPlaying: TrackInfo | null;
+  canControl: boolean;
+  isHost: boolean;
+  addTrack: (track: TrackInfo) => void;
+  addMultipleTracks: (tracks: TrackInfo[]) => void;
+  playNow: (track: TrackInfo) => void;
+  voteTrack: (queueItemId: string) => void;
+  shuffleQueue: () => void;
+  removeTrack: (queueItemId: string) => void;
+  reorderQueue: (orderedIds: string[]) => void;
+}
+
+export interface RoomSessionApi {
   roomId: string;
   isSolo: boolean;
   roomName: string;
   isHost: boolean;
   canControl: boolean;
   connectionState: RoomConnectionState;
-  queue: QueueItem[];
-  nowPlaying: TrackInfo | null;
-  isPlaying: boolean;
-  loop: boolean;
   listeners: ListenerInfo[];
+  guestControls: boolean;
+  joinError: string | null;
+  roomClosed: boolean;
+  me: ApiUser | null;
+  retryJoin: () => void;
+  toggleGuestControls: () => void;
+  transferHost: (targetUserId: string) => void;
+  kickUser: (targetUserId: string) => void;
+  closeRoom: () => Promise<void>;
+  updateRoomDetails: (data: { name?: string; genre_tags?: string[] }) => Promise<void>;
+}
+
+export interface RoomApi extends RoomPlaybackApi, RoomQueueApi, RoomSessionApi {
   messages: ChatMessage[];
   unreadChat: number;
   typingUsers: string[];
   reactions: FlyingReaction[];
-  skipVotes: { votes: number; required: number };
-  guestControls: boolean;
-  syncReady: boolean;
-  joinError: string | null;
-  roomClosed: boolean;
-  me: ApiUser | null;
-  // actions
-  retryJoin: () => void;
-  toggleGuestControls: () => void;
   sendChat: (content: string) => void;
   sendReaction: (emoji: string) => void;
   dismissReaction: (key: string) => void;
-  addTrack: (track: TrackInfo) => void;
-  addMultipleTracks: (tracks: TrackInfo[]) => void;
-  playNow: (track: TrackInfo) => void;
-  voteTrack: (queueItemId: string) => void;
-  voteSkip: () => void;
-  togglePlay: () => void;
-  nextTrack: () => void;
-  previousTrack: () => void;
-  toggleRepeat: () => void;
-  shuffleQueue: () => void;
-  seekToMs: (ms: number) => void;
-  removeTrack: (queueItemId: string) => void;
-  reorderQueue: (orderedIds: string[]) => void;
-  transferHost: (targetUserId: string) => void;
-  kickUser: (targetUserId: string) => void;
   setTyping: (typing: boolean) => void;
   clearUnreadChat: () => void;
   setChatFocused: (focused: boolean) => void;
-  closeRoom: () => Promise<void>;
-  updateRoomDetails: (data: { name?: string; genre_tags?: string[] }) => Promise<void>;
 }
 
 function normalizeQueueList(items?: any[]): QueueItem[] {
@@ -115,6 +127,11 @@ function normalizeListeners(raw?: any[], hostId?: string | null): ListenerInfo[]
   }));
 }
 
+const RoomPlaybackCtx = createContext<RoomPlaybackApi | null>(null);
+const RoomQueueCtx = createContext<RoomQueueApi | null>(null);
+const RoomChatCtx = createContext<RoomChatApi | null>(null);
+const RoomReactionsCtx = createContext<RoomReactionsApi | null>(null);
+const RoomSessionCtx = createContext<RoomSessionApi | null>(null);
 const Ctx = createContext<RoomApi | null>(null);
 
 export function RoomProvider({
@@ -1130,7 +1147,119 @@ export function RoomProvider({
     };
   }, [canControl, nextTrack, voteSkip, toast]);
 
-  const value = useMemo<RoomApi>(
+  const playbackValue = useMemo<RoomPlaybackApi>(
+    () => ({
+      nowPlaying,
+      isPlaying,
+      loop,
+      syncReady,
+      skipVotes,
+      canControl,
+      togglePlay,
+      nextTrack,
+      previousTrack,
+      toggleRepeat,
+      seekToMs,
+      voteSkip,
+    }),
+    [
+      nowPlaying,
+      isPlaying,
+      loop,
+      syncReady,
+      skipVotes,
+      canControl,
+      togglePlay,
+      nextTrack,
+      previousTrack,
+      toggleRepeat,
+      seekToMs,
+      voteSkip,
+    ],
+  );
+
+  const queueValue = useMemo<RoomQueueApi>(
+    () => ({
+      queue,
+      nowPlaying,
+      canControl,
+      isHost,
+      addTrack,
+      addMultipleTracks,
+      playNow,
+      voteTrack,
+      shuffleQueue,
+      removeTrack,
+      reorderQueue,
+    }),
+    [
+      queue,
+      nowPlaying,
+      canControl,
+      isHost,
+      addTrack,
+      addMultipleTracks,
+      playNow,
+      voteTrack,
+      shuffleQueue,
+      removeTrack,
+      reorderQueue,
+    ],
+  );
+
+  const chatValue = useMemo<RoomChatApi>(
+    () => ({
+      messages: chat.messages,
+      unreadChat: chat.unreadChat,
+      typingUsers: chat.typingUsers,
+      sendChat: chat.sendChat,
+      setTyping: chat.setTyping,
+      clearUnreadChat: chat.clearUnreadChat,
+      setChatFocused: chat.setChatFocused,
+      handleChatHistory: chat.handleChatHistory,
+      handleChatMessage: chat.handleChatMessage,
+      handleChatAck: chat.handleChatAck,
+      handleTyping: chat.handleTyping,
+      handleStopTyping: chat.handleStopTyping,
+      addSystemMessage: chat.addSystemMessage,
+      clearChat: chat.clearChat,
+    }),
+    [
+      chat.messages,
+      chat.unreadChat,
+      chat.typingUsers,
+      chat.sendChat,
+      chat.setTyping,
+      chat.clearUnreadChat,
+      chat.setChatFocused,
+      chat.handleChatHistory,
+      chat.handleChatMessage,
+      chat.handleChatAck,
+      chat.handleTyping,
+      chat.handleStopTyping,
+      chat.addSystemMessage,
+      chat.clearChat,
+    ],
+  );
+
+  const reactionsValue = useMemo<RoomReactionsApi>(
+    () => ({
+      reactions: reactionsCtrl.reactions,
+      sendReaction: reactionsCtrl.sendReaction,
+      dismissReaction: reactionsCtrl.dismissReaction,
+      handleIncomingReaction: reactionsCtrl.handleIncomingReaction,
+      clearReactions: reactionsCtrl.clearReactions,
+    }),
+    [
+      reactionsCtrl.reactions,
+      reactionsCtrl.sendReaction,
+      reactionsCtrl.dismissReaction,
+      reactionsCtrl.handleIncomingReaction,
+      reactionsCtrl.clearReactions,
+    ],
+  );
+
+  const sessionValue = useMemo<RoomSessionApi>(
     () => ({
       roomId,
       isSolo,
@@ -1138,44 +1267,15 @@ export function RoomProvider({
       isHost,
       canControl,
       connectionState,
-      queue,
-      nowPlaying,
-      isPlaying,
-      loop,
       listeners,
-      messages: chat.messages,
-      unreadChat: chat.unreadChat,
-      typingUsers: chat.typingUsers,
-      reactions: reactionsCtrl.reactions,
-      skipVotes,
       guestControls,
-      syncReady,
       joinError,
       roomClosed,
       me,
       retryJoin,
       toggleGuestControls,
-      sendChat: chat.sendChat,
-      sendReaction: reactionsCtrl.sendReaction,
-      dismissReaction: reactionsCtrl.dismissReaction,
-      addTrack,
-      addMultipleTracks,
-      playNow,
-      voteTrack,
-      voteSkip,
-      togglePlay,
-      nextTrack,
-      previousTrack,
-      toggleRepeat,
-      shuffleQueue,
-      seekToMs,
-      removeTrack,
-      reorderQueue,
       transferHost,
       kickUser,
-      setTyping: chat.setTyping,
-      clearUnreadChat: chat.clearUnreadChat,
-      setChatFocused: chat.setChatFocused,
       closeRoom,
       updateRoomDetails,
     }),
@@ -1186,50 +1286,82 @@ export function RoomProvider({
       isHost,
       canControl,
       connectionState,
-      queue,
-      nowPlaying,
-      isPlaying,
-      loop,
       listeners,
-      chat.messages,
-      chat.unreadChat,
-      chat.typingUsers,
-      reactionsCtrl.reactions,
-      skipVotes,
       guestControls,
-      syncReady,
       joinError,
       roomClosed,
       me,
       retryJoin,
       toggleGuestControls,
-      chat.sendChat,
-      reactionsCtrl.sendReaction,
-      reactionsCtrl.dismissReaction,
-      addTrack,
-      addMultipleTracks,
-      playNow,
-      voteTrack,
-      voteSkip,
-      togglePlay,
-      nextTrack,
-      previousTrack,
-      toggleRepeat,
-      shuffleQueue,
-      seekToMs,
-      removeTrack,
-      reorderQueue,
       transferHost,
       kickUser,
-      chat.setTyping,
-      chat.clearUnreadChat,
-      chat.setChatFocused,
       closeRoom,
       updateRoomDetails,
     ],
   );
 
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  const compositeValue = useMemo<RoomApi>(
+    () => ({
+      ...sessionValue,
+      ...playbackValue,
+      ...queueValue,
+      messages: chatValue.messages,
+      unreadChat: chatValue.unreadChat,
+      typingUsers: chatValue.typingUsers,
+      reactions: reactionsValue.reactions,
+      sendChat: chatValue.sendChat,
+      sendReaction: reactionsValue.sendReaction,
+      dismissReaction: reactionsValue.dismissReaction,
+      setTyping: chatValue.setTyping,
+      clearUnreadChat: chatValue.clearUnreadChat,
+      setChatFocused: chatValue.setChatFocused,
+    }),
+    [sessionValue, playbackValue, queueValue, chatValue, reactionsValue],
+  );
+
+  return (
+    <RoomSessionCtx.Provider value={sessionValue}>
+      <RoomPlaybackCtx.Provider value={playbackValue}>
+        <RoomQueueCtx.Provider value={queueValue}>
+          <RoomChatCtx.Provider value={chatValue}>
+            <RoomReactionsCtx.Provider value={reactionsValue}>
+              <Ctx.Provider value={compositeValue}>{children}</Ctx.Provider>
+            </RoomReactionsCtx.Provider>
+          </RoomChatCtx.Provider>
+        </RoomQueueCtx.Provider>
+      </RoomPlaybackCtx.Provider>
+    </RoomSessionCtx.Provider>
+  );
+}
+
+export function useRoomPlayback(): RoomPlaybackApi {
+  const ctx = useContext(RoomPlaybackCtx);
+  if (!ctx) throw new Error('useRoomPlayback must be used inside RoomProvider');
+  return ctx;
+}
+
+export function useRoomQueue(): RoomQueueApi {
+  const ctx = useContext(RoomQueueCtx);
+  if (!ctx) throw new Error('useRoomQueue must be used inside RoomProvider');
+  return ctx;
+}
+
+export function useRoomChatContext(): RoomChatApi {
+  const ctx = useContext(RoomChatCtx);
+  if (!ctx) throw new Error('useRoomChatContext must be used inside RoomProvider');
+  return ctx;
+}
+
+export function useRoomReactionsContext(): RoomReactionsApi {
+  const ctx = useContext(RoomReactionsCtx);
+  if (!ctx) throw new Error('useRoomReactionsContext must be used inside RoomProvider');
+  return ctx;
+}
+
+export function useRoomSession(): RoomSessionApi {
+  const ctx = useContext(RoomSessionCtx);
+  if (!ctx) throw new Error('useRoomSession must be used inside RoomProvider');
+  return ctx;
 }
 
 export function useRoom(): RoomApi {
@@ -1241,3 +1373,4 @@ export function useRoom(): RoomApi {
 export function useOptionalRoom(): RoomApi | null {
   return useContext(Ctx);
 }
+

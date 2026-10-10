@@ -37,7 +37,7 @@ import {
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
-import { useRoom } from '../state/RoomContext';
+import { useRoomQueue } from '../state/RoomContext';
 import { searchTracks, searchHybridTracks, isPlaylistUrl, type TrackSearchResult } from '../api';
 import { useToast } from './ToastContext';
 import { hapticLight, hapticMedium, hapticHeavy, hapticSelection } from '../utils/haptics';
@@ -118,7 +118,7 @@ export function QueueList() {
     voteTrack,
     removeTrack,
     reorderQueue,
-  } = useRoom();
+  } = useRoomQueue();
   const toast = useToast();
 
   const [query, setQuery] = useState('');
@@ -457,13 +457,25 @@ export function QueueList() {
             keyExtractor={(i, idx) => i.uri || String(idx)}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
+            getItemLayout={(_, index) => ({ length: 64, offset: 64 * index, index })}
+            initialNumToRender={10}
+            maxToRenderPerBatch={10}
+            windowSize={5}
+            removeClippedSubviews={true}
             renderItem={({ item }) => (
               <Pressable
                 onPress={() => handleSelectTrack(item)}
                 style={({ pressed }) => [styles.resultRow, pressed && styles.pressed]}
               >
                 {item.album_art_url ? (
-                  <Image source={{ uri: item.album_art_url }} style={styles.resultArt} contentFit="cover" />
+                  <Image
+                    source={{ uri: item.album_art_url }}
+                    style={styles.resultArt}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                    recyclingKey={item.album_art_url}
+                    transition={150}
+                  />
                 ) : (
                   <View style={[styles.resultArt, styles.artFallback]}>
                     <Music size={18} color={colors.text3} opacity={0.6} />
@@ -547,6 +559,11 @@ export function QueueList() {
               keyExtractor={(i, index) => i.queue_item_id || i.id || `q-${index}`}
               showsVerticalScrollIndicator={false}
               style={styles.queueList}
+              initialNumToRender={12}
+              maxToRenderPerBatch={10}
+              windowSize={7}
+              removeClippedSubviews={true}
+              updateCellsBatchingPeriod={50}
               ListHeaderComponent={
                 <View>
                   {/* Dedicated Now Playing Hero in Queue Tab */}
@@ -562,6 +579,9 @@ export function QueueList() {
                             source={{ uri: activeTrack.album_art_url }}
                             style={styles.nowPlayingArt}
                             contentFit="cover"
+                            cachePolicy="memory-disk"
+                            recyclingKey={activeTrack.album_art_url}
+                            transition={150}
                           />
                         ) : (
                           <View style={[styles.nowPlayingArt, styles.artFallback]}>
@@ -679,7 +699,14 @@ export function QueueList() {
 
                     {/* Album Art */}
                     {item.album_art_url ? (
-                      <Image source={{ uri: item.album_art_url }} style={styles.queueArt} contentFit="cover" />
+                      <Image
+                        source={{ uri: item.album_art_url }}
+                        style={styles.queueArt}
+                        contentFit="cover"
+                        cachePolicy="memory-disk"
+                        recyclingKey={item.album_art_url}
+                        transition={150}
+                      />
                     ) : (
                       <View style={[styles.queueArt, styles.artFallback]}>
                         <Music size={18} color={colors.text3} opacity={0.6} />
