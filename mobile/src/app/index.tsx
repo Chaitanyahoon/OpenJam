@@ -307,7 +307,7 @@ export default function Landing() {
 
   const handleStartSoloJam = () => {
     void hapticMedium();
-    if (currentTrack && playerStatus.playing) {
+    if (currentTrack) {
       setPlayerModalOpen(true);
     } else {
       setShowSoloSearch(true);

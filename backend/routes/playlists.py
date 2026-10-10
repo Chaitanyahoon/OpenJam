@@ -23,6 +23,15 @@ async def get_my_playlists(db: Session = Depends(get_db), user_id: str = Depends
 async def create_playlist(create_req: CreatePlaylistRequest, db: Session = Depends(get_db), user_id: str = Depends(require_registered_user)):
     """Create a new playlist."""
     
+    # Pre-fetch external tracks before database operations to prevent holding connection leases during network I/O (RULES.md § 3.2)
+    external_tracks = []
+    if create_req.import_url:
+        try:
+            res = await import_playlist(create_req.import_url)
+            external_tracks = res.get("tracks", [])
+        except Exception:
+            pass
+
     playlist = Playlist(
         name=create_req.name,
         creator_id=user_id,
@@ -30,36 +39,31 @@ async def create_playlist(create_req: CreatePlaylistRequest, db: Session = Depen
         import_url=create_req.import_url
     )
     db.add(playlist)
+    db.flush()
+
+    for idx, t in enumerate(external_tracks):
+        track_uri = t.get("track_uri") or t.get("uri")
+        track_name = t.get("track_name") or t.get("name") or "Unknown Track"
+        artist = t.get("artist") or "Unknown Artist"
+        album_art_url = t.get("album_art_url") or ""
+        duration_ms = t.get("duration_ms") or 0
+
+        new_track = PlaylistTrack(
+            playlist_id=playlist.id,
+            track_uri=track_uri,
+            track_name=track_name,
+            artist=artist,
+            album_art_url=album_art_url,
+            duration_ms=duration_ms,
+            position=idx
+        )
+        db.add(new_track)
+
+    if external_tracks:
+        playlist.last_synced_at = datetime.now(timezone.utc)
+
     db.commit()
     db.refresh(playlist)
-
-    # Automatically import tracks if an import URL was provided
-    if create_req.import_url:
-        try:
-            res = await import_playlist(create_req.import_url)
-            external_tracks = res.get("tracks", [])
-            for idx, t in enumerate(external_tracks):
-                track_uri = t.get("track_uri") or t.get("uri")
-                track_name = t.get("track_name") or t.get("name") or "Unknown Track"
-                artist = t.get("artist") or "Unknown Artist"
-                album_art_url = t.get("album_art_url") or ""
-                duration_ms = t.get("duration_ms") or 0
-
-                new_track = PlaylistTrack(
-                    playlist_id=playlist.id,
-                    track_uri=track_uri,
-                    track_name=track_name,
-                    artist=artist,
-                    album_art_url=album_art_url,
-                    duration_ms=duration_ms,
-                    position=idx
-                )
-                db.add(new_track)
-            playlist.last_synced_at = datetime.now(timezone.utc)
-            db.commit()
-            db.refresh(playlist)
-        except Exception:
-            pass
     
     return {"message": "Playlist created successfully", "playlist": playlist.to_dict(include_tracks=True)}
 
