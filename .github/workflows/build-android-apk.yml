@@ -142,8 +142,8 @@ jobs:
 
           cat <<EOF > release_notes.md
           ### 📲 Download
-          - [openjam-v${APP_VERSION}.apk](https://github.com/Chaitanyahoon/OpenJam/releases/download/${TAG}/openjam-v${APP_VERSION}.apk) (${FILE_SIZE})
-          - [openjam-latest.apk](https://github.com/Chaitanyahoon/OpenJam/releases/download/${TAG}/openjam-latest.apk)
+          - [openjam-latest.apk](https://github.com/Chaitanyahoon/OpenJam/releases/download/${TAG}/openjam-latest.apk) (${FILE_SIZE})
+          - [openjam-v${APP_VERSION}.apk](https://github.com/Chaitanyahoon/OpenJam/releases/download/${TAG}/openjam-v${APP_VERSION}.apk)
 
           ### Highlights
           ${RECENT_COMMITS}
@@ -160,3 +160,13 @@ jobs:
 
           # Upload APK binaries and checksums (--clobber replaces previous files with newest build)
           gh release upload "$TAG" build-output/* --clobber
+
+          # Prune previous releases so only the latest release is kept on GitHub Releases
+          echo "Pruning older releases to ensure only the latest release ($TAG) is kept..."
+          PREV_RELEASES=$(gh release list --limit 100 --json tagName -q ".[].tagName")
+          for prev_tag in $PREV_RELEASES; do
+            if [ "$prev_tag" != "$TAG" ]; then
+              echo "Pruning older release: $prev_tag"
+              gh release delete "$prev_tag" --yes --cleanup-tag || true
+            fi
+          done
