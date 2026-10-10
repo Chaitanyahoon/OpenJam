@@ -66,6 +66,7 @@ import {
 import { useToast } from './ToastContext';
 import { updateHapticsPreference, hapticMedium, hapticLight } from '../utils/haptics';
 import { ImportPlaylistModal } from './ImportPlaylistModal';
+import { formatRelativeTime } from '../utils/format';
 
 interface ProfileModalProps {
   visible: boolean;
@@ -80,17 +81,6 @@ interface ProfileModalProps {
 }
 
 type TabMode = 'history' | 'playlists' | 'favorites' | 'settings';
-
-function formatRelativeTime(timestamp: number): string {
-  const diffSec = Math.floor((Date.now() - timestamp) / 1000);
-  if (diffSec < 60) return 'Just now';
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHours = Math.floor(diffMin / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-  const diffDays = Math.floor(diffHours / 24);
-  return `${diffDays}d ago`;
-}
 
 const COOL_NAMES = [
   'SonicWave', 'VelvetGroove', 'LofiAstronaut', 'VinylVibe', 'NeonEcho',

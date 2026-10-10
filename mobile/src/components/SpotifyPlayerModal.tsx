@@ -83,18 +83,11 @@ import { AddToPlaylistModal } from './AddToPlaylistModal';
 import { useArtworkGestures } from './player/useArtworkGestures';
 import { useLyricsController } from './player/useLyricsController';
 import { useQueueRecommendations } from './player/useQueueRecommendations';
+import { formatDuration } from '../utils/format';
 import type { TrackInfo } from '../sync/protocol';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const ARTWORK_SIZE = Math.min(SCREEN_WIDTH - 64, 340);
-
-function formatTime(ms: number): string {
-  if (!ms || ms <= 0 || isNaN(ms)) return '0:00';
-  const totalSec = Math.floor(ms / 1000);
-  const minutes = Math.floor(totalSec / 60);
-  const seconds = totalSec % 60;
-  return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-}
 
 export function SpotifyPlayerModal() {
   const insets = useSafeAreaInsets();
@@ -756,9 +749,9 @@ export function SpotifyPlayerModal() {
               </View>
 
               <View style={styles.timeRow}>
-                <Text style={styles.timeText}>{formatTime(displayPosMs)}</Text>
+                <Text style={styles.timeText}>{formatDuration(displayPosMs)}</Text>
                 <Text style={styles.timeText}>
-                  {displayPosMs > 0 ? `-${formatTime(effectiveDuration - displayPosMs)}` : formatTime(effectiveDuration)}
+                  {displayPosMs > 0 ? `-${formatDuration(effectiveDuration - displayPosMs)}` : formatDuration(effectiveDuration)}
                 </Text>
               </View>
             </View>

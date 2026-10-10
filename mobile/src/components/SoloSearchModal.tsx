@@ -62,13 +62,7 @@ const STARTER_VIBES = [
   { id: 'electronic', label: 'Electronic', query: 'electronic melodic beats' },
 ];
 
-function fmtDuration(ms?: number): string {
-  if (!ms || ms <= 0) return '';
-  const s = Math.floor(ms / 1000);
-  const m = Math.floor(s / 60);
-  const sec = s % 60;
-  return `${m}:${sec < 10 ? '0' : ''}${sec}`;
-}
+import { formatDuration } from '../utils/format';
 
 export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchModalProps) {
   const insets = useSafeAreaInsets();
@@ -374,7 +368,7 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
 
                 <View style={styles.trackActionsRow}>
                   {item.duration_ms ? (
-                    <Text style={styles.trackDuration}>{fmtDuration(item.duration_ms)}</Text>
+                    <Text style={styles.trackDuration}>{formatDuration(item.duration_ms)}</Text>
                   ) : null}
 
                   {/* 1-Tap Add to Queue Button */}

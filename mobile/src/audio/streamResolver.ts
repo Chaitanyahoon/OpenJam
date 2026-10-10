@@ -18,6 +18,8 @@ export function parseYouTubeId(input: string): string | null {
   if (!input) return null;
   const clean = input.trim();
   if (/^[a-zA-Z0-9_-]{11}$/.test(clean)) return clean;
+  const prefixMatch = clean.match(/^(?:yt:|ytid:)([a-zA-Z0-9_-]{11})(?:\?|$)/);
+  if (prefixMatch) return prefixMatch[1];
   const streamMatch = clean.match(/\/stream\/([a-zA-Z0-9_-]{11})(?:\?|$)/);
   if (streamMatch) return streamMatch[1];
   const reg =

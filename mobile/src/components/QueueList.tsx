@@ -54,26 +54,9 @@ import {
   toggleFavoriteTrack,
   subscribeFavoriteTracks,
 } from '../storage/history';
+import { formatDuration } from '../utils/format';
+import { parseYouTubeId } from '../audio/streamResolver';
 import type { TrackInfo } from '../sync/protocol';
-
-function fmtDuration(ms?: number): string {
-  if (!ms || ms <= 0) return '';
-  const s = Math.floor(ms / 1000);
-  const m = Math.floor(s / 60);
-  const sec = s % 60;
-  return `${m}:${sec < 10 ? '0' : ''}${sec}`;
-}
-
-function extractYouTubeId(urlOrQuery: string): string | null {
-  const clean = urlOrQuery.trim();
-  const reg =
-    /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([^"&?\/\s]{11})/;
-  const match = clean.match(reg);
-  if (match && match[1]) return match[1];
-  const streamMatch = clean.match(/(?:\/stream\/|^yt:|^ytid:)([a-zA-Z0-9_-]{11})(?:\?|$)/);
-  if (streamMatch && streamMatch[1]) return streamMatch[1];
-  return null;
-}
 
 function QueueRowDragHandle({
   index,
@@ -167,7 +150,7 @@ export function QueueList() {
       return;
     }
 
-    const ytId = extractYouTubeId(q);
+    const ytId = parseYouTubeId(q);
     if (ytId) {
       addTrack({
         track_uri: ytId,
@@ -196,7 +179,7 @@ export function QueueList() {
 
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
 
-    const ytId = extractYouTubeId(q);
+    const ytId = parseYouTubeId(q);
     if (isLink || ytId) {
       handleLinkAdd(q);
       return;
@@ -224,7 +207,7 @@ export function QueueList() {
     const q = query.trim();
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
 
-    if (!q || isLink || extractYouTubeId(q)) {
+    if (!q || isLink || parseYouTubeId(q)) {
       if (!q) {
         setResults([]);
         setShowResults(false);
@@ -420,7 +403,7 @@ export function QueueList() {
           ) : null}
         </View>
 
-        {(isLink || extractYouTubeId(query)) && query.trim() ? (
+        {(isLink || parseYouTubeId(query)) && query.trim() ? (
           <Pressable
             onPress={() => handleLinkAdd()}
             style={({ pressed }) => [styles.linkBtn, pressed && styles.pressed]}
@@ -491,7 +474,7 @@ export function QueueList() {
                   <Text style={styles.resultArtist} numberOfLines={1}>{item.artist}</Text>
                 </View>
                 {item.duration_ms ? (
-                  <Text style={styles.resultDuration}>{fmtDuration(item.duration_ms)}</Text>
+                  <Text style={styles.resultDuration}>{formatDuration(item.duration_ms)}</Text>
                 ) : null}
                 <View style={styles.resultActionsRow}>
                   <Pressable
@@ -595,7 +578,7 @@ export function QueueList() {
                         </View>
                         {activeTrack.duration_ms ? (
                           <Text style={styles.nowPlayingDuration}>
-                            {fmtDuration(activeTrack.duration_ms)}
+                            {formatDuration(activeTrack.duration_ms)}
                           </Text>
                         ) : null}
                         <Pressable

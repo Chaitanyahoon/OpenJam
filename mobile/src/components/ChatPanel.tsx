@@ -39,6 +39,7 @@ import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
 import { useRoom } from '../state/RoomContext';
 import { hapticLight } from '../utils/haptics';
+import { formatChatTimestamp } from '../utils/format';
 
 const CHAT_REACTIONS = [
   { id: 'heart', icon: <Heart size={14} color="#ef4444" fill="#ef4444" /> },
@@ -71,29 +72,6 @@ export function initials(name?: string | null): string {
     .join('')
     .slice(0, 2)
     .toUpperCase();
-}
-
-function formatTimestamp(ts: number | string): string {
-  if (!ts) return '';
-  let d: Date;
-  if (typeof ts === 'string') {
-    const clean = ts.trim();
-    if (!clean.endsWith('Z') && !clean.includes('+') && !clean.slice(10).includes('-')) {
-      d = new Date(`${clean}Z`);
-    } else {
-      d = new Date(clean);
-    }
-  } else {
-    d = new Date(ts);
-  }
-  if (isNaN(d.getTime())) return '';
-  let h = d.getHours();
-  const m = d.getMinutes();
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12;
-  h = h ? h : 12;
-  const mm = m < 10 ? `0${m}` : m;
-  return `${h}:${mm} ${ampm}`;
 }
 
 export const ChatPanel = forwardRef<ChatPanelRef, { onMentionUser?: (name: string) => void }>(
@@ -196,7 +174,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, { onMentionUser?: (name: strin
                 <View style={styles.bubbleRowMine}>
                   <View style={styles.bubbleMine}>
                     <Text style={styles.textMine}>{item.content}</Text>
-                    <Text style={styles.timeMine}>{formatTimestamp(item.timestamp)}</Text>
+                    <Text style={styles.timeMine}>{formatChatTimestamp(item.timestamp)}</Text>
                   </View>
                 </View>
               );
@@ -237,7 +215,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, { onMentionUser?: (name: strin
                         <Text style={styles.hostBadgeText}>Host</Text>
                       </View>
                     ) : null}
-                    <Text style={styles.timestamp}>{formatTimestamp(item.timestamp)}</Text>
+                    <Text style={styles.timestamp}>{formatChatTimestamp(item.timestamp)}</Text>
                   </View>
                   <Text style={styles.textOther}>{item.content}</Text>
                 </View>
