@@ -23,7 +23,7 @@ import { hapticMedium } from '../utils/haptics';
 import { useToast } from '../components/ToastContext';
 import { registerPushToken } from '../notifications';
 import { requestFirstLaunchPermissions } from '../permissions';
-import { usePlayer } from '../audio/PlayerContext';
+import { usePlayer, usePlayerStatus } from '../audio/PlayerContext';
 import { SoloSearchModal } from '../components/SoloSearchModal';
 import { MiniPlayer } from '../components/MiniPlayer';
 
@@ -53,7 +53,8 @@ const GENRE_MAP: Record<string, string[]> = {
 export default function Landing() {
   const { connect, disconnect } = useSocket();
   const toast = useToast();
-  const { playTrack, setPlayerModalOpen } = usePlayer();
+  const { playTrack, setPlayerModalOpen, currentTrack } = usePlayer();
+  const playerStatus = usePlayerStatus();
 
   // Top-Level State Variables
   const [user, setUser] = useState<ApiUser | null>(null);
@@ -305,7 +306,11 @@ export default function Landing() {
 
   const handleStartSoloJam = () => {
     void hapticMedium();
-    setShowSoloSearch(true);
+    if (currentTrack && playerStatus.playing) {
+      setPlayerModalOpen(true);
+    } else {
+      setShowSoloSearch(true);
+    }
   };
 
   const handleProfilePlayTrack = (track: PlayedTrack) => {

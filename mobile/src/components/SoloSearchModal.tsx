@@ -42,6 +42,7 @@ import type { TrackInfo } from '../sync/protocol';
 interface SoloSearchModalProps {
   visible: boolean;
   onClose: () => void;
+  mode?: 'play' | 'queue';
 }
 
 const STARTER_VIBES = [
@@ -61,7 +62,7 @@ function fmtDuration(ms?: number): string {
   return `${m}:${sec < 10 ? '0' : ''}${sec}`;
 }
 
-export function SoloSearchModal({ visible, onClose }: SoloSearchModalProps) {
+export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchModalProps) {
   const insets = useSafeAreaInsets();
   const toast = useToast();
   const { playTrack, addToQueue, setPlayerModalOpen } = usePlayer();
@@ -147,6 +148,10 @@ export function SoloSearchModal({ visible, onClose }: SoloSearchModalProps) {
   };
 
   const handlePlaySelected = (item: TrackSearchResult) => {
+    if (mode === 'queue') {
+      handleAddToQueue(item);
+      return;
+    }
     void hapticMedium();
     const trackInfo: TrackInfo = {
       track_uri: item.uri,
@@ -182,6 +187,21 @@ export function SoloSearchModal({ visible, onClose }: SoloSearchModalProps) {
   };
 
   const handlePlayRecent = (track: PlayedTrack) => {
+    if (mode === 'queue') {
+      if (addedUris.has(track.track_uri)) return;
+      void hapticLight();
+      setAddedUris((prev) => new Set(prev).add(track.track_uri));
+      const trackInfo: TrackInfo = {
+        track_uri: track.track_uri,
+        track_name: track.track_name,
+        artist: track.artist,
+        album_art_url: track.album_art_url,
+        duration_ms: track.duration_ms,
+      };
+      addToQueue(trackInfo);
+      toast(`Added "${track.track_name}" to queue`, 'success');
+      return;
+    }
     void hapticMedium();
     const trackInfo: TrackInfo = {
       track_uri: track.track_uri,
@@ -219,8 +239,12 @@ export function SoloSearchModal({ visible, onClose }: SoloSearchModalProps) {
           </Pressable>
 
           <View style={styles.headerTitleWrap}>
-            <Text style={styles.headerTitle}>Solo Jam</Text>
-            <Text style={styles.headerSubtitle}>Search & play any music instantly</Text>
+            <Text style={styles.headerTitle}>
+              {mode === 'queue' ? 'Add to Queue' : 'Solo Jam'}
+            </Text>
+            <Text style={styles.headerSubtitle}>
+              {mode === 'queue' ? 'Tap songs or + to add to Up Next' : 'Search & play any music instantly'}
+            </Text>
           </View>
 
           <View style={{ width: 40 }} />

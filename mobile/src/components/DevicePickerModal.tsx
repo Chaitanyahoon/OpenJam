@@ -93,21 +93,6 @@ export function DevicePickerModal({
       subtitle: 'Connected via 3.5mm jack or Type-C adapter',
       icon: <Volume2 size={22} color={activeDevice === 'wired' ? '#10b981' : colors.text2} />,
     },
-    {
-      id: 'room',
-      title: roomName ? `Jam: ${roomName}` : 'Collaborative Jam Room',
-      subtitle: roomName ? 'Listening live with friends' : 'Start a live room & invite friends',
-      icon: <Radio size={22} color={activeDevice === 'room' ? '#10b981' : colors.text2} />,
-      action: onStartLiveJam
-        ? {
-            label: 'Start Live Jam',
-            onPress: () => {
-              void hapticMedium();
-              onStartLiveJam();
-            },
-          }
-        : undefined,
-    },
   ];
 
   return (

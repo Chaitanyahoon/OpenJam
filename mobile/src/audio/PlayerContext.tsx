@@ -54,7 +54,7 @@ export interface LockScreenMeta {
 }
 
 export type RepeatMode = 'off' | 'all' | 'one';
-export type AudioDeviceRoute = 'speaker' | 'bluetooth' | 'wired' | 'room';
+export type AudioDeviceRoute = 'speaker' | 'bluetooth' | 'wired';
 
 export interface PlayerControls {
   // Low-level controls (used by Room sync engine & Solo mode)
@@ -97,6 +97,7 @@ export interface PlayerControls {
   addToQueue: (track: TrackInfo) => void;
   removeFromQueue: (index: number) => void;
   reorderQueue: (fromIndex: number, toIndex: number) => void;
+  clearUpcomingQueue: () => void;
 
   // Audio Device Routing & Radio Auto-Play
   activeAudioDevice: AudioDeviceRoute;
@@ -173,7 +174,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     AsyncStorage.getItem('@openjam_audio_route')
       .then((saved) => {
-        if (saved === 'speaker' || saved === 'bluetooth' || saved === 'wired' || saved === 'room') {
+        if (saved === 'speaker' || saved === 'bluetooth' || saved === 'wired') {
           setActiveAudioDeviceState(saved as AudioDeviceRoute);
         }
       })
@@ -552,6 +553,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         setQueueState(newQueue);
         const idx = newQueue.findIndex((t) => t.track_uri === track.track_uri);
         setCurrentIndex(idx >= 0 ? idx : 0);
+      } else {
+        const existingIdx = queueRef.current.findIndex((t) => t.track_uri === track.track_uri);
+        if (existingIdx >= 0) {
+          setCurrentIndex(existingIdx);
+        }
       }
 
       void recordTrackPlayed(track);
@@ -691,6 +697,22 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const clearUpcomingQueue = useCallback(() => {
+    setQueueState((prev) => {
+      const activeIdx = currentTrackRef.current
+        ? prev.findIndex((t) => t.track_uri === currentTrackRef.current?.track_uri)
+        : currentIndexRef.current;
+      const safeIdx = activeIdx >= 0 ? activeIdx : Math.max(0, currentIndexRef.current);
+      if (safeIdx >= prev.length - 1) {
+        queueRef.current = prev;
+        return prev;
+      }
+      const trimmed = prev.slice(0, safeIdx + 1);
+      queueRef.current = trimmed;
+      return trimmed;
+    });
+  }, []);
+
   // Track finished listener
   const handleTrackFinished = useCallback(() => {
     onTrackEndedCbRef.current?.();
@@ -824,6 +846,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       addToQueue,
       removeFromQueue,
       reorderQueue,
+      clearUpcomingQueue,
 
       activeAudioDevice,
       setAudioDevice,
@@ -865,6 +888,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       addToQueue,
       removeFromQueue,
       reorderQueue,
+      clearUpcomingQueue,
 
       activeAudioDevice,
       setAudioDevice,

@@ -21,9 +21,9 @@ import {
   PanResponder,
   Pressable,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -60,6 +60,8 @@ import {
   Volume2,
   Plus,
   Check,
+  Search,
+  X,
   MessageSquareQuote,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
@@ -76,7 +78,7 @@ import {
 import { hapticLight, hapticMedium } from '../utils/haptics';
 import { useToast } from './ToastContext';
 import { getAmbientPalette } from '../utils/palette';
-import { getBackendUrl, createRoom, getStoredSession } from '../api';
+import { getBackendUrl, searchHybridTracks, type TrackSearchResult } from '../api';
 import { DevicePickerModal } from './DevicePickerModal';
 import type { TrackInfo } from '../sync/protocol';
 
@@ -116,6 +118,7 @@ export function SpotifyPlayerModal() {
     playTrack,
     addToQueue,
     removeFromQueue,
+    clearUpcomingQueue,
     activeAudioDevice,
     setAudioDevice,
     radioAutoPlay,
@@ -137,6 +140,14 @@ export function SpotifyPlayerModal() {
   const [recommendations, setRecommendations] = useState<TrackInfo[]>([]);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
   const [addedRecUris, setAddedRecUris] = useState<Set<string>>(new Set());
+
+  // Inline Add to Queue Search state
+  const [showSearchInline, setShowSearchInline] = useState(false);
+  const [searchInlineQuery, setSearchInlineQuery] = useState('');
+  const [searchInlineResults, setSearchInlineResults] = useState<TrackSearchResult[]>([]);
+  const [searchInlineLoading, setSearchInlineLoading] = useState(false);
+  const [addedInlineUris, setAddedInlineUris] = useState<Set<string>>(new Set());
+  const searchDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const lastTouchXRef = useRef(0);
   const startYRef = useRef(0);
@@ -354,41 +365,39 @@ export function SpotifyPlayerModal() {
     toast(liked ? 'Added to Liked Songs' : 'Removed from Liked Songs', 'info');
   };
 
-  const handleStartLiveJam = async () => {
-    if (!currentTrack) {
-      toast('No song currently playing to start a Jam', 'info');
+  const handleSearchInlineChange = (text: string) => {
+    setSearchInlineQuery(text);
+    if (searchDebounceTimer.current) clearTimeout(searchDebounceTimer.current);
+    if (!text.trim()) {
+      setSearchInlineResults([]);
+      setSearchInlineLoading(false);
       return;
     }
-    void hapticMedium();
-    setShowDevicePicker(false);
-    toast('Starting Live Jam…', 'info');
-    try {
-      const session = await getStoredSession();
-      const hostName = session.user?.display_name || session.user?.discord_username || 'Jammer';
-      const newRoom = await createRoom({
-        name: `${hostName}'s Jam`,
-        description: `Live Jam with ${currentTrack.track_name}`,
-        genre_tags: ['live', 'jam'],
-        allow_guest_controls: true,
-      });
-
-      const inviteUrl = `https://www.openjam.fun/room/${newRoom.id}`;
+    setSearchInlineLoading(true);
+    searchDebounceTimer.current = setTimeout(async () => {
       try {
-        await Share.share({
-          message: `Join my Live Jam on OpenJam!\n${inviteUrl}`,
-          title: `${hostName}'s Live Jam`,
-        });
-      } catch {}
+        const found = await searchHybridTracks(text.trim());
+        setSearchInlineResults(found);
+      } catch {
+        setSearchInlineResults([]);
+      } finally {
+        setSearchInlineLoading(false);
+      }
+    }, 350);
+  };
 
-      toast('Live Jam started! Invite link ready 🎶', 'success');
-      setPlayerModalOpen(false);
-      router.push({
-        pathname: '/room/[id]/player',
-        params: { id: newRoom.id, name: newRoom.name },
-      });
-    } catch {
-      toast('Could not create Live Jam room', 'error');
-    }
+  const handleAddInlineToQueue = (item: TrackSearchResult) => {
+    void hapticMedium();
+    const trackInfo: TrackInfo = {
+      track_uri: item.uri,
+      track_name: item.name,
+      artist: item.artist,
+      album_art_url: item.album_art_url,
+      duration_ms: item.duration_ms,
+    };
+    addToQueue(trackInfo);
+    setAddedInlineUris((prev) => new Set(prev).add(item.uri));
+    toast(`Added "${item.name}" to queue`, 'success');
   };
 
   return (
@@ -442,7 +451,7 @@ export function SpotifyPlayerModal() {
           /* Up Next Queue Panel */
           <View style={styles.queueContainer}>
             <View style={styles.queueHeader}>
-              <View>
+              <View style={styles.queueHeaderTitleCol}>
                 <Text style={styles.queueHeading}>Up Next</Text>
                 <Text style={styles.queueSubheading}>
                   {queue.slice(currentIndex + 1).length > 0
@@ -450,21 +459,46 @@ export function SpotifyPlayerModal() {
                     : 'Queue is empty'}
                 </Text>
               </View>
+
               <View style={styles.queueHeaderActions}>
+                {queue.slice(currentIndex + 1).length > 0 && (
+                  <Pressable
+                    onPress={() => {
+                      void hapticMedium();
+                      clearUpcomingQueue();
+                      toast('Upcoming queue cleared', 'info');
+                    }}
+                    style={styles.clearQueuePill}
+                    hitSlop={6}
+                    accessibilityLabel="Clear upcoming queue"
+                  >
+                    <Trash2 size={12} color="#ff6b6b" />
+                    <Text style={styles.clearQueueText}>Clear</Text>
+                  </Pressable>
+                )}
+
                 <Pressable
-                  onPress={() => void handleStartLiveJam()}
-                  style={styles.startJamPill}
-                  accessibilityLabel="Start Live Jam with friends"
+                  onPress={() => {
+                    void hapticLight();
+                    setShowSearchInline((prev) => !prev);
+                  }}
+                  style={[styles.addSongsPill, showSearchInline && styles.addSongsPillActive]}
+                  hitSlop={6}
+                  accessibilityLabel="Add songs to queue"
                 >
-                  <Radio size={12} color="#08080a" />
-                  <Text style={styles.startJamText}>Live Jam</Text>
+                  <Plus size={12} color={showSearchInline ? colors.amber : '#ffffff'} />
+                  <Text style={[styles.addSongsText, showSearchInline && { color: colors.amber }]}>
+                    {showSearchInline ? 'Done' : 'Add Songs'}
+                  </Text>
                 </Pressable>
+
                 <Pressable
                   onPress={() => {
                     void hapticLight();
                     toggleRadioAutoPlay();
                   }}
                   style={[styles.radioPill, !radioAutoPlay && styles.radioPillOff]}
+                  hitSlop={6}
                   accessibilityLabel="Toggle Spotify Radio Auto-Play"
                 >
                   <Radio size={12} color={radioAutoPlay ? colors.amber : '#888899'} />
@@ -476,6 +510,79 @@ export function SpotifyPlayerModal() {
             </View>
 
             <ScrollView style={styles.queueList} contentContainerStyle={styles.queueContent}>
+              {showSearchInline && (
+                <View style={styles.searchInlineBox}>
+                  <View style={styles.searchInlineBar}>
+                    <Search size={15} color="#888899" style={{ marginRight: 8 }} />
+                    <TextInput
+                      value={searchInlineQuery}
+                      onChangeText={handleSearchInlineChange}
+                      placeholder="Search songs to queue…"
+                      placeholderTextColor="#777788"
+                      style={styles.searchInlineInput}
+                      autoFocus
+                    />
+                    {searchInlineQuery.length > 0 && (
+                      <Pressable
+                        onPress={() => {
+                          setSearchInlineQuery('');
+                          setSearchInlineResults([]);
+                        }}
+                        hitSlop={8}
+                      >
+                        <X size={15} color="#888899" />
+                      </Pressable>
+                    )}
+                  </View>
+
+                  {searchInlineLoading && (
+                    <View style={styles.searchInlineLoading}>
+                      <ActivityIndicator size="small" color={colors.amber} />
+                      <Text style={styles.searchInlineLoadingText}>Searching tracks…</Text>
+                    </View>
+                  )}
+
+                  {searchInlineResults.map((item) => {
+                    const isAdded = addedInlineUris.has(item.uri);
+                    return (
+                      <View key={item.uri} style={styles.queueItem}>
+                        <Image
+                          source={{ uri: item.album_art_url || 'https://openjam.fun/default_art.png' }}
+                          style={styles.queueItemArt}
+                          contentFit="cover"
+                        />
+                        <View style={styles.queueItemInfo}>
+                          <Text style={styles.queueItemTitle} numberOfLines={1}>
+                            {item.name}
+                          </Text>
+                          <Text style={styles.queueItemArtist} numberOfLines={1}>
+                            {item.artist || 'Unknown Artist'}
+                          </Text>
+                        </View>
+                        <Pressable
+                          onPress={() => handleAddInlineToQueue(item)}
+                          disabled={isAdded}
+                          hitSlop={8}
+                          style={[styles.recAddBtn, isAdded && styles.recAddBtnDisabled]}
+                          accessibilityLabel={isAdded ? 'Added to queue' : `Add ${item.name} to queue`}
+                        >
+                          {isAdded ? (
+                            <View style={styles.recAddedPill}>
+                              <Check size={13} color={colors.green} />
+                              <Text style={styles.recAddedText}>Added</Text>
+                            </View>
+                          ) : (
+                            <View style={styles.recAddPill}>
+                              <Plus size={14} color="#ffffff" />
+                              <Text style={styles.recAddText}>Add</Text>
+                            </View>
+                          )}
+                        </Pressable>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
               {/* Section: Now Playing */}
               {currentTrack && (
                 <View style={styles.queueSection}>
@@ -801,14 +908,7 @@ export function SpotifyPlayerModal() {
                 style={styles.deviceRoutePill}
                 accessibilityLabel="Select audio output device"
               >
-                {activeAudioDevice === 'room' && optionalRoom?.roomName ? (
-                  <>
-                    <Radio size={14} color="#22c55e" />
-                    <Text style={styles.deviceRouteText} numberOfLines={1}>
-                      Jam: {optionalRoom.roomName}
-                    </Text>
-                  </>
-                ) : activeAudioDevice === 'bluetooth' ? (
+                {activeAudioDevice === 'bluetooth' ? (
                   <>
                     <Volume2 size={14} color={palette.accent} />
                     <Text style={[styles.deviceRouteText, { color: palette.accent }]} numberOfLines={1}>
@@ -954,8 +1054,6 @@ export function SpotifyPlayerModal() {
           onClose={() => setShowDevicePicker(false)}
           activeDevice={activeAudioDevice}
           onSelectDevice={setAudioDevice}
-          onStartLiveJam={handleStartLiveJam}
-          roomName={optionalRoom?.roomName}
         />
       </View>
     </Modal>
@@ -1165,6 +1263,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 16,
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  queueHeaderTitleCol: {
+    minWidth: 100,
   },
   queueHeading: {
     fontFamily: fontFamily.displayBold,
@@ -1191,21 +1294,78 @@ const styles = StyleSheet.create({
   queueHeaderActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    flexWrap: 'wrap',
+    gap: 6,
   },
-  startJamPill: {
+  clearQueuePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.amber,
-    paddingHorizontal: 9,
-    paddingVertical: 4.5,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: radius.full,
-    gap: 5,
+    gap: 4,
   },
-  startJamText: {
+  clearQueueText: {
     fontFamily: fontFamily.bodySemiBold,
-    fontSize: 10.5,
-    color: '#08080a',
+    fontSize: 10,
+    color: '#ff6b6b',
+  },
+  addSongsPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.full,
+    gap: 4,
+  },
+  addSongsPillActive: {
+    backgroundColor: 'rgba(255, 159, 28, 0.16)',
+    borderColor: 'rgba(255, 159, 28, 0.35)',
+    borderWidth: 1,
+  },
+  addSongsText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 10,
+    color: '#ffffff',
+  },
+  searchInlineBox: {
+    marginBottom: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: radius.md,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.07)',
+  },
+  searchInlineBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    borderRadius: radius.full,
+    paddingHorizontal: 12,
+    height: 38,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  searchInlineInput: {
+    flex: 1,
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 13,
+    color: '#ffffff',
+    paddingVertical: 0,
+  },
+  searchInlineLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    gap: 8,
+  },
+  searchInlineLoadingText: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 12,
+    color: '#888899',
   },
   radioPill: {
     flexDirection: 'row',
