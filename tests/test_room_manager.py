@@ -73,3 +73,17 @@ def test_playback_skip_votes_are_serialized():
 
     playback = room_manager.get_playback("room-1")
     assert playback["skip_voters"] == ["user-1"]
+
+
+def test_leave_room_prunes_stale_recently_left():
+    import time
+    # Seed an old entry (>30s ago)
+    room_manager.store.set_recently_left({"stale-user": time.time() - 40.0})
+    room_manager.join_room("room-1", "user-1", "sid-1", "Ava")
+    
+    room_manager.leave_room("sid-1")
+    
+    # Stale user must be pruned, only user-1 remains
+    recently_left = room_manager.store.get_recently_left()
+    assert "stale-user" not in recently_left
+    assert "user-1" in recently_left

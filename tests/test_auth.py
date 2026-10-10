@@ -19,11 +19,16 @@ def test_get_me_unauthenticated(client):
 
 
 def test_logout_authenticated(client, auth_headers):
-    """Test logout when authenticated."""
+    """Test logout when authenticated and verify token is revoked."""
     response = client.post("/auth/logout", headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
     assert data["message"] == "Logged out"
+
+    # Subsequent request using the revoked token must not resolve the user
+    subsequent = client.get("/auth/me", headers=auth_headers)
+    assert subsequent.status_code == 200
+    assert subsequent.json()["user"] is None
 
 
 def test_logout_unauthenticated(client):

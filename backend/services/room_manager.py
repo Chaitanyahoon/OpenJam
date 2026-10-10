@@ -108,8 +108,9 @@ class RoomManager:
         user_id = info["user_id"]
         
         # Mark as recently left to prevent duplicate join messages on quick reconnect
-        recently_left = self.store.get_recently_left()
-        recently_left[user_id] = time.time()
+        now = time.time()
+        recently_left = {u: ts for u, ts in self.store.get_recently_left().items() if now - ts < 30.0}
+        recently_left[user_id] = now
         self.store.set_recently_left(recently_left)
         
         room = self.store.get_room(room_id)
