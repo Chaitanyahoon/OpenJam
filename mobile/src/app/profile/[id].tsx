@@ -12,7 +12,7 @@
  *   - Saved Rooms: pinned rooms with 1-tap join
  *   - Settings: storage cache management, session sign out
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -59,12 +59,6 @@ import {
 import { colors, radius, spacing } from '../../theme';
 import { fontFamily } from '../../fonts';
 import {
-  getPublicProfile,
-  getProfileSocial,
-  getProfileStats,
-  getPlaylist,
-  toggleFollowUser,
-  getStoredSession,
   clearSession,
   fetchMe,
   getBackendUrl,
@@ -75,25 +69,15 @@ import {
 } from '../../api';
 import { usePlayer } from '../../audio/PlayerContext';
 import { MiniPlayer } from '../../components/MiniPlayer';
+import { useUserProfile } from '../../domain/useUserProfile';
 import {
-  getRecentlyPlayed,
-  getFavoriteRooms,
-  getOfflinePlaylists,
-  calculateStorageUsageKb,
-  clearRecentlyPlayed,
-  saveOfflinePlaylist,
-  deleteOfflinePlaylist,
-  getAppPreferences,
-  updateAppPreferences,
-  getFavoriteTracks,
-  shuffleTracks,
   type OfflinePlaylist,
   type PlayedTrack,
   type FavoriteRoom,
   type AppPreferences,
 } from '../../storage/history';
 import { useToast } from '../../components/ToastContext';
-import { updateHapticsPreference, hapticLight, hapticMedium, hapticHeavy } from '../../utils/haptics';
+import { hapticLight, hapticMedium, hapticHeavy } from '../../utils/haptics';
 import { ImportPlaylistModal } from '../../components/ImportPlaylistModal';
 import type { TrackInfo } from '../../sync/protocol';
 
@@ -117,156 +101,43 @@ export default function UserProfileScreen() {
   const toast = useToast();
   const player = usePlayer();
 
-  const [loading, setLoading] = useState(true);
-  const [profile, setProfile] = useState<PublicProfile | null>(null);
-  const [playlists, setPlaylists] = useState<ApiPlaylist[]>([]);
-  const [offlinePlaylists, setOfflinePlaylists] = useState<OfflinePlaylist[]>([]);
-  const [recentTracks, setRecentTracks] = useState<PlayedTrack[]>([]);
-  const [favoriteRooms, setFavoriteRooms] = useState<FavoriteRoom[]>([]);
-  const [social, setSocial] = useState<ProfileSocialStats | null>(null);
-  const [stats, setStats] = useState<ProfileStatsData | null>(null);
-  const [isSelf, setIsSelf] = useState(false);
-  const [following, setFollowing] = useState(false);
-  const [followLoading, setFollowLoading] = useState(false);
-  const [selfTab, setSelfTab] = useState<SelfTabMode>('playlists');
-  const [cacheKb, setCacheKb] = useState(0);
-  const [preferences, setPreferences] = useState<AppPreferences>({
-    audioQuality: 'high',
-    hapticEnabled: true,
+  const profileDomain = useUserProfile({
+    targetId: rawId,
   });
-  const [isDiscordUser, setIsDiscordUser] = useState(false);
+
+  const {
+    profile,
+    isSelf,
+    loading,
+    social,
+    stats,
+    localStats,
+    playlists: offlinePlaylists,
+    apiPlaylists: playlists,
+    likedTracks: favoriteTracks,
+    recentTracks,
+    favoriteRooms,
+    preferences,
+    cacheKb,
+    following,
+    followLoading,
+    isDiscordUser,
+    playTrack,
+    playPlaylistDirect,
+    saveImportedPlaylist,
+    shufflePlay,
+    deletePlaylist,
+    toggleFollow,
+    updatePreferences,
+    clearRecent,
+    refresh,
+  } = profileDomain;
+
+  const [selfTab, setSelfTab] = useState<SelfTabMode>('playlists');
   const [importModalVisible, setImportModalVisible] = useState(false);
-  const [favoriteTracks, setFavoriteTracks] = useState<TrackInfo[]>([]);
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const session = await getStoredSession();
-      const targetId = rawId === 'me' ? session.user?.id : rawId;
-      const cleanTarget = (targetId || '').trim().replace(/^@/, '').toLowerCase();
-      const isMine =
-        rawId === 'me' ||
-        (!!session.user &&
-          (session.user.id === targetId ||
-            (session.user.discord_username && session.user.discord_username.toLowerCase() === cleanTarget) ||
-            ((session.user as any).username && (session.user as any).username.toLowerCase() === cleanTarget) ||
-            (session.user.display_name && session.user.display_name.toLowerCase() === cleanTarget)));
-      setIsSelf(isMine);
-
-      if (isMine) {
-        // Load local personal data in parallel
-        const [recents, favs, offPlists, prefs, liked] = await Promise.all([
-          getRecentlyPlayed(),
-          getFavoriteRooms(),
-          getOfflinePlaylists(),
-          getAppPreferences(),
-          getFavoriteTracks(),
-        ]);
-        setRecentTracks(recents);
-        setFavoriteRooms(favs);
-        setOfflinePlaylists(offPlists);
-        setPreferences(prefs);
-        setFavoriteTracks(liked);
-        setIsDiscordUser(!!session.user?.discord_id || !!session.user?.is_registered);
-
-        // Pre-populate self profile immediately for 0ms delay
-        setProfile({
-          id: targetId || 'guest',
-          display_name: session.user?.display_name || 'Jammer',
-          username: session.user?.discord_username || session.user?.display_name || 'jammer',
-          bio: 'OpenJam Music Explorer',
-          avatar_url: session.user?.avatar_url || null,
-        } as PublicProfile);
-        setLoading(false);
-
-        // Calculate cache usage in background without blocking render
-        void calculateStorageUsageKb().then(setCacheKb);
-      }
-
-      if (targetId) {
-        // Fetch server profile in parallel
-        const [profData, socData, statsData] = await Promise.all([
-          getPublicProfile(targetId).catch(() => null),
-          getProfileSocial(targetId).catch(() => null),
-          getProfileStats(targetId).catch(() => null),
-        ]);
-
-        if (profData) {
-          setProfile(profData.user);
-          setPlaylists(profData.playlists || []);
-        } else if (isMine && !profile) {
-          // Fallback self profile
-          setProfile({
-            id: targetId,
-            display_name: session.user?.display_name || 'Jammer',
-            username: session.user?.discord_username || session.user?.display_name || 'jammer',
-            bio: 'OpenJam Music Explorer',
-            avatar_url: session.user?.avatar_url || null,
-          } as PublicProfile);
-        }
-
-        if (socData) {
-          setSocial(socData);
-          setFollowing(socData.is_following);
-        }
-        if (statsData) {
-          setStats(statsData);
-        }
-      } else if (isMine && !profile) {
-        // Guest user self profile
-        setProfile({
-          id: 'guest',
-          display_name: 'Guest Jammer',
-          username: 'guest',
-          bio: 'Listening anonymously on OpenJam',
-          avatar_url: null,
-        } as PublicProfile);
-      }
-    } catch {
-      toast('Failed to load user profile', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [rawId, toast]);
-
-  useEffect(() => {
-    void loadData();
-  }, [loadData]);
 
   const handleToggleFollow = async () => {
-    if (isSelf || !profile) return;
-    void hapticMedium();
-    const nextState = !following;
-    setFollowing(nextState);
-    setFollowLoading(true);
-
-    setSocial((prev) =>
-      prev
-        ? {
-            ...prev,
-            followers_count: prev.followers_count + (nextState ? 1 : -1),
-            is_following: nextState,
-          }
-        : null,
-    );
-
-    const ok = await toggleFollowUser(profile.id, nextState);
-    setFollowLoading(false);
-    if (!ok) {
-      setFollowing(!nextState);
-      setSocial((prev) =>
-        prev
-          ? {
-              ...prev,
-              followers_count: prev.followers_count + (nextState ? -1 : 1),
-              is_following: !nextState,
-            }
-          : null,
-      );
-      toast('Could not update follow status', 'error');
-    } else {
-      toast(nextState ? `Following @${profile.username || profile.display_name}` : 'Unfollowed', 'info');
-    }
+    await toggleFollow();
   };
 
   const handleShare = async () => {
@@ -281,30 +152,19 @@ export default function UserProfileScreen() {
   };
 
   const handleToggleAudioQuality = async (value: boolean) => {
-    void hapticLight();
-    const updated = await updateAppPreferences({
+    await updatePreferences({
       audioQuality: value ? 'high' : 'saver',
     });
-    setPreferences(updated);
-    toast(value ? 'High-Fidelity Audio (320kbps) enabled' : 'Data Saver Audio enabled', 'info');
   };
 
   const handleToggleHaptics = async (value: boolean) => {
-    updateHapticsPreference(value);
-    const updated = await updateAppPreferences({
+    await updatePreferences({
       hapticEnabled: value,
     });
-    setPreferences(updated);
-    if (value) void hapticMedium();
-    toast(value ? 'Haptic feedback enabled' : 'Haptic feedback disabled', 'info');
   };
 
   const handleClearHistory = async () => {
-    void hapticLight();
-    await clearRecentlyPlayed();
-    setRecentTracks([]);
-    setCacheKb(await calculateStorageUsageKb());
-    toast('Listening history cleared', 'info');
+    await clearRecent();
   };
 
   const handleOpenAndroidSettings = () => {
@@ -312,111 +172,42 @@ export default function UserProfileScreen() {
     void Linking.openSettings();
   };
 
-  const handleDeleteOfflinePlaylist = async (playlistId: string, name: string) => {
-    void hapticMedium();
-    await deleteOfflinePlaylist(playlistId);
-    setOfflinePlaylists((prev) => prev.filter((p) => p.id !== playlistId));
-    setCacheKb(await calculateStorageUsageKb());
-    toast(`Deleted playlist "${name}"`, 'info');
+  const handleDeleteOfflinePlaylist = async (playlistId: string, _name: string) => {
+    await deletePlaylist(playlistId);
   };
 
   const handleSaveImportedPlaylist = async (name: string, tracks: TrackInfo[]) => {
-    try {
-      void hapticMedium();
-      const created = await saveOfflinePlaylist(name, tracks);
-      setOfflinePlaylists((prev) => [created, ...prev]);
-      setCacheKb(await calculateStorageUsageKb());
-      toast(`Imported playlist "${name}" (${tracks.length} tracks)`, 'success');
-    } catch {
-      toast('Failed to save imported playlist', 'error');
-    }
+    await saveImportedPlaylist(name, tracks);
   };
 
   const handlePlayPlaylistDirect = async (item: any) => {
-    void hapticMedium();
-    // 1. If tracks are already present in item.tracks
-    if (Array.isArray(item.tracks) && item.tracks.length > 0) {
-      const mapped = item.tracks.map((t: any) => ({
-        track_uri: t.track_uri || t.uri,
-        track_name: t.track_name || t.name,
-        artist: t.artist || 'Unknown Artist',
-        album_art_url: t.album_art_url,
-        duration_ms: t.duration_ms,
-      }));
-      player.setPlayerModalOpen(true);
-      void player.playTrack(mapped[0], mapped, { sourceTitle: item.name });
-      toast(`Playing "${item.name}"`, 'success');
-      return;
-    }
-
-    // 2. Otherwise fetch playlist tracks dynamically
-    toast(`Opening "${item.name}"…`, 'info');
-    player.setPlayerModalOpen(true);
-    try {
-      const detail = await getPlaylist(item.id);
-      if (detail && detail.tracks && detail.tracks.length > 0) {
-        const mapped = detail.tracks.map((t) => ({
-          track_uri: t.track_uri,
-          track_name: t.track_name,
-          artist: t.artist || 'Unknown Artist',
-          album_art_url: t.album_art_url,
-          duration_ms: t.duration_ms,
-        }));
-        void player.playTrack(mapped[0], mapped, { sourceTitle: item.name });
-      } else {
-        toast('Playlist is empty or has no playable tracks', 'info');
-      }
-    } catch {
-      toast('Could not start playlist playback', 'error');
-    }
+    await playPlaylistDirect(item);
   };
 
   const handlePlayFavTrack = (track: TrackInfo) => {
-    void hapticLight();
-    player.setPlayerModalOpen(true);
-    void player.playTrack(track, favoriteTracks, { sourceTitle: 'Liked Songs' });
-    toast(`Playing "${track.track_name}"`, 'success');
+    playTrack(track, favoriteTracks, { sourceTitle: 'Liked Songs' });
   };
 
   const handlePlayAllFavTracks = () => {
     if (favoriteTracks.length === 0) return;
-    void hapticMedium();
-    player.setPlayerModalOpen(true);
-    void player.playTrack(favoriteTracks[0], favoriteTracks, { sourceTitle: 'Liked Songs' });
-    toast('Playing Liked Songs', 'success');
+    playTrack(favoriteTracks[0], favoriteTracks, { sourceTitle: 'Liked Songs' });
   };
 
   const handleShuffleFavTracks = () => {
-    if (favoriteTracks.length === 0) return;
-    void hapticMedium();
-    const shuffled = shuffleTracks(favoriteTracks);
-    player.setPlayerModalOpen(true);
-    void player.playTrack(shuffled[0], shuffled, { sourceTitle: 'Liked Songs (Shuffle)' });
-    toast('Shuffling Liked Songs', 'success');
+    shufflePlay(favoriteTracks, 'Liked Songs (Shuffle)');
   };
 
   const handlePlayRecentTrack = (track: PlayedTrack) => {
-    void hapticLight();
-    player.setPlayerModalOpen(true);
-    void player.playTrack(track, recentTracks, { sourceTitle: 'Recently Played' });
-    toast(`Playing "${track.track_name}"`, 'success');
+    playTrack(track, recentTracks, { sourceTitle: 'Recently Played' });
   };
 
   const handlePlayAllRecentTracks = () => {
     if (recentTracks.length === 0) return;
-    void hapticMedium();
-    player.setPlayerModalOpen(true);
-    void player.playTrack(recentTracks[0], recentTracks, { sourceTitle: 'Recently Played' });
-    toast('Playing Recently Played', 'success');
+    playTrack(recentTracks[0], recentTracks, { sourceTitle: 'Recently Played' });
   };
 
   const handleShuffleRecentTracks = () => {
-    if (recentTracks.length === 0) return;
-    void hapticMedium();
-    const shuffled = shuffleTracks(recentTracks);
-    player.setPlayerModalOpen(true);
-    void player.playTrack(shuffled[0], shuffled, { sourceTitle: 'Recently Played (Shuffle)' });
-    toast('Shuffling Recently Played', 'success');
+    shufflePlay(recentTracks as any, 'Recently Played (Shuffle)');
   };
 
   const handleDiscordLogin = async () => {
@@ -436,8 +227,7 @@ export default function UserProfileScreen() {
           await AsyncStorage.setItem('openjam_token', token);
           const me = await fetchMe();
           if (me) {
-            setProfile(me as any);
-            setIsDiscordUser(true);
+            await refresh();
             toast(`Logged in as ${me.display_name}`, 'success');
           }
         }

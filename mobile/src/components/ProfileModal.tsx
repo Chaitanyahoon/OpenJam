@@ -54,18 +54,8 @@ import { fontFamily } from '../fonts';
 import { getPlaylist, type ApiUser, RoomSummary } from '../api';
 import { usePlayer } from '../audio/PlayerContext';
 import type { TrackInfo } from '../sync/protocol';
+import { useUserProfile } from '../domain/useUserProfile';
 import {
-  getRecentlyPlayed,
-  getFavoriteRooms,
-  getListeningStats,
-  getAppPreferences,
-  updateAppPreferences,
-  calculateStorageUsageKb,
-  clearRecentlyPlayed,
-  getOfflinePlaylists,
-  saveOfflinePlaylist,
-  deleteOfflinePlaylist,
-  getFavoriteTracks,
   shuffleTracks,
   type OfflinePlaylist,
   type PlayedTrack,
@@ -128,59 +118,44 @@ export function ProfileModal({
   const toast = useToast();
   const player = usePlayer();
 
+  const profileDomain = useUserProfile({
+    targetId: 'me',
+    initialUser: user,
+    initialGuestName: currentName || user?.display_name,
+  });
+
+  const {
+    playlists,
+    recentTracks,
+    favoriteRooms,
+    likedTracks: favTracks,
+    localStats: stats,
+    preferences,
+    cacheKb,
+    loading,
+    guestName,
+    setGuestName,
+    createPlaylist,
+    deletePlaylist,
+    clearRecent,
+    updatePreferences,
+    saveImportedPlaylist,
+    refresh,
+  } = profileDomain;
+
   const [activeTab, setActiveTab] = useState<TabMode>('history');
-  const [guestName, setGuestName] = useState(currentName || user?.display_name || 'Jammer');
   const [isEditingName, setIsEditingName] = useState(false);
-  const [recentTracks, setRecentTracks] = useState<PlayedTrack[]>([]);
-  const [favoriteRooms, setFavoriteRooms] = useState<FavoriteRoom[]>([]);
-  const [playlists, setPlaylists] = useState<OfflinePlaylist[]>([]);
-  const [favTracks, setFavTracks] = useState<TrackInfo[]>([]);
   const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [importModalVisible, setImportModalVisible] = useState(false);
-  const [stats, setStats] = useState<ListeningStats>({
-    totalTracksJammed: 0,
-    totalMinutesJammed: 0,
-    roomsVisited: [],
-  });
-  const [preferences, setPreferences] = useState<AppPreferences>({
-    audioQuality: 'high',
-    hapticEnabled: true,
-  });
-  const [cacheKb, setCacheKb] = useState<number>(0);
-  const [loading, setLoading] = useState(false);
-
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      const [recents, favs, st, prefs, plists, liked] = await Promise.all([
-        getRecentlyPlayed(),
-        getFavoriteRooms(),
-        getListeningStats(),
-        getAppPreferences(),
-        getOfflinePlaylists(),
-        getFavoriteTracks(),
-      ]);
-      setRecentTracks(recents);
-      setFavoriteRooms(favs);
-      setStats(st);
-      setPreferences(prefs);
-      setPlaylists(plists);
-      setFavTracks(liked);
-      // Compute storage metrics in background without blocking initial render
-      void calculateStorageUsageKb().then(setCacheKb);
-    } catch {} finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
     if (visible) {
-      void loadData();
+      void refresh();
       if (currentName) setGuestName(currentName);
       else if (user?.display_name) setGuestName(user.display_name);
     }
-  }, [visible, user, currentName]);
+  }, [visible, user, currentName, refresh, setGuestName]);
 
   const isDiscord = !!user?.discord_id || !!user?.is_registered;
 
@@ -197,32 +172,21 @@ export function ProfileModal({
   };
 
   const handleClearHistory = async () => {
-    await clearRecentlyPlayed();
-    setRecentTracks([]);
-    setCacheKb(await calculateStorageUsageKb());
-    toast('Listening history cleared', 'info');
+    await clearRecent();
   };
 
   const handleCreatePlaylist = async () => {
     const trimmed = newPlaylistName.trim();
     if (!trimmed) return;
-    try {
-      const created = await saveOfflinePlaylist(trimmed);
-      setPlaylists((prev) => [created, ...prev]);
+    const created = await createPlaylist(trimmed);
+    if (created) {
       setNewPlaylistName('');
       setIsCreatingPlaylist(false);
-      setCacheKb(await calculateStorageUsageKb());
-      toast(`Created playlist "${trimmed}"`, 'success');
-    } catch {
-      toast('Could not create playlist', 'error');
     }
   };
 
   const handleDeletePlaylist = async (id: string, name: string) => {
-    await deleteOfflinePlaylist(id);
-    setPlaylists((prev) => prev.filter((p) => p.id !== id));
-    setCacheKb(await calculateStorageUsageKb());
-    toast(`Deleted playlist "${name}"`, 'info');
+    await deletePlaylist(id);
   };
 
   const handlePlayPlaylistDirect = async (pl: any) => {
@@ -356,13 +320,8 @@ export function ProfileModal({
   };
 
   const handleToggleHaptics = async (value: boolean) => {
-    updateHapticsPreference(value);
-    const updated = await updateAppPreferences({
-      hapticEnabled: value,
-    });
-    setPreferences(updated);
+    await updatePreferences({ hapticEnabled: value });
     if (value) void hapticMedium();
-    toast(value ? 'Haptic feedback enabled' : 'Haptic feedback disabled', 'info');
   };
 
   const handleOpenAndroidSettings = () => {
@@ -379,10 +338,7 @@ export function ProfileModal({
           text: 'Clear History',
           style: 'destructive',
           onPress: async () => {
-            await clearRecentlyPlayed();
-            setRecentTracks([]);
-            setCacheKb(await calculateStorageUsageKb());
-            toast('Listening history cleared', 'info');
+            await clearRecent();
           },
         },
       ],
@@ -390,22 +346,13 @@ export function ProfileModal({
   };
 
   const handleImportPlaylistSuccess = async (name: string, tracks: TrackInfo[]) => {
-    try {
-      const created = await saveOfflinePlaylist(name, tracks);
-      setPlaylists((prev) => [created, ...prev]);
-      setCacheKb(await calculateStorageUsageKb());
-      toast(`Imported playlist "${name}" with ${tracks.length} tracks`, 'success');
-    } catch {
-      toast('Could not save imported playlist', 'error');
-    }
+    await saveImportedPlaylist(name, tracks);
   };
 
   const handleToggleQuality = async (value: boolean) => {
-    const updated = await updateAppPreferences({
+    await updatePreferences({
       audioQuality: value ? 'high' : 'saver',
     });
-    setPreferences(updated);
-    toast(value ? 'High Fidelity Audio enabled' : 'Data Saver mode enabled', 'info');
   };
 
   // Avatar colors
