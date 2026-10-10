@@ -1884,30 +1884,6 @@ body:not(.room-page) .navbar {
   backdrop-filter: blur(8px);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
-/* Override FlowingMenu default styles for OpenJam */
-.genre-explorer-menu-wrap .menu-wrap {
-  background: transparent !important;
-}
-.genre-explorer-menu-wrap .menu__item {
-  border-color: rgba(255, 255, 255, 0.06) !important;
-}
-.genre-explorer-menu-wrap .menu__item-link {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: clamp(2.5vh, 3.5vh, 4vh);
-  letter-spacing: 2px;
-}
-.genre-explorer-menu-wrap .marquee span {
-  font-family: var(--font-display);
-  font-weight: 700;
-  letter-spacing: 2px;
-}
-.genre-explorer-menu-wrap .marquee__img {
-  border-radius: 12px;
-  height: 5vh;
-  width: 120px;
-  margin: 1em 1.5vw;
-}
 
 /* Responsive */
 @media (max-width: 768px) {
@@ -7189,12 +7165,6 @@ body:not(.room-page) .navbar:hover {
   100% { transform: rotate(360deg); }
 }
 
-/* TikTikColorList Desktop Preview Responsive Hiding */
-@media (max-width: 768px) {
-  .desktop-only-preview {
-    display: none !important;
-  }
-}
 
 /* ---- Glass Spotlight Overlay ---- */
 .glass-spotlight {
