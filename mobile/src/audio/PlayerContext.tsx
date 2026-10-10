@@ -85,7 +85,7 @@ export interface PlayerControls {
   playTrack: (
     track: TrackInfo,
     newQueue?: TrackInfo[],
-    options?: { sourceTitle?: string; autoPlay?: boolean },
+    options?: { sourceTitle?: string; autoPlay?: boolean; initialPositionMs?: number },
   ) => Promise<void>;
   playNext: () => Promise<void>;
   playPrev: () => Promise<void>;
@@ -540,7 +540,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     async (
       track: TrackInfo,
       newQueue?: TrackInfo[],
-      options?: { sourceTitle?: string; autoPlay?: boolean },
+      options?: { sourceTitle?: string; autoPlay?: boolean; initialPositionMs?: number },
     ) => {
       if (!track) return;
       setCurrentTrack(track);
@@ -562,11 +562,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         artworkUrl: track.album_art_url,
       });
 
+      if (typeof options?.initialPositionMs === 'number' && options.initialPositionMs > 0) {
+        await seekToMs(options.initialPositionMs);
+      }
+
       if (options?.autoPlay !== false) {
         play();
       }
     },
-    [loadTrack, play],
+    [loadTrack, play, seekToMs],
   );
 
   const playNext = useCallback(async () => {

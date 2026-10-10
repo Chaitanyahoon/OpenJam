@@ -21,10 +21,12 @@ import {
   PanResponder,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { router } from 'expo-router';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -74,7 +76,7 @@ import {
 import { hapticLight, hapticMedium } from '../utils/haptics';
 import { useToast } from './ToastContext';
 import { getAmbientPalette } from '../utils/palette';
-import { getBackendUrl } from '../api';
+import { getBackendUrl, createRoom, getStoredSession } from '../api';
 import { DevicePickerModal } from './DevicePickerModal';
 import type { TrackInfo } from '../sync/protocol';
 
@@ -352,6 +354,43 @@ export function SpotifyPlayerModal() {
     toast(liked ? 'Added to Liked Songs' : 'Removed from Liked Songs', 'info');
   };
 
+  const handleStartLiveJam = async () => {
+    if (!currentTrack) {
+      toast('No song currently playing to start a Jam', 'info');
+      return;
+    }
+    void hapticMedium();
+    setShowDevicePicker(false);
+    toast('Starting Live Jam…', 'info');
+    try {
+      const session = await getStoredSession();
+      const hostName = session.user?.display_name || session.user?.discord_username || 'Jammer';
+      const newRoom = await createRoom({
+        name: `${hostName}'s Jam`,
+        description: `Live Jam with ${currentTrack.track_name}`,
+        genre_tags: ['live', 'jam'],
+        allow_guest_controls: true,
+      });
+
+      const inviteUrl = `https://www.openjam.fun/room/${newRoom.id}`;
+      try {
+        await Share.share({
+          message: `Join my Live Jam on OpenJam!\n${inviteUrl}`,
+          title: `${hostName}'s Live Jam`,
+        });
+      } catch {}
+
+      toast('Live Jam started! Invite link ready 🎶', 'success');
+      setPlayerModalOpen(false);
+      router.push({
+        pathname: '/room/[id]/player',
+        params: { id: newRoom.id, name: newRoom.name },
+      });
+    } catch {
+      toast('Could not create Live Jam room', 'error');
+    }
+  };
+
   return (
     <Modal
       visible={isPlayerModalOpen}
@@ -411,19 +450,29 @@ export function SpotifyPlayerModal() {
                     : 'Queue is empty'}
                 </Text>
               </View>
-              <Pressable
-                onPress={() => {
-                  void hapticLight();
-                  toggleRadioAutoPlay();
-                }}
-                style={[styles.radioPill, !radioAutoPlay && styles.radioPillOff]}
-                accessibilityLabel="Toggle Spotify Radio Auto-Play"
-              >
-                <Radio size={12} color={radioAutoPlay ? colors.amber : '#888899'} />
-                <Text style={[styles.radioText, !radioAutoPlay && styles.radioTextOff]}>
-                  {radioAutoPlay ? 'Auto-Play On' : 'Auto-Play Off'}
-                </Text>
-              </Pressable>
+              <View style={styles.queueHeaderActions}>
+                <Pressable
+                  onPress={() => void handleStartLiveJam()}
+                  style={styles.startJamPill}
+                  accessibilityLabel="Start Live Jam with friends"
+                >
+                  <Radio size={12} color="#08080a" />
+                  <Text style={styles.startJamText}>Live Jam</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    void hapticLight();
+                    toggleRadioAutoPlay();
+                  }}
+                  style={[styles.radioPill, !radioAutoPlay && styles.radioPillOff]}
+                  accessibilityLabel="Toggle Spotify Radio Auto-Play"
+                >
+                  <Radio size={12} color={radioAutoPlay ? colors.amber : '#888899'} />
+                  <Text style={[styles.radioText, !radioAutoPlay && styles.radioTextOff]}>
+                    {radioAutoPlay ? 'Auto-Play' : 'Off'}
+                  </Text>
+                </Pressable>
+              </View>
             </View>
 
             <ScrollView style={styles.queueList} contentContainerStyle={styles.queueContent}>
@@ -905,6 +954,7 @@ export function SpotifyPlayerModal() {
           onClose={() => setShowDevicePicker(false)}
           activeDevice={activeAudioDevice}
           onSelectDevice={setAudioDevice}
+          onStartLiveJam={handleStartLiveJam}
           roomName={optionalRoom?.roomName}
         />
       </View>
@@ -1137,6 +1187,25 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: 'uppercase',
     marginBottom: 8,
+  },
+  queueHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  startJamPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.amber,
+    paddingHorizontal: 9,
+    paddingVertical: 4.5,
+    borderRadius: radius.full,
+    gap: 5,
+  },
+  startJamText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 10.5,
+    color: '#08080a',
   },
   radioPill: {
     flexDirection: 'row',

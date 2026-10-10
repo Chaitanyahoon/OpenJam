@@ -37,6 +37,7 @@ interface DevicePickerModalProps {
   onClose: () => void;
   activeDevice: AudioDeviceRoute;
   onSelectDevice: (device: AudioDeviceRoute) => void;
+  onStartLiveJam?: () => void;
   roomName?: string | null;
 }
 
@@ -45,6 +46,7 @@ export function DevicePickerModal({
   onClose,
   activeDevice,
   onSelectDevice,
+  onStartLiveJam,
   roomName,
 }: DevicePickerModalProps) {
   const insets = useSafeAreaInsets();
@@ -94,8 +96,17 @@ export function DevicePickerModal({
     {
       id: 'room',
       title: roomName ? `Jam: ${roomName}` : 'Collaborative Jam Room',
-      subtitle: 'Synchronized live stream with friends',
+      subtitle: roomName ? 'Listening live with friends' : 'Start a live room & invite friends',
       icon: <Radio size={22} color={activeDevice === 'room' ? '#10b981' : colors.text2} />,
+      action: onStartLiveJam
+        ? {
+            label: 'Start Live Jam',
+            onPress: () => {
+              void hapticMedium();
+              onStartLiveJam();
+            },
+          }
+        : undefined,
     },
   ];
 

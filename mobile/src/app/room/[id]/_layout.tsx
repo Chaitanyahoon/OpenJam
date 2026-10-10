@@ -11,6 +11,8 @@ import { Tabs, router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, Share2, X, Bookmark } from 'lucide-react-native';
 import { RoomProvider, useRoom } from '../../../state/RoomContext';
+import { usePlayer } from '../../../audio/PlayerContext';
+import type { TrackInfo } from '../../../sync/protocol';
 import { FlyingReactions } from '../../../components/FlyingReactions';
 import { LeaveModal } from '../../../components/Modals';
 import { RoomTabBar } from '../../../components/RoomTabBar';
@@ -165,7 +167,9 @@ function RoomHeader() {
 }
 
 function RoomGuards({ children }: { children: React.ReactNode }) {
-  const { roomClosed, joinError, retryJoin, roomId } = useRoom();
+  const { roomClosed, joinError, retryJoin, roomId, nowPlaying, queue } = useRoom();
+  const player = usePlayer();
+  const toast = useToast();
   const [showLeave, setShowLeave] = useState(false);
   const isSolo = roomId === 'solo' || roomId.startsWith('solo');
 
@@ -203,6 +207,28 @@ function RoomGuards({ children }: { children: React.ReactNode }) {
     }
   }, [joinError, retryJoin]);
 
+  const handleContinueSolo = () => {
+    setShowLeave(false);
+    if (nowPlaying) {
+      const currentPos = player.positionMs();
+      const remainingTracks = queue
+        .map((q) => ((q as any).track ? (q as any).track : (q as TrackInfo)))
+        .filter((t) => t.track_uri !== nowPlaying.track_uri);
+      void player.playTrack(nowPlaying, [nowPlaying, ...remainingTracks], {
+        sourceTitle: 'Solo Jam',
+        initialPositionMs: currentPos,
+      });
+      toast(`Switched to Solo Jam — "${nowPlaying.track_name}" continues`, 'success');
+    }
+    router.replace('/');
+  };
+
+  const handleLeaveAndPause = () => {
+    setShowLeave(false);
+    player.pause();
+    router.replace('/');
+  };
+
   return (
     <LeaveCtx.Provider value={() => setShowLeave(true)}>
       <RoomHeader />
@@ -210,10 +236,9 @@ function RoomGuards({ children }: { children: React.ReactNode }) {
       <LeaveModal
         visible={showLeave}
         onClose={() => setShowLeave(false)}
-        onConfirm={() => {
-          setShowLeave(false);
-          router.replace('/');
-        }}
+        onConfirm={handleLeaveAndPause}
+        onContinueSolo={nowPlaying ? handleContinueSolo : undefined}
+        trackName={nowPlaying?.track_name}
       />
     </LeaveCtx.Provider>
   );

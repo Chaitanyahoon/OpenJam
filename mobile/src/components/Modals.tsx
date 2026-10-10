@@ -508,21 +508,40 @@ export function LeaveModal({
   visible,
   onClose,
   onConfirm,
+  onContinueSolo,
+  trackName,
 }: {
   visible: boolean;
   onClose: () => void;
   onConfirm: () => void;
+  onContinueSolo?: () => void;
+  trackName?: string;
 }) {
   return (
     <Shell visible={visible} onClose={onClose}>
       <View style={styles.leaveIconWrap}>
         <LogOut size={40} color={colors.red} />
       </View>
-      <Title style={{ textAlign: 'center' }}>Leave Session?</Title>
+      <Title style={{ textAlign: 'center' }}>Leave Live Room?</Title>
       <Subtitle style={[styles.sub, { textAlign: 'center' }]}>
-        You will be seamlessly removed from this live room. Are you sure you want to leave?
+        {onContinueSolo && trackName
+          ? `Keep "${trackName}" playing seamlessly in Solo Jam, or pause and return home.`
+          : 'You will be seamlessly removed from this live room. Are you sure you want to leave?'}
       </Subtitle>
       <View style={styles.gap} />
+
+      {onContinueSolo ? (
+        <View style={styles.continueSoloWrapper}>
+          <Pressable
+            onPress={onContinueSolo}
+            style={({ pressed }) => [styles.continueSoloBtn, pressed && styles.pressed]}
+          >
+            <Headphones size={18} color="#08080a" />
+            <Text style={styles.continueSoloText}>Keep Listening Solo</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
       <View style={styles.leaveBtnRow}>
         <Pressable
           onPress={onClose}
@@ -534,7 +553,7 @@ export function LeaveModal({
           onPress={onConfirm}
           style={({ pressed }) => [styles.confirmLeaveBtn, pressed && styles.pressed]}
         >
-          <Text style={styles.confirmLeaveText}>Yes, Leave</Text>
+          <Text style={styles.confirmLeaveText}>Leave & Pause</Text>
         </Pressable>
       </View>
     </Shell>
@@ -1042,6 +1061,25 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.bodySemiBold,
     fontSize: 14,
     color: colors.text1,
+  },
+  continueSoloWrapper: {
+    width: '100%',
+    marginBottom: spacing.sm,
+  },
+  continueSoloBtn: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 13,
+    borderRadius: radius.md,
+    backgroundColor: colors.amber,
+  },
+  continueSoloText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 14,
+    color: '#08080a',
   },
   confirmLeaveBtn: {
     flex: 1,
