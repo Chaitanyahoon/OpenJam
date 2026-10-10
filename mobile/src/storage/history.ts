@@ -223,8 +223,15 @@ export async function updateAppPreferences(
   }
 }
 
+let lastCalculatedKb = 1;
+let lastCalculatedTime = 0;
+
 /** 5. Storage metrics & cleanup */
-export async function calculateStorageUsageKb(): Promise<number> {
+export async function calculateStorageUsageKb(force = false): Promise<number> {
+  const now = Date.now();
+  if (!force && now - lastCalculatedTime < 10_000) {
+    return lastCalculatedKb;
+  }
   try {
     const keys = [
       RECENT_TRACKS_KEY,
@@ -239,9 +246,11 @@ export async function calculateStorageUsageKb(): Promise<number> {
     for (const [, val] of pairs) {
       if (val) totalBytes += val.length * 2;
     }
-    return Math.max(1, Math.round(totalBytes / 1024));
+    lastCalculatedKb = Math.max(1, Math.round(totalBytes / 1024));
+    lastCalculatedTime = now;
+    return lastCalculatedKb;
   } catch {
-    return 1;
+    return lastCalculatedKb;
   }
 }
 
@@ -254,12 +263,27 @@ export async function clearAllLocalCache(): Promise<void> {
   } catch {}
 }
 
+export function normalizeTrack(t: any): TrackInfo {
+  return {
+    track_uri: t?.track_uri || t?.uri || '',
+    track_name: t?.track_name || t?.name || t?.title || 'Unknown Track',
+    artist: t?.artist || t?.uploader || 'Unknown Artist',
+    album_art_url: t?.album_art_url || t?.thumbnail || t?.cover_art_url || undefined,
+    duration_ms: typeof t?.duration_ms === 'number' ? t.duration_ms : 0,
+  };
+}
+
 /** 6. Offline Playlists & Favorite Tracks (Sandboxed App Storage) */
 export async function getOfflinePlaylists(): Promise<OfflinePlaylist[]> {
   try {
     const raw = await AsyncStorage.getItem(OFFLINE_PLAYLISTS_KEY);
     if (!raw) return [];
-    return JSON.parse(raw);
+    const parsed: any[] = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((p) => ({
+      ...p,
+      tracks: Array.isArray(p.tracks) ? p.tracks.map(normalizeTrack) : [],
+    }));
   } catch {
     return [];
   }
@@ -272,12 +296,13 @@ export async function saveOfflinePlaylist(
   const playlists = await getOfflinePlaylists();
   const now = Date.now();
   const id = `playlist_${now}_${Math.random().toString(36).substring(2, 7)}`;
+  const normalizedTracks = tracks.map(normalizeTrack);
   const newPlaylist: OfflinePlaylist = {
     id,
     name: name.trim() || 'My Offline Playlist',
     createdAt: now,
     updatedAt: now,
-    tracks,
+    tracks: normalizedTracks,
   };
   const updated = [newPlaylist, ...playlists];
   await AsyncStorage.setItem(OFFLINE_PLAYLISTS_KEY, JSON.stringify(updated));
@@ -302,16 +327,57 @@ export async function addTrackToOfflinePlaylist(
     if (index === -1) return false;
 
     const p = playlists[index];
-    const exists = p.tracks.some((t) => t.track_uri === track.track_uri);
+    const norm = normalizeTrack(track);
+    if (!norm.track_uri) return false;
+
+    const exists = p.tracks.some(
+      (t) =>
+        t.track_uri === norm.track_uri ||
+        (t.track_name.toLowerCase() === norm.track_name.toLowerCase() &&
+          t.artist.toLowerCase() === norm.artist.toLowerCase()),
+    );
     if (exists) return false;
 
-    p.tracks.push(track);
+    p.tracks.push(norm);
     p.updatedAt = Date.now();
     playlists[index] = p;
     await AsyncStorage.setItem(OFFLINE_PLAYLISTS_KEY, JSON.stringify(playlists));
     return true;
   } catch {
     return false;
+  }
+}
+
+export async function addTracksBulkToOfflinePlaylist(
+  playlistId: string,
+  newTracks: TrackInfo[],
+): Promise<number> {
+  try {
+    const playlists = await getOfflinePlaylists();
+    const index = playlists.findIndex((p) => p.id === playlistId);
+    if (index === -1) return 0;
+
+    const p = playlists[index];
+    let addedCount = 0;
+    const existingUris = new Set(p.tracks.map((t) => t.track_uri));
+
+    for (const raw of newTracks) {
+      const norm = normalizeTrack(raw);
+      if (norm.track_uri && !existingUris.has(norm.track_uri)) {
+        p.tracks.push(norm);
+        existingUris.add(norm.track_uri);
+        addedCount++;
+      }
+    }
+
+    if (addedCount > 0) {
+      p.updatedAt = Date.now();
+      playlists[index] = p;
+      await AsyncStorage.setItem(OFFLINE_PLAYLISTS_KEY, JSON.stringify(playlists));
+    }
+    return addedCount;
+  } catch {
+    return 0;
   }
 }
 

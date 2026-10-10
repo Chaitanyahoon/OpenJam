@@ -1,12 +1,12 @@
-# Todo List: Pure Solo Direct Listener Experience
+# Todo List: Playlist Track Reliability, Instant 1-Tap Playback, & Performance
 
-- [x] Check adversarial subagent findings and resolve design edge cases <!-- id: 0 -->
-- [x] Implement `clearUpcomingQueue` in `mobile/src/audio/PlayerContext.tsx` <!-- id: 1 -->
-- [x] Refine `AudioDeviceRoute` to `'speaker' | 'bluetooth' | 'wired'` in `mobile/src/audio/PlayerContext.tsx` <!-- id: 2 -->
-- [x] Remove `room` option from `mobile/src/components/DevicePickerModal.tsx` <!-- id: 3 -->
-- [x] Clean Up Up Next Queue Header in `mobile/src/components/SpotifyPlayerModal.tsx` (remove Live Jam button, add Clear Queue & Add Songs) <!-- id: 4 -->
-- [x] Implement Smart Solo Jam Entry on Home Screen in `mobile/src/app/index.tsx` (resume if playing, search if empty) <!-- id: 5 -->
-- [x] Verify non-disruptive queuing flow in `mobile/src/components/SoloSearchModal.tsx` <!-- id: 6 -->
-- [x] Add unit test suite in `mobile/test/solo_listener_sovereignty.test.ts` <!-- id: 7 -->
+- [x] Fix Spotify & YouTube playlist import parsing in `backend/services/playlist_importer.py` (ensure Tier 2 always runs on empty Tier 1, remove blocking iTunes timeouts) <!-- id: 0 -->
+- [x] Increase playlist import network timeout in `mobile/src/api.ts` to 30s <!-- id: 1 -->
+- [x] Add robust track normalization and bulk add helper in `mobile/src/storage/history.ts` (`addTracksBulkToOfflinePlaylist`, fallback key mapping) <!-- id: 2 -->
+- [x] Fix 0-track display & add complete Track Row 1-tap playback in `mobile/src/app/playlist/[id].tsx` <!-- id: 3 -->
+- [x] Add "Add Songs" & "Import Tracks" interactive search/picker sheet inside `mobile/src/app/playlist/[id].tsx` <!-- id: 4 -->
+- [x] Add "Add to Playlist" modal/action in `mobile/src/components/SpotifyPlayerModal.tsx` and track menus <!-- id: 5 -->
+- [x] Eliminate lag and heavy blocking calls in `mobile/src/app/profile/[id].tsx` and `mobile/src/components/ProfileModal.tsx` <!-- id: 6 -->
+- [x] Write comprehensive unit tests in `mobile/test/playlist_import_and_playback.test.ts` <!-- id: 7 -->
 - [x] Run full test suite and TypeScript validation (`npm test`, `npx tsc --noEmit`) <!-- id: 8 -->
 - [x] Commit and push clean changes to git <!-- id: 9 -->

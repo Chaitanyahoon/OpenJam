@@ -152,12 +152,11 @@ export function ProfileModal({
   const loadData = async () => {
     setLoading(true);
     try {
-      const [recents, favs, st, prefs, usage, plists, liked] = await Promise.all([
+      const [recents, favs, st, prefs, plists, liked] = await Promise.all([
         getRecentlyPlayed(),
         getFavoriteRooms(),
         getListeningStats(),
         getAppPreferences(),
-        calculateStorageUsageKb(),
         getOfflinePlaylists(),
         getFavoriteTracks(),
       ]);
@@ -165,9 +164,10 @@ export function ProfileModal({
       setFavoriteRooms(favs);
       setStats(st);
       setPreferences(prefs);
-      setCacheKb(usage);
       setPlaylists(plists);
       setFavTracks(liked);
+      // Compute storage metrics in background without blocking initial render
+      void calculateStorageUsageKb().then(setCacheKb);
     } catch {} finally {
       setLoading(false);
     }

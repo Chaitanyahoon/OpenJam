@@ -63,6 +63,7 @@ import {
   Search,
   X,
   MessageSquareQuote,
+  ListPlus,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
@@ -80,6 +81,7 @@ import { useToast } from './ToastContext';
 import { getAmbientPalette } from '../utils/palette';
 import { getBackendUrl, searchHybridTracks, type TrackSearchResult } from '../api';
 import { DevicePickerModal } from './DevicePickerModal';
+import { AddToPlaylistModal } from './AddToPlaylistModal';
 import type { TrackInfo } from '../sync/protocol';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -133,6 +135,7 @@ export function SpotifyPlayerModal() {
   const [scrubSpeed, setScrubSpeed] = useState(1.0);
   const [showQueue, setShowQueue] = useState(false);
   const [showDevicePicker, setShowDevicePicker] = useState(false);
+  const [showAddToPlaylist, setShowAddToPlaylist] = useState(false);
   const [isDownloaded, setIsDownloaded] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<TrackDownloadProgress | null>(null);
 
@@ -756,6 +759,18 @@ export function SpotifyPlayerModal() {
 
               <View style={styles.trackActionsRow}>
                 <Pressable
+                  onPress={() => {
+                    void hapticLight();
+                    setShowAddToPlaylist(true);
+                  }}
+                  hitSlop={10}
+                  style={styles.actionIconBtn}
+                  accessibilityLabel="Add song to playlist"
+                >
+                  <ListPlus size={24} color="#9999aa" />
+                </Pressable>
+
+                <Pressable
                   onPress={handleDownload}
                   hitSlop={10}
                   style={styles.actionIconBtn}
@@ -1054,6 +1069,13 @@ export function SpotifyPlayerModal() {
           onClose={() => setShowDevicePicker(false)}
           activeDevice={activeAudioDevice}
           onSelectDevice={setAudioDevice}
+        />
+
+        {/* Add to Playlist Modal */}
+        <AddToPlaylistModal
+          visible={showAddToPlaylist}
+          track={currentTrack}
+          onClose={() => setShowAddToPlaylist(false)}
         />
       </View>
     </Modal>

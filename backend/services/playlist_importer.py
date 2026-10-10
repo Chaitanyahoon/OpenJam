@@ -21,7 +21,7 @@ def _get_stream_client() -> httpx.AsyncClient:
 
 
 async def _enrich_missing_artwork(tracks: list, client: httpx.AsyncClient) -> list:
-    """Ensure every track has a valid high-resolution artwork URL via iTunes / Apple Music."""
+    """Ensure tracks without artwork get high-resolution artwork via iTunes quickly without blocking."""
     async def _fetch_single_art(t):
         if t.get("album_art_url"):
             return
@@ -32,7 +32,7 @@ async def _enrich_missing_artwork(tracks: list, client: httpx.AsyncClient) -> li
         query = f"{name} {artist}".strip()
         try:
             url = f"https://itunes.apple.com/search?term={urllib.parse.quote(query)}&entity=song&limit=1"
-            resp = await client.get(url, timeout=3.5)
+            resp = await client.get(url, timeout=1.2)
             if resp.status_code == 200:
                 data = resp.json()
                 results = data.get("results", [])
@@ -43,12 +43,14 @@ async def _enrich_missing_artwork(tracks: list, client: httpx.AsyncClient) -> li
         except Exception:
             pass
 
-    tasks = [_fetch_single_art(t) for t in tracks if not t.get("album_art_url")]
-    if tasks:
-        # Run in parallel chunks of 20
-        for i in range(0, len(tasks), 20):
-            chunk = tasks[i:i + 20]
-            await asyncio.gather(*chunk, return_exceptions=True)
+    # Only enrich up to 10 missing tracks and cap execution at 2.0 seconds max to maintain high speed
+    missing = [t for t in tracks if not t.get("album_art_url")][:10]
+    if missing:
+        tasks = [_fetch_single_art(t) for t in missing]
+        try:
+            await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=2.0)
+        except Exception:
+            pass
     return tracks
 
 
@@ -130,8 +132,8 @@ async def import_playlist(url: str):
                     logger.error(f"Error parsing Spotify embed __NEXT_DATA__: {parse_err}")
  
             # ── Tier 2: Anonymous token + Web API fallback ──
-            if not tracks and embed_had_404:
-                logger.info(f"Spotify embed returned 404 for {playlist_id}, trying anonymous API fallback")
+            if not tracks:
+                logger.info(f"Spotify embed tracks empty for {playlist_id}, attempting anonymous API fallback")
                 try:
                     seed_url = "https://open.spotify.com/embed/playlist/37i9dQZF1DX4sWSpwq3LiO"
                     seed_r = await client.get(seed_url, headers=sp_headers, follow_redirects=True)

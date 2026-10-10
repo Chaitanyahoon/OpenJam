@@ -1,82 +1,60 @@
-# Implementation Plan: Pure Solo Direct Listener Experience
+# Implementation Plan: Playlist Track Reliability, Instant 1-Tap Playback, & Performance
 
-## Overview
-Decouple OpenJam Solo Jam from Collaborative Room creation. Strip all forced "Live Jam" / room prompts out of the Solo Player and Device Picker. Turn Solo Listening into a pure, Spotify-grade personal listening experience with smart resume/launch, full queue sovereignty (clear upcoming queue, add songs without stopping playback), dedicated physical device switching (Phone Speaker, Bluetooth Audio, Wired Headphones), and rock-solid background performance.
-
----
-
-## Architecture Decisions
-
-1. **Smart Resume vs Search on Home Screen (`app/index.tsx`)**:
-   - Tapping "Solo Jam" on the Home HeroHeader inspects `player.currentTrack`.
-   - If a track is already active or paused, immediately expands `SpotifyPlayerModal`.
-   - If the player is empty, opens `SoloSearchModal` to pick a track.
-   - Eliminates the frustration of being forced into search when a user simply wants to return to their playing music.
-
-2. **Queue Sovereignty (`PlayerContext.tsx` & `SpotifyPlayerModal.tsx`)**:
-   - Add `clearUpcomingQueue(): void` to `PlayerControls`.
-   - Safely preserves `currentIndex` and tracks up to `currentIndex`, clearing only `queue.slice(currentIndex + 1)`.
-   - Add a 1-tap "Clear Queue" button (`Trash2`) in Up Next header.
-   - Add an "Add Songs" button (`Plus`) in Up Next header that opens `SoloSearchModal` in non-disruptive queuing mode (tapping a song or "+" appends to queue without cutting off current playback).
-   - Remove `startJamPill` ("Live Jam") from Up Next queue header per user request.
-
-3. **Physical Audio Device Route Focus (`DevicePickerModal.tsx`)**:
-   - Strip out `room` ("Collaborative Jam Room") from `DevicePickerModal`.
-   - Focus exclusively on hardware targets:
-     - Phone Speaker (built-in speaker)
-     - Bluetooth Audio (with 1-tap shortcut to Android Bluetooth settings or iOS system settings)
-     - Wired Headphones / AUX (3.5mm / USB-C DAC)
-   - Update `AudioDeviceRoute` type in `PlayerContext.tsx` to `'speaker' | 'bluetooth' | 'wired'`.
-
-4. **Preserve Collaborative Room Creation Integrity**:
-   - Room creation remains fully accessible from the Home screen via "Create Live Room" modal and genre feeds.
-   - Room exit via `LeaveModal` maintains the choice to "Keep Listening Solo" or "Leave & Pause".
+## User Feedback Context
+1. "Why it shows 0 tracks i added my playlist it has multiple songs":
+   - External playlist import occasionally failed or returned 0 tracks because Spotify embed parser didn't fall back to Tier 2 if the status was 200 with an unparsed layout, and slow iTunes enrichment caused timeouts.
+   - Creating an offline playlist created an empty shell with no UI path to add songs.
+   - Property naming mismatch (`uri`/`name` vs `track_uri`/`track_name`) caused loaded tracks to have undefined names.
+2. "also from there I can just click and play music allow that right":
+   - In `playlist/[id].tsx`, only the tiny 40x40 thumbnail box was pressable (`<Pressable style={styles.trackThumbWrap}>`). Tapping the song title, artist, or track row did nothing.
+   - Users expect to tap anywhere on a song card to immediately start playback, open the player, and set the playlist as queue.
+3. "everything is working so slow right now fix that":
+   - `calculateStorageUsageKb` was reading all AsyncStorage keys on every profile load and mutation.
+   - Remote profile and social API calls were blocking local offline playlist and history rendering.
+   - Artwork enrichment in playlist importer made sequential iTunes requests that took 10-15s.
 
 ---
 
-## Task List
+## Architectural Changes
 
-### Phase 1: Engine & Audio Foundation
-- [ ] **Task 1: Add `clearUpcomingQueue` to `PlayerContext.tsx`**
-  - Implement `clearUpcomingQueue()` in `PlayerProvider`.
-  - Update `PlayerControls` interface.
-  - Add test in `test/solo_listener_sovereignty.test.ts`.
+### 1. Backend Playlist Importer Speed & Reliability (`backend/services/playlist_importer.py`)
+- Change Tier 2 trigger condition from `if not tracks and embed_had_404:` to `if not tracks:`, so Tier 2 anonymous Web API fallback ALWAYS executes if Tier 1 parses 0 tracks.
+- Cap `_enrich_missing_artwork` to 1.0s timeout per item with a strict maximum of 5 concurrent items, never blocking the main response.
+- Ensure YouTube playlist parser extracts proper `duration_ms` when available, defaulting safely to 210,000ms if absent.
 
-- [ ] **Task 2: Refine Audio Device Routes**
-  - Update `AudioDeviceRoute` in `PlayerContext.tsx` to `'speaker' | 'bluetooth' | 'wired'`.
-  - Remove `room` option from `DevicePickerModal.tsx`.
-  - Ensure persisted route in `@openjam_audio_route` defaults to `'speaker'`.
+### 2. Client-Side API & Timeout Hardening (`mobile/src/api.ts`)
+- Give `importExternalPlaylist` a dedicated 30,000ms abort timeout so large playlists don't trigger premature client network timeouts.
+- Ensure all returned tracks have both standard OpenJam properties (`track_uri`, `track_name`) and alias properties (`uri`, `name`).
 
-### Checkpoint: Foundation
-- [ ] `npx tsc --noEmit` exits with 0 errors.
-- [ ] Tests in `test/` pass without regression.
+### 3. Local Storage Playlist Normalization & Bulk Operations (`mobile/src/storage/history.ts`)
+- Implement `normalizeTrack(t: any): TrackInfo` ensuring all stored and retrieved tracks have valid `track_uri`, `track_name`, `artist`, `album_art_url`, and `duration_ms`.
+- Add `addTracksBulkToOfflinePlaylist(playlistId: string, newTracks: TrackInfo[])` for efficient 1-pass updates.
+- Update `getOfflinePlaylists()` to normalize loaded tracks on read.
 
-### Phase 2: UI & Queue Sovereignty
-- [ ] **Task 3: Clean Up Up Next Queue Header in `SpotifyPlayerModal.tsx`**
-  - Remove `startJamPill` ("Live Jam").
-  - Add `Clear Queue` button with confirmation / instant toast.
-  - Add `Add Songs` button that opens `SoloSearchModal`.
-  - Ensure Up Next count and empty states render cleanly.
+### 4. Interactive Playlist Detail Screen (`mobile/src/app/playlist/[id].tsx`)
+- Make the entire `trackRow` a full `<Pressable>` with instant tap-to-play:
+  - Tapping any track immediately starts playing via `player.playTrack(item, tracks, { sourceTitle: title })` and opens `SpotifyPlayerModal`.
+  - Active visual styling for currently playing track with amber accent and animated playing indicator.
+- Empty State Overhaul:
+  - When 0 tracks are present, show two prominent action buttons:
+    1. "+ Add Songs" (opens live song search & picker modal)
+    2. "Import Playlist" (opens URL import sheet directly into this playlist)
+- Add "+ Add Songs" header action button to allow appending songs to existing playlists anytime.
+- Add "Add Songs" bottom sheet modal:
+  - Search any song/artist with debounced autocomplete.
+  - Tab for "Liked Songs" and "Recently Played" with 1-tap "+" to append to playlist.
 
-- [ ] **Task 4: Implement Smart Solo Jam Entry on Home Screen (`app/index.tsx`)**
-  - Update `handleStartSoloJam` to check `currentTrack`.
-  - If `currentTrack` exists, expand `SpotifyPlayerModal`.
-  - If no track, open `SoloSearchModal`.
-
-- [ ] **Task 5: Non-Disruptive Queuing in `SoloSearchModal.tsx`**
-  - When opened from `SpotifyPlayerModal`'s "Add Songs", ensure tapping "+" or tapping a song appends to queue with toast confirmation and keeps the current song playing.
-
-### Checkpoint: Core Experience
-- [ ] Solo listening flow tested end-to-end.
-- [ ] No room prompts inside Solo Player or Device Picker.
-- [ ] All unit test suites pass (100% pass rate).
+### 5. Instant Profile & Storage Performance (`ProfileModal.tsx` & `profile/[id].tsx`)
+- Decouple local storage loading from network queries: render offline playlists, recent history, and favorite stations instantly without waiting for network responses.
+- Move `calculateStorageUsageKb` off the critical mount path (run lazily or only when Settings tab is active).
 
 ---
 
-## Risks and Mitigations
-
-| Risk | Impact | Mitigation |
-|---|---|---|
-| Clearing queue causes index out of bounds | High | Explicitly guard `currentIndex` against new queue bounds. `queue.slice(0, currentIndex + 1)` preserves the current track index at `currentIndex`. |
-| Legacy test expecting `'room'` audio route fails | Medium | Update any tests in `test/` that tested the legacy `'room'` route string. |
-| User closes search modal without picking song | Low | Player continues playing current track uninterrupted. |
+## Validation Plan
+1. Unit tests in `mobile/test/playlist_import_and_playback.test.ts`:
+   - Normalization of legacy and external track objects.
+   - Bulk appending tracks to offline playlists.
+   - Tap-to-play queue generation and active track matching.
+2. Full test runner: `npm test` (all tests passing).
+3. TypeScript compiler: `npx tsc --noEmit` exits with code 0.
+4. Git commit & push clean changes to `main`.

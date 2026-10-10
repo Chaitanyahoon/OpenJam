@@ -500,16 +500,21 @@ export interface ImportedPlaylistTrack {
   duration_ms?: number;
 }
 
-/**
- * Import public playlist tracks from Spotify, YouTube, or YouTube Music
- * via backend playlist parser service.
- */
 export async function importExternalPlaylist(url: string): Promise<ImportedPlaylistTrack[]> {
   try {
     const data = await request<{ tracks: ImportedPlaylistTrack[] }>(
       `/search/playlist?url=${encodeURIComponent(url.trim())}`,
+      undefined,
+      30000,
     );
-    return data?.tracks || [];
+    const rawList = data?.tracks || [];
+    return rawList.map((t: any) => ({
+      name: t.name || t.track_name || 'Unknown Track',
+      artist: t.artist || 'Unknown Artist',
+      uri: t.uri || t.track_uri || '',
+      album_art_url: t.album_art_url || t.thumbnail || t.cover_art_url || undefined,
+      duration_ms: t.duration_ms || 210000,
+    }));
   } catch (err: any) {
     const msg = err?.message || 'Could not import playlist';
     throw new Error(msg);

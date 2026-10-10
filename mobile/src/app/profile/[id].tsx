@@ -150,23 +150,34 @@ export default function UserProfileScreen() {
 
       if (isMine) {
         // Load local personal data in parallel
-        const [recents, favs, offPlists, usage, prefs] = await Promise.all([
+        const [recents, favs, offPlists, prefs] = await Promise.all([
           getRecentlyPlayed(),
           getFavoriteRooms(),
           getOfflinePlaylists(),
-          calculateStorageUsageKb(),
           getAppPreferences(),
         ]);
         setRecentTracks(recents);
         setFavoriteRooms(favs);
         setOfflinePlaylists(offPlists);
-        setCacheKb(usage);
         setPreferences(prefs);
         setIsDiscordUser(!!session.user?.discord_id || !!session.user?.is_registered);
+
+        // Pre-populate self profile immediately for 0ms delay
+        setProfile({
+          id: targetId || 'guest',
+          display_name: session.user?.display_name || 'Jammer',
+          username: session.user?.discord_username || session.user?.display_name || 'jammer',
+          bio: 'OpenJam Music Explorer',
+          avatar_url: session.user?.avatar_url || null,
+        } as PublicProfile);
+        setLoading(false);
+
+        // Calculate cache usage in background without blocking render
+        void calculateStorageUsageKb().then(setCacheKb);
       }
 
       if (targetId) {
-        // Fetch server profile
+        // Fetch server profile in parallel
         const [profData, socData, statsData] = await Promise.all([
           getPublicProfile(targetId).catch(() => null),
           getProfileSocial(targetId).catch(() => null),
@@ -176,7 +187,7 @@ export default function UserProfileScreen() {
         if (profData) {
           setProfile(profData.user);
           setPlaylists(profData.playlists || []);
-        } else if (isMine) {
+        } else if (isMine && !profile) {
           // Fallback self profile
           setProfile({
             id: targetId,
@@ -194,7 +205,7 @@ export default function UserProfileScreen() {
         if (statsData) {
           setStats(statsData);
         }
-      } else if (isMine) {
+      } else if (isMine && !profile) {
         // Guest user self profile
         setProfile({
           id: 'guest',

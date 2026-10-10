@@ -32,6 +32,34 @@ async def create_playlist(create_req: CreatePlaylistRequest, db: Session = Depen
     db.add(playlist)
     db.commit()
     db.refresh(playlist)
+
+    # Automatically import tracks if an import URL was provided
+    if create_req.import_url:
+        try:
+            res = await import_playlist(create_req.import_url)
+            external_tracks = res.get("tracks", [])
+            for idx, t in enumerate(external_tracks):
+                track_uri = t.get("track_uri") or t.get("uri")
+                track_name = t.get("track_name") or t.get("name") or "Unknown Track"
+                artist = t.get("artist") or "Unknown Artist"
+                album_art_url = t.get("album_art_url") or ""
+                duration_ms = t.get("duration_ms") or 0
+
+                new_track = PlaylistTrack(
+                    playlist_id=playlist.id,
+                    track_uri=track_uri,
+                    track_name=track_name,
+                    artist=artist,
+                    album_art_url=album_art_url,
+                    duration_ms=duration_ms,
+                    position=idx
+                )
+                db.add(new_track)
+            playlist.last_synced_at = datetime.now(timezone.utc)
+            db.commit()
+            db.refresh(playlist)
+        except Exception:
+            pass
     
     return {"message": "Playlist created successfully", "playlist": playlist.to_dict(include_tracks=True)}
 

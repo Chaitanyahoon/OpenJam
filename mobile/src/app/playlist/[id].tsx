@@ -37,6 +37,7 @@ import {
   Plus,
   Disc,
   Shuffle,
+  Sparkles,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../../theme';
 import { fontFamily } from '../../fonts';
@@ -53,11 +54,15 @@ import {
   getOfflinePlaylists,
   deleteOfflinePlaylist,
   removeTrackFromOfflinePlaylist,
+  addTracksBulkToOfflinePlaylist,
   type OfflinePlaylist,
 } from '../../storage/history';
 import { usePlayer } from '../../audio/PlayerContext';
 import { useToast } from '../../components/ToastContext';
 import { hapticLight, hapticMedium } from '../../utils/haptics';
+import { AddSongsModal } from '../../components/AddSongsModal';
+import { ImportPlaylistModal } from '../../components/ImportPlaylistModal';
+import type { TrackInfo } from '../../sync/protocol';
 
 interface UnifiedTrack {
   track_uri: string;
@@ -79,7 +84,8 @@ export default function PlaylistDetailScreen() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState<string | undefined>();
   const [tracks, setTracks] = useState<UnifiedTrack[]>([]);
-  const [playingTrackUri, setPlayingTrackUri] = useState<string | null>(null);
+  const [showAddSongsModal, setShowAddSongsModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!playlistId) return;
@@ -92,12 +98,12 @@ export default function PlaylistDetailScreen() {
         setIsLocal(true);
         setTitle(localMatch.name);
         setTracks(
-          localMatch.tracks.map((t) => ({
-            track_uri: t.track_uri,
-            track_name: t.track_name,
+          (localMatch.tracks || []).map((t: any) => ({
+            track_uri: t.track_uri || t.uri || '',
+            track_name: t.track_name || t.name || t.title || 'Unknown Track',
             artist: t.artist || 'Unknown Artist',
-            album_art_url: t.album_art_url,
-            duration_ms: t.duration_ms,
+            album_art_url: t.album_art_url || t.thumbnail || t.cover_art_url,
+            duration_ms: typeof t.duration_ms === 'number' ? t.duration_ms : 0,
           })),
         );
         setLoading(false);
@@ -111,12 +117,12 @@ export default function PlaylistDetailScreen() {
         setTitle(remote.name);
         setDescription(remote.description);
         setTracks(
-          (remote.tracks || []).map((t) => ({
-            track_uri: t.track_uri,
-            track_name: t.track_name,
+          (remote.tracks || []).map((t: any) => ({
+            track_uri: t.track_uri || t.uri || '',
+            track_name: t.track_name || t.name || t.title || 'Unknown Track',
             artist: t.artist || 'Unknown Artist',
-            album_art_url: t.album_art_url,
-            duration_ms: t.duration_ms,
+            album_art_url: t.album_art_url || t.thumbnail || t.cover_art_url,
+            duration_ms: typeof t.duration_ms === 'number' ? t.duration_ms : 0,
           })),
         );
       } else {
@@ -128,6 +134,39 @@ export default function PlaylistDetailScreen() {
       setLoading(false);
     }
   }, [playlistId, toast]);
+
+  const handleTrackAdded = useCallback((newTrack: TrackInfo) => {
+    setTracks((prev) => {
+      const exists = prev.some((t) => t.track_uri === newTrack.track_uri);
+      if (exists) return prev;
+      return [
+        ...prev,
+        {
+          track_uri: newTrack.track_uri,
+          track_name: newTrack.track_name,
+          artist: newTrack.artist,
+          album_art_url: newTrack.album_art_url,
+          duration_ms: newTrack.duration_ms,
+        },
+      ];
+    });
+  }, []);
+
+  const handleTracksBulkAdded = useCallback((newTracks: TrackInfo[]) => {
+    setTracks((prev) => {
+      const existingUris = new Set(prev.map((t) => t.track_uri));
+      const fresh = newTracks
+        .filter((t) => !existingUris.has(t.track_uri))
+        .map((t) => ({
+          track_uri: t.track_uri,
+          track_name: t.track_name,
+          artist: t.artist,
+          album_art_url: t.album_art_url,
+          duration_ms: t.duration_ms,
+        }));
+      return [...prev, ...fresh];
+    });
+  }, []);
 
   useEffect(() => {
     void loadData();
@@ -330,11 +369,16 @@ export default function PlaylistDetailScreen() {
               ) : null}
             </View>
 
-            {/* Play, Shuffle & Jam Actions */}
+            {/* Play, Shuffle, Add Songs & Jam Actions */}
             <View style={styles.playlistActionsRow}>
               <Pressable
                 onPress={handlePlayPlaylist}
-                style={({ pressed }) => [styles.playPlaylistBtn, pressed && styles.pressed]}
+                disabled={tracks.length === 0}
+                style={({ pressed }) => [
+                  styles.playPlaylistBtn,
+                  tracks.length === 0 && styles.btnDisabled,
+                  pressed && styles.pressed,
+                ]}
                 accessibilityLabel="Play playlist"
               >
                 <LinearGradient
@@ -350,12 +394,30 @@ export default function PlaylistDetailScreen() {
 
               <Pressable
                 onPress={handleShufflePlaylist}
-                style={({ pressed }) => [styles.shufflePlaylistBtn, pressed && styles.pressed]}
+                disabled={tracks.length === 0}
+                style={({ pressed }) => [
+                  styles.shufflePlaylistBtn,
+                  tracks.length === 0 && styles.btnDisabled,
+                  pressed && styles.pressed,
+                ]}
                 accessibilityLabel="Shuffle playlist"
               >
                 <Shuffle size={16} color="#ffffff" strokeWidth={2.2} />
                 <Text style={styles.shufflePlaylistText}>Shuffle</Text>
               </Pressable>
+
+              {isLocal && (
+                <Pressable
+                  onPress={() => {
+                    void hapticLight();
+                    setShowAddSongsModal(true);
+                  }}
+                  style={({ pressed }) => [styles.addSongsIconBtn, pressed && styles.pressed]}
+                  accessibilityLabel="Add songs to playlist"
+                >
+                  <Plus size={18} color={colors.amber} strokeWidth={2.4} />
+                </Pressable>
+              )}
 
               <Pressable
                 onPress={handleQueueAllInRoom}
@@ -370,12 +432,19 @@ export default function PlaylistDetailScreen() {
         renderItem={({ item, index }) => {
           const isPlayingThis = player.currentTrack?.track_uri === item.track_uri;
           return (
-            <View style={styles.trackRow}>
-              <Text style={styles.trackIndex}>{index + 1}</Text>
-              <Pressable
-                onPress={() => handlePreviewTrack(item)}
-                style={styles.trackThumbWrap}
-              >
+            <Pressable
+              onPress={() => handleTrackPress(item)}
+              style={({ pressed }) => [
+                styles.trackRow,
+                pressed && styles.trackRowPressed,
+                isPlayingThis && styles.trackRowPlaying,
+              ]}
+              accessibilityLabel={`Play ${item.track_name} by ${item.artist}`}
+            >
+              <Text style={[styles.trackIndex, isPlayingThis && styles.trackIndexActive]}>
+                {index + 1}
+              </Text>
+              <View style={styles.trackThumbWrap}>
                 {item.album_art_url ? (
                   <Image source={{ uri: item.album_art_url }} style={styles.trackThumb} />
                 ) : (
@@ -383,14 +452,14 @@ export default function PlaylistDetailScreen() {
                     <Music size={14} color={colors.amber} />
                   </View>
                 )}
-                <View style={styles.playOverlay}>
+                <View style={[styles.playOverlay, isPlayingThis && styles.playOverlayActive]}>
                   {isPlayingThis ? (
-                    <Pause size={12} color="#ffffff" fill="#ffffff" />
+                    <Radio size={12} color={colors.amber} />
                   ) : (
                     <Play size={12} color="#ffffff" fill="#ffffff" />
                   )}
                 </View>
-              </Pressable>
+              </View>
 
               <View style={styles.trackMeta}>
                 <Text
@@ -406,28 +475,82 @@ export default function PlaylistDetailScreen() {
 
               {isLocal && (
                 <Pressable
-                  onPress={() => handleRemoveTrack(item.track_uri)}
-                  hitSlop={10}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    void handleRemoveTrack(item.track_uri);
+                  }}
+                  hitSlop={12}
                   style={styles.removeTrackBtn}
                   accessibilityLabel="Remove track"
                 >
-                  <Trash2 size={14} color={colors.text3} />
+                  <Trash2 size={15} color={colors.text3} />
                 </Pressable>
               )}
-            </View>
+            </Pressable>
           );
         }}
         ListEmptyComponent={
           <View style={styles.emptyWrap}>
-            <Music size={36} color={colors.text3} />
-            <Text style={styles.emptyTitle}>No tracks in this playlist</Text>
+            <View style={styles.emptyIconCircle}>
+              <Music size={32} color={colors.amber} />
+            </View>
+            <Text style={styles.emptyTitle}>This playlist is empty</Text>
             <Text style={styles.emptySub}>
-              Save songs to this playlist from any room player.
+              Add songs from search, liked tracks, or import from Spotify/YouTube.
             </Text>
+
+            {isLocal ? (
+              <View style={styles.emptyActionsRow}>
+                <Pressable
+                  onPress={() => {
+                    void hapticMedium();
+                    setShowAddSongsModal(true);
+                  }}
+                  style={({ pressed }) => [styles.emptyAddBtn, pressed && styles.pressed]}
+                >
+                  <Plus size={15} color="#08080a" strokeWidth={2.4} />
+                  <Text style={styles.emptyAddBtnText}>Add Songs</Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => {
+                    void hapticLight();
+                    setShowImportModal(true);
+                  }}
+                  style={({ pressed }) => [styles.emptyImportBtn, pressed && styles.pressed]}
+                >
+                  <Sparkles size={14} color={colors.amber} />
+                  <Text style={styles.emptyImportBtnText}>Import Link</Text>
+                </Pressable>
+              </View>
+            ) : null}
           </View>
         }
       />
       <MiniPlayer bottomOffset={insets.bottom} />
+
+      {isLocal && (
+        <>
+          <AddSongsModal
+            visible={showAddSongsModal}
+            playlistId={playlistId}
+            playlistName={title}
+            existingTrackUris={new Set(tracks.map((t) => t.track_uri))}
+            onClose={() => setShowAddSongsModal(false)}
+            onTrackAdded={handleTrackAdded}
+            onTracksBulkAdded={handleTracksBulkAdded}
+          />
+          <ImportPlaylistModal
+            visible={showImportModal}
+            mode="save"
+            onClose={() => setShowImportModal(false)}
+            onSaveToPlaylists={(_name, importedTracks) => {
+              void addTracksBulkToOfflinePlaylist(playlistId, importedTracks);
+              handleTracksBulkAdded(importedTracks);
+            }}
+          />
+        </>
+      )}
     </SafeAreaView>
   );
 }
@@ -693,6 +816,79 @@ const styles = StyleSheet.create({
   },
   removeTrackBtn: {
     padding: spacing.xs,
+  },
+  btnDisabled: {
+    opacity: 0.45,
+  },
+  addSongsIconBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trackRowPressed: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  trackRowPlaying: {
+    backgroundColor: 'rgba(255, 159, 28, 0.07)',
+  },
+  trackIndexActive: {
+    color: colors.amber,
+    fontFamily: fontFamily.displayBold,
+  },
+  playOverlayActive: {
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+  },
+  emptyIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  emptyActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 18,
+  },
+  emptyAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.amber,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: radius.full,
+  },
+  emptyAddBtnText: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 13,
+    color: '#08080a',
+  },
+  emptyImportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.14)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: radius.full,
+  },
+  emptyImportBtnText: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 13,
+    color: '#ffffff',
   },
   emptyWrap: {
     paddingTop: 60,
