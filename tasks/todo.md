@@ -31,3 +31,13 @@
   - [x] Verify smooth scrolling and zero flicker
 - [x] Checkpoint: Phase 3 Production Readiness <!-- id: 8 -->
   - [x] Full test suite passes, 0 TypeScript errors, clean git status
+
+## Phase 4: UI Locality & Precision Scrubber Extraction
+- [x] Task 7: Extract Deep PrecisionScrubber Component <!-- id: 9 -->
+  - [x] Create `mobile/src/components/player/PrecisionScrubber.tsx`
+  - [x] Implement local 200ms position polling and deflection PanResponder
+- [x] Task 8: Integrate PrecisionScrubber in SpotifyPlayerModal <!-- id: 10 -->
+  - [x] Remove 200ms `setInterval` from `SpotifyPlayerModal`
+  - [x] Verify 5Hz modal re-render churn eliminated
+- [x] Checkpoint: Phase 4 Locality & Frame Rate <!-- id: 11 -->
+  - [x] Full test pass rate, 0 TypeScript errors, clean git status

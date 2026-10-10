@@ -83,6 +83,7 @@ import { AddToPlaylistModal } from './AddToPlaylistModal';
 import { useArtworkGestures } from './player/useArtworkGestures';
 import { useLyricsController } from './player/useLyricsController';
 import { useQueueRecommendations } from './player/useQueueRecommendations';
+import { PrecisionScrubber } from './player/PrecisionScrubber';
 import { formatDuration } from '../utils/format';
 import type { TrackInfo } from '../sync/protocol';
 
@@ -123,10 +124,7 @@ export function SpotifyPlayerModal() {
 
   const { playing, durationMs } = usePlayerStatus();
 
-  const [currentPosMs, setCurrentPosMs] = useState(0);
-  const [isScrubbing, setIsScrubbing] = useState(false);
-  const [scrubRatio, setScrubRatio] = useState(0);
-  const [scrubSpeed, setScrubSpeed] = useState(1.0);
+  const [lyricsPosMs, setLyricsPosMs] = useState(0);
   const [showQueue, setShowQueue] = useState(false);
   const [showDevicePicker, setShowDevicePicker] = useState(false);
   const [showAddToPlaylist, setShowAddToPlaylist] = useState(false);
@@ -170,7 +168,7 @@ export function SpotifyPlayerModal() {
     trackName: currentTrack?.track_name,
     artist: currentTrack?.artist,
     durationMs,
-    currentPosMs,
+    currentPosMs: showLyricsModal ? lyricsPosMs : 0,
     showLyricsModal,
   });
 
@@ -183,17 +181,6 @@ export function SpotifyPlayerModal() {
     () => getAmbientPalette(currentTrack?.track_name, currentTrack?.artist, currentTrack?.album_art_url),
     [currentTrack?.track_name, currentTrack?.artist, currentTrack?.album_art_url],
   );
-
-  // Poll current position smoothly
-  useEffect(() => {
-    if (!isPlayerModalOpen) return;
-    const interval = setInterval(() => {
-      if (!isScrubbing) {
-        setCurrentPosMs(positionMs());
-      }
-    }, 200);
-    return () => clearInterval(interval);
-  }, [isPlayerModalOpen, isScrubbing, positionMs]);
 
   // Check offline download status for current track
   useEffect(() => {
@@ -230,53 +217,7 @@ export function SpotifyPlayerModal() {
     [setPlayerModalOpen],
   );
 
-  // Continuous Vertical Deflection Precision Scrubber
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
-        onPanResponderGrant: (evt) => {
-          setIsScrubbing(true);
-          const touchX = evt.nativeEvent.locationX;
-          const initialRatio = Math.max(0, Math.min(1, touchX / trackBarWidthRef.current));
-          setScrubRatio(initialRatio);
-          lastTouchXRef.current = evt.nativeEvent.pageX;
-          startYRef.current = evt.nativeEvent.pageY;
-          setScrubSpeed(1.0);
-        },
-        onPanResponderMove: (evt) => {
-          const currentX = evt.nativeEvent.pageX;
-          const currentY = evt.nativeEvent.pageY;
-          const deltaX = currentX - lastTouchXRef.current;
-          const deflectionY = Math.max(0, currentY - startYRef.current);
-
-          // Spotify deflection damping: S(Y) = clamp(1.0 - 0.009 * max(0, Y - 30), 0.1, 1.0)
-          const speed = Math.max(0.1, Math.min(1.0, 1.0 - 0.009 * Math.max(0, deflectionY - 30)));
-          setScrubSpeed(speed);
-
-          const deltaRatio = (deltaX * speed) / trackBarWidthRef.current;
-          setScrubRatio((prev) => Math.max(0, Math.min(1, prev + deltaRatio)));
-          lastTouchXRef.current = currentX;
-        },
-        onPanResponderRelease: async () => {
-          const finalRatio = scrubRatio;
-          const targetMs = Math.round(finalRatio * (durationMs || 180000));
-          await seekToMs(targetMs);
-          setCurrentPosMs(targetMs);
-          setIsScrubbing(false);
-          setScrubSpeed(1.0);
-          void hapticLight();
-        },
-      }),
-    [durationMs, scrubRatio, seekToMs],
-  );
-
   if (!isPlayerModalOpen || !currentTrack) return null;
-
-  const effectiveDuration = durationMs > 0 ? durationMs : 180000;
-  const displayPosMs = isScrubbing ? scrubRatio * effectiveDuration : currentPosMs;
-  const progressPercent = Math.min(100, Math.max(0, (displayPosMs / effectiveDuration) * 100));
 
   const handleDownload = async () => {
     if (isDownloaded) {
@@ -719,42 +660,14 @@ export function SpotifyPlayerModal() {
             </View>
 
             {/* Scrubbable Progress Bar with Precision Deflection Feedback */}
-            <View style={styles.progressSection}>
-              {isScrubbing && scrubSpeed < 0.95 && (
-                <View style={[styles.scrubTooltipPill, { borderColor: palette.accent }]}>
-                  <Sparkles size={11} color={palette.accent} style={{ marginRight: 4 }} />
-                  <Text style={[styles.scrubTooltipText, { color: palette.accent }]}>
-                    {scrubSpeed <= 0.25
-                      ? 'Fine Scrubbing (0.1x)'
-                      : scrubSpeed <= 0.55
-                      ? 'Quarter-Speed Scrubbing (0.25x)'
-                      : 'Half-Speed Scrubbing (0.5x)'}
-                  </Text>
-                </View>
-              )}
-              <View
-                style={styles.progressTrack}
-                onLayout={(e) => {
-                  trackBarWidthRef.current = e.nativeEvent.layout.width;
-                }}
-                {...panResponder.panHandlers}
-              >
-                <View
-                  style={[
-                    styles.progressFill,
-                    { width: `${progressPercent}%`, backgroundColor: palette.accent },
-                  ]}
-                />
-                <View style={[styles.progressThumb, { left: `${progressPercent}%` }]} />
-              </View>
-
-              <View style={styles.timeRow}>
-                <Text style={styles.timeText}>{formatDuration(displayPosMs)}</Text>
-                <Text style={styles.timeText}>
-                  {displayPosMs > 0 ? `-${formatDuration(effectiveDuration - displayPosMs)}` : formatDuration(effectiveDuration)}
-                </Text>
-              </View>
-            </View>
+            <PrecisionScrubber
+              durationMs={durationMs}
+              positionMs={positionMs}
+              seekToMs={seekToMs}
+              accentColor={palette.accent}
+              isPlayerModalOpen={isPlayerModalOpen}
+              onPositionChange={showLyricsModal ? setLyricsPosMs : undefined}
+            />
 
             {/* Main Controls Row (Shuffle, Prev, Play/Pause, Next, Repeat) */}
             <View style={styles.controlsRow}>
@@ -1115,55 +1028,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  scrubTooltipPill: {
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(18, 18, 24, 0.92)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 8,
-  },
-  scrubTooltipText: {
-    fontFamily: fontFamily.displayBold,
-    fontSize: 10.5,
-    letterSpacing: 0.3,
-  },
-  progressSection: {
-    marginVertical: 12,
-  },
-  progressTrack: {
-    height: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.16)',
-    borderRadius: 2,
-    position: 'relative',
-    justifyContent: 'center',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: colors.amber,
-    borderRadius: 2,
-  },
-  progressThumb: {
-    position: 'absolute',
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#ffffff',
-    marginLeft: -6,
-  },
-  timeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  timeText: {
-    fontFamily: fontFamily.bodyRegular,
-    fontSize: 11,
-    color: '#777788',
   },
   controlsRow: {
     flexDirection: 'row',

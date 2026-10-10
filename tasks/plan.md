@@ -129,8 +129,45 @@ Decompose and optimize the OpenJam mobile app architecture and test execution pi
 **Estimated scope:** Small (3 files)
 
 ### Checkpoint: Phase 3 (Production Readiness)
-- [ ] All acceptance criteria met across Phases 1-3.
-- [ ] Zero TypeScript errors and 100% test pass rate in mobile and backend.
+- [x] All acceptance criteria met across Phases 1-3.
+- [x] Zero TypeScript errors and 100% test pass rate in mobile and backend.
+
+---
+
+### Phase 4: UI Locality & Precision Scrubber Extraction
+
+#### Task 7: Extract Deep PrecisionScrubber Component
+**Description:** Extract the continuous vertical deflection scrubber, tooltip pill, progress bar geometry, and 200ms position polling loop into an isolated presentation component `mobile/src/components/player/PrecisionScrubber.tsx`.
+**Acceptance criteria:**
+- [ ] `PrecisionScrubber.tsx` cleanly encapsulates local polling and deflection calculations.
+- [ ] Precision scrubber emits `onSeek(targetMs)` without forcing full-screen player re-renders during playback.
+- [ ] Exposes clean, narrow interface: `{ durationMs, positionMs, seekToMs, accentColor, isPlayerModalOpen, onPositionChange? }`.
+**Verification:**
+- [ ] Tests pass: `npm test`
+- [ ] Build succeeds: `npx tsc --noEmit` exits with 0
+**Dependencies:** Phase 3
+**Files likely touched:**
+- `mobile/src/components/player/PrecisionScrubber.tsx`
+**Estimated scope:** Medium (1 file)
+
+#### Task 8: Integrate PrecisionScrubber in SpotifyPlayerModal
+**Description:** Replace the monolithic progress state (`currentPosMs`, `isScrubbing`, `scrubRatio`, `scrubSpeed`) and the 200ms polling interval in `SpotifyPlayerModal.tsx` with `<PrecisionScrubber />`.
+**Acceptance criteria:**
+- [ ] 200ms `setInterval` removed from `SpotifyPlayerModal` root state.
+- [ ] Modal only re-renders on genuine user transport interactions (play, pause, skip, queue updates).
+- [ ] Precision deflection damping and scrub speed tooltip behave identically.
+**Verification:**
+- [ ] Tests pass: `npm test`
+- [ ] Build succeeds: `npx tsc --noEmit` exits with 0
+**Dependencies:** Task 7
+**Files likely touched:**
+- `mobile/src/components/SpotifyPlayerModal.tsx`
+**Estimated scope:** Small (1 file)
+
+### Checkpoint: Phase 4 (Locality & Frame Rate)
+- [ ] 5Hz full-screen modal re-render churn eliminated.
+- [ ] All 217+ tests pass with 0 warnings.
+- [ ] TypeScript compiler exits with 0 errors.
 
 ---
 
