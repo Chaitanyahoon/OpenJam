@@ -51,7 +51,8 @@ import {
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
-import type { ApiUser, RoomSummary } from '../api';
+import { getPlaylist, type ApiUser, RoomSummary } from '../api';
+import { usePlayer } from '../audio/PlayerContext';
 import type { TrackInfo } from '../sync/protocol';
 import {
   getRecentlyPlayed,
@@ -124,6 +125,7 @@ export function ProfileModal({
   onPlayTrack,
 }: ProfileModalProps) {
   const toast = useToast();
+  const player = usePlayer();
 
   const [activeTab, setActiveTab] = useState<TabMode>('history');
   const [guestName, setGuestName] = useState(currentName || user?.display_name || 'Jammer');
@@ -220,6 +222,45 @@ export function ProfileModal({
     setPlaylists((prev) => prev.filter((p) => p.id !== id));
     setCacheKb(await calculateStorageUsageKb());
     toast(`Deleted playlist "${name}"`, 'info');
+  };
+
+  const handlePlayPlaylistDirect = async (pl: any) => {
+    void hapticMedium();
+    if (Array.isArray(pl.tracks) && pl.tracks.length > 0) {
+      const mapped = pl.tracks.map((t: any) => ({
+        track_uri: t.track_uri || t.uri,
+        track_name: t.track_name || t.name,
+        artist: t.artist || 'Unknown Artist',
+        album_art_url: t.album_art_url,
+        duration_ms: t.duration_ms,
+      }));
+      player.setPlayerModalOpen(true);
+      void player.playTrack(mapped[0], mapped, { sourceTitle: pl.name });
+      toast(`Playing "${pl.name}"`, 'success');
+      onClose();
+      return;
+    }
+
+    toast(`Opening "${pl.name}"…`, 'info');
+    player.setPlayerModalOpen(true);
+    onClose();
+    try {
+      const detail = await getPlaylist(pl.id);
+      if (detail && detail.tracks && detail.tracks.length > 0) {
+        const mapped = detail.tracks.map((t) => ({
+          track_uri: t.track_uri,
+          track_name: t.track_name,
+          artist: t.artist || 'Unknown Artist',
+          album_art_url: t.album_art_url,
+          duration_ms: t.duration_ms,
+        }));
+        void player.playTrack(mapped[0], mapped, { sourceTitle: pl.name });
+      } else {
+        toast('Playlist is empty or has no playable tracks', 'info');
+      }
+    } catch {
+      toast('Could not start playlist playback', 'error');
+    }
   };
 
   const handleSharePlaylist = async (p: OfflinePlaylist) => {
@@ -664,48 +705,62 @@ export function ProfileModal({
                     </Text>
                   </View>
                 ) : (
-                  playlists.map((pl) => (
-                    <Pressable
-                      key={pl.id}
-                      onPress={() => {
-                        onClose();
-                        router.push({ pathname: '/playlist/[id]', params: { id: pl.id } });
-                      }}
-                      style={({ pressed }) => [styles.playlistCard, pressed && styles.pressed]}
-                    >
-                      <View style={styles.playlistCardHeader}>
-                        <View style={styles.playlistIconBox}>
-                          <ListMusic size={16} color={colors.amber} />
+                  playlists.map((pl) => {
+                    const trackCount = (pl as any).track_count ?? (pl as any).tracks_count ?? (pl.tracks || []).length;
+                    return (
+                      <Pressable
+                        key={pl.id}
+                        onPress={() => {
+                          onClose();
+                          router.push({ pathname: '/playlist/[id]', params: { id: pl.id } });
+                        }}
+                        style={({ pressed }) => [styles.playlistCard, pressed && styles.pressed]}
+                      >
+                        <View style={styles.playlistCardHeader}>
+                          <View style={styles.playlistIconBox}>
+                            <ListMusic size={16} color={colors.amber} />
+                          </View>
+                          <View style={styles.playlistMeta}>
+                            <Text style={styles.playlistName} numberOfLines={1}>
+                              {pl.name}
+                            </Text>
+                            <Text style={styles.playlistSub}>
+                              {trackCount} track{trackCount === 1 ? '' : 's'} · Tap to open
+                            </Text>
+                          </View>
+                          <View style={styles.playlistActions}>
+                            <Pressable
+                              onPress={(e) => {
+                                e.stopPropagation();
+                                void handlePlayPlaylistDirect(pl);
+                              }}
+                              hitSlop={8}
+                              style={styles.playlistPlayBtn}
+                              accessibilityLabel={`Play playlist ${pl.name}`}
+                            >
+                              <Play size={12} color="#08080a" fill="#08080a" />
+                            </Pressable>
+                            <Pressable
+                              onPress={() => handleSharePlaylist(pl)}
+                              hitSlop={8}
+                              style={styles.playlistActionBtn}
+                              accessibilityLabel="Share playlist"
+                            >
+                              <Share2 size={13} color={colors.text2} />
+                            </Pressable>
+                            <Pressable
+                              onPress={() => handleDeletePlaylist(pl.id, pl.name)}
+                              hitSlop={8}
+                              style={styles.playlistActionBtn}
+                              accessibilityLabel="Delete playlist"
+                            >
+                              <Trash2 size={13} color={colors.red} />
+                            </Pressable>
+                          </View>
                         </View>
-                        <View style={styles.playlistMeta}>
-                          <Text style={styles.playlistName} numberOfLines={1}>
-                            {pl.name}
-                          </Text>
-                          <Text style={styles.playlistSub}>
-                            {pl.tracks.length} tracks · Tap to open
-                          </Text>
-                        </View>
-                        <View style={styles.playlistActions}>
-                          <Pressable
-                            onPress={() => handleSharePlaylist(pl)}
-                            hitSlop={8}
-                            style={styles.playlistActionBtn}
-                            accessibilityLabel="Share playlist"
-                          >
-                            <Share2 size={13} color={colors.text2} />
-                          </Pressable>
-                          <Pressable
-                            onPress={() => handleDeletePlaylist(pl.id, pl.name)}
-                            hitSlop={8}
-                            style={styles.playlistActionBtn}
-                            accessibilityLabel="Delete playlist"
-                          >
-                            <Trash2 size={13} color={colors.red} />
-                          </Pressable>
-                        </View>
-                      </View>
-                    </Pressable>
-                  ))
+                      </Pressable>
+                    );
+                  })
                 )}
 
                 {/* Liked Tracks Section */}
@@ -1570,6 +1625,14 @@ const styles = StyleSheet.create({
     padding: 6,
     borderRadius: 6,
     backgroundColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  playlistPlayBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.amber,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   viewPublicProfileBtn: {
     flexDirection: 'row',

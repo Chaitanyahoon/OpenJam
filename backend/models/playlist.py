@@ -24,6 +24,7 @@ class Playlist(Base):
 
     def to_dict(self, include_tracks=False):
         from backend.database import safe_isoformat
+        count = len(self.tracks) if self.tracks is not None else 0
         res = {
             "id": self.id,
             "name": self.name,
@@ -34,9 +35,10 @@ class Playlist(Base):
             "last_synced_at": safe_isoformat(self.last_synced_at),
             "auto_sync": self.auto_sync,
             "created_at": safe_isoformat(self.created_at),
+            "track_count": count,
+            "tracks_count": count,
+            "tracks": [t.to_dict() for t in self.tracks] if include_tracks else [],
         }
-        if include_tracks:
-            res["tracks"] = [t.to_dict() for t in self.tracks]
         return res
 
 

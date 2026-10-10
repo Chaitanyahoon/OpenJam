@@ -1,6 +1,6 @@
 import re
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from backend.database import get_db
 from backend.models.user import User
 from backend.models.playlist import Playlist, PlaylistLike
@@ -61,20 +61,26 @@ async def get_my_profile(db: Session = Depends(get_db), user_id: str = Depends(r
     if not user:
         raise HTTPException(status_code=404, detail="User profile not found")
         
-    playlists = db.query(Playlist).filter(Playlist.creator_id == user_id).order_by(Playlist.created_at.desc()).all()
+    playlists = db.query(Playlist).options(
+        selectinload(Playlist.tracks),
+        selectinload(Playlist.creator)
+    ).filter(Playlist.creator_id == user_id).order_by(Playlist.created_at.desc()).all()
     likes = db.query(UserLike).filter(UserLike.user_id == user_id).order_by(UserLike.created_at.desc()).all()
     
     liked_relations = db.query(PlaylistLike).filter(PlaylistLike.user_id == user_id).all()
     liked_ids = [l.playlist_id for l in liked_relations]
-    liked_playlists = db.query(Playlist).filter(
+    liked_playlists = db.query(Playlist).options(
+        selectinload(Playlist.tracks),
+        selectinload(Playlist.creator)
+    ).filter(
         Playlist.id.in_(liked_ids),
         (Playlist.is_private == False) | (Playlist.creator_id == user_id)
     ).all()
     
     return {
         "user": user.to_dict(),
-        "playlists": [p.to_dict() for p in playlists],
-        "saved_playlists": [p.to_dict() for p in liked_playlists],
+        "playlists": [p.to_dict(include_tracks=True) for p in playlists],
+        "saved_playlists": [p.to_dict(include_tracks=True) for p in liked_playlists],
         "likes": [l.to_dict() for l in likes]
     }
 
@@ -199,8 +205,11 @@ async def get_public_profile(user_id: str, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
         
-    # Only expose public playlists
-    playlists = db.query(Playlist).filter(
+    # Only expose public playlists with tracks eager loaded
+    playlists = db.query(Playlist).options(
+        selectinload(Playlist.tracks),
+        selectinload(Playlist.creator)
+    ).filter(
         Playlist.creator_id == resolved_id,
         Playlist.is_private == False
     ).order_by(Playlist.created_at.desc()).all()
@@ -221,7 +230,7 @@ async def get_public_profile(user_id: str, db: Session = Depends(get_db)):
             "banner_scale": user.banner_scale,
             "created_at": safe_isoformat(user.created_at),
         },
-        "playlists": [p.to_dict() for p in playlists]
+        "playlists": [p.to_dict(include_tracks=True) for p in playlists]
     }
 
 

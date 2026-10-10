@@ -12,8 +12,11 @@ router = APIRouter(prefix="/playlists", tags=["playlists"])
 @router.get("")
 async def get_my_playlists(db: Session = Depends(get_db), user_id: str = Depends(require_registered_user)):
     """Retrieve all playlists created by the authenticated user."""
-    playlists = db.query(Playlist).filter(Playlist.creator_id == user_id).order_by(Playlist.created_at.desc()).all()
-    return {"playlists": [playlist.to_dict() for playlist in playlists]}
+    playlists = db.query(Playlist).options(
+        selectinload(Playlist.tracks),
+        selectinload(Playlist.creator)
+    ).filter(Playlist.creator_id == user_id).order_by(Playlist.created_at.desc()).all()
+    return {"playlists": [playlist.to_dict(include_tracks=True) for playlist in playlists]}
 
 
 @router.post("")
@@ -30,7 +33,7 @@ async def create_playlist(create_req: CreatePlaylistRequest, db: Session = Depen
     db.commit()
     db.refresh(playlist)
     
-    return {"message": "Playlist created successfully", "playlist": playlist.to_dict()}
+    return {"message": "Playlist created successfully", "playlist": playlist.to_dict(include_tracks=True)}
 
 
 @router.get("/liked")
@@ -42,12 +45,15 @@ async def get_liked_playlists(
     likes = db.query(PlaylistLike).filter(PlaylistLike.user_id == user_id).all()
     playlist_ids = [l.playlist_id for l in likes]
     
-    playlists = db.query(Playlist).filter(
+    playlists = db.query(Playlist).options(
+        selectinload(Playlist.tracks),
+        selectinload(Playlist.creator)
+    ).filter(
         Playlist.id.in_(playlist_ids),
         (Playlist.is_private == False) | (Playlist.creator_id == user_id)
     ).all()
     
-    return {"playlists": [playlist.to_dict() for playlist in playlists]}
+    return {"playlists": [playlist.to_dict(include_tracks=True) for playlist in playlists]}
 
 
 @router.get("/{playlist_id}")

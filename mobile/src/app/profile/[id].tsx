@@ -60,6 +60,7 @@ import {
   getPublicProfile,
   getProfileSocial,
   getProfileStats,
+  getPlaylist,
   toggleFollowUser,
   getStoredSession,
   clearSession,
@@ -70,6 +71,8 @@ import {
   type ProfileSocialStats,
   type ProfileStatsData,
 } from '../../api';
+import { usePlayer } from '../../audio/PlayerContext';
+import { MiniPlayer } from '../../components/MiniPlayer';
 import {
   getRecentlyPlayed,
   getFavoriteRooms,
@@ -108,6 +111,7 @@ export default function UserProfileScreen() {
   const rawId = Array.isArray(params.id) ? params.id[0] : params.id;
   const insets = useSafeAreaInsets();
   const toast = useToast();
+  const player = usePlayer();
 
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<PublicProfile | null>(null);
@@ -134,7 +138,14 @@ export default function UserProfileScreen() {
     try {
       const session = await getStoredSession();
       const targetId = rawId === 'me' ? session.user?.id : rawId;
-      const isMine = rawId === 'me' || (!!session.user && session.user.id === targetId);
+      const cleanTarget = (targetId || '').trim().replace(/^@/, '').toLowerCase();
+      const isMine =
+        rawId === 'me' ||
+        (!!session.user &&
+          (session.user.id === targetId ||
+            (session.user.discord_username && session.user.discord_username.toLowerCase() === cleanTarget) ||
+            ((session.user as any).username && (session.user as any).username.toLowerCase() === cleanTarget) ||
+            (session.user.display_name && session.user.display_name.toLowerCase() === cleanTarget)));
       setIsSelf(isMine);
 
       if (isMine) {
@@ -300,6 +311,45 @@ export default function UserProfileScreen() {
       toast(`Imported playlist "${name}" (${tracks.length} tracks)`, 'success');
     } catch {
       toast('Failed to save imported playlist', 'error');
+    }
+  };
+
+  const handlePlayPlaylistDirect = async (item: any) => {
+    void hapticMedium();
+    // 1. If tracks are already present in item.tracks
+    if (Array.isArray(item.tracks) && item.tracks.length > 0) {
+      const mapped = item.tracks.map((t: any) => ({
+        track_uri: t.track_uri || t.uri,
+        track_name: t.track_name || t.name,
+        artist: t.artist || 'Unknown Artist',
+        album_art_url: t.album_art_url,
+        duration_ms: t.duration_ms,
+      }));
+      player.setPlayerModalOpen(true);
+      void player.playTrack(mapped[0], mapped, { sourceTitle: item.name });
+      toast(`Playing "${item.name}"`, 'success');
+      return;
+    }
+
+    // 2. Otherwise fetch playlist tracks dynamically
+    toast(`Opening "${item.name}"…`, 'info');
+    player.setPlayerModalOpen(true);
+    try {
+      const detail = await getPlaylist(item.id);
+      if (detail && detail.tracks && detail.tracks.length > 0) {
+        const mapped = detail.tracks.map((t) => ({
+          track_uri: t.track_uri,
+          track_name: t.track_name,
+          artist: t.artist || 'Unknown Artist',
+          album_art_url: t.album_art_url,
+          duration_ms: t.duration_ms,
+        }));
+        void player.playTrack(mapped[0], mapped, { sourceTitle: item.name });
+      } else {
+        toast('Playlist is empty or has no playable tracks', 'info');
+      }
+    } catch {
+      toast('Could not start playlist playback', 'error');
     }
   };
 
@@ -745,6 +795,7 @@ export default function UserProfileScreen() {
 
           // Playlists Card (default)
           const isOffline = offlinePlaylists.some((p) => p.id === item.id);
+          const trackCount = (item as any).track_count ?? (item as any).tracks_count ?? (item.tracks || []).length;
           return (
             <Pressable
               onPress={() => {
@@ -761,9 +812,20 @@ export default function UserProfileScreen() {
                   {item.name}
                 </Text>
                 <Text style={styles.playlistSub}>
-                  {(item.tracks || []).length} tracks{isOffline ? ' • Offline' : ''}
+                  {trackCount} track{trackCount === 1 ? '' : 's'}{isOffline ? ' • Offline' : ''}
                 </Text>
               </View>
+              <Pressable
+                onPress={(e) => {
+                  e.stopPropagation();
+                  void handlePlayPlaylistDirect(item);
+                }}
+                hitSlop={8}
+                style={styles.playlistPlayBtn}
+                accessibilityLabel={`Play playlist ${item.name}`}
+              >
+                <Play size={14} color="#08080a" fill="#08080a" />
+              </Pressable>
               {isSelf && isOffline ? (
                 <Pressable
                   onPress={(e) => {
@@ -800,6 +862,7 @@ export default function UserProfileScreen() {
         onClose={() => setImportModalVisible(false)}
         onSaveToPlaylists={handleSaveImportedPlaylist}
       />
+      <MiniPlayer bottomOffset={Math.max(insets.bottom, 12)} />
     </SafeAreaView>
   );
 }
@@ -1193,6 +1256,15 @@ const styles = StyleSheet.create({
   },
   deletePlaylistBtn: {
     padding: 6,
+    marginLeft: 6,
+  },
+  playlistPlayBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.amber,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginLeft: 6,
   },
   settingsContainer: {

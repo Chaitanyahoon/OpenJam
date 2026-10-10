@@ -56,10 +56,14 @@ export interface TrackSearchResult {
   duration_ms?: number;
 }
 
+let memoryToken: string | null = null;
+
 async function authHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const token = await AsyncStorage.getItem(TOKEN_KEY);
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (!memoryToken) {
+    memoryToken = await AsyncStorage.getItem(TOKEN_KEY);
+  }
+  if (memoryToken) headers['Authorization'] = `Bearer ${memoryToken}`;
   return headers;
 }
 
@@ -105,6 +109,7 @@ export async function joinAsGuest(
   });
   if (!res.ok) throw new Error('Could not create guest session');
   const data = (await res.json()) as { user: ApiUser; token: string };
+  memoryToken = data.token;
   await AsyncStorage.multiSet([
     [TOKEN_KEY, data.token],
     [USER_KEY, JSON.stringify(data.user)],
@@ -130,6 +135,7 @@ export async function fetchMe(): Promise<ApiUser | null> {
 }
 
 export async function saveAuthToken(token: string): Promise<ApiUser | null> {
+  memoryToken = token;
   await AsyncStorage.setItem(TOKEN_KEY, token);
   return await fetchMe();
 }
@@ -144,6 +150,7 @@ export async function getStoredSession(): Promise<{
     USER_KEY,
     NAME_KEY,
   ]).then((pairs) => pairs.map(([, v]) => v));
+  if (token) memoryToken = token;
   return {
     token,
     user: userJson ? (JSON.parse(userJson) as ApiUser) : null,
@@ -152,6 +159,7 @@ export async function getStoredSession(): Promise<{
 }
 
 export async function clearSession(): Promise<void> {
+  memoryToken = null;
   await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY, NAME_KEY]);
 }
 
@@ -383,6 +391,8 @@ export interface ApiPlaylist {
   creator_name?: string;
   created_at?: string;
   tracks: ApiPlaylistTrack[];
+  track_count?: number;
+  tracks_count?: number;
 }
 
 export async function getPlaylist(id: string): Promise<ApiPlaylist | null> {

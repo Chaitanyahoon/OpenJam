@@ -234,10 +234,10 @@ export async function calculateStorageUsageKb(): Promise<number> {
       OFFLINE_PLAYLISTS_KEY,
       FAVORITE_TRACKS_KEY,
     ];
+    const pairs = await AsyncStorage.multiGet(keys);
     let totalBytes = 0;
-    for (const key of keys) {
-      const item = await AsyncStorage.getItem(key);
-      if (item) totalBytes += item.length * 2; // rough UTF-16 bytes
+    for (const [, val] of pairs) {
+      if (val) totalBytes += val.length * 2;
     }
     return Math.max(1, Math.round(totalBytes / 1024));
   } catch {

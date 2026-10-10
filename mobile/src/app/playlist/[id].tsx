@@ -173,29 +173,29 @@ export default function PlaylistDetailScreen() {
     toast('Track removed from playlist', 'info');
   };
 
-  const handlePlayPlaylist = async () => {
+  const handlePlayPlaylist = () => {
     if (tracks.length === 0) return;
     void hapticMedium();
-    await player.playTrack(tracks[0], tracks, { sourceTitle: title });
     player.setPlayerModalOpen(true);
+    void player.playTrack(tracks[0], tracks, { sourceTitle: title });
   };
 
-  const handleShufflePlaylist = async () => {
+  const handleShufflePlaylist = () => {
     if (tracks.length === 0) return;
     void hapticMedium();
     const shuffled = [...tracks].sort(() => Math.random() - 0.5);
-    await player.playTrack(shuffled[0], shuffled, { sourceTitle: title });
     player.setPlayerModalOpen(true);
+    void player.playTrack(shuffled[0], shuffled, { sourceTitle: title });
   };
 
-  const handleTrackPress = async (track: UnifiedTrack) => {
+  const handleTrackPress = (track: UnifiedTrack) => {
     void hapticLight();
-    await player.playTrack(track, tracks, { sourceTitle: title });
     player.setPlayerModalOpen(true);
+    void player.playTrack(track, tracks, { sourceTitle: title });
   };
 
-  const handlePreviewTrack = async (track: UnifiedTrack) => {
-    void handleTrackPress(track);
+  const handlePreviewTrack = (track: UnifiedTrack) => {
+    handleTrackPress(track);
   };
 
   const handleQueueAllInRoom = async () => {
@@ -368,7 +368,7 @@ export default function PlaylistDetailScreen() {
           </View>
         }
         renderItem={({ item, index }) => {
-          const isPlayingThis = playingTrackUri === item.track_uri;
+          const isPlayingThis = player.currentTrack?.track_uri === item.track_uri;
           return (
             <View style={styles.trackRow}>
               <Text style={styles.trackIndex}>{index + 1}</Text>

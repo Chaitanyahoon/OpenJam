@@ -53,7 +53,7 @@ export function UnifiedMiniPlayer({
       setCurrentPosMs(player.positionMs());
     }, 400);
     return () => clearInterval(interval);
-  }, [player, room?.nowPlaying]);
+  }, [player.currentTrack?.track_uri, room?.nowPlaying?.track_uri, playerStatus.playing, room?.isPlaying]);
 
   // Harmonized Active Track Resolution
   const isRoomActive = Boolean(room?.nowPlaying);
