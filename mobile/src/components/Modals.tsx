@@ -27,12 +27,15 @@ import {
   Headphones,
   Sparkles,
   KeyRound,
+  Copy,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
 import { Field, PrimaryButton, Title, Subtitle } from './ui';
 import { createRoom, type ApiUser } from '../api';
-import { hapticMedium } from '../utils/haptics';
+import { hapticMedium, hapticLight } from '../utils/haptics';
+import { useToast } from './ToastContext';
+import { copyToClipboard } from '../utils/clipboard';
 
 const openjamEmblem = require('../../assets/images/openjam-emblem.png');
 
@@ -758,6 +761,17 @@ export function RoomInviteModal({
   onClose: () => void;
   onShare: () => void;
 }) {
+  const toast = useToast();
+  const handleCopyCode = async () => {
+    void hapticLight();
+    const ok = await copyToClipboard(roomId);
+    if (ok) {
+      toast(`Room code "#${roomId}" copied! Share with friends.`, 'success');
+    } else {
+      toast(`Room code is #${roomId}`, 'info');
+    }
+  };
+
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&format=png&data=${encodeURIComponent(
     `https://www.openjam.fun/room/${roomId}`,
   )}`;
@@ -783,10 +797,18 @@ export function RoomInviteModal({
         </View>
 
         {/* Room Code Badge */}
-        <View style={styles.roomCodeBadge}>
-          <Text style={styles.roomCodeLabel}>ROOM CODE</Text>
+        <Pressable
+          onPress={handleCopyCode}
+          style={({ pressed }) => [styles.roomCodeBadge, pressed && styles.pressed]}
+          hitSlop={8}
+          accessibilityLabel={`Copy room code #${roomId}`}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <Copy size={11} color={colors.amber} />
+            <Text style={styles.roomCodeLabel}>ROOM CODE (TAP TO COPY)</Text>
+          </View>
           <Text style={styles.roomCodeText}>#{roomId}</Text>
-        </View>
+        </Pressable>
       </View>
 
       <View style={{ height: 16 }} />

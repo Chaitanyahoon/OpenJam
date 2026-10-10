@@ -38,6 +38,7 @@ import {
   Disc,
   Shuffle,
   Sparkles,
+  ListPlus,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../../theme';
 import { fontFamily } from '../../fonts';
@@ -55,6 +56,7 @@ import {
   deleteOfflinePlaylist,
   removeTrackFromOfflinePlaylist,
   addTracksBulkToOfflinePlaylist,
+  shuffleTracks,
   type OfflinePlaylist,
 } from '../../storage/history';
 import { usePlayer } from '../../audio/PlayerContext';
@@ -222,9 +224,24 @@ export default function PlaylistDetailScreen() {
   const handleShufflePlaylist = () => {
     if (tracks.length === 0) return;
     void hapticMedium();
-    const shuffled = [...tracks].sort(() => Math.random() - 0.5);
+    const shuffled = shuffleTracks(tracks);
     player.setPlayerModalOpen(true);
-    void player.playTrack(shuffled[0], shuffled, { sourceTitle: title });
+    void player.playTrack(shuffled[0], shuffled, { sourceTitle: `${title} (Shuffle)` });
+  };
+
+  const handleEnqueueAll = () => {
+    if (tracks.length === 0) return;
+    void hapticLight();
+    tracks.forEach((t) => {
+      player.addToQueue({
+        track_uri: t.track_uri,
+        track_name: t.track_name,
+        artist: t.artist,
+        album_art_url: t.album_art_url,
+        duration_ms: t.duration_ms,
+      });
+    });
+    toast(`Added ${tracks.length} tracks to Up Next`, 'success');
   };
 
   const handleTrackPress = (track: UnifiedTrack) => {
@@ -406,6 +423,20 @@ export default function PlaylistDetailScreen() {
                 <Text style={styles.shufflePlaylistText}>Shuffle</Text>
               </Pressable>
 
+              <Pressable
+                onPress={handleEnqueueAll}
+                disabled={tracks.length === 0}
+                style={({ pressed }) => [
+                  styles.queuePlaylistBtn,
+                  tracks.length === 0 && styles.btnDisabled,
+                  pressed && styles.pressed,
+                ]}
+                accessibilityLabel="Add playlist to queue"
+              >
+                <ListPlus size={16} color="#ffffff" strokeWidth={2.2} />
+                <Text style={styles.queuePlaylistText}>Queue</Text>
+              </Pressable>
+
               {isLocal && (
                 <Pressable
                   onPress={() => {
@@ -473,19 +504,41 @@ export default function PlaylistDetailScreen() {
                 </Text>
               </View>
 
-              {isLocal && (
+              <View style={styles.trackRowActions}>
                 <Pressable
                   onPress={(e) => {
                     e.stopPropagation();
-                    void handleRemoveTrack(item.track_uri);
+                    void hapticLight();
+                    player.addToQueue({
+                      track_uri: item.track_uri,
+                      track_name: item.track_name,
+                      artist: item.artist,
+                      album_art_url: item.album_art_url,
+                      duration_ms: item.duration_ms,
+                    });
+                    toast(`Added "${item.track_name}" to queue`, 'success');
                   }}
-                  hitSlop={12}
-                  style={styles.removeTrackBtn}
-                  accessibilityLabel="Remove track"
+                  hitSlop={10}
+                  style={styles.addTrackQueueBtn}
+                  accessibilityLabel={`Add ${item.track_name} to queue`}
                 >
-                  <Trash2 size={15} color={colors.text3} />
+                  <Plus size={16} color={colors.text2} />
                 </Pressable>
-              )}
+
+                {isLocal && (
+                  <Pressable
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      void handleRemoveTrack(item.track_uri);
+                    }}
+                    hitSlop={12}
+                    style={styles.removeTrackBtn}
+                    accessibilityLabel="Remove track"
+                  >
+                    <Trash2 size={15} color={colors.text3} />
+                  </Pressable>
+                )}
+              </View>
             </Pressable>
           );
         }}
@@ -729,6 +782,23 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.displayBold,
     fontSize: 14,
   },
+  queuePlaylistBtn: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: radius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  queuePlaylistText: {
+    color: '#ffffff',
+    fontFamily: fontFamily.displayBold,
+    fontSize: 14,
+  },
   jamRoomIconBtn: {
     width: 44,
     height: 44,
@@ -813,6 +883,19 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.bodyRegular,
     fontSize: 12,
     marginTop: 2,
+  },
+  trackRowActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  addTrackQueueBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   removeTrackBtn: {
     padding: spacing.xs,

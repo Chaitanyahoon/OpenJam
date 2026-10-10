@@ -66,6 +66,7 @@ import {
   saveOfflinePlaylist,
   deleteOfflinePlaylist,
   getFavoriteTracks,
+  shuffleTracks,
   type OfflinePlaylist,
   type PlayedTrack,
   type FavoriteRoom,
@@ -85,7 +86,7 @@ interface ProfileModalProps {
   onDiscordLogin?: () => void;
   onSignOut?: () => void;
   onJoinRoom?: (roomId: string) => void;
-  onPlayTrack?: (track: PlayedTrack) => void;
+  onPlayTrack?: (track: PlayedTrack, queue?: TrackInfo[], options?: { sourceTitle?: string }) => void;
 }
 
 type TabMode = 'history' | 'playlists' | 'favorites' | 'settings';
@@ -261,6 +262,84 @@ export function ProfileModal({
     } catch {
       toast('Could not start playlist playback', 'error');
     }
+  };
+
+  const handlePlayFavTrack = (track: TrackInfo) => {
+    void hapticLight();
+    if (onPlayTrack) {
+      onPlayTrack({ ...track, playedAt: Date.now() }, favTracks, { sourceTitle: 'Liked Songs' });
+    } else {
+      player.setPlayerModalOpen(true);
+      void player.playTrack(track, favTracks, { sourceTitle: 'Liked Songs' });
+    }
+    toast(`Playing "${track.track_name}"`, 'success');
+    onClose();
+  };
+
+  const handlePlayAllFavTracks = () => {
+    if (favTracks.length === 0) return;
+    void hapticMedium();
+    if (onPlayTrack) {
+      onPlayTrack({ ...favTracks[0], playedAt: Date.now() }, favTracks, { sourceTitle: 'Liked Songs' });
+    } else {
+      player.setPlayerModalOpen(true);
+      void player.playTrack(favTracks[0], favTracks, { sourceTitle: 'Liked Songs' });
+    }
+    toast('Playing Liked Songs', 'success');
+    onClose();
+  };
+
+  const handleShuffleFavTracks = () => {
+    if (favTracks.length === 0) return;
+    void hapticMedium();
+    const shuffled = shuffleTracks(favTracks);
+    if (onPlayTrack) {
+      onPlayTrack({ ...shuffled[0], playedAt: Date.now() }, shuffled, { sourceTitle: 'Liked Songs (Shuffle)' });
+    } else {
+      player.setPlayerModalOpen(true);
+      void player.playTrack(shuffled[0], shuffled, { sourceTitle: 'Liked Songs (Shuffle)' });
+    }
+    toast('Shuffling Liked Songs', 'success');
+    onClose();
+  };
+
+  const handlePlayRecentTrack = (track: PlayedTrack) => {
+    void hapticLight();
+    if (onPlayTrack) {
+      onPlayTrack(track, recentTracks, { sourceTitle: 'Recently Played' });
+    } else {
+      player.setPlayerModalOpen(true);
+      void player.playTrack(track, recentTracks, { sourceTitle: 'Recently Played' });
+    }
+    toast(`Playing "${track.track_name}"`, 'success');
+    onClose();
+  };
+
+  const handlePlayAllRecentTracks = () => {
+    if (recentTracks.length === 0) return;
+    void hapticMedium();
+    if (onPlayTrack) {
+      onPlayTrack(recentTracks[0], recentTracks, { sourceTitle: 'Recently Played' });
+    } else {
+      player.setPlayerModalOpen(true);
+      void player.playTrack(recentTracks[0], recentTracks, { sourceTitle: 'Recently Played' });
+    }
+    toast('Playing Recently Played', 'success');
+    onClose();
+  };
+
+  const handleShuffleRecentTracks = () => {
+    if (recentTracks.length === 0) return;
+    void hapticMedium();
+    const shuffled = shuffleTracks(recentTracks);
+    if (onPlayTrack) {
+      onPlayTrack(shuffled[0], shuffled, { sourceTitle: 'Recently Played (Shuffle)' });
+    } else {
+      player.setPlayerModalOpen(true);
+      void player.playTrack(shuffled[0], shuffled, { sourceTitle: 'Recently Played (Shuffle)' });
+    }
+    toast('Shuffling Recently Played', 'success');
+    onClose();
   };
 
   const handleSharePlaylist = async (p: OfflinePlaylist) => {
@@ -571,10 +650,30 @@ export function ProfileModal({
                 <View style={styles.contentHeaderRow}>
                   <Text style={styles.contentSectionTitle}>RECENTLY PLAYED TRACKS</Text>
                   {recentTracks.length > 0 ? (
-                    <Pressable onPress={handleClearHistory} hitSlop={6} style={styles.clearLink}>
-                      <Trash2 size={12} color={colors.red} />
-                      <Text style={styles.clearLinkText}>Clear</Text>
-                    </Pressable>
+                    <View style={styles.headerPillsRow}>
+                      <Pressable
+                        onPress={handlePlayAllRecentTracks}
+                        style={({ pressed }) => [styles.headerPillBtn, pressed && styles.pressed]}
+                        hitSlop={6}
+                        accessibilityLabel="Play all recently played tracks"
+                      >
+                        <Play size={10} color="#08080a" fill="#08080a" />
+                        <Text style={styles.headerPillBtnText}>Play All</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={handleShuffleRecentTracks}
+                        style={({ pressed }) => [styles.headerPillOutlineBtn, pressed && styles.pressed]}
+                        hitSlop={6}
+                        accessibilityLabel="Shuffle recently played tracks"
+                      >
+                        <Shuffle size={10} color={colors.amber} />
+                        <Text style={styles.headerPillOutlineText}>Shuffle</Text>
+                      </Pressable>
+                      <Pressable onPress={handleClearHistory} hitSlop={6} style={styles.clearLink}>
+                        <Trash2 size={12} color={colors.red} />
+                        <Text style={styles.clearLinkText}>Clear</Text>
+                      </Pressable>
+                    </View>
                   ) : null}
                 </View>
 
@@ -588,7 +687,12 @@ export function ProfileModal({
                   </View>
                 ) : (
                   recentTracks.map((item, idx) => (
-                    <View key={`${item.track_uri}-${idx}`} style={styles.historyRow}>
+                    <Pressable
+                      key={`${item.track_uri}-${idx}`}
+                      onPress={() => handlePlayRecentTrack(item)}
+                      style={({ pressed }) => [styles.historyRow, pressed && styles.pressed]}
+                      accessibilityLabel={`Play ${item.track_name} by ${item.artist}`}
+                    >
                       {item.album_art_url ? (
                         <Image source={{ uri: item.album_art_url }} style={styles.historyArt} />
                       ) : (
@@ -610,19 +714,10 @@ export function ProfileModal({
                         </Text>
                       </View>
 
-                      {onPlayTrack ? (
-                        <Pressable
-                          onPress={() => {
-                            onPlayTrack(item);
-                            onClose();
-                          }}
-                          style={({ pressed }) => [styles.quickActionBtn, pressed && styles.pressed]}
-                          hitSlop={6}
-                        >
-                          <Play size={12} color={colors.amber} fill={colors.amber} />
-                        </Pressable>
-                      ) : null}
-                    </View>
+                      <View style={styles.quickActionBtn}>
+                        <Play size={12} color={colors.amber} fill={colors.amber} />
+                      </View>
+                    </Pressable>
                   ))
                 )}
               </View>
@@ -768,6 +863,28 @@ export function ProfileModal({
                   <Text style={styles.contentSectionTitle}>
                     FAVORITE TRACKS ({favTracks.length})
                   </Text>
+                  {favTracks.length > 0 ? (
+                    <View style={styles.headerPillsRow}>
+                      <Pressable
+                        onPress={handlePlayAllFavTracks}
+                        style={({ pressed }) => [styles.headerPillBtn, pressed && styles.pressed]}
+                        hitSlop={6}
+                        accessibilityLabel="Play all favorite tracks"
+                      >
+                        <Play size={10} color="#08080a" fill="#08080a" />
+                        <Text style={styles.headerPillBtnText}>Play All</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={handleShuffleFavTracks}
+                        style={({ pressed }) => [styles.headerPillOutlineBtn, pressed && styles.pressed]}
+                        hitSlop={6}
+                        accessibilityLabel="Shuffle favorite tracks"
+                      >
+                        <Shuffle size={10} color={colors.amber} />
+                        <Text style={styles.headerPillOutlineText}>Shuffle</Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
                 </View>
 
                 {favTracks.length === 0 ? (
@@ -779,10 +896,19 @@ export function ProfileModal({
                   </View>
                 ) : (
                   favTracks.map((t, idx) => (
-                    <View key={`${t.track_uri}-${idx}`} style={styles.historyRow}>
-                      <View style={[styles.historyArt, styles.artFallback]}>
-                        <Music size={16} color={colors.amber} />
-                      </View>
+                    <Pressable
+                      key={`${t.track_uri}-${idx}`}
+                      onPress={() => handlePlayFavTrack(t)}
+                      style={({ pressed }) => [styles.historyRow, pressed && styles.pressed]}
+                      accessibilityLabel={`Play ${t.track_name} by ${t.artist || 'Unknown Artist'}`}
+                    >
+                      {t.album_art_url ? (
+                        <Image source={{ uri: t.album_art_url }} style={styles.historyArt} />
+                      ) : (
+                        <View style={[styles.historyArt, styles.artFallback]}>
+                          <Music size={16} color={colors.amber} />
+                        </View>
+                      )}
                       <View style={styles.historyInfo}>
                         <Text style={styles.historyTrackName} numberOfLines={1}>
                           {t.track_name}
@@ -791,22 +917,10 @@ export function ProfileModal({
                           {t.artist || 'Unknown Artist'}
                         </Text>
                       </View>
-                      {onPlayTrack ? (
-                        <Pressable
-                          onPress={() => {
-                            onPlayTrack({
-                              ...t,
-                              playedAt: Date.now(),
-                            });
-                            onClose();
-                          }}
-                          style={({ pressed }) => [styles.quickActionBtn, pressed && styles.pressed]}
-                          hitSlop={6}
-                        >
-                          <Play size={12} color={colors.amber} fill={colors.amber} />
-                        </Pressable>
-                      ) : null}
-                    </View>
+                      <View style={styles.quickActionBtn}>
+                        <Play size={12} color={colors.amber} fill={colors.amber} />
+                      </View>
+                    </Pressable>
                   ))
                 )}
               </View>
@@ -1297,11 +1411,47 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    marginLeft: 4,
   },
   clearLinkText: {
     fontFamily: fontFamily.bodyMedium,
     fontSize: 11,
     color: colors.red,
+  },
+  headerPillsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  headerPillBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.amber,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.full,
+  },
+  headerPillBtnText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 10,
+    color: '#08080a',
+  },
+  headerPillOutlineBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.3)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.full,
+  },
+  headerPillOutlineText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 10,
+    color: colors.amber,
   },
   emptyState: {
     alignItems: 'center',

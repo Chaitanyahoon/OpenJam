@@ -95,6 +95,7 @@ export interface PlayerControls {
   setPlayerModalOpen: (open: boolean) => void;
   setQueue: (queue: TrackInfo[]) => void;
   addToQueue: (track: TrackInfo) => void;
+  playNextInQueue: (track: TrackInfo) => void;
   removeFromQueue: (index: number) => void;
   reorderQueue: (fromIndex: number, toIndex: number) => void;
   clearUpcomingQueue: () => void;
@@ -681,6 +682,18 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setQueueState((prev) => [...prev, track]);
   }, []);
 
+  const playNextInQueue = useCallback((track: TrackInfo) => {
+    setQueueState((prev) => {
+      const activeIdx = currentTrackRef.current
+        ? prev.findIndex((t) => t.track_uri === currentTrackRef.current?.track_uri)
+        : currentIndexRef.current;
+      const insertIdx = (activeIdx >= 0 ? activeIdx : Math.max(0, currentIndexRef.current)) + 1;
+      const updated = [...prev.slice(0, insertIdx), track, ...prev.slice(insertIdx)];
+      queueRef.current = updated;
+      return updated;
+    });
+  }, []);
+
   const removeFromQueue = useCallback((index: number) => {
     setQueueState((prev) => prev.filter((_, i) => i !== index));
     if (index < currentIndexRef.current) {
@@ -844,6 +857,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setPlayerModalOpen,
       setQueue,
       addToQueue,
+      playNextInQueue,
       removeFromQueue,
       reorderQueue,
       clearUpcomingQueue,
@@ -886,6 +900,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setPlayerModalOpen,
       setQueue,
       addToQueue,
+      playNextInQueue,
       removeFromQueue,
       reorderQueue,
       clearUpcomingQueue,

@@ -26,7 +26,6 @@ import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
 import { usePlayer, usePlayerStatus } from '../audio/PlayerContext';
 import { useOptionalRoom } from '../state/RoomContext';
-import { SpotifyPlayerModal } from './SpotifyPlayerModal';
 import { hapticLight, hapticMedium } from '../utils/haptics';
 
 const SWIPE_THRESHOLD = 65;
@@ -164,21 +163,20 @@ export function UnifiedMiniPlayer({
   }));
 
   if (!activeTrack) {
-    return <SpotifyPlayerModal />;
+    return null;
   }
 
   const effectiveDuration = playerStatus.durationMs > 0 ? playerStatus.durationMs : 180000;
   const progressPercent = Math.min(100, Math.max(0, (currentPosMs / effectiveDuration) * 100));
 
   return (
-    <>
-      <View
-        style={[
-          styles.containerWrapper,
-          { bottom: bottomOffset + 12 },
-        ]}
-        pointerEvents="box-none"
-      >
+    <View
+      style={[
+        styles.containerWrapper,
+        { bottom: bottomOffset + 12 },
+      ]}
+      pointerEvents="box-none"
+    >
         <GestureDetector gesture={composedGesture}>
           <Animated.View style={[styles.container, animatedStyle]}>
             <View style={styles.contentRow}>
@@ -268,9 +266,6 @@ export function UnifiedMiniPlayer({
           </Animated.View>
         </GestureDetector>
       </View>
-
-      <SpotifyPlayerModal />
-    </>
   );
 }
 

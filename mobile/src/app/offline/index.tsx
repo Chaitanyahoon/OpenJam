@@ -38,6 +38,7 @@ import {
   WifiOff,
   CheckCircle2,
   Sparkles,
+  Shuffle,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../../theme';
 import { fontFamily } from '../../fonts';
@@ -59,10 +60,11 @@ import {
   getFavoriteTracks,
   getOfflinePlaylists,
   toggleFavoriteTrack,
+  shuffleTracks,
   type OfflinePlaylist,
 } from '../../storage/history';
 import { subscribeNetworkState, isDeviceOnline } from '../../utils/network';
-import { hapticLight } from '../../utils/haptics';
+import { hapticLight, hapticMedium } from '../../utils/haptics';
 import { createRoom } from '../../api';
 import type { TrackInfo } from '../../sync/protocol';
 import { MiniPlayer } from '../../components/MiniPlayer';
@@ -142,7 +144,10 @@ export default function OfflineVaultScreen() {
     try {
       void hapticLight();
       setActivePlayingUri(track.track_uri);
-      await playTrack(track, vaultTracks, { sourceTitle: 'Offline Vault' });
+      const isLikedTab = activeTab === 'liked';
+      await playTrack(track, displayedTracks, {
+        sourceTitle: isLikedTab ? 'Liked Songs' : 'Offline Vault',
+      });
       setPlayerModalOpen(true);
       toast(`Playing "${track.track_name}" offline`, 'success');
     } catch {
@@ -271,6 +276,44 @@ export default function OfflineVaultScreen() {
     } catch {
       toast('Could not create live room. Check connection.', 'error');
     }
+  };
+
+  const handlePlayAllVault = async () => {
+    if (displayedTracks.length === 0) return;
+    void hapticMedium();
+    const first = displayedTracks[0];
+    setActivePlayingUri(first.track_uri);
+    await playTrack(first, displayedTracks, {
+      sourceTitle: activeTab === 'liked' ? 'Liked Songs' : 'Offline Vault',
+    });
+    setPlayerModalOpen(true);
+    toast(`Playing ${displayedTracks.length} tracks`, 'success');
+  };
+
+  const handleShuffleVault = async () => {
+    if (displayedTracks.length === 0) return;
+    void hapticMedium();
+    const shuffled = shuffleTracks(displayedTracks);
+    const first = shuffled[0];
+    setActivePlayingUri(first.track_uri);
+    await playTrack(first, shuffled, {
+      sourceTitle: activeTab === 'liked' ? 'Liked Songs (Shuffle)' : 'Offline Vault (Shuffle)',
+    });
+    setPlayerModalOpen(true);
+    toast(`Shuffling ${shuffled.length} tracks`, 'success');
+  };
+
+  const handlePlayPlaylistDirect = async (pl: OfflinePlaylist) => {
+    if (pl.tracks.length === 0) {
+      toast('Playlist has no tracks', 'info');
+      return;
+    }
+    void hapticMedium();
+    const first = pl.tracks[0];
+    setActivePlayingUri(first.track_uri);
+    await playTrack(first, pl.tracks, { sourceTitle: pl.name });
+    setPlayerModalOpen(true);
+    toast(`Playing "${pl.name}"`, 'success');
   };
 
   // Filtered tracks based on active tab
@@ -469,13 +512,24 @@ export default function OfflineVaultScreen() {
                   <Text style={styles.playlistName}>{pl.name}</Text>
                   <Text style={styles.playlistCount}>{pl.tracks.length} tracks</Text>
                 </View>
-                <Pressable
-                  onPress={() => handleBroadcastToLiveRoom(pl.tracks, pl.name)}
-                  style={({ pressed }) => [styles.playlistBroadcastBtn, pressed && styles.pressed]}
-                >
-                  <Radio size={13} color={colors.amber} />
-                  <Text style={styles.playlistBroadcastText}>Live Jam</Text>
-                </Pressable>
+                <View style={styles.playlistActionsRow}>
+                  <Pressable
+                    onPress={() => handlePlayPlaylistDirect(pl)}
+                    style={({ pressed }) => [styles.playlistPlayDirectBtn, pressed && styles.pressed]}
+                    accessibilityLabel={`Play playlist ${pl.name}`}
+                  >
+                    <Play size={12} color="#08080a" fill="#08080a" />
+                    <Text style={styles.playlistPlayDirectText}>Play</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleBroadcastToLiveRoom(pl.tracks, pl.name)}
+                    style={({ pressed }) => [styles.playlistBroadcastBtn, pressed && styles.pressed]}
+                    accessibilityLabel={`Broadcast playlist ${pl.name} to live room`}
+                  >
+                    <Radio size={13} color={colors.amber} />
+                    <Text style={styles.playlistBroadcastText}>Live Jam</Text>
+                  </Pressable>
+                </View>
               </View>
             ))
           )}
@@ -498,6 +552,35 @@ export default function OfflineVaultScreen() {
             styles.listContent,
             { paddingBottom: Math.max(insets.bottom, 16) + 50 },
           ]}
+          ListHeaderComponent={
+            <View style={styles.trackListControlsRow}>
+              <View style={styles.trackListHeaderMeta}>
+                <Text style={styles.trackListCount}>
+                  {displayedTracks.length} TRACK{displayedTracks.length === 1 ? '' : 'S'}
+                </Text>
+              </View>
+              <View style={styles.trackListActionPills}>
+                <Pressable
+                  onPress={handlePlayAllVault}
+                  style={({ pressed }) => [styles.vaultPlayAllBtn, pressed && styles.pressed]}
+                  hitSlop={6}
+                  accessibilityLabel="Play all tracks in vault"
+                >
+                  <Play size={10} color="#08080a" fill="#08080a" />
+                  <Text style={styles.vaultPlayAllText}>Play All</Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleShuffleVault}
+                  style={({ pressed }) => [styles.vaultShuffleBtn, pressed && styles.pressed]}
+                  hitSlop={6}
+                  accessibilityLabel="Shuffle all tracks in vault"
+                >
+                  <Shuffle size={10} color={colors.amber} />
+                  <Text style={styles.vaultShuffleText}>Shuffle</Text>
+                </Pressable>
+              </View>
+            </View>
+          }
           renderItem={({ item }) => {
             const isDownloaded = vaultTracks.some((vt) => vt.track_uri === item.track_uri);
             const prog = downloadProgressMap[item.track_uri];
@@ -800,6 +883,76 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: spacing.md,
     paddingTop: 6,
+  },
+  trackListControlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    marginBottom: 6,
+  },
+  trackListHeaderMeta: {
+    flex: 1,
+  },
+  trackListCount: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 11,
+    color: colors.text3,
+    letterSpacing: 0.8,
+  },
+  trackListActionPills: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  vaultPlayAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.amber,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: radius.full,
+  },
+  vaultPlayAllText: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 10,
+    color: '#08080a',
+  },
+  vaultShuffleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.3)',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: radius.full,
+  },
+  vaultShuffleText: {
+    fontFamily: fontFamily.displaySemiBold,
+    fontSize: 10,
+    color: colors.amber,
+  },
+  playlistActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  playlistPlayDirectBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: colors.amber,
+  },
+  playlistPlayDirectText: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 11,
+    color: '#08080a',
   },
   scrollContent: {
     paddingHorizontal: spacing.md,

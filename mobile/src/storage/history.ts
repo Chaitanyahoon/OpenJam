@@ -17,6 +17,7 @@ const LISTENING_STATS_KEY = 'openjam_listening_stats_v2';
 const APP_PREFERENCES_KEY = 'openjam_app_preferences_v2';
 const OFFLINE_PLAYLISTS_KEY = 'openjam_offline_playlists_v1';
 const FAVORITE_TRACKS_KEY = 'openjam_favorite_tracks_v1';
+const RECENT_SEARCHES_KEY = 'openjam_recent_searches_v1';
 
 export interface OfflinePlaylist {
   id: string;
@@ -469,4 +470,79 @@ export function consumePendingSoloQueue(): { tracks: TrackInfo[]; playTrack: Tra
   pendingSoloAutoplayTrack = null;
   return result;
 }
+
+/**
+ * Deterministic Fisher-Yates shuffle that creates a randomized copy of tracks.
+ */
+export function shuffleTracks<T>(items: T[]): T[] {
+  const arr = [...items];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+/**
+ * Pure helper for deduplicated, case-insensitive recent search ordering.
+ */
+export function filterRecentSearches(existing: string[], newQuery: string, limit = 10): string[] {
+  const clean = newQuery.trim();
+  if (!clean || clean.length < 2) return existing;
+  const filtered = existing.filter((item) => item.toLowerCase() !== clean.toLowerCase());
+  return [clean, ...filtered].slice(0, limit);
+}
+
+/**
+ * Retrieves persisted recent search queries from AsyncStorage.
+ */
+export async function getRecentSearches(): Promise<string[]> {
+  try {
+    const raw = await AsyncStorage.getItem(RECENT_SEARCHES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Saves a new search query to recent searches, deduplicating and capping at 10.
+ */
+export async function saveRecentSearch(query: string): Promise<string[]> {
+  try {
+    const current = await getRecentSearches();
+    const updated = filterRecentSearches(current, query, 10);
+    await AsyncStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+    return updated;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Removes a specific search query from recent searches.
+ */
+export async function removeRecentSearch(query: string): Promise<string[]> {
+  try {
+    const current = await getRecentSearches();
+    const updated = current.filter((item) => item.toLowerCase() !== query.trim().toLowerCase());
+    await AsyncStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+    return updated;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Clears all recent searches from storage.
+ */
+export async function clearRecentSearches(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(RECENT_SEARCHES_KEY);
+  } catch {}
+}
+
+
 

@@ -20,6 +20,7 @@ import { ToastProvider } from '../components/ToastContext';
 import { colors } from '../theme';
 import { AppLoadingScreen } from '../components/AppLoadingScreen';
 import { NetworkGuard } from '../components/NetworkGuard';
+import { SpotifyPlayerModal } from '../components/SpotifyPlayerModal';
 
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
@@ -121,6 +122,9 @@ export default function RootLayout() {
                 <Stack.Screen name="legal/privacy" />
                 <Stack.Screen name="legal/terms" />
               </Stack>
+
+              {/* Global Spotify Player Modal */}
+              <SpotifyPlayerModal />
 
               {/* Seamless animated branding loading overlay */}
               {!splashGone && (

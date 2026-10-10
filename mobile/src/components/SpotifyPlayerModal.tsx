@@ -168,6 +168,26 @@ export function SpotifyPlayerModal() {
     transform: [{ scale: heartScale.value }],
   }));
 
+  // Double-tap heart burst on album artwork
+  const burstHeartScale = useSharedValue(0);
+  const burstHeartOpacity = useSharedValue(0);
+  const animatedBurstHeartStyle = useAnimatedStyle(() => ({
+    opacity: burstHeartOpacity.value,
+    transform: [{ scale: burstHeartScale.value }],
+  }));
+
+  // Album Artwork Horizontal Swipe & Pan
+  const artworkTranslateX = useSharedValue(0);
+  const artworkScale = useSharedValue(1);
+  const animatedArtworkStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: artworkTranslateX.value },
+      { scale: artworkScale.value },
+    ],
+  }));
+
+  const lastTapRef = useRef(0);
+
   const palette = useMemo(
     () => getAmbientPalette(currentTrack?.track_name, currentTrack?.artist, currentTrack?.album_art_url),
     [currentTrack?.track_name, currentTrack?.artist, currentTrack?.album_art_url],
@@ -367,6 +387,64 @@ export function SpotifyPlayerModal() {
     const liked = await toggleLike();
     toast(liked ? 'Added to Liked Songs' : 'Removed from Liked Songs', 'info');
   };
+
+  // Horizontal Swipe to Skip & Double-Tap Heart PanResponder on Album Artwork
+  const artworkPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: (_, gestureState) => {
+          return Math.abs(gestureState.dx) > 12 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+        },
+        onPanResponderGrant: () => {
+          const now = Date.now();
+          if (now - lastTapRef.current < 320) {
+            lastTapRef.current = 0;
+            burstHeartScale.value = 0;
+            burstHeartOpacity.value = 1;
+            burstHeartScale.value = withSequence(
+              withTiming(1.35, { duration: 180 }),
+              withSpring(1.0, { damping: 12, stiffness: 200 }),
+            );
+            burstHeartOpacity.value = withSequence(
+              withTiming(1, { duration: 350 }),
+              withTiming(0, { duration: 250 }),
+            );
+            void handleToggleLike();
+          } else {
+            lastTapRef.current = now;
+          }
+        },
+        onPanResponderMove: (_, gestureState) => {
+          artworkTranslateX.value = gestureState.dx * 0.75;
+          artworkScale.value = Math.max(0.92, 1 - Math.abs(gestureState.dx) / (SCREEN_WIDTH * 2));
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          const SWIPE_THRESHOLD = 55;
+          if (gestureState.dx < -SWIPE_THRESHOLD || gestureState.vx < -0.35) {
+            void hapticLight();
+            artworkTranslateX.value = withTiming(-SCREEN_WIDTH * 0.8, { duration: 160 }, () => {
+              artworkTranslateX.value = SCREEN_WIDTH * 0.8;
+              artworkTranslateX.value = withSpring(0, { damping: 16, stiffness: 220 });
+              artworkScale.value = withSpring(1);
+            });
+            void playNext();
+          } else if (gestureState.dx > SWIPE_THRESHOLD || gestureState.vx > 0.35) {
+            void hapticLight();
+            artworkTranslateX.value = withTiming(SCREEN_WIDTH * 0.8, { duration: 160 }, () => {
+              artworkTranslateX.value = -SCREEN_WIDTH * 0.8;
+              artworkTranslateX.value = withSpring(0, { damping: 16, stiffness: 220 });
+              artworkScale.value = withSpring(1);
+            });
+            void playPrev();
+          } else {
+            artworkTranslateX.value = withSpring(0, { damping: 15, stiffness: 200 });
+            artworkScale.value = withSpring(1);
+          }
+        },
+      }),
+    [playNext, playPrev, handleToggleLike],
+  );
 
   const handleSearchInlineChange = (text: string) => {
     setSearchInlineQuery(text);
@@ -733,17 +811,23 @@ export function SpotifyPlayerModal() {
         ) : (
           /* Main Player Body */
           <View style={styles.mainContent}>
-            {/* Album Artwork Stage */}
-            <View style={styles.artworkStage}>
+            {/* Album Artwork Stage with Horizontal Swipe to Skip & Double-Tap Heart */}
+            <View style={styles.artworkStage} {...artworkPanResponder.panHandlers}>
               <View style={[styles.artworkGlow, { backgroundColor: palette.glow }]} />
-              <Image
-                source={{
-                  uri: currentTrack.album_art_url || 'https://openjam.fun/default_art.png',
-                }}
-                style={styles.artwork}
-                contentFit="cover"
-                transition={200}
-              />
+              <Animated.View style={[styles.artworkContainer, animatedArtworkStyle]}>
+                <Image
+                  source={{
+                    uri: currentTrack.album_art_url || 'https://openjam.fun/default_art.png',
+                  }}
+                  style={styles.artwork}
+                  contentFit="cover"
+                  transition={200}
+                />
+                {/* Double-tap Burst Heart */}
+                <Animated.View style={[styles.burstHeartWrap, animatedBurstHeartStyle]} pointerEvents="none">
+                  <Heart size={84} color="#ffffff" fill="#ef4444" strokeWidth={1.5} />
+                </Animated.View>
+              </Animated.View>
             </View>
 
             {/* Track Info & Action Buttons (Offline Vault + Heart) */}
@@ -1139,6 +1223,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 159, 28, 0.12)',
     transform: [{ scale: 1.05 }],
   },
+  artworkContainer: {
+    width: ARTWORK_SIZE,
+    height: ARTWORK_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   artwork: {
     width: ARTWORK_SIZE,
     height: ARTWORK_SIZE,
@@ -1146,6 +1236,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#181822',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  burstHeartWrap: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+    shadowColor: '#ef4444',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.6,
+    shadowRadius: 16,
+    elevation: 8,
   },
   trackInfoRow: {
     flexDirection: 'row',

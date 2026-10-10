@@ -9,7 +9,8 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { Alert, BackHandler, Image, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import { Tabs, router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, Share2, X, Bookmark } from 'lucide-react-native';
+import { ChevronLeft, Share2, X, Bookmark, Copy } from 'lucide-react-native';
+import { copyToClipboard } from '../../../utils/clipboard';
 import { RoomProvider, useRoom } from '../../../state/RoomContext';
 import { usePlayer } from '../../../audio/PlayerContext';
 import type { TrackInfo } from '../../../sync/protocol';
@@ -58,19 +59,31 @@ function RoomHeader() {
     );
   };
 
+  const handleCopyCode = async () => {
+    void hapticLight();
+    const ok = await copyToClipboard(roomId);
+    if (ok) {
+      toast(`Room code "#${roomId}" copied! Share with friends.`, 'success');
+    } else {
+      toast(`Room code is #${roomId}`, 'info');
+    }
+  };
+
+  const isSolo = roomId === 'solo' || roomId.startsWith('solo');
+  const displayName = isSolo ? 'Solo Jam' : roomName || initialName || 'OpenJam Room';
+
   const shareRoom = useCallback(async () => {
     try {
       await Share.share({
-        message: `Join me on OpenJam!\nhttps://www.openjam.fun/room/${roomId}`,
-        title: `OpenJam – ${roomName || initialName || 'Live Room'}`,
+        message: isSolo
+          ? 'Jamming on OpenJam! Check it out: https://www.openjam.fun'
+          : `Join my live room "${displayName}" on OpenJam!\nRoom Code: #${roomId}\nLink: https://www.openjam.fun/room/${roomId}`,
+        title: `OpenJam – ${displayName}`,
       });
     } catch {
       // user cancelled
     }
-  }, [roomId, roomName, initialName]);
-
-  const isSolo = roomId === 'solo' || roomId.startsWith('solo');
-  const displayName = isSolo ? 'Solo Jam' : roomName || initialName || 'OpenJam Room';
+  }, [roomId, displayName, isSolo]);
   const host = listeners.find((l) => l.is_host);
   const hostName = isSolo ? 'You' : host?.user_name || 'Host';
 
@@ -132,8 +145,22 @@ function RoomHeader() {
         </View>
       </View>
 
-      {/* Right actions: Bookmark + Share (Icon-only) */}
+      {/* Right actions: Copy Code + Bookmark + Share */}
       <View style={styles.headerActions}>
+        {!isSolo && (
+          <Pressable
+            onPress={handleCopyCode}
+            hitSlop={10}
+            style={({ pressed }) => [styles.headerCodePill, pressed && styles.pressed]}
+            accessibilityLabel={`Copy room code #${roomId}`}
+          >
+            <Copy size={11} color={colors.amber} />
+            <Text style={styles.headerCodePillText} numberOfLines={1}>
+              #{roomId.slice(0, 8)}
+            </Text>
+          </Pressable>
+        )}
+
         {!isSolo && (
           <Pressable
             onPress={handleToggleBookmark}
@@ -365,6 +392,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  headerCodePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.3)',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: radius.full,
+  },
+  headerCodePillText: {
+    fontFamily: fontFamily.displaySemiBold,
+    fontSize: 10,
+    color: colors.amber,
+    letterSpacing: 0.5,
   },
   actionIconBtn: {
     width: 34,

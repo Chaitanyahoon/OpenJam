@@ -9,7 +9,7 @@ import React, { useEffect, useState } from 'react';
 import { Alert, FlatList, Pressable, Share, StyleSheet, Switch, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Share2, Crown, Activity, User, Edit3, Trash2, QrCode } from 'lucide-react-native';
+import { Share2, Crown, Activity, User, Edit3, Trash2, QrCode, Copy } from 'lucide-react-native';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
@@ -21,6 +21,8 @@ import { ProfileModal } from '../../../components/ProfileModal';
 import { EditRoomModal, ListenerActionModal, RoomInviteModal } from '../../../components/Modals';
 import { clearSession, getStoredSession, joinAsGuest, getBackendUrl, saveAuthToken, type ApiUser } from '../../../api';
 import { useToast } from '../../../components/ToastContext';
+import { copyToClipboard } from '../../../utils/clipboard';
+import { hapticLight } from '../../../utils/haptics';
 import type { PlayedTrack } from '../../../storage/history';
 
 export default function PeopleTab() {
@@ -108,10 +110,20 @@ export default function PeopleTab() {
     }
   };
 
+  const handleCopyCode = async () => {
+    void hapticLight();
+    const ok = await copyToClipboard(roomId);
+    if (ok) {
+      toast(`Room code "#${roomId}" copied! Share with friends.`, 'success');
+    } else {
+      toast(`Room code is #${roomId}`, 'info');
+    }
+  };
+
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `Join me on OpenJam!\nhttps://www.openjam.fun/room/${roomId}`,
+        message: `Join my live room "${roomName || 'OpenJam Room'}" on OpenJam!\nRoom Code: #${roomId}\nLink: https://www.openjam.fun/room/${roomId}`,
         title: `OpenJam – ${roomName || 'Live Room'}`,
       });
     } catch {
@@ -194,7 +206,16 @@ export default function PeopleTab() {
             <View style={styles.shareCard}>
               <View style={styles.shareMeta}>
                 <Text style={styles.shareTitle}>Invite Friends to Jam</Text>
-                <Text style={styles.shareCode}>Room Code: #{roomId}</Text>
+                <Pressable
+                  onPress={handleCopyCode}
+                  style={({ pressed }) => [styles.shareCodePill, pressed && styles.pressed]}
+                  hitSlop={6}
+                  accessibilityLabel={`Copy room code #${roomId}`}
+                >
+                  <Copy size={11} color={colors.amber} />
+                  <Text style={styles.shareCodeText}>#{roomId}</Text>
+                  <Text style={styles.shareCodeCopyHint}>Tap to copy</Text>
+                </Pressable>
               </View>
               <View style={styles.shareActionsRow}>
                 <Pressable
@@ -449,6 +470,29 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.displayBold,
     fontSize: 15,
     color: colors.text1,
+  },
+  shareCodePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255, 159, 28, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.25)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.sm,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  shareCodeText: {
+    fontFamily: fontFamily.displaySemiBold,
+    fontSize: 12,
+    color: colors.amber,
+  },
+  shareCodeCopyHint: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 10,
+    color: colors.text3,
   },
   shareCode: {
     fontFamily: fontFamily.bodyRegular,

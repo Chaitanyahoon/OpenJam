@@ -19,6 +19,7 @@ import { RoomCardSkeletonList } from '../components/RoomCardSkeleton';
 import { CreateRoomModal, IdentityModal, JoinWithCodeModal, RoomPasswordModal } from '../components/Modals';
 import { ProfileModal } from '../components/ProfileModal';
 import { getFavoriteRooms, type FavoriteRoom, type PlayedTrack, getRecentlyPlayed } from '../storage/history';
+import type { TrackInfo } from '../sync/protocol';
 import { hapticMedium } from '../utils/haptics';
 import { useToast } from '../components/ToastContext';
 import { registerPushToken } from '../notifications';
@@ -313,9 +314,15 @@ export default function Landing() {
     }
   };
 
-  const handleProfilePlayTrack = (track: PlayedTrack) => {
+  const handleProfilePlayTrack = (
+    track: PlayedTrack,
+    queue?: TrackInfo[],
+    options?: { sourceTitle?: string },
+  ) => {
     setShowProfile(false);
-    void playTrack(track, recentTracks, { sourceTitle: 'Recently Played' });
+    void playTrack(track, queue || recentTracks, {
+      sourceTitle: options?.sourceTitle || 'Recently Played',
+    });
     setPlayerModalOpen(true);
   };
 

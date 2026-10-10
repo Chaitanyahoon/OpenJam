@@ -10,6 +10,7 @@ import {
   FlatList,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -36,7 +37,14 @@ import { usePlayer } from '../audio/PlayerContext';
 import { searchHybridTracks, type TrackSearchResult } from '../api';
 import { useToast } from './ToastContext';
 import { hapticLight, hapticMedium } from '../utils/haptics';
-import { getRecentlyPlayed, type PlayedTrack } from '../storage/history';
+import {
+  getRecentlyPlayed,
+  getRecentSearches,
+  saveRecentSearch,
+  removeRecentSearch,
+  clearRecentSearches,
+  type PlayedTrack,
+} from '../storage/history';
 import type { TrackInfo } from '../sync/protocol';
 
 interface SoloSearchModalProps {
@@ -65,12 +73,13 @@ function fmtDuration(ms?: number): string {
 export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchModalProps) {
   const insets = useSafeAreaInsets();
   const toast = useToast();
-  const { playTrack, addToQueue, setPlayerModalOpen } = usePlayer();
+  const { playTrack, addToQueue, playNextInQueue, setPlayerModalOpen } = usePlayer();
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<TrackSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [recentTracks, setRecentTracks] = useState<PlayedTrack[]>([]);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [activeVibe, setActiveVibe] = useState<string | null>(null);
   const [addedUris, setAddedUris] = useState<Set<string>>(new Set());
 
@@ -81,6 +90,7 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
   useEffect(() => {
     if (visible) {
       void getRecentlyPlayed().then(setRecentTracks).catch(() => {});
+      void getRecentSearches().then(setRecentSearches).catch(() => {});
       setTimeout(() => inputRef.current?.focus(), 150);
     } else {
       setQuery('');
@@ -97,6 +107,9 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
         setResults([]);
         setSearching(false);
         return;
+      }
+      if (q.length >= 2) {
+        void saveRecentSearch(q).then(setRecentSearches).catch(() => {});
       }
       const reqId = ++searchRequestId.current;
       setSearching(true);
@@ -137,6 +150,26 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
     debounceTimer.current = setTimeout(() => {
       void executeSearch(text);
     }, 350);
+  };
+
+  const handleSelectRecentSearch = (searchTerm: string) => {
+    void hapticLight();
+    setQuery(searchTerm);
+    setActiveVibe(null);
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    void executeSearch(searchTerm);
+  };
+
+  const handleRemoveRecentSearch = async (searchTerm: string) => {
+    void hapticLight();
+    const updated = await removeRecentSearch(searchTerm);
+    setRecentSearches(updated);
+  };
+
+  const handleClearAllRecentSearches = async () => {
+    void hapticMedium();
+    await clearRecentSearches();
+    setRecentSearches([]);
   };
 
   const handleSelectVibe = (vibe: typeof STARTER_VIBES[0]) => {
@@ -379,40 +412,83 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
             <Text style={styles.emptySubtitle}>Try searching an artist name, song title, or genre vibe</Text>
           </View>
         ) : (
-          <View style={styles.emptyStateContainer}>
+          <ScrollView
+            style={styles.emptyStateScrollView}
+            contentContainerStyle={styles.emptyStateContainer}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Recent Searches Pills */}
+            {recentSearches.length > 0 && (
+              <View style={styles.recentSearchesSection}>
+                <View style={styles.sectionHeaderBetween}>
+                  <View style={styles.sectionHeaderLeft}>
+                    <Clock size={13} color={colors.amber} style={{ marginRight: 6 }} />
+                    <Text style={styles.sectionTitle}>RECENT SEARCHES</Text>
+                  </View>
+                  <Pressable onPress={handleClearAllRecentSearches} hitSlop={8}>
+                    <Text style={styles.clearAllText}>Clear All</Text>
+                  </Pressable>
+                </View>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.recentSearchesScroll}
+                >
+                  {recentSearches.map((s) => (
+                    <View key={s} style={styles.recentSearchChip}>
+                      <Pressable
+                        onPress={() => handleSelectRecentSearch(s)}
+                        style={styles.recentSearchChipMain}
+                        accessibilityLabel={`Search for ${s}`}
+                      >
+                        <Text style={styles.recentSearchChipText} numberOfLines={1}>
+                          {s}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => void handleRemoveRecentSearch(s)}
+                        hitSlop={8}
+                        style={styles.recentSearchChipRemove}
+                        accessibilityLabel={`Remove search ${s}`}
+                      >
+                        <X size={12} color="#888899" />
+                      </Pressable>
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
             {recentTracks.length > 0 ? (
               <View style={styles.sectionWrap}>
                 <View style={styles.sectionHeader}>
                   <Clock size={14} color={colors.amber} style={{ marginRight: 6 }} />
                   <Text style={styles.sectionTitle}>RECENTLY PLAYED</Text>
                 </View>
-                <FlatList
-                  data={recentTracks.slice(0, 5)}
-                  keyExtractor={(t, i) => `${t.track_uri}_${i}`}
-                  renderItem={({ item }) => (
-                    <Pressable
-                      onPress={() => void handlePlayRecent(item)}
-                      style={styles.recentRow}
-                    >
-                      <Image
-                        source={{ uri: item.album_art_url || 'https://openjam.fun/default_art.png' }}
-                        style={styles.recentArt}
-                        contentFit="cover"
-                      />
-                      <View style={styles.recentInfo}>
-                        <Text style={styles.recentTitle} numberOfLines={1}>
-                          {item.track_name}
-                        </Text>
-                        <Text style={styles.recentArtist} numberOfLines={1}>
-                          {item.artist}
-                        </Text>
-                      </View>
-                      <Play size={16} color={colors.amber} />
-                    </Pressable>
-                  )}
-                />
+                {recentTracks.slice(0, 5).map((item, i) => (
+                  <Pressable
+                    key={`${item.track_uri}_${i}`}
+                    onPress={() => void handlePlayRecent(item)}
+                    style={styles.recentRow}
+                  >
+                    <Image
+                      source={{ uri: item.album_art_url || 'https://openjam.fun/default_art.png' }}
+                      style={styles.recentArt}
+                      contentFit="cover"
+                    />
+                    <View style={styles.recentInfo}>
+                      <Text style={styles.recentTitle} numberOfLines={1}>
+                        {item.track_name}
+                      </Text>
+                      <Text style={styles.recentArtist} numberOfLines={1}>
+                        {item.artist}
+                      </Text>
+                    </View>
+                    <Play size={16} color={colors.amber} />
+                  </Pressable>
+                ))}
               </View>
-            ) : (
+            ) : recentSearches.length === 0 ? (
               <View style={styles.introBox}>
                 <Headphones size={44} color={colors.amber} style={{ marginBottom: 12 }} />
                 <Text style={styles.introTitle}>Ready to Listen Solo?</Text>
@@ -420,8 +496,8 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
                   Search for any song, artist, or pick one of the vibes above to start streaming immediately.
                 </Text>
               </View>
-            )}
-          </View>
+            ) : null}
+          </ScrollView>
         )}
       </View>
     </Modal>
@@ -623,13 +699,66 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 280,
   },
-  emptyStateContainer: {
+  emptyStateScrollView: {
     flex: 1,
+  },
+  emptyStateContainer: {
     paddingHorizontal: 16,
     paddingTop: 12,
+    paddingBottom: 40,
+  },
+  recentSearchesSection: {
+    marginBottom: 16,
+  },
+  sectionHeaderBetween: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  sectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  clearAllText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 12,
+    color: '#888899',
+  },
+  recentSearchesScroll: {
+    gap: 8,
+    paddingRight: 16,
+  },
+  recentSearchChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.09)',
+    borderRadius: radius.full,
+    paddingVertical: 6,
+    paddingLeft: 12,
+    paddingRight: 8,
+  },
+  recentSearchChipMain: {
+    marginRight: 6,
+  },
+  recentSearchChipText: {
+    fontFamily: fontFamily.bodyMedium,
+    fontSize: 12.5,
+    color: '#ddddf0',
+    maxWidth: 160,
+  },
+  recentSearchChipRemove: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
   },
   sectionWrap: {
-    marginTop: 8,
+    marginTop: 4,
   },
   sectionHeader: {
     flexDirection: 'row',

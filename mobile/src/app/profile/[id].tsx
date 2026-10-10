@@ -53,6 +53,8 @@ import {
   Vibrate,
   ExternalLink,
   ShieldCheck,
+  Heart,
+  Shuffle,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../../theme';
 import { fontFamily } from '../../fonts';
@@ -83,6 +85,8 @@ import {
   deleteOfflinePlaylist,
   getAppPreferences,
   updateAppPreferences,
+  getFavoriteTracks,
+  shuffleTracks,
   type OfflinePlaylist,
   type PlayedTrack,
   type FavoriteRoom,
@@ -132,6 +136,7 @@ export default function UserProfileScreen() {
   });
   const [isDiscordUser, setIsDiscordUser] = useState(false);
   const [importModalVisible, setImportModalVisible] = useState(false);
+  const [favoriteTracks, setFavoriteTracks] = useState<TrackInfo[]>([]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -150,16 +155,18 @@ export default function UserProfileScreen() {
 
       if (isMine) {
         // Load local personal data in parallel
-        const [recents, favs, offPlists, prefs] = await Promise.all([
+        const [recents, favs, offPlists, prefs, liked] = await Promise.all([
           getRecentlyPlayed(),
           getFavoriteRooms(),
           getOfflinePlaylists(),
           getAppPreferences(),
+          getFavoriteTracks(),
         ]);
         setRecentTracks(recents);
         setFavoriteRooms(favs);
         setOfflinePlaylists(offPlists);
         setPreferences(prefs);
+        setFavoriteTracks(liked);
         setIsDiscordUser(!!session.user?.discord_id || !!session.user?.is_registered);
 
         // Pre-populate self profile immediately for 0ms delay
@@ -362,6 +369,54 @@ export default function UserProfileScreen() {
     } catch {
       toast('Could not start playlist playback', 'error');
     }
+  };
+
+  const handlePlayFavTrack = (track: TrackInfo) => {
+    void hapticLight();
+    player.setPlayerModalOpen(true);
+    void player.playTrack(track, favoriteTracks, { sourceTitle: 'Liked Songs' });
+    toast(`Playing "${track.track_name}"`, 'success');
+  };
+
+  const handlePlayAllFavTracks = () => {
+    if (favoriteTracks.length === 0) return;
+    void hapticMedium();
+    player.setPlayerModalOpen(true);
+    void player.playTrack(favoriteTracks[0], favoriteTracks, { sourceTitle: 'Liked Songs' });
+    toast('Playing Liked Songs', 'success');
+  };
+
+  const handleShuffleFavTracks = () => {
+    if (favoriteTracks.length === 0) return;
+    void hapticMedium();
+    const shuffled = shuffleTracks(favoriteTracks);
+    player.setPlayerModalOpen(true);
+    void player.playTrack(shuffled[0], shuffled, { sourceTitle: 'Liked Songs (Shuffle)' });
+    toast('Shuffling Liked Songs', 'success');
+  };
+
+  const handlePlayRecentTrack = (track: PlayedTrack) => {
+    void hapticLight();
+    player.setPlayerModalOpen(true);
+    void player.playTrack(track, recentTracks, { sourceTitle: 'Recently Played' });
+    toast(`Playing "${track.track_name}"`, 'success');
+  };
+
+  const handlePlayAllRecentTracks = () => {
+    if (recentTracks.length === 0) return;
+    void hapticMedium();
+    player.setPlayerModalOpen(true);
+    void player.playTrack(recentTracks[0], recentTracks, { sourceTitle: 'Recently Played' });
+    toast('Playing Recently Played', 'success');
+  };
+
+  const handleShuffleRecentTracks = () => {
+    if (recentTracks.length === 0) return;
+    void hapticMedium();
+    const shuffled = shuffleTracks(recentTracks);
+    player.setPlayerModalOpen(true);
+    void player.playTrack(shuffled[0], shuffled, { sourceTitle: 'Recently Played (Shuffle)' });
+    toast('Shuffling Recently Played', 'success');
   };
 
   const handleDiscordLogin = async () => {
@@ -613,21 +668,97 @@ export default function UserProfileScreen() {
             )}
 
             {isSelf && selfTab === 'playlists' ? (
+              <>
+                {/* Pinned Liked Songs Card */}
+                <View style={styles.likedSongsCard}>
+                  <LinearGradient
+                    colors={['#4c1d95', '#2e1065', '#171434']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.likedSongsGradient}
+                  >
+                    <View style={styles.likedSongsLeft}>
+                      <View style={styles.likedHeartIconWrap}>
+                        <Heart size={20} color="#ffffff" fill="#ffffff" />
+                      </View>
+                      <View style={styles.likedSongsMeta}>
+                        <Text style={styles.likedSongsTitle}>Liked Songs</Text>
+                        <Text style={styles.likedSongsCount}>
+                          {favoriteTracks.length} song{favoriteTracks.length === 1 ? '' : 's'} · Saved in library
+                        </Text>
+                      </View>
+                    </View>
+
+                    {favoriteTracks.length > 0 && (
+                      <View style={styles.likedSongsActions}>
+                        <Pressable
+                          onPress={handlePlayAllFavTracks}
+                          hitSlop={8}
+                          style={styles.likedPlayBtn}
+                          accessibilityLabel="Play all liked songs"
+                        >
+                          <Play size={13} color="#08080a" fill="#08080a" />
+                        </Pressable>
+                        <Pressable
+                          onPress={handleShuffleFavTracks}
+                          hitSlop={8}
+                          style={styles.likedShuffleBtn}
+                          accessibilityLabel="Shuffle liked songs"
+                        >
+                          <Shuffle size={13} color={colors.amber} />
+                        </Pressable>
+                      </View>
+                    )}
+                  </LinearGradient>
+                </View>
+
+                <View style={styles.sectionHeaderRow}>
+                  <View style={styles.sectionHeaderTitle}>
+                    <ListMusic size={15} color={colors.amber} />
+                    <Text style={styles.sectionTitle}>YOUR PLAYLISTS</Text>
+                  </View>
+                  <Pressable
+                    onPress={() => {
+                      void hapticLight();
+                      setImportModalVisible(true);
+                    }}
+                    style={({ pressed }) => [styles.importBtn, pressed && styles.pressed]}
+                  >
+                    <DownloadCloud size={13} color={colors.amber} />
+                    <Text style={styles.importBtnText}>Import</Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : null}
+
+            {isSelf && selfTab === 'history' ? (
               <View style={styles.sectionHeaderRow}>
                 <View style={styles.sectionHeaderTitle}>
-                  <ListMusic size={15} color={colors.amber} />
-                  <Text style={styles.sectionTitle}>YOUR PLAYLISTS</Text>
+                  <Clock size={15} color={colors.amber} />
+                  <Text style={styles.sectionTitle}>RECENTLY PLAYED ({recentTracks.length})</Text>
                 </View>
-                <Pressable
-                  onPress={() => {
-                    void hapticLight();
-                    setImportModalVisible(true);
-                  }}
-                  style={({ pressed }) => [styles.importBtn, pressed && styles.pressed]}
-                >
-                  <DownloadCloud size={13} color={colors.amber} />
-                  <Text style={styles.importBtnText}>Import</Text>
-                </Pressable>
+                {recentTracks.length > 0 && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Pressable
+                      onPress={handlePlayAllRecentTracks}
+                      style={styles.headerPillBtn}
+                      hitSlop={6}
+                      accessibilityLabel="Play all recently played tracks"
+                    >
+                      <Play size={10} color="#08080a" fill="#08080a" />
+                      <Text style={styles.headerPillBtnText}>Play All</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={handleShuffleRecentTracks}
+                      style={styles.headerPillOutlineBtn}
+                      hitSlop={6}
+                      accessibilityLabel="Shuffle recently played tracks"
+                    >
+                      <Shuffle size={10} color={colors.amber} />
+                      <Text style={styles.headerPillOutlineText}>Shuffle</Text>
+                    </Pressable>
+                  </View>
+                )}
               </View>
             ) : null}
 
@@ -757,7 +888,11 @@ export default function UserProfileScreen() {
           // History Row
           if (isSelf && selfTab === 'history') {
             return (
-              <View style={styles.historyRow}>
+              <Pressable
+                onPress={() => handlePlayRecentTrack(item)}
+                style={({ pressed }) => [styles.historyRow, pressed && styles.pressed]}
+                accessibilityLabel={`Play ${item.track_name} by ${item.artist}`}
+              >
                 {item.album_art_url ? (
                   <Image source={{ uri: item.album_art_url }} style={styles.historyArt} contentFit="cover" />
                 ) : (
@@ -773,10 +908,13 @@ export default function UserProfileScreen() {
                     {item.artist}
                   </Text>
                 </View>
-                {item.played_at ? (
-                  <Text style={styles.historyTime}>{formatRelativeTime(item.played_at)}</Text>
+                {item.playedAt || item.played_at ? (
+                  <Text style={styles.historyTime}>{formatRelativeTime(item.playedAt || item.played_at)}</Text>
                 ) : null}
-              </View>
+                <View style={styles.historyPlayBtn}>
+                  <Play size={12} color={colors.amber} fill={colors.amber} />
+                </View>
+              </Pressable>
             );
           }
 
@@ -1235,6 +1373,111 @@ const styles = StyleSheet.create({
     color: '#08080a',
     fontFamily: fontFamily.bodySemiBold,
     fontSize: 11,
+  },
+  likedSongsCard: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(168, 85, 247, 0.25)',
+  },
+  likedSongsGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.md,
+  },
+  likedSongsLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  likedHeartIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  likedSongsMeta: {
+    flex: 1,
+  },
+  likedSongsTitle: {
+    color: '#ffffff',
+    fontFamily: fontFamily.displayBold,
+    fontSize: 15,
+  },
+  likedSongsCount: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  likedSongsActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  likedPlayBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  likedShuffleBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255, 159, 28, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerPillBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.amber,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.full,
+  },
+  headerPillBtnText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 10,
+    color: '#08080a',
+  },
+  headerPillOutlineBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.3)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.full,
+  },
+  headerPillOutlineText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 10,
+    color: colors.amber,
+  },
+  historyPlayBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 159, 28, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
