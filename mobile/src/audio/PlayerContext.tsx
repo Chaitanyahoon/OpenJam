@@ -40,6 +40,7 @@ import {
 } from '../storage/history';
 import type { TrackInfo } from '../sync/protocol';
 import * as Notifications from 'expo-notifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   updateMediaNotification,
   dismissMediaNotification,
@@ -53,6 +54,7 @@ export interface LockScreenMeta {
 }
 
 export type RepeatMode = 'off' | 'all' | 'one';
+export type AudioDeviceRoute = 'speaker' | 'bluetooth' | 'wired' | 'room';
 
 export interface PlayerControls {
   // Low-level controls (used by Room sync engine & Solo mode)
@@ -95,6 +97,12 @@ export interface PlayerControls {
   addToQueue: (track: TrackInfo) => void;
   removeFromQueue: (index: number) => void;
   reorderQueue: (fromIndex: number, toIndex: number) => void;
+
+  // Audio Device Routing & Radio Auto-Play
+  activeAudioDevice: AudioDeviceRoute;
+  setAudioDevice: (device: AudioDeviceRoute) => void;
+  radioAutoPlay: boolean;
+  toggleRadioAutoPlay: () => void;
 }
 
 export interface PlayerStatus {
@@ -145,6 +153,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [isPlayerModalOpen, setPlayerModalOpen] = useState(false);
   const [sourceTitle, setSourceTitle] = useState('Solo Jam');
 
+  const [activeAudioDevice, setActiveAudioDeviceState] = useState<AudioDeviceRoute>('speaker');
+  const [radioAutoPlay, setRadioAutoPlayState] = useState<boolean>(true);
+  const radioAutoPlayRef = useRef(true);
+  radioAutoPlayRef.current = radioAutoPlay;
+
   const currentTrackRef = useRef<TrackInfo | null>(null);
   currentTrackRef.current = currentTrack;
   const queueRef = useRef<TrackInfo[]>([]);
@@ -155,6 +168,41 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   repeatRef.current = repeat;
   const shuffleRef = useRef(false);
   shuffleRef.current = shuffle;
+
+  // Load saved device output route and radio autoplay preference
+  useEffect(() => {
+    AsyncStorage.getItem('@openjam_audio_route')
+      .then((saved) => {
+        if (saved === 'speaker' || saved === 'bluetooth' || saved === 'wired' || saved === 'room') {
+          setActiveAudioDeviceState(saved as AudioDeviceRoute);
+        }
+      })
+      .catch(() => {});
+
+    AsyncStorage.getItem('@openjam_radio_autoplay')
+      .then((saved) => {
+        if (saved !== null) {
+          const val = saved === 'true';
+          setRadioAutoPlayState(val);
+          radioAutoPlayRef.current = val;
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const setAudioDevice = useCallback((device: AudioDeviceRoute) => {
+    setActiveAudioDeviceState(device);
+    void AsyncStorage.setItem('@openjam_audio_route', device).catch(() => {});
+  }, []);
+
+  const toggleRadioAutoPlay = useCallback(() => {
+    setRadioAutoPlayState((prev) => {
+      const next = !prev;
+      radioAutoPlayRef.current = next;
+      void AsyncStorage.setItem('@openjam_radio_autoplay', String(next)).catch(() => {});
+      return next;
+    });
+  }, []);
 
   // Monotonic position sample for extrapolation between polls
   const sampleRef = useRef({ at: Date.now(), posMs: 0, playing: false });
@@ -548,7 +596,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       const firstTrack = q[0];
       await playTrack(firstTrack);
     } else {
-      // Continuous Spotify Radio Auto-Play Mode
+      // Reached the end of the user's Up Next queue
+      if (!radioAutoPlayRef.current) {
+        pause();
+        return;
+      }
+
+      // Continuous Spotify Radio Auto-Play Mode (Plays next similar track without polluting user queue)
       try {
         const cur = currentTrackRef.current;
         const seedQuery = cur ? `${cur.track_name} ${cur.artist || ''}`.trim() : 'chill lofi';
@@ -560,21 +614,19 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           const recommendations: TrackInfo[] = await resp.json();
           if (Array.isArray(recommendations) && recommendations.length > 0) {
             const nextTrack = recommendations[0];
-            setQueueState((prev) => [...prev, ...recommendations]);
-            setCurrentIndex(q.length);
-            await playTrack(nextTrack);
+            // Play ONLY the single radio track; queue stays clean for user songs
+            await playTrack(nextTrack, [nextTrack], { sourceTitle: 'Radio Auto-Play' });
             return;
           }
         }
-      } catch {}
-
-      // Fallback: loop queue or stop
-      if (q.length > 0) {
-        setCurrentIndex(0);
-        await playTrack(q[0]);
+      } catch (err) {
+        console.warn('[PlayerContext] auto-play radio recommendations failed:', err);
       }
+
+      // Cleanly stop if no radio tracks are returned
+      pause();
     }
-  }, [playTrack, seekToMs, play]);
+  }, [playTrack, seekToMs, play, pause]);
 
   const playPrev = useCallback(async () => {
     const pos = positionMs();
@@ -768,6 +820,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       addToQueue,
       removeFromQueue,
       reorderQueue,
+
+      activeAudioDevice,
+      setAudioDevice,
+      radioAutoPlay,
+      toggleRadioAutoPlay,
     }),
     [
       loadTrack,
@@ -804,6 +861,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       addToQueue,
       removeFromQueue,
       reorderQueue,
+
+      activeAudioDevice,
+      setAudioDevice,
+      radioAutoPlay,
+      toggleRadioAutoPlay,
     ],
   );
 

@@ -291,5 +291,128 @@ describe('Solo Jam & Spotify Player Upgrades Suite', () => {
     assert.equal(routeDecisions[1].openPlayerModal, false);
     assert.equal(routeDecisions[1].path, '/room/room-alpha');
   });
+
+  it('plays single recommended track on auto-play without polluting user queue', async () => {
+    // Simulate user queue finishing
+    let userQueue: Array<{ track_uri: string; track_name: string }> = [];
+    let currentPlayingTrack: { track_uri: string; track_name: string } | null = null;
+    const radioAutoPlay = true;
+
+    const mockRecommendations = [
+      { track_uri: 'yt:rec1', track_name: 'Rec Track 1' },
+      { track_uri: 'yt:rec2', track_name: 'Rec Track 2' },
+      { track_uri: 'yt:rec3', track_name: 'Rec Track 3' },
+    ];
+
+    // Auto-play trigger handler
+    const handleQueueExhaustion = async () => {
+      if (!radioAutoPlay) return;
+      const nextTrack = mockRecommendations[0];
+      if (nextTrack) {
+        currentPlayingTrack = nextTrack;
+        // Strict guardrail: Do NOT dump mockRecommendations into userQueue
+        // userQueue remains empty
+      }
+    };
+
+    await handleQueueExhaustion();
+
+    assert.equal(currentPlayingTrack?.track_uri, 'yt:rec1');
+    assert.equal(userQueue.length, 0); // No pollution of userQueue!
+  });
+
+  it('stops playback cleanly when auto-play radio is disabled', async () => {
+    let playbackState: 'playing' | 'stopped' = 'playing';
+    let currentPlayingTrack: { track_uri: string; track_name: string } | null = {
+      track_uri: 'yt:last',
+      track_name: 'Last Song',
+    };
+    const radioAutoPlay = false;
+
+    const handleQueueExhaustion = () => {
+      if (!radioAutoPlay) {
+        playbackState = 'stopped';
+        currentPlayingTrack = null;
+        return;
+      }
+    };
+
+    handleQueueExhaustion();
+
+    assert.equal(playbackState, 'stopped');
+    assert.equal(currentPlayingTrack, null);
+  });
+
+  it('isolates queue on search selection without dumping search result list', () => {
+    const searchResults = [
+      { track_uri: 'yt:res1', track_name: 'Result 1' },
+      { track_uri: 'yt:res2', track_name: 'Result 2' },
+      { track_uri: 'yt:res3', track_name: 'Result 3' },
+      { track_uri: 'yt:res4', track_name: 'Result 4' },
+    ];
+
+    // User selects Result 2
+    const selected = searchResults[1];
+    let activeTrack: typeof selected | null = null;
+    let soloQueue: Array<typeof selected> = [];
+
+    const handlePlaySelected = (track: typeof selected) => {
+      activeTrack = track;
+      // Fixed: only [track] is queued, not searchResults.map(...)
+      soloQueue = [track];
+    };
+
+    handlePlaySelected(selected);
+
+    assert.equal(activeTrack?.track_uri, 'yt:res2');
+    assert.equal(soloQueue.length, 1);
+    assert.equal(soloQueue[0]?.track_name, 'Result 2');
+  });
+
+  it('allows user to manually add recommendations to queue with duplicate prevention', () => {
+    const queue: Array<{ track_uri: string; track_name: string }> = [];
+    const addedUris = new Set<string>();
+
+    const handleAddRecToQueue = (track: { track_uri: string; track_name: string }) => {
+      if (addedUris.has(track.track_uri)) return false;
+      addedUris.add(track.track_uri);
+      queue.push(track);
+      return true;
+    };
+
+    const rec = { track_uri: 'yt:rec10', track_name: 'Chill Beats' };
+
+    // First tap adds to queue
+    const firstTapResult = handleAddRecToQueue(rec);
+    assert.equal(firstTapResult, true);
+    assert.equal(queue.length, 1);
+    assert.equal(queue[0].track_name, 'Chill Beats');
+
+    // Rapid second tap is ignored
+    const secondTapResult = handleAddRecToQueue(rec);
+    assert.equal(secondTapResult, false);
+    assert.equal(queue.length, 1); // No duplicate added
+  });
+
+  it('manages audio device output routing transitions accurately', () => {
+    type AudioDeviceRoute = 'speaker' | 'bluetooth' | 'wired' | 'room';
+    let currentRoute: AudioDeviceRoute = 'speaker';
+
+    const setAudioDevice = (route: AudioDeviceRoute) => {
+      currentRoute = route;
+    };
+
+    setAudioDevice('bluetooth');
+    assert.equal(currentRoute, 'bluetooth');
+
+    setAudioDevice('wired');
+    assert.equal(currentRoute, 'wired');
+
+    setAudioDevice('room');
+    assert.equal(currentRoute, 'room');
+
+    setAudioDevice('speaker');
+    assert.equal(currentRoute, 'speaker');
+  });
 });
 

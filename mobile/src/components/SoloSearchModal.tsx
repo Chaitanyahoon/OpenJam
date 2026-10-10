@@ -27,6 +27,8 @@ import {
   X,
   Radio,
   Clock,
+  Plus,
+  Check,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
@@ -62,13 +64,14 @@ function fmtDuration(ms?: number): string {
 export function SoloSearchModal({ visible, onClose }: SoloSearchModalProps) {
   const insets = useSafeAreaInsets();
   const toast = useToast();
-  const { playTrack, setPlayerModalOpen } = usePlayer();
+  const { playTrack, addToQueue, setPlayerModalOpen } = usePlayer();
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<TrackSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [recentTracks, setRecentTracks] = useState<PlayedTrack[]>([]);
   const [activeVibe, setActiveVibe] = useState<string | null>(null);
+  const [addedUris, setAddedUris] = useState<Set<string>>(new Set());
 
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<TextInput>(null);
@@ -82,6 +85,7 @@ export function SoloSearchModal({ visible, onClose }: SoloSearchModalProps) {
       setQuery('');
       setResults([]);
       setActiveVibe(null);
+      setAddedUris(new Set());
     }
   }, [visible]);
 
@@ -142,7 +146,7 @@ export function SoloSearchModal({ visible, onClose }: SoloSearchModalProps) {
     void executeSearch(vibe.query);
   };
 
-  const handlePlaySelected = async (item: TrackSearchResult) => {
+  const handlePlaySelected = (item: TrackSearchResult) => {
     void hapticMedium();
     const trackInfo: TrackInfo = {
       track_uri: item.uri,
@@ -152,21 +156,32 @@ export function SoloSearchModal({ visible, onClose }: SoloSearchModalProps) {
       duration_ms: item.duration_ms,
     };
 
-    const queue: TrackInfo[] = results.map((r) => ({
-      track_uri: r.uri,
-      track_name: r.name,
-      artist: r.artist,
-      album_art_url: r.album_art_url,
-      duration_ms: r.duration_ms,
-    }));
-
-    await playTrack(trackInfo, queue.length > 0 ? queue : [trackInfo], { sourceTitle: 'Solo Jam' });
-    toast(`Playing "${item.name}"`, 'success');
+    // Close search & expand player immediately with zero network UI freeze
     onClose();
     setPlayerModalOpen(true);
+    toast(`Playing "${item.name}"`, 'success');
+
+    // Play track solo: ONLY this track in queue (user adds more songs explicitly)
+    void playTrack(trackInfo, [trackInfo], { sourceTitle: 'Solo Jam' });
   };
 
-  const handlePlayRecent = async (track: PlayedTrack) => {
+  const handleAddToQueue = (item: TrackSearchResult) => {
+    if (addedUris.has(item.uri)) return;
+    void hapticLight();
+    setAddedUris((prev) => new Set(prev).add(item.uri));
+
+    const trackInfo: TrackInfo = {
+      track_uri: item.uri,
+      track_name: item.name,
+      artist: item.artist,
+      album_art_url: item.album_art_url,
+      duration_ms: item.duration_ms,
+    };
+    addToQueue(trackInfo);
+    toast(`Added "${item.name}" to queue`, 'success');
+  };
+
+  const handlePlayRecent = (track: PlayedTrack) => {
     void hapticMedium();
     const trackInfo: TrackInfo = {
       track_uri: track.track_uri,
@@ -175,10 +190,10 @@ export function SoloSearchModal({ visible, onClose }: SoloSearchModalProps) {
       album_art_url: track.album_art_url,
       duration_ms: track.duration_ms,
     };
-    await playTrack(trackInfo, [trackInfo], { sourceTitle: 'Recently Played' });
-    toast(`Playing "${track.track_name}"`, 'success');
     onClose();
     setPlayerModalOpen(true);
+    toast(`Playing "${track.track_name}"`, 'success');
+    void playTrack(trackInfo, [trackInfo], { sourceTitle: 'Recently Played' });
   };
 
   return (
@@ -283,7 +298,7 @@ export function SoloSearchModal({ visible, onClose }: SoloSearchModalProps) {
             showsVerticalScrollIndicator={false}
             renderItem={({ item }) => (
               <Pressable
-                onPress={() => void handlePlaySelected(item)}
+                onPress={() => handlePlaySelected(item)}
                 style={({ pressed }) => [styles.trackRow, pressed && styles.trackRowPressed]}
               >
                 <Image
@@ -299,11 +314,36 @@ export function SoloSearchModal({ visible, onClose }: SoloSearchModalProps) {
                     {item.artist}
                   </Text>
                 </View>
-                {item.duration_ms ? (
-                  <Text style={styles.trackDuration}>{fmtDuration(item.duration_ms)}</Text>
-                ) : null}
-                <View style={styles.playBtn}>
-                  <Play size={14} color="#08080a" fill="#08080a" style={{ marginLeft: 2 }} />
+
+                <View style={styles.trackActionsRow}>
+                  {item.duration_ms ? (
+                    <Text style={styles.trackDuration}>{fmtDuration(item.duration_ms)}</Text>
+                  ) : null}
+
+                  {/* 1-Tap Add to Queue Button */}
+                  <Pressable
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleAddToQueue(item);
+                    }}
+                    hitSlop={8}
+                    style={[
+                      styles.addQueueBtn,
+                      addedUris.has(item.uri) && styles.addQueueBtnSuccess,
+                    ]}
+                    accessibilityLabel={`Add ${item.name} to queue`}
+                  >
+                    {addedUris.has(item.uri) ? (
+                      <Check size={14} color="#10b981" strokeWidth={2.5} />
+                    ) : (
+                      <Plus size={16} color={colors.amber} />
+                    )}
+                  </Pressable>
+
+                  {/* 1-Tap Play Now Button */}
+                  <View style={styles.playBtn}>
+                    <Play size={13} color="#08080a" fill="#08080a" style={{ marginLeft: 2 }} />
+                  </View>
                 </View>
               </Pressable>
             )}
@@ -509,6 +549,25 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     color: '#666677',
     marginRight: 6,
+  },
+  trackActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  addQueueBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.28)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addQueueBtnSuccess: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderColor: 'rgba(16, 185, 129, 0.35)',
   },
   playBtn: {
     width: 32,

@@ -54,6 +54,10 @@ import {
   Music2,
   Radio,
   Headphones,
+  Smartphone,
+  Volume2,
+  Plus,
+  Check,
   MessageSquareQuote,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
@@ -70,6 +74,8 @@ import {
 import { hapticLight, hapticMedium } from '../utils/haptics';
 import { useToast } from './ToastContext';
 import { getAmbientPalette } from '../utils/palette';
+import { getBackendUrl } from '../api';
+import { DevicePickerModal } from './DevicePickerModal';
 import type { TrackInfo } from '../sync/protocol';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -106,7 +112,12 @@ export function SpotifyPlayerModal() {
     toggleRepeat,
     setPlayerModalOpen,
     playTrack,
+    addToQueue,
     removeFromQueue,
+    activeAudioDevice,
+    setAudioDevice,
+    radioAutoPlay,
+    toggleRadioAutoPlay,
   } = usePlayer();
 
   const { playing, durationMs } = usePlayerStatus();
@@ -116,8 +127,14 @@ export function SpotifyPlayerModal() {
   const [scrubRatio, setScrubRatio] = useState(0);
   const [scrubSpeed, setScrubSpeed] = useState(1.0);
   const [showQueue, setShowQueue] = useState(false);
+  const [showDevicePicker, setShowDevicePicker] = useState(false);
   const [isDownloaded, setIsDownloaded] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<TrackDownloadProgress | null>(null);
+
+  // Recommendations state for Queue panel
+  const [recommendations, setRecommendations] = useState<TrackInfo[]>([]);
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
+  const [addedRecUris, setAddedRecUris] = useState<Set<string>>(new Set());
 
   const lastTouchXRef = useRef(0);
   const startYRef = useRef(0);
@@ -172,6 +189,38 @@ export function SpotifyPlayerModal() {
     if (!lyrics?.lines?.length) return -1;
     return activeLyricIndex(lyrics.lines, currentPosMs);
   }, [lyrics, currentPosMs]);
+
+  // Fetch non-intrusive 3-5 recommendations based on current track when queue panel opens
+  useEffect(() => {
+    if (!showQueue || !currentTrack?.track_name) return;
+    let cancelled = false;
+    setLoadingRecommendations(true);
+    const seed = `${currentTrack.track_name} ${currentTrack.artist || ''}`.trim();
+    const backendUrl = getBackendUrl();
+    fetch(`${backendUrl}/search/recommendations?seed=${encodeURIComponent(seed)}`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: TrackInfo[]) => {
+        if (!cancelled && Array.isArray(data)) {
+          setRecommendations(data.slice(0, 5));
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoadingRecommendations(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showQueue, currentTrack?.track_name, currentTrack?.artist]);
+
+  const handleAddRecToQueue = (track: TrackInfo) => {
+    if (addedRecUris.has(track.track_uri)) return;
+    void hapticLight();
+    setAddedRecUris((prev) => new Set(prev).add(track.track_uri));
+    addToQueue(track);
+    toast(`Added "${track.track_name}" to queue`, 'success');
+  };
 
   // Center active lyric line in lyrics sheet
   useEffect(() => {
@@ -357,15 +406,24 @@ export function SpotifyPlayerModal() {
               <View>
                 <Text style={styles.queueHeading}>Up Next</Text>
                 <Text style={styles.queueSubheading}>
-                  {queue.length > 0
-                    ? `${queue.length} track${queue.length === 1 ? '' : 's'} in queue`
+                  {queue.slice(currentIndex + 1).length > 0
+                    ? `${queue.slice(currentIndex + 1).length} track${queue.slice(currentIndex + 1).length === 1 ? '' : 's'} queued`
                     : 'Queue is empty'}
                 </Text>
               </View>
-              <View style={styles.radioPill}>
-                <Radio size={12} color={colors.amber} />
-                <Text style={styles.radioText}>Spotify Radio Auto-Play On</Text>
-              </View>
+              <Pressable
+                onPress={() => {
+                  void hapticLight();
+                  toggleRadioAutoPlay();
+                }}
+                style={[styles.radioPill, !radioAutoPlay && styles.radioPillOff]}
+                accessibilityLabel="Toggle Spotify Radio Auto-Play"
+              >
+                <Radio size={12} color={radioAutoPlay ? colors.amber : '#888899'} />
+                <Text style={[styles.radioText, !radioAutoPlay && styles.radioTextOff]}>
+                  {radioAutoPlay ? 'Auto-Play On' : 'Auto-Play Off'}
+                </Text>
+              </Pressable>
             </View>
 
             <ScrollView style={styles.queueList} contentContainerStyle={styles.queueContent}>
@@ -396,23 +454,25 @@ export function SpotifyPlayerModal() {
                 </View>
               )}
 
-              {/* Section: Next In Queue */}
+              {/* Section: Next In Queue (User-Queued only) */}
               <View style={styles.queueSection}>
                 <Text style={styles.queueSectionTitle}>UP NEXT</Text>
-                {queue.filter((_, idx) => idx !== currentIndex).length === 0 ? (
+                {queue.slice(currentIndex + 1).length === 0 ? (
                   <View style={styles.emptyQueueBox}>
                     <Sparkles size={20} color={colors.amber} style={{ marginBottom: 6 }} />
                     <Text style={styles.emptyQueueTitle}>No More Tracks Queued</Text>
                     <Text style={styles.emptyQueueSubtitle}>
-                      OpenJam Radio will automatically curate matching music when this track finishes.
+                      {radioAutoPlay
+                        ? 'OpenJam Radio will curate matching music when this track finishes.'
+                        : 'Add tracks from recommendations below or enable Auto-Play.'}
                     </Text>
                   </View>
                 ) : (
-                  queue.map((track, idx) => {
-                    if (idx === currentIndex) return null;
+                  queue.slice(currentIndex + 1).map((track, relativeIdx) => {
+                    const actualIdx = currentIndex + 1 + relativeIdx;
                     return (
                       <Pressable
-                        key={`${track.track_uri}_${idx}`}
+                        key={`${track.track_uri}_${actualIdx}`}
                         onPress={() => {
                           void hapticLight();
                           void playTrack(track);
@@ -436,7 +496,7 @@ export function SpotifyPlayerModal() {
                           onPress={(e) => {
                             e.stopPropagation();
                             void hapticLight();
-                            removeFromQueue(idx);
+                            removeFromQueue(actualIdx);
                           }}
                           hitSlop={10}
                           style={styles.queueTrashBtn}
@@ -445,6 +505,66 @@ export function SpotifyPlayerModal() {
                           <Trash2 size={16} color="#888899" />
                         </Pressable>
                       </Pressable>
+                    );
+                  })
+                )}
+              </View>
+
+              {/* Section: Recommended For You (Curated, user-adds only) */}
+              <View style={styles.queueSection}>
+                <View style={styles.recSectionHeader}>
+                  <Text style={styles.queueSectionTitle}>RECOMMENDED FOR YOU</Text>
+                  <Text style={styles.recSectionSubtitle}>Tap + to add to queue</Text>
+                </View>
+
+                {loadingRecommendations && recommendations.length === 0 ? (
+                  <View style={styles.recLoadingWrap}>
+                    <ActivityIndicator size="small" color={colors.amber} />
+                    <Text style={styles.recLoadingText}>Finding similar tracks…</Text>
+                  </View>
+                ) : recommendations.length === 0 ? (
+                  <View style={styles.emptyQueueBox}>
+                    <Music2 size={18} color="#888899" style={{ marginBottom: 4 }} />
+                    <Text style={styles.emptyQueueSubtitle}>No extra recommendations found.</Text>
+                  </View>
+                ) : (
+                  recommendations.map((recTrack) => {
+                    const isAdded = addedRecUris.has(recTrack.track_uri);
+                    return (
+                      <View key={recTrack.track_uri} style={styles.queueItem}>
+                        <Image
+                          source={{ uri: recTrack.album_art_url || 'https://openjam.fun/default_art.png' }}
+                          style={styles.queueItemArt}
+                          contentFit="cover"
+                        />
+                        <View style={styles.queueItemInfo}>
+                          <Text style={styles.queueItemTitle} numberOfLines={1}>
+                            {recTrack.track_name}
+                          </Text>
+                          <Text style={styles.queueItemArtist} numberOfLines={1}>
+                            {recTrack.artist || 'Unknown Artist'}
+                          </Text>
+                        </View>
+                        <Pressable
+                          onPress={() => handleAddRecToQueue(recTrack)}
+                          disabled={isAdded}
+                          hitSlop={8}
+                          style={[styles.recAddBtn, isAdded && styles.recAddBtnDisabled]}
+                          accessibilityLabel={isAdded ? 'Added to queue' : `Add ${recTrack.track_name} to queue`}
+                        >
+                          {isAdded ? (
+                            <View style={styles.recAddedPill}>
+                              <Check size={13} color={colors.green} />
+                              <Text style={styles.recAddedText}>Added</Text>
+                            </View>
+                          ) : (
+                            <View style={styles.recAddPill}>
+                              <Plus size={14} color="#ffffff" />
+                              <Text style={styles.recAddText}>Add</Text>
+                            </View>
+                          )}
+                        </Pressable>
+                      </View>
                     );
                   })
                 )}
@@ -467,7 +587,7 @@ export function SpotifyPlayerModal() {
               />
             </View>
 
-            {/* Track Info & Like Row */}
+            {/* Track Info & Action Buttons (Offline Vault + Heart) */}
             <View style={styles.trackInfoRow}>
               <View style={styles.trackTextCol}>
                 <Text style={styles.trackTitle} numberOfLines={1}>
@@ -478,20 +598,37 @@ export function SpotifyPlayerModal() {
                 </Text>
               </View>
 
-              <Pressable
-                onPress={handleToggleLike}
-                hitSlop={12}
-                style={styles.heartBtn}
-                accessibilityLabel={isLiked ? 'Unlike song' : 'Like song'}
-              >
-                <Animated.View style={animatedHeartStyle}>
-                  <Heart
-                    size={26}
-                    color={isLiked ? palette.accent : '#9999aa'}
-                    fill={isLiked ? palette.accent : 'transparent'}
-                  />
-                </Animated.View>
-              </Pressable>
+              <View style={styles.trackActionsRow}>
+                <Pressable
+                  onPress={handleDownload}
+                  hitSlop={10}
+                  style={styles.actionIconBtn}
+                  accessibilityLabel="Save song to Offline Vault"
+                >
+                  {downloadProgress?.state === 'downloading' ? (
+                    <ActivityIndicator size="small" color={colors.amber} />
+                  ) : isDownloaded ? (
+                    <CheckCircle2 size={24} color={colors.green} />
+                  ) : (
+                    <DownloadCloud size={24} color="#9999aa" />
+                  )}
+                </Pressable>
+
+                <Pressable
+                  onPress={handleToggleLike}
+                  hitSlop={10}
+                  style={styles.heartBtn}
+                  accessibilityLabel={isLiked ? 'Unlike song' : 'Like song'}
+                >
+                  <Animated.View style={animatedHeartStyle}>
+                    <Heart
+                      size={26}
+                      color={isLiked ? palette.accent : '#9999aa'}
+                      fill={isLiked ? palette.accent : 'transparent'}
+                    />
+                  </Animated.View>
+                </Pressable>
+              </View>
             </View>
 
             {/* Scrubbable Progress Bar with Precision Deflection Feedback */}
@@ -605,60 +742,61 @@ export function SpotifyPlayerModal() {
               </Pressable>
             </View>
 
-            {/* Device Route Bar & Bottom Actions */}
+            {/* Device Route Bar & Queue Button */}
             <View style={styles.deviceRouteBar}>
-              <View style={styles.deviceRouteLeft}>
-                {optionalRoom?.roomName ? (
+              <Pressable
+                onPress={() => {
+                  void hapticLight();
+                  setShowDevicePicker(true);
+                }}
+                style={styles.deviceRoutePill}
+                accessibilityLabel="Select audio output device"
+              >
+                {activeAudioDevice === 'room' && optionalRoom?.roomName ? (
                   <>
-                    <Radio size={13} color="#22c55e" />
-                    <Text style={styles.deviceRouteText}>Jam: {optionalRoom.roomName}</Text>
+                    <Radio size={14} color="#22c55e" />
+                    <Text style={styles.deviceRouteText} numberOfLines={1}>
+                      Jam: {optionalRoom.roomName}
+                    </Text>
+                  </>
+                ) : activeAudioDevice === 'bluetooth' ? (
+                  <>
+                    <Volume2 size={14} color={palette.accent} />
+                    <Text style={[styles.deviceRouteText, { color: palette.accent }]} numberOfLines={1}>
+                      Bluetooth Audio
+                    </Text>
+                  </>
+                ) : activeAudioDevice === 'wired' ? (
+                  <>
+                    <Headphones size={14} color={palette.accent} />
+                    <Text style={[styles.deviceRouteText, { color: palette.accent }]} numberOfLines={1}>
+                      Wired Headphones
+                    </Text>
                   </>
                 ) : (
                   <>
-                    <Headphones size={13} color={palette.accent} />
-                    <Text style={[styles.deviceRouteText, { color: palette.accent }]}>Phone Speaker</Text>
+                    <Smartphone size={14} color={palette.accent} />
+                    <Text style={[styles.deviceRouteText, { color: palette.accent }]} numberOfLines={1}>
+                      Phone Speaker
+                    </Text>
                   </>
                 )}
-              </View>
+                <View style={styles.deviceActiveDot} />
+              </Pressable>
 
-              <View style={styles.bottomActionsRow}>
-                <Pressable
-                  onPress={handleDownload}
-                  style={styles.actionBtn}
-                  accessibilityLabel="Download song offline"
-                >
-                  {downloadProgress?.state === 'downloading' ? (
-                    <View style={styles.downloadProgressWrap}>
-                      <ActivityIndicator size="small" color={colors.amber} />
-                      <Text style={styles.downloadProgressText}>
-                        {downloadProgress.percent}%
-                      </Text>
-                    </View>
-                  ) : isDownloaded ? (
-                    <View style={styles.downloadedWrap}>
-                      <CheckCircle2 size={16} color={colors.green} />
-                      <Text style={styles.downloadedText}>Saved</Text>
-                    </View>
-                  ) : (
-                    <View style={styles.downloadWrap}>
-                      <DownloadCloud size={16} color="#aaaabb" />
-                      <Text style={styles.downloadText}>Offline</Text>
-                    </View>
-                  )}
-                </Pressable>
-
-                <Pressable
-                  onPress={() => {
-                    void hapticLight();
-                    setShowQueue(true);
-                  }}
-                  style={styles.actionBtn}
-                  accessibilityLabel="View queue"
-                >
-                  <ListMusic size={16} color="#aaaabb" />
-                  <Text style={styles.downloadText}>Queue ({queue.length})</Text>
-                </Pressable>
-              </View>
+              <Pressable
+                onPress={() => {
+                  void hapticLight();
+                  setShowQueue(true);
+                }}
+                style={styles.queuePill}
+                accessibilityLabel="View Up Next queue"
+              >
+                <ListMusic size={15} color="#ffffff" />
+                <Text style={styles.queuePillText}>
+                  Queue ({Math.max(0, queue.length - 1)})
+                </Text>
+              </Pressable>
             </View>
 
             {/* Lyrics Peek Card (Spotify Style) */}
@@ -760,6 +898,15 @@ export function SpotifyPlayerModal() {
             </ScrollView>
           </View>
         </Modal>
+
+        {/* Connect to a Device Modal */}
+        <DevicePickerModal
+          visible={showDevicePicker}
+          onClose={() => setShowDevicePicker(false)}
+          activeDevice={activeAudioDevice}
+          onSelectDevice={setAudioDevice}
+          roomName={optionalRoom?.roomName}
+        />
       </View>
     </Modal>
   );
@@ -855,6 +1002,17 @@ const styles = StyleSheet.create({
   heartBtn: {
     padding: 6,
   },
+  trackActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  actionIconBtn: {
+    padding: 6,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   scrubTooltipPill: {
     alignSelf: 'center',
     flexDirection: 'row',
@@ -946,51 +1104,7 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.94 }],
     opacity: 0.9,
   },
-  bottomActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.06)',
-  },
-  actionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    gap: 8,
-  },
-  downloadProgressWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  downloadProgressText: {
-    fontFamily: fontFamily.bodySemiBold,
-    fontSize: 12,
-    color: colors.amber,
-  },
-  downloadedWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  downloadedText: {
-    fontFamily: fontFamily.bodySemiBold,
-    fontSize: 12,
-    color: colors.green,
-  },
-  downloadWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  downloadText: {
-    fontFamily: fontFamily.bodyMedium,
-    fontSize: 12,
-    color: '#aaaabb',
-  },
+
   queueContainer: {
     flex: 1,
     paddingHorizontal: 24,
@@ -1037,6 +1151,12 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.bodySemiBold,
     fontSize: 10,
     color: colors.amber,
+  },
+  radioPillOff: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  radioTextOff: {
+    color: '#888899',
   },
   queueList: {
     flex: 1,
@@ -1128,19 +1248,107 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 8,
-    marginTop: 4,
-    marginBottom: 10,
+    paddingHorizontal: 6,
+    marginTop: 6,
+    marginBottom: 12,
   },
-  deviceRouteLeft: {
+  deviceRoutePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    gap: 7,
+    maxWidth: '65%',
   },
   deviceRouteText: {
-    fontFamily: fontFamily.bodyMedium,
+    fontFamily: fontFamily.bodySemiBold,
     fontSize: 12,
     color: '#ffffff',
+  },
+  deviceActiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.green,
+    marginLeft: 2,
+  },
+  queuePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    gap: 6,
+  },
+  queuePillText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 12,
+    color: '#ffffff',
+  },
+  recSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  recSectionSubtitle: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 11,
+    color: '#777788',
+  },
+  recLoadingWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 16,
+  },
+  recLoadingText: {
+    fontFamily: fontFamily.bodyRegular,
+    fontSize: 12,
+    color: '#888899',
+  },
+  recAddBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+  },
+  recAddBtnDisabled: {
+    opacity: 0.8,
+  },
+  recAddPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.full,
+    gap: 4,
+  },
+  recAddText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 11.5,
+    color: '#ffffff',
+  },
+  recAddedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.full,
+    gap: 4,
+  },
+  recAddedText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 11.5,
+    color: colors.green,
   },
   lyricsPeekCard: {
     backgroundColor: 'rgba(0, 0, 0, 0.38)',
