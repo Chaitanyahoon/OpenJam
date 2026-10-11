@@ -27,6 +27,8 @@ export default function AdminPage() {
 
   // Search and filter states
   const [userFilter, setUserFilter] = useState('registered'); // 'registered' | 'all'
+  const [playlistFilter, setPlaylistFilter] = useState('all'); // 'all' | 'public' | 'private'
+  const [pruningGuests, setPruningGuests] = useState(false);
   const [searchRoomsQuery, setSearchRoomsQuery] = useState('');
   const [searchUsersQuery, setSearchUsersQuery] = useState('');
   const [searchPlaylistsQuery, setSearchPlaylistsQuery] = useState('');
@@ -280,6 +282,29 @@ export default function AdminPage() {
       alert(`Error deleting user: ${err.message}`);
     } finally {
       setShowDeleteUserConfirm(null);
+    }
+  };
+
+  const handlePruneGuests = async () => {
+    if (!window.confirm('Prune anonymous guest accounts older than 7 days with no saved playlists or active rooms? Registered Discord users will NOT be affected.')) return;
+    setPruningGuests(true);
+    try {
+      const res = await fetch('/admin/users/guests/prune', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days: 7 })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        alert(data.message || `Pruned ${data.pruned_count} guest sessions.`);
+        fetchData();
+      } else {
+        alert('Failed to prune guests.');
+      }
+    } catch (err) {
+      alert(`Error pruning guests: ${err.message}`);
+    } finally {
+      setPruningGuests(false);
     }
   };
 
@@ -555,7 +580,7 @@ export default function AdminPage() {
                           <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: stats.db_connected ? '#10b981' : '#f87171', boxShadow: stats.db_connected ? '0 0 10px #10b981' : 'none', flexShrink: 0 }} />
                           <div>
                             <div style={{ fontSize: '11px', color: 'var(--text-3, #64748b)', fontWeight: 600, textTransform: 'uppercase' }}>PostgreSQL Pool</div>
-                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>{stats.db_connected ? 'Connected (Pool OK)' : 'Offline'}</div>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>{stats.db_connected ? `Connected (${stats.db_ping_ms != null ? stats.db_ping_ms + 'ms' : 'Pool OK'})` : 'Offline'}</div>
                           </div>
                         </div>
                         <div style={{ padding: '16px', borderRadius: '14px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
@@ -796,7 +821,7 @@ export default function AdminPage() {
                           <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#fff', margin: 0 }}>Registered Users Directory</h3>
                           
                           {/* Registered vs Guests Filter Pills */}
-                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                             <button
                               type="button"
                               onClick={() => setUserFilter('registered')}
@@ -831,6 +856,30 @@ export default function AdminPage() {
                             >
                               All Inc. Guests ({users.length})
                             </button>
+                            {guestCount > 0 && (
+                              <button
+                                type="button"
+                                onClick={handlePruneGuests}
+                                disabled={pruningGuests}
+                                style={{
+                                  padding: '6px 12px',
+                                  borderRadius: '20px',
+                                  fontSize: '11.5px',
+                                  fontWeight: 600,
+                                  cursor: pruningGuests ? 'not-allowed' : 'pointer',
+                                  background: 'rgba(239, 68, 68, 0.08)',
+                                  border: '1px solid rgba(239, 68, 68, 0.2)',
+                                  color: '#f87171',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  opacity: pruningGuests ? 0.6 : 1,
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                <Trash2 size={11} /> {pruningGuests ? 'Pruning...' : 'Prune Inactive Guests (>7d)'}
+                              </button>
+                            )}
                           </div>
                         </div>
                         
@@ -970,11 +1019,18 @@ export default function AdminPage() {
 
                   {/* TAB 4: PLAYLISTS */}
                   {activeTab === 'playlists' && (() => {
-                    const filteredPlaylists = playlists.filter(playlist => 
-                      playlist.name.toLowerCase().includes(searchPlaylistsQuery.toLowerCase()) ||
-                      playlist.id.toLowerCase().includes(searchPlaylistsQuery.toLowerCase()) ||
-                      playlist.creator_name.toLowerCase().includes(searchPlaylistsQuery.toLowerCase())
-                    );
+                    const publicCount = playlists.filter(p => !p.is_private).length;
+                    const privateCount = playlists.filter(p => p.is_private).length;
+                    const filteredPlaylists = playlists.filter(playlist => {
+                      if (playlistFilter === 'public' && playlist.is_private) return false;
+                      if (playlistFilter === 'private' && !playlist.is_private) return false;
+                      const q = searchPlaylistsQuery.toLowerCase();
+                      return (
+                        playlist.name.toLowerCase().includes(q) ||
+                        playlist.id.toLowerCase().includes(q) ||
+                        playlist.creator_name.toLowerCase().includes(q)
+                      );
+                    });
                     return (
                       <motion.div
                         key="playlists"
@@ -983,7 +1039,64 @@ export default function AdminPage() {
                         exit={{ opacity: 0, y: -6 }}
                         transition={{ duration: 0.15 }}
                       >
-                        <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#fff', marginBottom: '20px' }}>Saved Playlists Library</h3>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                          <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#fff', margin: 0 }}>Saved Playlists Library</h3>
+                          
+                          {/* Visibility Filter Pills */}
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={() => setPlaylistFilter('all')}
+                              style={{
+                                padding: '6px 14px',
+                                borderRadius: '20px',
+                                fontSize: '12px',
+                                fontWeight: playlistFilter === 'all' ? 700 : 500,
+                                cursor: 'pointer',
+                                background: playlistFilter === 'all' ? 'rgba(255, 159, 28, 0.2)' : 'rgba(255, 255, 255, 0.03)',
+                                border: `1px solid ${playlistFilter === 'all' ? 'var(--amber, #ff9f1c)' : 'rgba(255, 255, 255, 0.08)'}`,
+                                color: playlistFilter === 'all' ? '#fff' : 'var(--text-3)',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              All ({playlists.length})
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPlaylistFilter('public')}
+                              style={{
+                                padding: '6px 14px',
+                                borderRadius: '20px',
+                                fontSize: '12px',
+                                fontWeight: playlistFilter === 'public' ? 700 : 500,
+                                cursor: 'pointer',
+                                background: playlistFilter === 'public' ? 'rgba(5, 150, 105, 0.2)' : 'rgba(255, 255, 255, 0.03)',
+                                border: `1px solid ${playlistFilter === 'public' ? '#059669' : 'rgba(255, 255, 255, 0.08)'}`,
+                                color: playlistFilter === 'public' ? '#fff' : 'var(--text-3)',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              <Globe size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Public ({publicCount})
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPlaylistFilter('private')}
+                              style={{
+                                padding: '6px 14px',
+                                borderRadius: '20px',
+                                fontSize: '12px',
+                                fontWeight: playlistFilter === 'private' ? 700 : 500,
+                                cursor: 'pointer',
+                                background: playlistFilter === 'private' ? 'rgba(225, 29, 72, 0.2)' : 'rgba(255, 255, 255, 0.03)',
+                                border: `1px solid ${playlistFilter === 'private' ? '#e11d48' : 'rgba(255, 255, 255, 0.08)'}`,
+                                color: playlistFilter === 'private' ? '#fff' : 'var(--text-3)',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              <Lock size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Private ({privateCount})
+                            </button>
+                          </div>
+                        </div>
                         
                         {playlists.length > 0 && (
                           <div style={{ marginBottom: '16px' }}>
@@ -1105,7 +1218,7 @@ export default function AdminPage() {
                           </div>
                         ) : playlists.length > 0 ? (
                           <div style={{ color: 'var(--text-3)', padding: '40px 0', textAlign: 'center', fontSize: '14px' }}>
-                            No playlists match "{searchPlaylistsQuery}"
+                            {searchPlaylistsQuery ? `No playlists match "${searchPlaylistsQuery}"` : `No ${playlistFilter} playlists found.`}
                           </div>
                         ) : (
                           <div className="admin-empty-state">

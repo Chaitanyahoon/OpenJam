@@ -321,3 +321,74 @@ def test_admin_inspect_private_playlist_bypass(client, db_session):
     assert matching[0]["tracks"][0]["track_name"] == "Confidential Groove"
 
 
+def test_admin_prune_stale_guests_and_db_ping(client, db_session):
+    """Test db_ping_ms in /admin/stats and safe pruning of stale ephemeral guest rows."""
+    from datetime import datetime, timezone, timedelta
+    from backend.models.user import User
+    from backend.models.playlist import Playlist
+    import uuid
+
+    # 1. Admin login
+    login_resp = client.post("/auth/admin-login", json={"password": "openjam-admin-123"})
+    assert login_resp.status_code == 200
+
+    # 2. Check /admin/stats includes db_ping_ms
+    stats_resp = client.get("/admin/stats")
+    assert stats_resp.status_code == 200
+    stats_data = stats_resp.json()["stats"]
+    assert "db_ping_ms" in stats_data
+    assert stats_data["db_ping_ms"] is not None
+
+    # 3. Create test users:
+    # Stale guest (> 7 days)
+    old_guest = User(
+        id=str(uuid.uuid4()),
+        display_name="Guest Old",
+        created_at=datetime.now(timezone.utc) - timedelta(days=10)
+    )
+    # Recent guest (< 7 days)
+    recent_guest = User(
+        id=str(uuid.uuid4()),
+        display_name="Guest Recent",
+        created_at=datetime.now(timezone.utc) - timedelta(days=2)
+    )
+    # Stale guest with a saved playlist
+    guest_with_playlist = User(
+        id=str(uuid.uuid4()),
+        display_name="Guest With Playlist",
+        created_at=datetime.now(timezone.utc) - timedelta(days=15)
+    )
+    # Registered Discord user
+    registered_user = User(
+        id=str(uuid.uuid4()),
+        display_name="Registered Discord User",
+        discord_id="discord-user-123",
+        created_at=datetime.now(timezone.utc) - timedelta(days=20)
+    )
+    db_session.add_all([old_guest, recent_guest, guest_with_playlist, registered_user])
+    db_session.commit()
+
+    saved_playlist = Playlist(
+        id=str(uuid.uuid4()),
+        name="Guest Favs",
+        creator_id=guest_with_playlist.id,
+        is_private=False
+    )
+    db_session.add(saved_playlist)
+    db_session.commit()
+
+    # 4. Prune guests older than 7 days
+    prune_resp = client.post("/admin/users/guests/prune", json={"days": 7})
+    assert prune_resp.status_code == 200
+    prune_data = prune_resp.json()
+    assert prune_data["success"] is True
+    assert prune_data["pruned_count"] == 1
+
+    # 5. Verify database records
+    assert db_session.query(User).filter(User.id == old_guest.id).first() is None
+    assert db_session.query(User).filter(User.id == recent_guest.id).first() is not None
+    assert db_session.query(User).filter(User.id == guest_with_playlist.id).first() is not None
+    assert db_session.query(User).filter(User.id == registered_user.id).first() is not None
+
+
+

@@ -1,7 +1,9 @@
 """Admin routes for moderation and system management."""
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy import text
 from sqlalchemy.orm import Session, selectinload
+from datetime import datetime, timezone, timedelta
 from backend.database import get_db
 from backend.models.room import Room
 from backend.models.user import User
@@ -54,6 +56,14 @@ async def get_system_stats(
             except Exception:
                 pass
                     
+        t0_db = time.time()
+        db_ping_ms = None
+        try:
+            db.execute(text("SELECT 1"))
+            db_ping_ms = round((time.time() - t0_db) * 1000, 1)
+        except Exception:
+            pass
+                    
         return {
             "stats": {
                 "total_users": registered_users,
@@ -64,7 +74,8 @@ async def get_system_stats(
                 "active_rooms": len(rooms),
                 "online_listeners": listener_count,
                 "redis": redis_info,
-                "db_connected": True
+                "db_connected": True,
+                "db_ping_ms": db_ping_ms
             }
         }
     except Exception as e:
@@ -345,6 +356,51 @@ async def delete_user(
     logger.info(f"Admin '{admin_id}' permanently deleted user '{user_id}' ({user.display_name}) and all their data.")
     log_auth_event(f"Admin '{admin_id}' permanently deleted user '{user_id}' ({user.display_name}) and all their data.")
     return {"success": True, "message": f"User {user.display_name} and all their data deleted successfully."}
+
+
+@router.post("/users/guests/prune")
+async def prune_stale_guests(
+    request: Request,
+    db: Session = Depends(get_db),
+    admin_id: str = Depends(require_admin)
+):
+    """Safely prune inactive ephemeral guest rows older than threshold (default 7 days) with no playlists or active rooms."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    days = int(body.get("days", 7))
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+    candidate_guests = db.query(User).filter(
+        User.discord_id == None,
+        User.username == None,
+        User.is_admin == False,
+        User.created_at < cutoff
+    ).all()
+
+    pruned_count = 0
+    for guest in candidate_guests:
+        # Protect guests that own playlists
+        has_playlists = db.query(Playlist).filter(Playlist.creator_id == guest.id).count() > 0
+        if has_playlists:
+            continue
+        # Protect guests that are currently hosting an active room
+        has_active_rooms = db.query(Room).filter(Room.host_user_id == guest.id, Room.is_active == True).count() > 0
+        if has_active_rooms:
+            continue
+
+        # Clean temporary guest foreign keys
+        db.query(UserLike).filter(UserLike.user_id == guest.id).delete()
+        db.query(ChatMessage).filter(ChatMessage.user_id == guest.id).delete()
+        db.query(Vote).filter(Vote.user_id == guest.id).delete()
+        db.delete(guest)
+        pruned_count += 1
+
+    db.commit()
+    logger.info(f"Admin '{admin_id}' pruned {pruned_count} stale guest accounts older than {days} days.")
+    log_auth_event(f"Admin '{admin_id}' pruned {pruned_count} stale guest accounts older than {days} days.")
+    return {"success": True, "pruned_count": pruned_count, "message": f"Successfully pruned {pruned_count} stale guest sessions."}
 
 
 @router.get("/playlists")
