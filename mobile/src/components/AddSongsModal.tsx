@@ -88,9 +88,11 @@ export function AddSongsModal({
   const [linkError, setLinkError] = useState<string | null>(null);
 
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchRequestId = useRef(0);
 
   useEffect(() => {
     if (visible) {
+      searchRequestId.current++;
       setAddedUris(new Set(existingTrackUris));
       setSearchQuery('');
       setSearchResults([]);
@@ -118,19 +120,27 @@ export function AddSongsModal({
     }
     const clean = text.trim();
     if (!clean) {
+      searchRequestId.current++;
       setSearchResults([]);
       setSearchLoading(false);
       return;
     }
     setSearchLoading(true);
+    const reqId = ++searchRequestId.current;
     debounceTimer.current = setTimeout(async () => {
       try {
         const results = await searchHybridTracks(clean);
-        setSearchResults(results);
+        if (searchRequestId.current === reqId) {
+          setSearchResults(results);
+        }
       } catch {
-        setSearchResults([]);
+        if (searchRequestId.current === reqId) {
+          setSearchResults([]);
+        }
       } finally {
-        setSearchLoading(false);
+        if (searchRequestId.current === reqId) {
+          setSearchLoading(false);
+        }
       }
     }, 250);
   };

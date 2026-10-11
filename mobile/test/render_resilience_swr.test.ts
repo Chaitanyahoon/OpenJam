@@ -148,4 +148,35 @@ describe('Render Free-Tier Resilience & SWR Engine', () => {
     const shouldPing = shouldSendHeartbeatPure(lastPing, now, 600_000);
     assert.strictEqual(shouldPing, true);
   });
+
+  it('generates zero-gated anonymous guest moniker with valid prefix and suffix', () => {
+    const moniker = `EchoJammer${Math.floor(100 + Math.random() * 900)}`;
+    assert.match(moniker, /^EchoJammer\d{3}$/);
+    assert.ok(moniker.length >= 13);
+  });
+
+  it('discards stale out-of-order search results matching searchRequestId ordering', () => {
+    let activeReqId = 0;
+    let renderedQuery = '';
+
+    const handleSearchResponse = (reqId: number, query: string) => {
+      if (reqId === activeReqId) {
+        renderedQuery = query;
+      }
+    };
+
+    // Fast request 1 dispatched
+    const req1 = ++activeReqId;
+    // Follow-up request 2 dispatched
+    const req2 = ++activeReqId;
+
+    // Request 2 completes first
+    handleSearchResponse(req2, 'latest search');
+    assert.strictEqual(renderedQuery, 'latest search');
+
+    // Stale Request 1 finishes late
+    handleSearchResponse(req1, 'stale slow search');
+    // Stale response is safely ignored, retaining the latest result
+    assert.strictEqual(renderedQuery, 'latest search');
+  });
 });

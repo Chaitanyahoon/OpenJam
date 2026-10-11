@@ -87,17 +87,6 @@ export default function Landing() {
   const prevOnlineRef = useRef(isOnline);
   const insets = useSafeAreaInsets();
 
-  useEffect(() => {
-    if (!prevOnlineRef.current && isOnline) {
-      setShowReconnectedPill(true);
-      const timer = setTimeout(() => setShowReconnectedPill(false), 2800);
-      return () => clearTimeout(timer);
-    }
-    prevOnlineRef.current = isOnline;
-  }, [isOnline]);
-
-  useAppHeartbeat();
-
   const promptFirstLaunchPermissions = useCallback(() => {
     void requestFirstLaunchPermissions();
   }, []);
@@ -125,11 +114,23 @@ export default function Landing() {
     await loadHistory();
   }, [loadFavorites, loadHistory]);
 
+  useEffect(() => {
+    if (!prevOnlineRef.current && isOnline) {
+      setShowReconnectedPill(true);
+      void loadRooms();
+      void connect();
+      const timer = setTimeout(() => setShowReconnectedPill(false), 2800);
+      return () => clearTimeout(timer);
+    }
+    prevOnlineRef.current = isOnline;
+  }, [isOnline, loadRooms, connect]);
+
+  useAppHeartbeat();
+
   useFocusEffect(
     useCallback(() => {
-      void loadFavorites();
-      void loadHistory();
-    }, [loadFavorites, loadHistory]),
+      void loadRooms();
+    }, [loadRooms]),
   );
 
   // 0ms Optimistic cache hydration + background revalidation
@@ -152,7 +153,18 @@ export default function Landing() {
         registerPushToken().catch(() => {});
         promptFirstLaunchPermissions();
       } else {
-        setShowIdentity(true);
+        const guestName = `EchoJammer${Math.floor(100 + Math.random() * 900)}`;
+        joinAsGuest(guestName)
+          .then((guestSession) => {
+            if (!isMounted || !guestSession?.user) return;
+            setUser(guestSession.user);
+            connect().catch(() => {});
+            registerPushToken().catch(() => {});
+            promptFirstLaunchPermissions();
+          })
+          .catch(() => {
+            if (isMounted) setShowIdentity(true);
+          });
       }
 
       const syncTimer = setTimeout(() => { if (isMounted) setIsSyncingCloud(true); }, 2200);
