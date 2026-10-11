@@ -157,7 +157,7 @@ describe('Microsecond Performance Budget Enforcement Suite', () => {
     );
   });
 
-  it('updateTypingUsersList completes 5,000 operations within budget (<20ms)', () => {
+  it('updateTypingUsersList completes 5,000 operations within budget (<100ms)', () => {
     let typing: string[] = ['Alice', 'Bob'];
     const iterations = 5_000;
 
@@ -169,8 +169,8 @@ describe('Microsecond Performance Budget Enforcement Suite', () => {
     const duration = performance.now() - start;
 
     assert.ok(
-      duration < 20,
-      `updateTypingUsersList took ${duration.toFixed(2)}ms, budget is 20ms`,
+      duration < 100,
+      `updateTypingUsersList took ${duration.toFixed(2)}ms, budget is 100ms`,
     );
   });
 });

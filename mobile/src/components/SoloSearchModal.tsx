@@ -30,13 +30,18 @@ import {
   Clock,
   Plus,
   Check,
+  CheckCircle2,
+  WifiOff,
 } from 'lucide-react-native';
+import { router } from 'expo-router';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
 import { usePlayer } from '../audio/PlayerContext';
 import { searchHybridTracks, type TrackSearchResult } from '../api';
 import { useToast } from './ToastContext';
 import { hapticLight, hapticMedium } from '../utils/haptics';
+import { useNetworkStatus } from '../utils/network';
+import { getVaultTracks, type VaultTrack } from '../storage/vault';
 import {
   getRecentlyPlayed,
   getRecentSearches,
@@ -69,11 +74,13 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
   const toast = useToast();
   const { playTrack, addToQueue, playNextInQueue, setPlayerModalOpen } = usePlayer();
 
+  const isOnline = useNetworkStatus();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<TrackSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [recentTracks, setRecentTracks] = useState<PlayedTrack[]>([]);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [vaultTracks, setVaultTracks] = useState<VaultTrack[]>([]);
   const [activeVibe, setActiveVibe] = useState<string | null>(null);
   const [addedUris, setAddedUris] = useState<Set<string>>(new Set());
 
@@ -85,6 +92,7 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
     if (visible) {
       void getRecentlyPlayed().then(setRecentTracks).catch(() => {});
       void getRecentSearches().then(setRecentSearches).catch(() => {});
+      void getVaultTracks().then(setVaultTracks).catch(() => {});
       setTimeout(() => inputRef.current?.focus(), 150);
     } else {
       setQuery('');
@@ -241,6 +249,22 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
     setPlayerModalOpen(true);
     toast(`Playing "${track.track_name}"`, 'success');
     void playTrack(trackInfo, [trackInfo], { sourceTitle: 'Recently Played' });
+  };
+
+  const handlePlayVaultTrack = (track: VaultTrack) => {
+    if (mode === 'queue') {
+      if (addedUris.has(track.track_uri)) return;
+      void hapticLight();
+      setAddedUris((prev) => new Set(prev).add(track.track_uri));
+      addToQueue(track);
+      toast(`Added "${track.track_name}" to queue`, 'success');
+      return;
+    }
+    void hapticMedium();
+    onClose();
+    setPlayerModalOpen(true);
+    toast(`Playing "${track.track_name}" offline`, 'success');
+    void playTrack(track, vaultTracks, { sourceTitle: 'Offline Vault' });
   };
 
   return (
@@ -411,6 +435,75 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
             contentContainerStyle={styles.emptyStateContainer}
             showsVerticalScrollIndicator={false}
           >
+            {/* Offline Connectivity Notice */}
+            {!isOnline && (
+              <View style={styles.offlineNotice}>
+                <View style={styles.offlineNoticeLeft}>
+                  <WifiOff size={14} color="#f59e0b" style={{ marginRight: 6 }} />
+                  <Text style={styles.offlineNoticeText} numberOfLines={1}>
+                    {vaultTracks.length > 0
+                      ? `Offline Mode • ${vaultTracks.length} downloaded track${vaultTracks.length === 1 ? '' : 's'} ready`
+                      : 'Offline Mode • No downloaded tracks in Vault'}
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => {
+                    onClose();
+                    router.push('/offline');
+                  }}
+                  hitSlop={8}
+                >
+                  <Text style={styles.offlineNoticeLink}>Open Vault</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {/* Offline Vault Downloaded Tracks */}
+            {vaultTracks.length > 0 && (
+              <View style={styles.sectionWrap}>
+                <View style={styles.sectionHeaderBetween}>
+                  <View style={styles.sectionHeaderLeft}>
+                    <CheckCircle2 size={13} color="#10b981" style={{ marginRight: 6 }} />
+                    <Text style={styles.sectionTitle}>DOWNLOADED SONGS</Text>
+                  </View>
+                  <Pressable
+                    onPress={() => {
+                      onClose();
+                      router.push('/offline');
+                    }}
+                    hitSlop={8}
+                  >
+                    <Text style={styles.clearAllText}>Vault ({vaultTracks.length})</Text>
+                  </Pressable>
+                </View>
+                {vaultTracks.slice(0, 5).map((item, i) => (
+                  <Pressable
+                    key={`vault_${item.track_uri}_${i}`}
+                    onPress={() => void handlePlayVaultTrack(item)}
+                    style={styles.recentRow}
+                  >
+                    <Image
+                      source={{ uri: item.album_art_url || 'https://openjam.fun/default_art.png' }}
+                      style={styles.recentArt}
+                      contentFit="cover"
+                    />
+                    <View style={styles.recentInfo}>
+                      <Text style={styles.recentTitle} numberOfLines={1}>
+                        {item.track_name}
+                      </Text>
+                      <Text style={styles.recentArtist} numberOfLines={1}>
+                        {item.artist}
+                      </Text>
+                    </View>
+                    <View style={styles.vaultBadge}>
+                      <CheckCircle2 size={11} color="#10b981" style={{ marginRight: 3 }} />
+                      <Text style={styles.vaultBadgeText}>Offline</Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+
             {/* Recent Searches Pills */}
             {recentSearches.length > 0 && (
               <View style={styles.recentSearchesSection}>
@@ -482,7 +575,7 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
                   </Pressable>
                 ))}
               </View>
-            ) : recentSearches.length === 0 ? (
+            ) : recentSearches.length === 0 && vaultTracks.length === 0 ? (
               <View style={styles.introBox}>
                 <Headphones size={44} color={colors.amber} style={{ marginBottom: 12 }} />
                 <Text style={styles.introTitle}>Ready to Listen Solo?</Text>
@@ -813,5 +906,50 @@ const styles = StyleSheet.create({
     color: '#888899',
     textAlign: 'center',
     lineHeight: 18,
+  },
+  offlineNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.25)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  offlineNoticeLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 8,
+  },
+  offlineNoticeText: {
+    fontFamily: fontFamily.bodyMedium,
+    fontSize: 12,
+    color: '#fbbf24',
+    flex: 1,
+  },
+  offlineNoticeLink: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 12,
+    color: '#ffffff',
+    textDecorationLine: 'underline',
+  },
+  vaultBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.25)',
+  },
+  vaultBadgeText: {
+    color: '#10b981',
+    fontSize: 11,
+    fontFamily: fontFamily.bodyMedium,
   },
 });

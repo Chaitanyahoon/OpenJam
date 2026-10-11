@@ -163,4 +163,28 @@ describe('Solo Direct Listener Sovereignty Suite', () => {
     assert.equal(updatedQueue[0].track_uri, 'yt:cur');
     assert.equal(updatedQueue[1].track_uri, 'yt:new');
   });
+
+  it('prefers offline vault queue context when launching downloaded songs', () => {
+    const vaultTrack: TestTrack = { track_uri: 'file://audio/track1.m4a', track_name: 'Offline Track' };
+    const vaultQueue = [vaultTrack];
+
+    const { queue, currentIndex } = pureResolveCurrentIndex(vaultTrack, [], vaultQueue);
+    assert.equal(queue.length, 1);
+    assert.equal(currentIndex, 0);
+    assert.equal(queue[0].track_uri, 'file://audio/track1.m4a');
+  });
+
+  it('determines offline solo empty state priorities (offline banner & vault songs)', () => {
+    const isOnline = false;
+    const vaultCount = 3;
+
+    const noticeText = !isOnline
+      ? vaultCount > 0
+        ? `Offline Mode • ${vaultCount} downloaded tracks ready`
+        : 'Offline Mode • No downloaded tracks in Vault'
+      : null;
+
+    assert.equal(noticeText, 'Offline Mode • 3 downloaded tracks ready');
+  });
 });
+
