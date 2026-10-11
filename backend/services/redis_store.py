@@ -21,6 +21,7 @@ class RedisStore:
         self._sid_map = {}
         self._sid_expiries = {}
         self._recently_left = {}
+        self._all_rooms_expiry = 0
 
         if self.redis_url:
             try:
@@ -64,6 +65,7 @@ class RedisStore:
     def set_room(self, room_id: str, data: dict):
         self._rooms[room_id] = data
         self._room_expiries[room_id] = time.time() + 2.5
+        self._all_rooms_expiry = 0
         if self.client:
             try:
                 # Convert set to list for JSON serialization
@@ -85,6 +87,7 @@ class RedisStore:
     def del_room(self, room_id: str):
         self._rooms.pop(room_id, None)
         self._room_expiries.pop(room_id, None)
+        self._all_rooms_expiry = 0
         if self.client:
             try:
                 self.client.delete(f"openjam:room:{room_id}")
@@ -203,6 +206,10 @@ class RedisStore:
 
     def get_all_rooms(self) -> dict:
         """Retrieve all active rooms. Used for aggregating server metrics."""
+        now = time.time()
+        if now < self._all_rooms_expiry and self._rooms:
+            return self._rooms
+
         if self.client:
             try:
                 keys = list(self.client.scan_iter("openjam:room:*"))
@@ -225,6 +232,7 @@ class RedisStore:
                             )
                         rooms[room_id] = room
                         self._rooms[room_id] = room
+                self._all_rooms_expiry = now + 5.0
                 return rooms
             except Exception as e:
                 logger.warning(f"Redis get_all_rooms failed: {e}")

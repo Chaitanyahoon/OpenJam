@@ -123,7 +123,7 @@ async def _room_cleanup_loop():
     
     while True:
         try:
-            await asyncio.sleep(30)
+            await asyncio.sleep(60)
             now_unix = time.time()
             now_dt = datetime.now(timezone.utc)
             
