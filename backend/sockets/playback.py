@@ -122,21 +122,25 @@ async def pre_resolve_next_track_background(room_id: str, queue: list, sio: sock
         await pre_resolve_url(uri)
 
 
-async def _do_advance(room_id: str, sio: socketio.AsyncServer):
+async def _do_advance(room_id: str, sio: socketio.AsyncServer, db=None):
     """Advance to the next track in the queue. Must be called under _advance_lock."""
     from backend.database import SessionLocal
     from backend.services.queue_manager import queue_manager
 
-    def _advance(rid):
-        db = SessionLocal()
-        try:
-            nxt = queue_manager.advance_queue(db, rid)
-            q   = queue_manager.get_queue(db, rid)
-            return nxt, q
-        finally:
-            db.close()
+    if db is not None:
+        next_item = queue_manager.advance_queue(db, room_id)
+        queue = queue_manager.get_queue(db, room_id)
+    else:
+        def _advance(rid):
+            local_db = SessionLocal()
+            try:
+                nxt = queue_manager.advance_queue(local_db, rid)
+                q   = queue_manager.get_queue(local_db, rid)
+                return nxt, q
+            finally:
+                local_db.close()
 
-    next_item, queue = await asyncio.to_thread(_advance, room_id)
+        next_item, queue = await asyncio.to_thread(_advance, room_id)
 
     if not next_item and room_id == "openjam-lounge":
         try:

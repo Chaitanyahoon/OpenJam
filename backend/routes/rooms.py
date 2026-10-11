@@ -166,14 +166,17 @@ async def create_room(request: Request, create_room_req: CreateRoomRequest, db: 
         asyncio.create_task(_notify_indexnow_bg(room_dict["id"]))
 
     return {"room": room_dict}
-def check_room_access(room: Room, user_id: str | None) -> bool:
+def check_room_access(room: Room, user_id: str | None, is_admin: bool = False) -> bool:
     """Check if user_id is authorized to access/modify private room details.
     
     A user is authorized if they are:
-    1. The host of the room, OR
-    2. Currently listed in the room state AND their socket SID is still alive
+    1. A platform admin (is_admin=True), OR
+    2. The host of the room, OR
+    3. Currently listed in the room state AND their socket SID is still alive
        (prevents stale/ghost entries from granting access).
     """
+    if is_admin:
+        return True
     if not room.is_private or not room.password_hash:
         return True
     if not user_id:
@@ -198,8 +201,9 @@ async def get_room(room_id: str, request: Request, db: Session = Depends(get_db)
     host_name = room.host.display_name if room.host else "Unknown"
     current_user = get_current_user_id(request, include_name=True)
     current_user_id = current_user["id"] if current_user else None
+    is_admin = bool(current_user and current_user.get("is_admin"))
 
-    if room.is_private and room.password_hash and not check_room_access(room, current_user_id):
+    if room.is_private and room.password_hash and not check_room_access(room, current_user_id, is_admin=is_admin):
         return {
             "room": {
                 "id": room.id,

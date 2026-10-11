@@ -211,6 +211,25 @@ async def purge_room_chat(
     return {"success": True, "message": f"Chat history for room {room_id} purged."}
 
 
+@router.post("/rooms/{room_id}/skip")
+async def skip_room_track(
+    room_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin_id: str = Depends(require_admin)
+):
+    """Admin skips current track in a room and advances the queue."""
+    sio = getattr(request.app.state, "sio", None)
+    if not sio:
+        raise HTTPException(status_code=500, detail="Socket server not initialized")
+    from backend.sockets.playback import _get_advance_lock, _do_advance
+    lock = _get_advance_lock(room_id)
+    async with lock:
+        await _do_advance(room_id, sio, db=db)
+    logger.info(f"Admin '{admin_id}' skipped track for room '{room_id}'.")
+    return {"success": True, "message": f"Track skipped for room {room_id}."}
+
+
 @router.get("/users")
 async def get_all_users(
     db: Session = Depends(get_db),

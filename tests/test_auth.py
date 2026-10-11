@@ -185,3 +185,39 @@ def test_admin_purge_room_chat(client, db_session, test_user, test_room):
     remaining = db_session.query(ChatMessage).filter(ChatMessage.room_id == test_room.id).count()
     assert remaining == 0
 
+
+def test_admin_private_room_access_and_skip(client, db_session, test_user):
+    """Test admin bypassing private room password and skipping tracks."""
+    from backend.models.room import Room
+    import hashlib
+
+    # 1. Create a private password-protected room hosted by a different user
+    private_room = Room(
+        id="private-room-test",
+        name="VIP Room",
+        host_user_id="other-host-id",
+        is_private=True,
+        password_hash=hashlib.sha256(b"secret123").hexdigest(),
+    )
+    db_session.add(private_room)
+    db_session.commit()
+
+    # 2. Unauthenticated / non-admin sees password_required: True
+    guest_resp = client.get(f"/rooms/{private_room.id}")
+    assert guest_resp.status_code == 200
+    assert guest_resp.json().get("password_required") is True
+
+    # 3. Log in as admin
+    login_resp = client.post("/auth/admin-login", json={"password": "openjam-admin-123"})
+    assert login_resp.status_code == 200
+
+    # 4. Admin bypasses password_required
+    admin_room_resp = client.get(f"/rooms/{private_room.id}")
+    assert admin_room_resp.status_code == 200
+    assert admin_room_resp.json().get("password_required") is not True
+
+    # 5. Admin skip track endpoint
+    skip_resp = client.post(f"/admin/rooms/{private_room.id}/skip")
+    assert skip_resp.status_code == 200
+    assert skip_resp.json()["success"] is True
+

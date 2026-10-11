@@ -31,6 +31,7 @@ export default function HomePage() {
   // Authentication & User States
   const [me, setMe] = useState(null);
   const [rooms, setRooms] = useState([]);
+  const [isServerWarming, setIsServerWarming] = useState(false);
   const [showInstallBtn, setShowInstallBtn] = useState(false);
 
   // Offline PWA States
@@ -563,6 +564,7 @@ export default function HomePage() {
   };
 
   const loadRooms = async () => {
+    const warmingTimer = setTimeout(() => setIsServerWarming(true), 2000);
     try {
       const r = await fetch('/rooms', { credentials: 'include' });
       if (r.ok) {
@@ -588,6 +590,9 @@ export default function HomePage() {
           }
         } catch {}
       }
+    } finally {
+      clearTimeout(warmingTimer);
+      setIsServerWarming(false);
     }
   };
 
@@ -1695,6 +1700,28 @@ export default function HomePage() {
                 {genre}
               </motion.button>
             ))}
+          </div>
+        )}
+
+        {isServerWarming && rooms.length === 0 && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            padding: '10px 18px',
+            margin: '0 auto 20px',
+            maxWidth: '440px',
+            borderRadius: '999px',
+            background: 'rgba(255, 159, 28, 0.08)',
+            border: '1px solid rgba(255, 159, 28, 0.25)',
+            color: 'var(--amber, #ff9f1c)',
+            fontSize: '13px',
+            fontWeight: 500,
+            textAlign: 'center'
+          }}>
+            <span>⚡</span>
+            <span>Waking up free-tier backend server (~15s)... Hang tight!</span>
           </div>
         )}
 

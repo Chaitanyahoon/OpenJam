@@ -54,6 +54,7 @@ def register_connection_handlers(sio: socketio.AsyncServer):
         display_name = None
         user_id = None
         avatar_url = None
+        is_admin = False
         if token:
             from backend.middleware.auth import serializer, _store
             try:
@@ -62,6 +63,7 @@ def register_connection_handlers(sio: socketio.AsyncServer):
                     user_id = data.get("user_id")
                     display_name = data.get("display_name")
                     avatar_url = data.get("avatar_url")
+                    is_admin = bool(data.get("is_admin", False))
             except Exception:
                 pass
 
@@ -73,7 +75,7 @@ def register_connection_handlers(sio: socketio.AsyncServer):
                     from backend.models.user import User
                     u = db.query(User).filter(User.id == uid).first()
                     if u:
-                        return {"display_name": u.display_name, "avatar_url": u.avatar_url}
+                        return {"display_name": u.display_name, "avatar_url": u.avatar_url, "is_admin": u.is_admin}
                     return None
                 finally:
                     db.close()
@@ -82,6 +84,8 @@ def register_connection_handlers(sio: socketio.AsyncServer):
                 if db_user:
                     display_name = db_user["display_name"]
                     avatar_url = db_user["avatar_url"] or avatar_url
+                    if db_user.get("is_admin"):
+                        is_admin = True
             except Exception:
                 pass
 
@@ -101,6 +105,7 @@ def register_connection_handlers(sio: socketio.AsyncServer):
             "display_name": display_name,
             "avatar_url": avatar_url,
             "is_guest": True,
+            "is_admin": is_admin,
         })
         logger.info(f"Connected {sid} as '{display_name}'")
 
@@ -217,6 +222,8 @@ def register_connection_handlers(sio: socketio.AsyncServer):
                     if tok_data.get("avatar_url"):
                         avatar_url = tok_data.get("avatar_url")
                         session["avatar_url"] = avatar_url
+                    if tok_data.get("is_admin"):
+                        session["is_admin"] = bool(tok_data.get("is_admin"))
                     await sio.save_session(sid, session)
             except Exception:
                 pass
@@ -229,7 +236,7 @@ def register_connection_handlers(sio: socketio.AsyncServer):
                     from backend.models.user import User
                     u = db.query(User).filter(User.id == uid).first()
                     if u:
-                        return {"display_name": u.display_name, "avatar_url": u.avatar_url}
+                        return {"display_name": u.display_name, "avatar_url": u.avatar_url, "is_admin": u.is_admin}
                     return None
                 finally:
                     db.close()
@@ -238,6 +245,8 @@ def register_connection_handlers(sio: socketio.AsyncServer):
                 if db_user:
                     display_name = db_user["display_name"]
                     avatar_url = db_user["avatar_url"] or avatar_url
+                    if db_user.get("is_admin"):
+                        session["is_admin"] = True
                     # Sync back to socket session so it stays updated
                     session["display_name"] = display_name
                     session["avatar_url"] = avatar_url
@@ -246,7 +255,11 @@ def register_connection_handlers(sio: socketio.AsyncServer):
                 pass
 
         # Check private room password
-        def _check_room_password(room_id, user_id, password_input):
+        is_admin = session.get("is_admin", False)
+
+        def _check_room_password(room_id, user_id, password_input, is_admin=False):
+            if is_admin:
+                return None
             import bcrypt
             import hashlib
             db = SessionLocal()
@@ -283,7 +296,7 @@ def register_connection_handlers(sio: socketio.AsyncServer):
 
 
         password_input = data.get("password")
-        password_err = await asyncio.to_thread(_check_room_password, room_id, user_id, password_input)
+        password_err = await asyncio.to_thread(_check_room_password, room_id, user_id, password_input, is_admin)
         if password_err:
             if password_err == "password_required":
                 await sio.emit("join_error", {"message": "This room is private. Password required.", "reason": "password_required"}, to=sid)

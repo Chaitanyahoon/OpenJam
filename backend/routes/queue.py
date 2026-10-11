@@ -51,7 +51,8 @@ async def add_to_queue(
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
     user_id = user_data["id"]
-    if not check_room_access(room, user_id):
+    is_admin = bool(user_data.get("is_admin"))
+    if not check_room_access(room, user_id, is_admin=is_admin):
         raise HTTPException(status_code=403, detail="Room access denied. Password verification required.")
     user_name = user_data["display_name"]
 
@@ -111,7 +112,8 @@ async def vote_track(room_id: str, item_id: str, request: Request, db: Session =
     room = db.query(Room).filter(Room.id == room_id).first()
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
-    if not check_room_access(room, user_data["id"]):
+    is_admin = bool(user_data.get("is_admin"))
+    if not check_room_access(room, user_data["id"], is_admin=is_admin):
         raise HTTPException(status_code=403, detail="Room access denied. Password verification required.")
 
     item = db.query(QueueItem).filter(
@@ -168,8 +170,10 @@ async def get_queue(room_id: str, request: Request, db: Session = Depends(get_db
     room = db.query(Room).filter(Room.id == room_id).first()
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
-    user_id = get_current_user_id(request)
-    if not check_room_access(room, user_id):
+    user_data = get_current_user_id(request, include_name=True)
+    user_id = user_data["id"] if user_data else None
+    is_admin = bool(user_data and user_data.get("is_admin"))
+    if not check_room_access(room, user_id, is_admin=is_admin):
         raise HTTPException(status_code=403, detail="Room access denied. Password verification required.")
     queue = queue_manager.get_queue(db, room_id, user_id)
     return {"queue": queue}
@@ -181,8 +185,10 @@ async def get_history(room_id: str, request: Request, db: Session = Depends(get_
     room = db.query(Room).filter(Room.id == room_id).first()
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
-    user_id = get_current_user_id(request)
-    if not check_room_access(room, user_id):
+    user_data = get_current_user_id(request, include_name=True)
+    user_id = user_data["id"] if user_data else None
+    is_admin = bool(user_data and user_data.get("is_admin"))
+    if not check_room_access(room, user_id, is_admin=is_admin):
         raise HTTPException(status_code=403, detail="Room access denied. Password verification required.")
     history = queue_manager.get_history(db, room_id)
     return {"history": history}

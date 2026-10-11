@@ -193,6 +193,19 @@ export default function AdminPage() {
     }
   };
 
+  const handleSkipTrack = async (roomId) => {
+    try {
+      const res = await fetch(`/admin/rooms/${roomId}/skip`, { method: 'POST' });
+      if (res.ok) {
+        fetchAdminData();
+      } else {
+        alert('Failed to skip track.');
+      }
+    } catch (err) {
+      alert(`Error skipping track: ${err.message}`);
+    }
+  };
+
   const handleCloseAllRooms = async () => {
     try {
       const res = await fetch('/admin/rooms', { method: 'DELETE' });
@@ -678,6 +691,14 @@ export default function AdminPage() {
                                         >
                                           Join
                                         </Link>
+                                        <button 
+                                          className="btn-secondary-sm"
+                                          onClick={() => handleSkipTrack(room.id)}
+                                          title="Skip currently playing track"
+                                          style={{ border: '1px solid rgba(255, 255, 255, 0.15)', color: '#fff', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', background: 'rgba(255,255,255,0.06)' }}
+                                        >
+                                          ⏭️ Skip
+                                        </button>
                                         <button 
                                           className="btn-secondary-sm"
                                           onClick={() => handlePurgeChat(room.id)}

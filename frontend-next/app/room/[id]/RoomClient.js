@@ -589,10 +589,12 @@ export default function RoomClient({ roomId }) {
           credentials: 'include', 
           cache: 'no-store' 
         });
+        let isAdmin = false;
         if (rMe.ok) {
           const data = await rMe.json();
           if (data.user) {
             setMe(data.user);
+            isAdmin = Boolean(data.user.is_admin);
             localStorage.setItem('openjam_display_name', data.user.display_name);
             if (data.user.avatar_url) {
               localStorage.setItem('openjam_avatar_url', data.user.avatar_url);
@@ -647,14 +649,14 @@ export default function RoomClient({ roomId }) {
           setListeners(data.listeners || []);
           
           
-          // Host bypass: the room creator should never see the password modal for their own room
+          // Host or Admin bypass: creator or platform admin should never see the password modal
           const isHost = resolvedUserId && data.room?.host_user_id === resolvedUserId;
-          if (data.password_required && !isHost) {
+          if (data.password_required && !isHost && !isAdmin) {
             setShowPassword(true);
           }
           
-          // Connect socket if user is successfully authenticated/resolved and room is not password-protected (or user is host)
-          if (userResolved && (!data.password_required || isHost)) {
+          // Connect socket if user is successfully authenticated/resolved and room is not password-protected (or user is host / admin)
+          if (userResolved && (!data.password_required || isHost || isAdmin)) {
             setIsReady(true);
           }
         } else {
