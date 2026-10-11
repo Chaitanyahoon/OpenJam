@@ -391,7 +391,10 @@ class AudioStreamEngine:
                         return FileResponse(
                             str(file_path),
                             media_type=media_type,
-                            headers={"Accept-Ranges": "bytes"},
+                            headers={
+                                "Accept-Ranges": "bytes",
+                                "Cache-Control": "public, max-age=604800, immutable",
+                            },
                         )
 
         # Fallback: Live streaming from YouTube
@@ -467,6 +470,7 @@ class AudioStreamEngine:
                 resp_headers = {
                     "Accept-Ranges": "bytes",
                     "Content-Type": r.headers.get("Content-Type", "audio/webm"),
+                    "Cache-Control": "public, max-age=86400",
                 }
                 if "Content-Range" in r.headers:
                     resp_headers["Content-Range"] = r.headers["Content-Range"]

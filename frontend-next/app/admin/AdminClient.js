@@ -206,6 +206,22 @@ export default function AdminPage() {
     }
   };
 
+  const handleFlushCache = async () => {
+    if (!window.confirm('Flush server audio disk cache and cached stream URLs?')) return;
+    try {
+      const res = await fetch('/admin/cache', { method: 'DELETE' });
+      if (res.ok) {
+        const data = await res.json();
+        alert(data.message || 'Cache cleared successfully.');
+        fetchAdminData();
+      } else {
+        alert('Failed to clear audio cache.');
+      }
+    } catch (err) {
+      alert(`Error flushing cache: ${err.message}`);
+    }
+  };
+
   const handleCloseAllRooms = async () => {
     try {
       const res = await fetch('/admin/rooms', { method: 'DELETE' });
@@ -535,6 +551,18 @@ export default function AdminPage() {
                             <div style={{ fontSize: '11px', color: 'var(--text-3, #64748b)', fontWeight: 600, textTransform: 'uppercase' }}>PostgreSQL Pool</div>
                             <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>{stats.db_connected ? 'Connected (Pool OK)' : 'Offline'}</div>
                           </div>
+                        </div>
+                        <div style={{ padding: '16px', borderRadius: '14px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                          <div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-3, #64748b)', fontWeight: 600, textTransform: 'uppercase' }}>Audio Cache</div>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>Disk & URL Store</div>
+                          </div>
+                          <button
+                            onClick={handleFlushCache}
+                            style={{ border: '1px solid rgba(255,255,255,0.12)', color: '#fff', padding: '5px 10px', borderRadius: '8px', fontSize: '11px', background: 'rgba(255,255,255,0.04)', cursor: 'pointer' }}
+                          >
+                            Flush Cache
+                          </button>
                         </div>
                       </div>
 

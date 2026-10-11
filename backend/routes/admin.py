@@ -230,6 +230,36 @@ async def skip_room_track(
     return {"success": True, "message": f"Track skipped for room {room_id}."}
 
 
+@router.delete("/cache")
+async def clear_audio_cache(
+    admin_id: str = Depends(require_admin)
+):
+    """Admin flushes server audio file cache and stream URL cache."""
+    from backend.services.audio_stream_engine import audio_stream_engine
+    cleared_files = 0
+    try:
+        for f in audio_stream_engine.cache_dir.glob("*"):
+            if f.is_file():
+                try:
+                    f.unlink()
+                    cleared_files += 1
+                except Exception:
+                    pass
+        audio_stream_engine._url_cache.clear()
+        if audio_stream_engine.redis_store.client:
+            try:
+                keys = audio_stream_engine.redis_store.client.keys("openjam:url:*")
+                if keys:
+                    audio_stream_engine.redis_store.client.delete(*keys)
+            except Exception:
+                pass
+        logger.info(f"Admin '{admin_id}' flushed {cleared_files} cached audio files.")
+        log_auth_event(f"Admin '{admin_id}' flushed {cleared_files} cached audio files.")
+        return {"success": True, "message": f"Cleared {cleared_files} audio files and cache entries."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to clear cache: {e}")
+
+
 @router.get("/users")
 async def get_all_users(
     db: Session = Depends(get_db),

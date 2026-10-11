@@ -221,3 +221,19 @@ def test_admin_private_room_access_and_skip(client, db_session, test_user):
     assert skip_resp.status_code == 200
     assert skip_resp.json()["success"] is True
 
+
+def test_admin_clear_audio_cache(client):
+    """Test admin clearing the audio cache."""
+    # 1. Unauthenticated request rejected
+    unauth = client.delete("/admin/cache")
+    assert unauth.status_code in (401, 403)
+
+    # 2. Authenticated as admin
+    login_resp = client.post("/auth/admin-login", json={"password": "openjam-admin-123"})
+    assert login_resp.status_code == 200
+
+    # 3. Flushes cache successfully
+    resp = client.delete("/admin/cache")
+    assert resp.status_code == 200
+    assert resp.json()["success"] is True
+
