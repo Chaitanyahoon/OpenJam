@@ -37,64 +37,76 @@ import {
   type SyncPongPayload,
   type TrackInfo,
 } from '../sync/protocol';
+import { useRoomChat, type RoomChatApi } from './useRoomChat';
+import { useRoomReactions, type FlyingReaction, type RoomReactionsApi } from './useRoomReactions';
+
+export type { FlyingReaction, RoomChatApi, RoomReactionsApi };
 
 const PING_INTERVAL_MS = 30_000;
 const DRIFT_CORRECT_MS = 2500;
 
-export interface FlyingReaction extends ReactionEvent {
-  key: string;
-}
-
 export type RoomConnectionState = 'joining' | 'connected' | 'reconnecting' | 'offline';
 
-export interface RoomApi {
+export interface RoomPlaybackApi {
+  nowPlaying: TrackInfo | null;
+  isPlaying: boolean;
+  loop: boolean;
+  syncReady: boolean;
+  skipVotes: { votes: number; required: number };
+  canControl: boolean;
+  togglePlay: () => void;
+  nextTrack: () => void;
+  previousTrack: () => void;
+  toggleRepeat: () => void;
+  seekToMs: (ms: number) => void;
+  voteSkip: () => void;
+}
+
+export interface RoomQueueApi {
+  queue: QueueItem[];
+  nowPlaying: TrackInfo | null;
+  canControl: boolean;
+  isHost: boolean;
+  addTrack: (track: TrackInfo) => void;
+  addMultipleTracks: (tracks: TrackInfo[]) => void;
+  playNow: (track: TrackInfo) => void;
+  voteTrack: (queueItemId: string) => void;
+  shuffleQueue: () => void;
+  removeTrack: (queueItemId: string) => void;
+  reorderQueue: (orderedIds: string[]) => void;
+}
+
+export interface RoomSessionApi {
   roomId: string;
   isSolo: boolean;
   roomName: string;
   isHost: boolean;
   canControl: boolean;
   connectionState: RoomConnectionState;
-  queue: QueueItem[];
-  nowPlaying: TrackInfo | null;
-  isPlaying: boolean;
-  loop: boolean;
   listeners: ListenerInfo[];
+  guestControls: boolean;
+  joinError: string | null;
+  roomClosed: boolean;
+  me: ApiUser | null;
+  retryJoin: () => void;
+  toggleGuestControls: () => void;
+  transferHost: (targetUserId: string) => void;
+  kickUser: (targetUserId: string) => void;
+  closeRoom: () => Promise<void>;
+  updateRoomDetails: (data: { name?: string; genre_tags?: string[] }) => Promise<void>;
+}
+
+export interface RoomApi extends RoomPlaybackApi, RoomQueueApi, RoomSessionApi {
   messages: ChatMessage[];
   unreadChat: number;
   typingUsers: string[];
   reactions: FlyingReaction[];
-  skipVotes: { votes: number; required: number };
-  guestControls: boolean;
-  syncReady: boolean;
-  joinError: string | null;
-  roomClosed: boolean;
-  me: ApiUser | null;
-  // actions
-  retryJoin: () => void;
-  toggleGuestControls: () => void;
   sendChat: (content: string) => void;
   sendReaction: (emoji: string) => void;
   dismissReaction: (key: string) => void;
-  addTrack: (track: TrackInfo) => void;
-  addMultipleTracks: (tracks: TrackInfo[]) => void;
-  playNow: (track: TrackInfo) => void;
-  voteTrack: (queueItemId: string) => void;
-  voteSkip: () => void;
-  togglePlay: () => void;
-  nextTrack: () => void;
-  previousTrack: () => void;
-  toggleRepeat: () => void;
-  shuffleQueue: () => void;
-  seekToMs: (ms: number) => void;
-  removeTrack: (queueItemId: string) => void;
-  reorderQueue: (orderedIds: string[]) => void;
-  transferHost: (targetUserId: string) => void;
-  kickUser: (targetUserId: string) => void;
   setTyping: (typing: boolean) => void;
   clearUnreadChat: () => void;
   setChatFocused: (focused: boolean) => void;
-  closeRoom: () => Promise<void>;
-  updateRoomDetails: (data: { name?: string; genre_tags?: string[] }) => Promise<void>;
 }
 
 function normalizeQueueList(items?: any[]): QueueItem[] {
@@ -115,6 +127,11 @@ function normalizeListeners(raw?: any[], hostId?: string | null): ListenerInfo[]
   }));
 }
 
+const RoomPlaybackCtx = createContext<RoomPlaybackApi | null>(null);
+const RoomQueueCtx = createContext<RoomQueueApi | null>(null);
+const RoomChatCtx = createContext<RoomChatApi | null>(null);
+const RoomReactionsCtx = createContext<RoomReactionsApi | null>(null);
+const RoomSessionCtx = createContext<RoomSessionApi | null>(null);
 const Ctx = createContext<RoomApi | null>(null);
 
 export function RoomProvider({
@@ -143,10 +160,6 @@ export function RoomProvider({
       ? [{ user_id: 'solo_user', user_name: 'You', is_host: true, avatar_url: null }]
       : [],
   );
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [unreadChat, setUnreadChat] = useState(0);
-  const [typingUsers, setTypingUsers] = useState<string[]>([]);
-  const [reactions, setReactions] = useState<FlyingReaction[]>([]);
   const [skipVotes, setSkipVotes] = useState({ votes: 0, required: 0 });
   const [guestControls, setGuestControls] = useState(isSolo);
   const [syncReady, setSyncReady] = useState(isSolo);
@@ -165,8 +178,6 @@ export function RoomProvider({
   const isHostRef = useRef(isSolo);
   const hostIdRef = useRef<string | null>(null);
   const meRef = useRef<ApiUser | null>(null);
-  const chatFocusedRef = useRef(false);
-  const seenMsgIds = useRef(new Set<string>());
   const socketRef = useRef(socket);
   socketRef.current = socket;
   const playerRef = useRef(player);
@@ -174,6 +185,9 @@ export function RoomProvider({
   const joinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncSeqRef = useRef<number>(0);
   const lastServerTsRef = useRef<number>(0);
+
+  const chat = useRoomChat({ roomId, socketRef, meRef });
+  const reactionsCtrl = useRoomReactions({ roomId, socketRef });
 
   const resetJoinTimeout = useCallback(() => {
     if (joinTimeoutRef.current) {
@@ -430,29 +444,11 @@ export function RoomProvider({
       mounted && setListeners(normalizeListeners(data?.listeners, hostIdRef.current));
     const onUserJoined = (data: { user_id?: string; display_name?: string }) => {
       if (!mounted || !data?.display_name) return;
-      const sysMsg: ChatMessage = {
-        id: `sys-j-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        user_id: 'system',
-        user_name: 'OpenJam',
-        content: `${data.display_name} joined the room`,
-        timestamp: Date.now(),
-        is_system: true,
-        system_type: 'join',
-      };
-      setMessages((prev) => [...prev.slice(-199), sysMsg]);
+      chat.addSystemMessage(`${data.display_name} joined the room`, 'join');
     };
     const onUserLeft = (data: { user_id?: string; display_name?: string }) => {
       if (!mounted || !data?.display_name) return;
-      const sysMsg: ChatMessage = {
-        id: `sys-l-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        user_id: 'system',
-        user_name: 'OpenJam',
-        content: `${data.display_name} left the room`,
-        timestamp: Date.now(),
-        is_system: true,
-        system_type: 'leave',
-      };
-      setMessages((prev) => [...prev.slice(-199), sysMsg]);
+      chat.addSystemMessage(`${data.display_name} left the room`, 'leave');
     };
     const onHostChanged = (data: { host_user_id?: string; host_name?: string }) => {
       if (!mounted) return;
@@ -468,16 +464,7 @@ export function RoomProvider({
       isHostRef.current = mine;
       setIsHost(mine);
       setListeners((prev) => normalizeListeners(prev, data?.host_user_id || hostIdRef.current));
-      const sysMsg: ChatMessage = {
-        id: `sys-h-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        user_id: 'system',
-        user_name: 'OpenJam',
-        content: `${data?.host_name || 'A new DJ'} is now the room host`,
-        timestamp: Date.now(),
-        is_system: true,
-        system_type: 'host',
-      };
-      setMessages((prev) => [...prev.slice(-199), sysMsg]);
+      chat.addSystemMessage(`${data?.host_name || 'A new DJ'} is now the room host`, 'host');
     };
     const onKicked = (data?: { message?: string }) => {
       if (!mounted) return;
@@ -486,78 +473,27 @@ export function RoomProvider({
     };
     const onChatHistory = (data: { messages?: ChatMessage[] }) => {
       if (!mounted) return;
-      const msgs = data?.messages ?? [];
-      msgs.forEach((m) => seenMsgIds.current.add(m.id));
-      setMessages(msgs.slice(-200));
+      chat.handleChatHistory(data);
     };
     const onChatMessage = (m: ChatMessage) => {
-      if (!mounted || !m || seenMsgIds.current.has(m.id)) return;
-      seenMsgIds.current.add(m.id);
-      setMessages((prev) => {
-        // 1. Direct deterministic match if server returned temp_id
-        if (m.temp_id) {
-          const tempIdx = prev.findIndex((msg) => msg.id === m.temp_id);
-          if (tempIdx !== -1) {
-            const next = [...prev];
-            next[tempIdx] = m;
-            return next;
-          }
-        }
-
-        // 2. Check if this message is from current user and matches a pending optimistic message
-        const isFromMe =
-          (!!meRef.current && (m.user_id === meRef.current.id || m.user_name === meRef.current.display_name)) ||
-          m.user_id === 'me';
-        if (isFromMe) {
-          const optIndex = prev.findIndex(
-            (msg) =>
-              msg.id.startsWith('temp_') &&
-              (msg.user_id === m.user_id || msg.user_id === 'me' || msg.user_name === m.user_name) &&
-              msg.content.trim() === m.content.trim(),
-          );
-          if (optIndex !== -1) {
-            const next = [...prev];
-            next[optIndex] = m;
-            return next;
-          }
-        }
-
-        // Prevent duplicate if already in state
-        if (prev.some((msg) => msg.id === m.id)) {
-          return prev;
-        }
-
-        return [...prev.slice(-199), m];
-      });
-      if (!chatFocusedRef.current && m.user_id !== meRef.current?.id) {
-        setUnreadChat((n) => n + 1);
-      }
+      if (!mounted) return;
+      chat.handleChatMessage(m);
     };
     const onChatAck = (ack: { id: string; temp_id?: string }) => {
-      if (!mounted || !ack?.temp_id) return;
-      seenMsgIds.current.add(ack.id);
-      setMessages((prev) => {
-        const alreadyHasServerMsg = prev.some((m) => m.id === ack.id);
-        if (alreadyHasServerMsg) {
-          return prev.filter((m) => m.id !== ack.temp_id);
-        }
-        return prev.map((m) => (m.id === ack.temp_id ? { ...m, id: ack.id } : m));
-      });
+      if (!mounted) return;
+      chat.handleChatAck(ack);
     };
     const onReaction = (r: ReactionEvent) => {
-      if (!mounted || !r?.emoji) return;
-      const key = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      setReactions((prev) => [...prev.slice(-19), { ...r, key }]);
+      if (!mounted) return;
+      reactionsCtrl.handleIncomingReaction(r);
     };
     const onTyping = (d: { user_name?: string; user_id?: string }) => {
       if (!mounted) return;
-      const name = d?.user_name;
-      if (!name || (meRef.current && name === meRef.current.display_name)) return;
-      setTypingUsers((prev) => (prev.includes(name) ? prev : [...prev, name]));
+      chat.handleTyping(d);
     };
     const onStopTyping = (d: { user_name?: string }) => {
-      if (!mounted || !d?.user_name) return;
-      setTypingUsers((prev) => prev.filter((n) => n !== d.user_name));
+      if (!mounted) return;
+      chat.handleStopTyping(d);
     };
     const onSkipVotes = (d: { votes?: number; required?: number }) => {
       if (mounted) setSkipVotes({ votes: d?.votes ?? 0, required: d?.required ?? 0 });
@@ -724,47 +660,6 @@ export function RoomProvider({
     },
     [roomId, isSolo],
   );
-
-  const sendChat = useCallback(
-    (content: string) => {
-      const text = content.trim();
-      if (!text || !socketRef.current) return;
-      const tempId = `temp_${Math.random().toString(36).slice(2, 10)}`;
-      seenMsgIds.current.add(tempId);
-      const optimistic: ChatMessage = {
-        id: tempId,
-        user_id: meRef.current?.id ?? 'me',
-        user_name: meRef.current?.display_name ?? 'You',
-        content: text,
-        timestamp: Date.now(),
-        avatar_url: meRef.current?.avatar_url ?? null,
-      };
-      setMessages((prev) => [...prev.slice(-199), optimistic]);
-      socketRef.current.emit(C2S.SEND_CHAT, {
-        room_id: roomId,
-        message: text,
-        temp_id: tempId,
-      });
-    },
-    [roomId],
-  );
-
-  const sendReaction = useCallback(
-    (emoji: string) => {
-      socketRef.current?.emit(C2S.SEND_REACTION, { room_id: roomId, emoji });
-      // show our own reaction instantly too
-      const key = `local-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      setReactions((prev) => [
-        ...prev.slice(-19),
-        { key, emoji, user_id: 'me', user_name: 'You' },
-      ]);
-    },
-    [roomId],
-  );
-
-  const dismissReaction = useCallback((key: string) => {
-    setReactions((prev) => prev.filter((r) => r.key !== key));
-  }, []);
 
   const addTrack = useCallback(
     (track: TrackInfo) => {
@@ -1138,12 +1033,6 @@ export function RoomProvider({
     [roomId, toast],
   );
 
-  const clearUnreadChat = useCallback(() => setUnreadChat(0), []);
-  const setChatFocused = useCallback((focused: boolean) => {
-    chatFocusedRef.current = focused;
-    if (focused) setUnreadChat(0);
-  }, []);
-
   const seekToMs = useCallback(
     (ms: number) => {
       if (!canControl) return;
@@ -1258,35 +1147,119 @@ export function RoomProvider({
     };
   }, [canControl, nextTrack, voteSkip, toast]);
 
-  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Clean up typing timer on unmount
-  useEffect(() => {
-    return () => {
-      if (typingTimer.current) clearTimeout(typingTimer.current);
-    };
-  }, []);
-
-  const setTyping = useCallback(
-    (typing: boolean) => {
-      const s = socketRef.current;
-      if (!s) return;
-      if (typing) {
-        s.emit(C2S.TYPING, { room_id: roomId });
-        if (typingTimer.current) clearTimeout(typingTimer.current);
-        typingTimer.current = setTimeout(
-          () => s.emit(C2S.STOP_TYPING, { room_id: roomId }),
-          3000,
-        );
-      } else {
-        if (typingTimer.current) clearTimeout(typingTimer.current);
-        s.emit(C2S.STOP_TYPING, { room_id: roomId });
-      }
-    },
-    [roomId],
+  const playbackValue = useMemo<RoomPlaybackApi>(
+    () => ({
+      nowPlaying,
+      isPlaying,
+      loop,
+      syncReady,
+      skipVotes,
+      canControl,
+      togglePlay,
+      nextTrack,
+      previousTrack,
+      toggleRepeat,
+      seekToMs,
+      voteSkip,
+    }),
+    [
+      nowPlaying,
+      isPlaying,
+      loop,
+      syncReady,
+      skipVotes,
+      canControl,
+      togglePlay,
+      nextTrack,
+      previousTrack,
+      toggleRepeat,
+      seekToMs,
+      voteSkip,
+    ],
   );
 
-  const value = useMemo<RoomApi>(
+  const queueValue = useMemo<RoomQueueApi>(
+    () => ({
+      queue,
+      nowPlaying,
+      canControl,
+      isHost,
+      addTrack,
+      addMultipleTracks,
+      playNow,
+      voteTrack,
+      shuffleQueue,
+      removeTrack,
+      reorderQueue,
+    }),
+    [
+      queue,
+      nowPlaying,
+      canControl,
+      isHost,
+      addTrack,
+      addMultipleTracks,
+      playNow,
+      voteTrack,
+      shuffleQueue,
+      removeTrack,
+      reorderQueue,
+    ],
+  );
+
+  const chatValue = useMemo<RoomChatApi>(
+    () => ({
+      messages: chat.messages,
+      unreadChat: chat.unreadChat,
+      typingUsers: chat.typingUsers,
+      sendChat: chat.sendChat,
+      setTyping: chat.setTyping,
+      clearUnreadChat: chat.clearUnreadChat,
+      setChatFocused: chat.setChatFocused,
+      handleChatHistory: chat.handleChatHistory,
+      handleChatMessage: chat.handleChatMessage,
+      handleChatAck: chat.handleChatAck,
+      handleTyping: chat.handleTyping,
+      handleStopTyping: chat.handleStopTyping,
+      addSystemMessage: chat.addSystemMessage,
+      clearChat: chat.clearChat,
+    }),
+    [
+      chat.messages,
+      chat.unreadChat,
+      chat.typingUsers,
+      chat.sendChat,
+      chat.setTyping,
+      chat.clearUnreadChat,
+      chat.setChatFocused,
+      chat.handleChatHistory,
+      chat.handleChatMessage,
+      chat.handleChatAck,
+      chat.handleTyping,
+      chat.handleStopTyping,
+      chat.addSystemMessage,
+      chat.clearChat,
+    ],
+  );
+
+  const reactionsValue = useMemo<RoomReactionsApi>(
+    () => ({
+      reactions: reactionsCtrl.reactions,
+      sendReaction: reactionsCtrl.sendReaction,
+      dismissReaction: reactionsCtrl.dismissReaction,
+      handleIncomingReaction: reactionsCtrl.handleIncomingReaction,
+      clearReactions: reactionsCtrl.clearReactions,
+    }),
+    [
+      reactionsCtrl.reactions,
+      reactionsCtrl.sendReaction,
+      reactionsCtrl.dismissReaction,
+      reactionsCtrl.handleIncomingReaction,
+      reactionsCtrl.clearReactions,
+    ],
+  );
+
+  const sessionValue = useMemo<RoomSessionApi>(
     () => ({
       roomId,
       isSolo,
@@ -1294,58 +1267,101 @@ export function RoomProvider({
       isHost,
       canControl,
       connectionState,
-      queue,
-      nowPlaying,
-      isPlaying,
-      loop,
       listeners,
-      messages,
-      unreadChat,
-      typingUsers,
-      reactions,
-      skipVotes,
       guestControls,
-      syncReady,
       joinError,
       roomClosed,
       me,
       retryJoin,
       toggleGuestControls,
-      sendChat,
-      sendReaction,
-      dismissReaction,
-      addTrack,
-      addMultipleTracks,
-      playNow,
-      voteTrack,
-      voteSkip,
-      togglePlay,
-      nextTrack,
-      previousTrack,
-      toggleRepeat,
-      shuffleQueue,
-      seekToMs,
-      removeTrack,
-      reorderQueue,
       transferHost,
       kickUser,
-      setTyping,
-      clearUnreadChat,
-      setChatFocused,
       closeRoom,
       updateRoomDetails,
     }),
     [
-      roomId, isSolo, roomName, isHost, canControl, connectionState, queue, nowPlaying, isPlaying,
-      loop, listeners, messages, unreadChat, typingUsers, reactions, skipVotes, guestControls, syncReady,
-      joinError, roomClosed, me, retryJoin, toggleGuestControls, sendChat, sendReaction, dismissReaction,
-      addTrack, addMultipleTracks, playNow, voteTrack, voteSkip, togglePlay, nextTrack, previousTrack,
-      toggleRepeat, shuffleQueue, seekToMs, removeTrack, reorderQueue, transferHost, kickUser, setTyping,
-      clearUnreadChat, setChatFocused, closeRoom, updateRoomDetails,
+      roomId,
+      isSolo,
+      roomName,
+      isHost,
+      canControl,
+      connectionState,
+      listeners,
+      guestControls,
+      joinError,
+      roomClosed,
+      me,
+      retryJoin,
+      toggleGuestControls,
+      transferHost,
+      kickUser,
+      closeRoom,
+      updateRoomDetails,
     ],
   );
 
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  const compositeValue = useMemo<RoomApi>(
+    () => ({
+      ...sessionValue,
+      ...playbackValue,
+      ...queueValue,
+      messages: chatValue.messages,
+      unreadChat: chatValue.unreadChat,
+      typingUsers: chatValue.typingUsers,
+      reactions: reactionsValue.reactions,
+      sendChat: chatValue.sendChat,
+      sendReaction: reactionsValue.sendReaction,
+      dismissReaction: reactionsValue.dismissReaction,
+      setTyping: chatValue.setTyping,
+      clearUnreadChat: chatValue.clearUnreadChat,
+      setChatFocused: chatValue.setChatFocused,
+    }),
+    [sessionValue, playbackValue, queueValue, chatValue, reactionsValue],
+  );
+
+  return (
+    <RoomSessionCtx.Provider value={sessionValue}>
+      <RoomPlaybackCtx.Provider value={playbackValue}>
+        <RoomQueueCtx.Provider value={queueValue}>
+          <RoomChatCtx.Provider value={chatValue}>
+            <RoomReactionsCtx.Provider value={reactionsValue}>
+              <Ctx.Provider value={compositeValue}>{children}</Ctx.Provider>
+            </RoomReactionsCtx.Provider>
+          </RoomChatCtx.Provider>
+        </RoomQueueCtx.Provider>
+      </RoomPlaybackCtx.Provider>
+    </RoomSessionCtx.Provider>
+  );
+}
+
+export function useRoomPlayback(): RoomPlaybackApi {
+  const ctx = useContext(RoomPlaybackCtx);
+  if (!ctx) throw new Error('useRoomPlayback must be used inside RoomProvider');
+  return ctx;
+}
+
+export function useRoomQueue(): RoomQueueApi {
+  const ctx = useContext(RoomQueueCtx);
+  if (!ctx) throw new Error('useRoomQueue must be used inside RoomProvider');
+  return ctx;
+}
+
+export function useRoomChatContext(): RoomChatApi {
+  const ctx = useContext(RoomChatCtx);
+  if (!ctx) throw new Error('useRoomChatContext must be used inside RoomProvider');
+  return ctx;
+}
+
+export function useRoomReactionsContext(): RoomReactionsApi {
+  const ctx = useContext(RoomReactionsCtx);
+  if (!ctx) throw new Error('useRoomReactionsContext must be used inside RoomProvider');
+  return ctx;
+}
+
+export function useRoomSession(): RoomSessionApi {
+  const ctx = useContext(RoomSessionCtx);
+  if (!ctx) throw new Error('useRoomSession must be used inside RoomProvider');
+  return ctx;
 }
 
 export function useRoom(): RoomApi {
@@ -1357,3 +1373,4 @@ export function useRoom(): RoomApi {
 export function useOptionalRoom(): RoomApi | null {
   return useContext(Ctx);
 }
+

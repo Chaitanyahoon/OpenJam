@@ -59,9 +59,8 @@ export function normalizeAudioDeviceRoute(saved: string | null | undefined): 'sp
  */
 export function resolveSoloJamAction(
   currentTrack: TestTrack | null,
-  isPlaying: boolean,
 ): 'expand_player' | 'open_search' {
-  if (currentTrack && isPlaying) {
+  if (currentTrack) {
     return 'expand_player';
   }
   return 'open_search';
@@ -142,17 +141,14 @@ describe('Solo Direct Listener Sovereignty Suite', () => {
     assert.equal(normalizeAudioDeviceRoute(undefined), 'speaker');
   });
 
-  it('resolves Solo Jam action to expand player only when active music is playing', () => {
+  it('resolves Solo Jam action to expand player whenever a track is loaded (playing or paused)', () => {
     const mockTrack: TestTrack = { track_uri: 'yt:1', track_name: 'Jam Song' };
 
-    // Music is actively playing -> resume player
-    assert.equal(resolveSoloJamAction(mockTrack, true), 'expand_player');
+    // Music is loaded (playing or paused) -> expand player modal
+    assert.equal(resolveSoloJamAction(mockTrack), 'expand_player');
 
-    // Music is paused or stopped -> open discovery search
-    assert.equal(resolveSoloJamAction(mockTrack, false), 'open_search');
-
-    // Fresh session (no track) -> open discovery search
-    assert.equal(resolveSoloJamAction(null, false), 'open_search');
+    // Fresh session (no track loaded) -> open discovery search
+    assert.equal(resolveSoloJamAction(null), 'open_search');
   });
 
   it('appends queued tracks non-disruptively without mutating existing active queue', () => {

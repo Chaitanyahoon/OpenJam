@@ -54,18 +54,8 @@ import { fontFamily } from '../fonts';
 import { getPlaylist, type ApiUser, RoomSummary } from '../api';
 import { usePlayer } from '../audio/PlayerContext';
 import type { TrackInfo } from '../sync/protocol';
+import { useUserProfile } from '../domain/useUserProfile';
 import {
-  getRecentlyPlayed,
-  getFavoriteRooms,
-  getListeningStats,
-  getAppPreferences,
-  updateAppPreferences,
-  calculateStorageUsageKb,
-  clearRecentlyPlayed,
-  getOfflinePlaylists,
-  saveOfflinePlaylist,
-  deleteOfflinePlaylist,
-  getFavoriteTracks,
   shuffleTracks,
   type OfflinePlaylist,
   type PlayedTrack,
@@ -76,6 +66,12 @@ import {
 import { useToast } from './ToastContext';
 import { updateHapticsPreference, hapticMedium, hapticLight } from '../utils/haptics';
 import { ImportPlaylistModal } from './ImportPlaylistModal';
+import { formatRelativeTime } from '../utils/format';
+import {
+  ProfileHistorySection,
+  ProfileSavedRoomsSection,
+  ProfileSettingsSection,
+} from './profile';
 
 interface ProfileModalProps {
   visible: boolean;
@@ -90,17 +86,6 @@ interface ProfileModalProps {
 }
 
 type TabMode = 'history' | 'playlists' | 'favorites' | 'settings';
-
-function formatRelativeTime(timestamp: number): string {
-  const diffSec = Math.floor((Date.now() - timestamp) / 1000);
-  if (diffSec < 60) return 'Just now';
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHours = Math.floor(diffMin / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-  const diffDays = Math.floor(diffHours / 24);
-  return `${diffDays}d ago`;
-}
 
 const COOL_NAMES = [
   'SonicWave', 'VelvetGroove', 'LofiAstronaut', 'VinylVibe', 'NeonEcho',
@@ -128,59 +113,44 @@ export function ProfileModal({
   const toast = useToast();
   const player = usePlayer();
 
+  const profileDomain = useUserProfile({
+    targetId: 'me',
+    initialUser: user,
+    initialGuestName: currentName || user?.display_name,
+  });
+
+  const {
+    playlists,
+    recentTracks,
+    favoriteRooms,
+    likedTracks: favTracks,
+    localStats: stats,
+    preferences,
+    cacheKb,
+    loading,
+    guestName,
+    setGuestName,
+    createPlaylist,
+    deletePlaylist,
+    clearRecent,
+    updatePreferences,
+    saveImportedPlaylist,
+    refresh,
+  } = profileDomain;
+
   const [activeTab, setActiveTab] = useState<TabMode>('history');
-  const [guestName, setGuestName] = useState(currentName || user?.display_name || 'Jammer');
   const [isEditingName, setIsEditingName] = useState(false);
-  const [recentTracks, setRecentTracks] = useState<PlayedTrack[]>([]);
-  const [favoriteRooms, setFavoriteRooms] = useState<FavoriteRoom[]>([]);
-  const [playlists, setPlaylists] = useState<OfflinePlaylist[]>([]);
-  const [favTracks, setFavTracks] = useState<TrackInfo[]>([]);
   const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [importModalVisible, setImportModalVisible] = useState(false);
-  const [stats, setStats] = useState<ListeningStats>({
-    totalTracksJammed: 0,
-    totalMinutesJammed: 0,
-    roomsVisited: [],
-  });
-  const [preferences, setPreferences] = useState<AppPreferences>({
-    audioQuality: 'high',
-    hapticEnabled: true,
-  });
-  const [cacheKb, setCacheKb] = useState<number>(0);
-  const [loading, setLoading] = useState(false);
-
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      const [recents, favs, st, prefs, plists, liked] = await Promise.all([
-        getRecentlyPlayed(),
-        getFavoriteRooms(),
-        getListeningStats(),
-        getAppPreferences(),
-        getOfflinePlaylists(),
-        getFavoriteTracks(),
-      ]);
-      setRecentTracks(recents);
-      setFavoriteRooms(favs);
-      setStats(st);
-      setPreferences(prefs);
-      setPlaylists(plists);
-      setFavTracks(liked);
-      // Compute storage metrics in background without blocking initial render
-      void calculateStorageUsageKb().then(setCacheKb);
-    } catch {} finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
     if (visible) {
-      void loadData();
+      void refresh();
       if (currentName) setGuestName(currentName);
       else if (user?.display_name) setGuestName(user.display_name);
     }
-  }, [visible, user, currentName]);
+  }, [visible, user, currentName, refresh, setGuestName]);
 
   const isDiscord = !!user?.discord_id || !!user?.is_registered;
 
@@ -197,32 +167,21 @@ export function ProfileModal({
   };
 
   const handleClearHistory = async () => {
-    await clearRecentlyPlayed();
-    setRecentTracks([]);
-    setCacheKb(await calculateStorageUsageKb());
-    toast('Listening history cleared', 'info');
+    await clearRecent();
   };
 
   const handleCreatePlaylist = async () => {
     const trimmed = newPlaylistName.trim();
     if (!trimmed) return;
-    try {
-      const created = await saveOfflinePlaylist(trimmed);
-      setPlaylists((prev) => [created, ...prev]);
+    const created = await createPlaylist(trimmed);
+    if (created) {
       setNewPlaylistName('');
       setIsCreatingPlaylist(false);
-      setCacheKb(await calculateStorageUsageKb());
-      toast(`Created playlist "${trimmed}"`, 'success');
-    } catch {
-      toast('Could not create playlist', 'error');
     }
   };
 
   const handleDeletePlaylist = async (id: string, name: string) => {
-    await deleteOfflinePlaylist(id);
-    setPlaylists((prev) => prev.filter((p) => p.id !== id));
-    setCacheKb(await calculateStorageUsageKb());
-    toast(`Deleted playlist "${name}"`, 'info');
+    await deletePlaylist(id);
   };
 
   const handlePlayPlaylistDirect = async (pl: any) => {
@@ -356,13 +315,8 @@ export function ProfileModal({
   };
 
   const handleToggleHaptics = async (value: boolean) => {
-    updateHapticsPreference(value);
-    const updated = await updateAppPreferences({
-      hapticEnabled: value,
-    });
-    setPreferences(updated);
+    await updatePreferences({ hapticEnabled: value });
     if (value) void hapticMedium();
-    toast(value ? 'Haptic feedback enabled' : 'Haptic feedback disabled', 'info');
   };
 
   const handleOpenAndroidSettings = () => {
@@ -379,10 +333,7 @@ export function ProfileModal({
           text: 'Clear History',
           style: 'destructive',
           onPress: async () => {
-            await clearRecentlyPlayed();
-            setRecentTracks([]);
-            setCacheKb(await calculateStorageUsageKb());
-            toast('Listening history cleared', 'info');
+            await clearRecent();
           },
         },
       ],
@@ -390,22 +341,13 @@ export function ProfileModal({
   };
 
   const handleImportPlaylistSuccess = async (name: string, tracks: TrackInfo[]) => {
-    try {
-      const created = await saveOfflinePlaylist(name, tracks);
-      setPlaylists((prev) => [created, ...prev]);
-      setCacheKb(await calculateStorageUsageKb());
-      toast(`Imported playlist "${name}" with ${tracks.length} tracks`, 'success');
-    } catch {
-      toast('Could not save imported playlist', 'error');
-    }
+    await saveImportedPlaylist(name, tracks);
   };
 
   const handleToggleQuality = async (value: boolean) => {
-    const updated = await updateAppPreferences({
+    await updatePreferences({
       audioQuality: value ? 'high' : 'saver',
     });
-    setPreferences(updated);
-    toast(value ? 'High Fidelity Audio enabled' : 'Data Saver mode enabled', 'info');
   };
 
   // Avatar colors
@@ -646,81 +588,14 @@ export function ProfileModal({
 
             {/* 1. Recently Played */}
             {activeTab === 'history' ? (
-              <View style={styles.tabContentSection}>
-                <View style={styles.contentHeaderRow}>
-                  <Text style={styles.contentSectionTitle}>RECENTLY PLAYED TRACKS</Text>
-                  {recentTracks.length > 0 ? (
-                    <View style={styles.headerPillsRow}>
-                      <Pressable
-                        onPress={handlePlayAllRecentTracks}
-                        style={({ pressed }) => [styles.headerPillBtn, pressed && styles.pressed]}
-                        hitSlop={6}
-                        accessibilityLabel="Play all recently played tracks"
-                      >
-                        <Play size={10} color="#08080a" fill="#08080a" />
-                        <Text style={styles.headerPillBtnText}>Play All</Text>
-                      </Pressable>
-                      <Pressable
-                        onPress={handleShuffleRecentTracks}
-                        style={({ pressed }) => [styles.headerPillOutlineBtn, pressed && styles.pressed]}
-                        hitSlop={6}
-                        accessibilityLabel="Shuffle recently played tracks"
-                      >
-                        <Shuffle size={10} color={colors.amber} />
-                        <Text style={styles.headerPillOutlineText}>Shuffle</Text>
-                      </Pressable>
-                      <Pressable onPress={handleClearHistory} hitSlop={6} style={styles.clearLink}>
-                        <Trash2 size={12} color={colors.red} />
-                        <Text style={styles.clearLinkText}>Clear</Text>
-                      </Pressable>
-                    </View>
-                  ) : null}
-                </View>
-
-                {recentTracks.length === 0 ? (
-                  <View style={styles.emptyState}>
-                    <Music size={32} color={colors.text3} opacity={0.4} />
-                    <Text style={styles.emptyTitle}>No songs played yet</Text>
-                    <Text style={styles.emptySubtitle}>
-                      Tracks you jam to in community rooms are remembered here.
-                    </Text>
-                  </View>
-                ) : (
-                  recentTracks.map((item, idx) => (
-                    <Pressable
-                      key={`${item.track_uri}-${idx}`}
-                      onPress={() => handlePlayRecentTrack(item)}
-                      style={({ pressed }) => [styles.historyRow, pressed && styles.pressed]}
-                      accessibilityLabel={`Play ${item.track_name} by ${item.artist}`}
-                    >
-                      {item.album_art_url ? (
-                        <Image source={{ uri: item.album_art_url }} style={styles.historyArt} />
-                      ) : (
-                        <View style={[styles.historyArt, styles.artFallback]}>
-                          <Music size={14} color={colors.amber} />
-                        </View>
-                      )}
-
-                      <View style={styles.historyInfo}>
-                        <Text style={styles.historyTrackName} numberOfLines={1}>
-                          {item.track_name}
-                        </Text>
-                        <Text style={styles.historyArtist} numberOfLines={1}>
-                          {item.artist}
-                        </Text>
-                        <Text style={styles.historyMeta}>
-                          {item.roomName ? `${item.roomName} • ` : ''}
-                          {formatRelativeTime(item.playedAt)}
-                        </Text>
-                      </View>
-
-                      <View style={styles.quickActionBtn}>
-                        <Play size={12} color={colors.amber} fill={colors.amber} />
-                      </View>
-                    </Pressable>
-                  ))
-                )}
-              </View>
+              <ProfileHistorySection
+                recentTracks={recentTracks}
+                onPlayTrack={handlePlayRecentTrack}
+                onPlayAll={handlePlayAllRecentTracks}
+                onShuffle={handleShuffleRecentTracks}
+                onClear={handleClearHistory}
+                showClear={true}
+              />
             ) : null}
 
             {/* 2. Playlists & Library */}
@@ -928,198 +803,31 @@ export function ProfileModal({
 
             {/* 3. Saved / Favorite Rooms */}
             {activeTab === 'favorites' ? (
-              <View style={styles.tabContentSection}>
-                <View style={styles.contentHeaderRow}>
-                  <Text style={styles.contentSectionTitle}>PINNED STATIONS</Text>
-                </View>
-
-                {favoriteRooms.length === 0 ? (
-                  <View style={styles.emptyState}>
-                    <Bookmark size={32} color={colors.text3} opacity={0.4} />
-                    <Text style={styles.emptyTitle}>No saved rooms</Text>
-                    <Text style={styles.emptySubtitle}>
-                      Pin your favorite rooms from the room screen to jump back in anytime!
-                    </Text>
-                  </View>
-                ) : (
-                  favoriteRooms.map((r) => (
-                    <Pressable
-                      key={r.id}
-                      onPress={() => {
-                        onJoinRoom?.(r.id);
-                        onClose();
-                      }}
-                      style={({ pressed }) => [styles.favRoomRow, pressed && styles.pressed]}
-                    >
-                      <View style={styles.favRoomLeft}>
-                        <View style={styles.favIconBox}>
-                          <Radio size={16} color={colors.amber} />
-                        </View>
-                        <View style={styles.favRoomMeta}>
-                          <Text style={styles.favRoomName} numberOfLines={1}>
-                            {r.name}
-                          </Text>
-                          <Text style={styles.favRoomHost} numberOfLines={1}>
-                            Host: {r.hostName || 'Community'}
-                          </Text>
-                        </View>
-                      </View>
-                      <ChevronRight size={16} color={colors.text3} />
-                    </Pressable>
-                  ))
-                )}
-              </View>
+              <ProfileSavedRoomsSection
+                favoriteRooms={favoriteRooms}
+                onJoinRoom={(roomId) => {
+                  onJoinRoom?.(roomId);
+                  onClose();
+                }}
+              />
             ) : null}
 
             {/* 3. Settings & Preferences */}
             {activeTab === 'settings' ? (
-              <View style={styles.tabContentSection}>
-                <View style={styles.contentHeaderRow}>
-                  <Text style={styles.contentSectionTitle}>APP & PLAYBACK PREFERENCES</Text>
-                </View>
-
-                {/* Audio Quality */}
-                <View style={styles.settingCard}>
-                  <View style={styles.settingInfo}>
-                    <Text style={styles.settingTitle}>High-Fidelity Audio</Text>
-                    <Text style={styles.settingSub}>
-                      Stream full 320kbps WebM audio. Disable for Data Saver mode.
-                    </Text>
-                  </View>
-                  <Switch
-                    value={preferences.audioQuality === 'high'}
-                    onValueChange={handleToggleQuality}
-                    trackColor={{ true: colors.amber, false: 'rgba(255, 255, 255, 0.15)' }}
-                    thumbColor={colors.white}
-                  />
-                </View>
-
-                {/* Haptic Feedback */}
-                <View style={styles.settingCard}>
-                  <View style={styles.settingInfo}>
-                    <Text style={styles.settingTitle}>Haptic Touch Feedback</Text>
-                    <Text style={styles.settingSub}>
-                      Tactile vibrations when scrubbing, reacting, and reordering.
-                    </Text>
-                  </View>
-                  <Switch
-                    value={preferences.hapticEnabled ?? true}
-                    onValueChange={handleToggleHaptics}
-                    trackColor={{ true: colors.amber, false: 'rgba(255, 255, 255, 0.15)' }}
-                    thumbColor={colors.white}
-                  />
-                </View>
-
-                {/* Background Service Status */}
-                <View style={styles.settingCard}>
-                  <View style={styles.settingInfo}>
-                    <Text style={styles.settingTitle}>Background Audio Service</Text>
-                    <Text style={styles.settingSub}>
-                      Android foreground service keeps music playing when screen is locked.
-                    </Text>
-                  </View>
-                  <View style={styles.settingBadge}>
-                    <Headphones size={11} color={colors.amber} />
-                    <Text style={styles.settingBadgeText}>Active</Text>
-                  </View>
-                </View>
-
-                {/* Android System Section */}
-                <View style={[styles.contentHeaderRow, { marginTop: spacing.md }]}>
-                  <Text style={styles.contentSectionTitle}>ANDROID SYSTEM & STORAGE</Text>
-                </View>
-
-                {/* Android OS App Settings */}
-                <View style={styles.settingCard}>
-                  <View style={styles.settingInfo}>
-                    <Text style={styles.settingTitle}>Android App Settings</Text>
-                    <Text style={styles.settingSub}>
-                      Manage OS storage, clear system cache, and toggle permissions.
-                    </Text>
-                  </View>
-                  <Pressable
-                    onPress={handleOpenAndroidSettings}
-                    style={({ pressed }) => [styles.androidSettingsBtn, pressed && styles.pressed]}
-                    accessibilityLabel="Open Android system settings for OpenJam"
-                  >
-                    <Text style={styles.androidSettingsText}>Settings</Text>
-                    <ExternalLink size={12} color={colors.amber} />
-                  </Pressable>
-                </View>
-
-                {/* Listening History Clear */}
-                <View style={styles.settingCard}>
-                  <View style={styles.settingInfo}>
-                    <Text style={styles.settingTitle}>Listening History</Text>
-                    <Text style={styles.settingSub}>
-                      {recentTracks.length} tracks recorded. Saved playlists are preserved.
-                    </Text>
-                  </View>
-                  <Pressable
-                    onPress={handleConfirmClearHistory}
-                    disabled={recentTracks.length === 0}
-                    style={({ pressed }) => [
-                      styles.clearHistoryBtn,
-                      recentTracks.length === 0 && styles.btnDisabled,
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    <Text style={styles.clearHistoryText}>Clear</Text>
-                  </Pressable>
-                </View>
-
-                {/* Account Actions */}
-                <View style={styles.authActionBlock}>
-                  {isDiscord ? (
-                    <Pressable
-                      onPress={() => {
-                        onSignOut?.();
-                        onClose();
-                      }}
-                      style={({ pressed }) => [styles.signOutBtn, pressed && styles.pressed]}
-                    >
-                      <LogOut size={16} color={colors.red} />
-                      <Text style={styles.signOutText}>Sign Out of Discord</Text>
-                    </Pressable>
-                  ) : onDiscordLogin ? (
-                    <Pressable
-                      onPress={() => {
-                        onClose();
-                        onDiscordLogin();
-                      }}
-                      style={({ pressed }) => [styles.discordLoginCta, pressed && styles.pressed]}
-                    >
-                      <LogIn size={16} color="#ffffff" />
-                      <Text style={styles.discordLoginCtaText}>Sign in with Discord</Text>
-                    </Pressable>
-                  ) : null}
-                </View>
-
-                {/* Legal & Compliance Links */}
-                <View style={styles.legalLinksBlock}>
-                  <Pressable
-                    onPress={() => {
-                      onClose();
-                      router.push('/legal/privacy');
-                    }}
-                    style={({ pressed }) => [styles.legalLinkRow, pressed && styles.pressed]}
-                  >
-                    <Text style={styles.legalLinkText}>Privacy Policy</Text>
-                    <ChevronRight size={14} color={colors.text3} />
-                  </Pressable>
-                  <View style={styles.legalDivider} />
-                  <Pressable
-                    onPress={() => {
-                      onClose();
-                      router.push('/legal/terms');
-                    }}
-                    style={({ pressed }) => [styles.legalLinkRow, pressed && styles.pressed]}
-                  >
-                    <Text style={styles.legalLinkText}>Terms of Service</Text>
-                    <ChevronRight size={14} color={colors.text3} />
-                  </Pressable>
-                </View>
-              </View>
+              <ProfileSettingsSection
+                preferences={preferences}
+                onToggleAudioQuality={handleToggleQuality}
+                onToggleHaptics={handleToggleHaptics}
+                onOpenAndroidSettings={handleOpenAndroidSettings}
+                onClearHistory={handleConfirmClearHistory}
+                recentCount={recentTracks.length}
+                isDiscordUser={isDiscord}
+                usernameOrName={user?.display_name || currentName || guestName}
+                onDiscordLogin={onDiscordLogin ? () => { onClose(); onDiscordLogin(); } : undefined}
+                onSignOut={onSignOut ? () => { onSignOut(); onClose(); } : undefined}
+                onNavigatePrivacy={() => { onClose(); router.push('/legal/privacy'); }}
+                onNavigateTerms={() => { onClose(); router.push('/legal/terms'); }}
+              />
             ) : null}
           </ScrollView>
         </View>
@@ -1522,151 +1230,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginLeft: 6,
   },
-  // Favorite Room Row
-  favRoomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderRadius: radius.md,
-    padding: 12,
-    marginBottom: 8,
-  },
-  favRoomLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  favIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 159, 28, 0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  favRoomMeta: {
-    flex: 1,
-  },
-  favRoomName: {
-    fontFamily: fontFamily.bodySemiBold,
-    fontSize: 14,
-    color: colors.text1,
-  },
-  favRoomHost: {
-    fontFamily: fontFamily.bodyRegular,
-    fontSize: 11,
-    color: colors.text3,
-    marginTop: 1,
-  },
-  // Settings
-  settingCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderRadius: radius.md,
-    padding: 12,
-    marginBottom: 10,
-  },
-  settingInfo: {
-    flex: 1,
-    marginRight: 10,
-  },
-  settingTitle: {
-    fontFamily: fontFamily.bodySemiBold,
-    fontSize: 13,
-    color: colors.text1,
-  },
-  settingSub: {
-    fontFamily: fontFamily.bodyRegular,
-    fontSize: 11,
-    color: colors.text3,
-    marginTop: 2,
-  },
-  settingBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(255, 159, 28, 0.12)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 159, 28, 0.3)',
-  },
-  settingBadgeText: {
-    fontFamily: fontFamily.bodySemiBold,
-    fontSize: 10.5,
-    color: colors.amber,
-  },
-  androidSettingsBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(255, 159, 28, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 159, 28, 0.3)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: radius.sm,
-  },
-  androidSettingsText: {
-    fontFamily: fontFamily.bodySemiBold,
-    fontSize: 11,
-    color: colors.amber,
-  },
-  clearHistoryBtn: {
-    backgroundColor: 'rgba(244, 63, 94, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(244, 63, 94, 0.25)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: radius.sm,
-  },
-  clearHistoryText: {
-    fontFamily: fontFamily.bodySemiBold,
-    fontSize: 11,
-    color: colors.red,
-  },
-  btnDisabled: {
-    opacity: 0.4,
-  },
-  // Auth action
-  authActionBlock: {
-    marginTop: spacing.md,
-  },
-  signOutBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    backgroundColor: 'rgba(244, 63, 94, 0.1)',
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: 'rgba(244, 63, 94, 0.25)',
-  },
-  signOutText: {
-    fontFamily: fontFamily.bodySemiBold,
-    fontSize: 13,
-    color: colors.red,
-  },
-  discordLoginCta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    backgroundColor: '#5865F2',
-    borderRadius: radius.md,
-  },
-  discordLoginCtaText: {
-    fontFamily: fontFamily.bodySemiBold,
-    fontSize: 13,
-    color: '#ffffff',
-  },
+
+
   pressed: {
     opacity: 0.8,
   },

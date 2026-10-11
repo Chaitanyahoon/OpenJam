@@ -114,8 +114,8 @@ class QueueManager:
             # resolve_youtube_sync because advance_queue runs inside asyncio.to_thread
             # (no event loop available in this thread).
             if next_item.track_uri and (" " in next_item.track_uri or len(next_item.track_uri) != 11):
-                from backend.services.music_search import music_search_service as lastfm_service
-                vid = lastfm_service.resolve_youtube_sync(next_item.track_uri)
+                from backend.services.music_search import music_search_service
+                vid = music_search_service.resolve_youtube_sync(next_item.track_uri)
                 if vid:
                     next_item.track_uri = vid
 

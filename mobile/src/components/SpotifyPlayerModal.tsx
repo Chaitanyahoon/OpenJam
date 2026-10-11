@@ -69,7 +69,6 @@ import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
 import { usePlayer, usePlayerStatus } from '../audio/PlayerContext';
 import { useOptionalRoom } from '../state/RoomContext';
-import { fetchLyrics, type Lyrics, activeLyricIndex } from '../audio/lyrics';
 import {
   downloadTrackToVault,
   isTrackDownloaded,
@@ -79,21 +78,17 @@ import {
 import { hapticLight, hapticMedium } from '../utils/haptics';
 import { useToast } from './ToastContext';
 import { getAmbientPalette } from '../utils/palette';
-import { getBackendUrl, searchHybridTracks, type TrackSearchResult } from '../api';
 import { DevicePickerModal } from './DevicePickerModal';
 import { AddToPlaylistModal } from './AddToPlaylistModal';
+import { useArtworkGestures } from './player/useArtworkGestures';
+import { useLyricsController } from './player/useLyricsController';
+import { useQueueRecommendations } from './player/useQueueRecommendations';
+import { PrecisionScrubber } from './player/PrecisionScrubber';
+import { formatDuration } from '../utils/format';
 import type { TrackInfo } from '../sync/protocol';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const ARTWORK_SIZE = Math.min(SCREEN_WIDTH - 64, 340);
-
-function formatTime(ms: number): string {
-  if (!ms || ms <= 0 || isNaN(ms)) return '0:00';
-  const totalSec = Math.floor(ms / 1000);
-  const minutes = Math.floor(totalSec / 60);
-  const seconds = totalSec % 60;
-  return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-}
 
 export function SpotifyPlayerModal() {
   const insets = useSafeAreaInsets();
@@ -129,28 +124,33 @@ export function SpotifyPlayerModal() {
 
   const { playing, durationMs } = usePlayerStatus();
 
-  const [currentPosMs, setCurrentPosMs] = useState(0);
-  const [isScrubbing, setIsScrubbing] = useState(false);
-  const [scrubRatio, setScrubRatio] = useState(0);
-  const [scrubSpeed, setScrubSpeed] = useState(1.0);
+  const [lyricsPosMs, setLyricsPosMs] = useState(0);
   const [showQueue, setShowQueue] = useState(false);
   const [showDevicePicker, setShowDevicePicker] = useState(false);
   const [showAddToPlaylist, setShowAddToPlaylist] = useState(false);
   const [isDownloaded, setIsDownloaded] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<TrackDownloadProgress | null>(null);
 
-  // Recommendations state for Queue panel
-  const [recommendations, setRecommendations] = useState<TrackInfo[]>([]);
-  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
-  const [addedRecUris, setAddedRecUris] = useState<Set<string>>(new Set());
-
-  // Inline Add to Queue Search state
-  const [showSearchInline, setShowSearchInline] = useState(false);
-  const [searchInlineQuery, setSearchInlineQuery] = useState('');
-  const [searchInlineResults, setSearchInlineResults] = useState<TrackSearchResult[]>([]);
-  const [searchInlineLoading, setSearchInlineLoading] = useState(false);
-  const [addedInlineUris, setAddedInlineUris] = useState<Set<string>>(new Set());
-  const searchDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Recommendations and inline search controller
+  const {
+    recommendations,
+    loadingRecommendations,
+    addedRecUris,
+    handleAddRecToQueue,
+    showSearchInline,
+    setShowSearchInline,
+    searchInlineQuery,
+    searchInlineResults,
+    searchInlineLoading,
+    addedInlineUris,
+    handleSearchInlineChange,
+    clearSearchInline,
+    handleAddInlineToQueue,
+  } = useQueueRecommendations({
+    showQueue,
+    currentTrack,
+    onAddToQueue: addToQueue,
+  });
 
   const lastTouchXRef = useRef(0);
   const startYRef = useRef(0);
@@ -158,126 +158,29 @@ export function SpotifyPlayerModal() {
 
   const optionalRoom = useOptionalRoom();
 
-  const [lyrics, setLyrics] = useState<Lyrics | null>(null);
-  const [lyricsLoading, setLyricsLoading] = useState(false);
   const [showLyricsModal, setShowLyricsModal] = useState(false);
-  const lyricsScrollRef = useRef<ScrollView>(null);
+  const {
+    lyrics,
+    lyricsLoading,
+    activeLineIdx,
+    lyricsScrollRef,
+  } = useLyricsController({
+    trackName: currentTrack?.track_name,
+    artist: currentTrack?.artist,
+    durationMs,
+    currentPosMs: showLyricsModal ? lyricsPosMs : 0,
+    showLyricsModal,
+  });
 
   const heartScale = useSharedValue(1);
   const animatedHeartStyle = useAnimatedStyle(() => ({
     transform: [{ scale: heartScale.value }],
   }));
 
-  // Double-tap heart burst on album artwork
-  const burstHeartScale = useSharedValue(0);
-  const burstHeartOpacity = useSharedValue(0);
-  const animatedBurstHeartStyle = useAnimatedStyle(() => ({
-    opacity: burstHeartOpacity.value,
-    transform: [{ scale: burstHeartScale.value }],
-  }));
-
-  // Album Artwork Horizontal Swipe & Pan
-  const artworkTranslateX = useSharedValue(0);
-  const artworkScale = useSharedValue(1);
-  const animatedArtworkStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: artworkTranslateX.value },
-      { scale: artworkScale.value },
-    ],
-  }));
-
-  const lastTapRef = useRef(0);
-
   const palette = useMemo(
     () => getAmbientPalette(currentTrack?.track_name, currentTrack?.artist, currentTrack?.album_art_url),
     [currentTrack?.track_name, currentTrack?.artist, currentTrack?.album_art_url],
   );
-
-  // Fetch real-time synced lyrics
-  useEffect(() => {
-    if (!currentTrack?.track_name) {
-      setLyrics(null);
-      return;
-    }
-    let cancelled = false;
-    setLyricsLoading(true);
-    fetchLyrics(
-      currentTrack.artist || '',
-      currentTrack.track_name,
-      (durationMs || 180000) / 1000,
-    )
-      .then((l) => {
-        if (!cancelled) {
-          setLyrics(l);
-          setLyricsLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setLyricsLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [currentTrack?.track_name, currentTrack?.artist, durationMs]);
-
-  const activeLineIdx = useMemo(() => {
-    if (!lyrics?.lines?.length) return -1;
-    return activeLyricIndex(lyrics.lines, currentPosMs);
-  }, [lyrics, currentPosMs]);
-
-  // Fetch non-intrusive 3-5 recommendations based on current track when queue panel opens
-  useEffect(() => {
-    if (!showQueue || !currentTrack?.track_name) return;
-    let cancelled = false;
-    setLoadingRecommendations(true);
-    const seed = `${currentTrack.track_name} ${currentTrack.artist || ''}`.trim();
-    const backendUrl = getBackendUrl();
-    fetch(`${backendUrl}/search/recommendations?seed=${encodeURIComponent(seed)}`)
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data: TrackInfo[]) => {
-        if (!cancelled && Array.isArray(data)) {
-          setRecommendations(data.slice(0, 5));
-        }
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoadingRecommendations(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [showQueue, currentTrack?.track_name, currentTrack?.artist]);
-
-  const handleAddRecToQueue = (track: TrackInfo) => {
-    if (addedRecUris.has(track.track_uri)) return;
-    void hapticLight();
-    setAddedRecUris((prev) => new Set(prev).add(track.track_uri));
-    addToQueue(track);
-    toast(`Added "${track.track_name}" to queue`, 'success');
-  };
-
-  // Center active lyric line in lyrics sheet
-  useEffect(() => {
-    if (showLyricsModal && activeLineIdx >= 0 && lyricsScrollRef.current) {
-      lyricsScrollRef.current.scrollTo({
-        y: Math.max(0, activeLineIdx * 48 - 140),
-        animated: true,
-      });
-    }
-  }, [activeLineIdx, showLyricsModal]);
-
-  // Poll current position smoothly
-  useEffect(() => {
-    if (!isPlayerModalOpen) return;
-    const interval = setInterval(() => {
-      if (!isScrubbing) {
-        setCurrentPosMs(positionMs());
-      }
-    }, 200);
-    return () => clearInterval(interval);
-  }, [isPlayerModalOpen, isScrubbing, positionMs]);
 
   // Check offline download status for current track
   useEffect(() => {
@@ -314,53 +217,7 @@ export function SpotifyPlayerModal() {
     [setPlayerModalOpen],
   );
 
-  // Continuous Vertical Deflection Precision Scrubber
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
-        onPanResponderGrant: (evt) => {
-          setIsScrubbing(true);
-          const touchX = evt.nativeEvent.locationX;
-          const initialRatio = Math.max(0, Math.min(1, touchX / trackBarWidthRef.current));
-          setScrubRatio(initialRatio);
-          lastTouchXRef.current = evt.nativeEvent.pageX;
-          startYRef.current = evt.nativeEvent.pageY;
-          setScrubSpeed(1.0);
-        },
-        onPanResponderMove: (evt) => {
-          const currentX = evt.nativeEvent.pageX;
-          const currentY = evt.nativeEvent.pageY;
-          const deltaX = currentX - lastTouchXRef.current;
-          const deflectionY = Math.max(0, currentY - startYRef.current);
-
-          // Spotify deflection damping: S(Y) = clamp(1.0 - 0.009 * max(0, Y - 30), 0.1, 1.0)
-          const speed = Math.max(0.1, Math.min(1.0, 1.0 - 0.009 * Math.max(0, deflectionY - 30)));
-          setScrubSpeed(speed);
-
-          const deltaRatio = (deltaX * speed) / trackBarWidthRef.current;
-          setScrubRatio((prev) => Math.max(0, Math.min(1, prev + deltaRatio)));
-          lastTouchXRef.current = currentX;
-        },
-        onPanResponderRelease: async () => {
-          const finalRatio = scrubRatio;
-          const targetMs = Math.round(finalRatio * (durationMs || 180000));
-          await seekToMs(targetMs);
-          setCurrentPosMs(targetMs);
-          setIsScrubbing(false);
-          setScrubSpeed(1.0);
-          void hapticLight();
-        },
-      }),
-    [durationMs, scrubRatio, seekToMs],
-  );
-
   if (!isPlayerModalOpen || !currentTrack) return null;
-
-  const effectiveDuration = durationMs > 0 ? durationMs : 180000;
-  const displayPosMs = isScrubbing ? scrubRatio * effectiveDuration : currentPosMs;
-  const progressPercent = Math.min(100, Math.max(0, (displayPosMs / effectiveDuration) * 100));
 
   const handleDownload = async () => {
     if (isDownloaded) {
@@ -388,98 +245,15 @@ export function SpotifyPlayerModal() {
     toast(liked ? 'Added to Liked Songs' : 'Removed from Liked Songs', 'info');
   };
 
-  // Horizontal Swipe to Skip & Double-Tap Heart PanResponder on Album Artwork
-  const artworkPanResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: (_, gestureState) => {
-          return Math.abs(gestureState.dx) > 12 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
-        },
-        onPanResponderGrant: () => {
-          const now = Date.now();
-          if (now - lastTapRef.current < 320) {
-            lastTapRef.current = 0;
-            burstHeartScale.value = 0;
-            burstHeartOpacity.value = 1;
-            burstHeartScale.value = withSequence(
-              withTiming(1.35, { duration: 180 }),
-              withSpring(1.0, { damping: 12, stiffness: 200 }),
-            );
-            burstHeartOpacity.value = withSequence(
-              withTiming(1, { duration: 350 }),
-              withTiming(0, { duration: 250 }),
-            );
-            void handleToggleLike();
-          } else {
-            lastTapRef.current = now;
-          }
-        },
-        onPanResponderMove: (_, gestureState) => {
-          artworkTranslateX.value = gestureState.dx * 0.75;
-          artworkScale.value = Math.max(0.92, 1 - Math.abs(gestureState.dx) / (SCREEN_WIDTH * 2));
-        },
-        onPanResponderRelease: (_, gestureState) => {
-          const SWIPE_THRESHOLD = 55;
-          if (gestureState.dx < -SWIPE_THRESHOLD || gestureState.vx < -0.35) {
-            void hapticLight();
-            artworkTranslateX.value = withTiming(-SCREEN_WIDTH * 0.8, { duration: 160 }, () => {
-              artworkTranslateX.value = SCREEN_WIDTH * 0.8;
-              artworkTranslateX.value = withSpring(0, { damping: 16, stiffness: 220 });
-              artworkScale.value = withSpring(1);
-            });
-            void playNext();
-          } else if (gestureState.dx > SWIPE_THRESHOLD || gestureState.vx > 0.35) {
-            void hapticLight();
-            artworkTranslateX.value = withTiming(SCREEN_WIDTH * 0.8, { duration: 160 }, () => {
-              artworkTranslateX.value = -SCREEN_WIDTH * 0.8;
-              artworkTranslateX.value = withSpring(0, { damping: 16, stiffness: 220 });
-              artworkScale.value = withSpring(1);
-            });
-            void playPrev();
-          } else {
-            artworkTranslateX.value = withSpring(0, { damping: 15, stiffness: 200 });
-            artworkScale.value = withSpring(1);
-          }
-        },
-      }),
-    [playNext, playPrev, handleToggleLike],
-  );
-
-  const handleSearchInlineChange = (text: string) => {
-    setSearchInlineQuery(text);
-    if (searchDebounceTimer.current) clearTimeout(searchDebounceTimer.current);
-    if (!text.trim()) {
-      setSearchInlineResults([]);
-      setSearchInlineLoading(false);
-      return;
-    }
-    setSearchInlineLoading(true);
-    searchDebounceTimer.current = setTimeout(async () => {
-      try {
-        const found = await searchHybridTracks(text.trim());
-        setSearchInlineResults(found);
-      } catch {
-        setSearchInlineResults([]);
-      } finally {
-        setSearchInlineLoading(false);
-      }
-    }, 350);
-  };
-
-  const handleAddInlineToQueue = (item: TrackSearchResult) => {
-    void hapticMedium();
-    const trackInfo: TrackInfo = {
-      track_uri: item.uri,
-      track_name: item.name,
-      artist: item.artist,
-      album_art_url: item.album_art_url,
-      duration_ms: item.duration_ms,
-    };
-    addToQueue(trackInfo);
-    setAddedInlineUris((prev) => new Set(prev).add(item.uri));
-    toast(`Added "${item.name}" to queue`, 'success');
-  };
+  const {
+    artworkPanResponder,
+    animatedArtworkStyle,
+    animatedBurstHeartStyle,
+  } = useArtworkGestures({
+    onSwipeNext: playNext,
+    onSwipePrev: playPrev,
+    onDoubleTapLike: handleToggleLike,
+  });
 
   return (
     <Modal
@@ -606,8 +380,7 @@ export function SpotifyPlayerModal() {
                     {searchInlineQuery.length > 0 && (
                       <Pressable
                         onPress={() => {
-                          setSearchInlineQuery('');
-                          setSearchInlineResults([]);
+                          clearSearchInline();
                         }}
                         hitSlop={8}
                       >
@@ -887,42 +660,14 @@ export function SpotifyPlayerModal() {
             </View>
 
             {/* Scrubbable Progress Bar with Precision Deflection Feedback */}
-            <View style={styles.progressSection}>
-              {isScrubbing && scrubSpeed < 0.95 && (
-                <View style={[styles.scrubTooltipPill, { borderColor: palette.accent }]}>
-                  <Sparkles size={11} color={palette.accent} style={{ marginRight: 4 }} />
-                  <Text style={[styles.scrubTooltipText, { color: palette.accent }]}>
-                    {scrubSpeed <= 0.25
-                      ? 'Fine Scrubbing (0.1x)'
-                      : scrubSpeed <= 0.55
-                      ? 'Quarter-Speed Scrubbing (0.25x)'
-                      : 'Half-Speed Scrubbing (0.5x)'}
-                  </Text>
-                </View>
-              )}
-              <View
-                style={styles.progressTrack}
-                onLayout={(e) => {
-                  trackBarWidthRef.current = e.nativeEvent.layout.width;
-                }}
-                {...panResponder.panHandlers}
-              >
-                <View
-                  style={[
-                    styles.progressFill,
-                    { width: `${progressPercent}%`, backgroundColor: palette.accent },
-                  ]}
-                />
-                <View style={[styles.progressThumb, { left: `${progressPercent}%` }]} />
-              </View>
-
-              <View style={styles.timeRow}>
-                <Text style={styles.timeText}>{formatTime(displayPosMs)}</Text>
-                <Text style={styles.timeText}>
-                  {displayPosMs > 0 ? `-${formatTime(effectiveDuration - displayPosMs)}` : formatTime(effectiveDuration)}
-                </Text>
-              </View>
-            </View>
+            <PrecisionScrubber
+              durationMs={durationMs}
+              positionMs={positionMs}
+              seekToMs={seekToMs}
+              accentColor={palette.accent}
+              isPlayerModalOpen={isPlayerModalOpen}
+              onPositionChange={showLyricsModal ? setLyricsPosMs : undefined}
+            />
 
             {/* Main Controls Row (Shuffle, Prev, Play/Pause, Next, Repeat) */}
             <View style={styles.controlsRow}>
@@ -1283,55 +1028,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  scrubTooltipPill: {
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(18, 18, 24, 0.92)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 8,
-  },
-  scrubTooltipText: {
-    fontFamily: fontFamily.displayBold,
-    fontSize: 10.5,
-    letterSpacing: 0.3,
-  },
-  progressSection: {
-    marginVertical: 12,
-  },
-  progressTrack: {
-    height: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.16)',
-    borderRadius: 2,
-    position: 'relative',
-    justifyContent: 'center',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: colors.amber,
-    borderRadius: 2,
-  },
-  progressThumb: {
-    position: 'absolute',
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#ffffff',
-    marginLeft: -6,
-  },
-  timeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  timeText: {
-    fontFamily: fontFamily.bodyRegular,
-    fontSize: 11,
-    color: '#777788',
   },
   controlsRow: {
     flexDirection: 'row',

@@ -12,14 +12,13 @@
  *   - Saved Rooms: pinned rooms with 1-tap join
  *   - Settings: storage cache management, session sign out
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
   Pressable,
   Share,
   StyleSheet,
-  Switch,
   Text,
   View,
 } from 'react-native';
@@ -43,28 +42,14 @@ import {
   Bookmark,
   Trash2,
   Sliders,
-  LogOut,
-  LogIn,
-  Radio,
-  Music,
   Play,
-  Check,
   DownloadCloud,
-  Vibrate,
-  ExternalLink,
-  ShieldCheck,
   Heart,
   Shuffle,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../../theme';
 import { fontFamily } from '../../fonts';
 import {
-  getPublicProfile,
-  getProfileSocial,
-  getProfileStats,
-  getPlaylist,
-  toggleFollowUser,
-  getStoredSession,
   clearSession,
   fetchMe,
   getBackendUrl,
@@ -75,40 +60,24 @@ import {
 } from '../../api';
 import { usePlayer } from '../../audio/PlayerContext';
 import { MiniPlayer } from '../../components/MiniPlayer';
+import { useUserProfile } from '../../domain/useUserProfile';
 import {
-  getRecentlyPlayed,
-  getFavoriteRooms,
-  getOfflinePlaylists,
-  calculateStorageUsageKb,
-  clearRecentlyPlayed,
-  saveOfflinePlaylist,
-  deleteOfflinePlaylist,
-  getAppPreferences,
-  updateAppPreferences,
-  getFavoriteTracks,
-  shuffleTracks,
   type OfflinePlaylist,
   type PlayedTrack,
   type FavoriteRoom,
   type AppPreferences,
 } from '../../storage/history';
 import { useToast } from '../../components/ToastContext';
-import { updateHapticsPreference, hapticLight, hapticMedium, hapticHeavy } from '../../utils/haptics';
+import { hapticLight, hapticMedium, hapticHeavy } from '../../utils/haptics';
 import { ImportPlaylistModal } from '../../components/ImportPlaylistModal';
 import type { TrackInfo } from '../../sync/protocol';
+import {
+  ProfileHistorySection,
+  ProfileSavedRoomsSection,
+  ProfileSettingsSection,
+} from '../../components/profile';
 
 type SelfTabMode = 'playlists' | 'history' | 'saved' | 'settings';
-
-function formatRelativeTime(timestamp: number): string {
-  const diffSec = Math.floor((Date.now() - timestamp) / 1000);
-  if (diffSec < 60) return 'Just now';
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHours = Math.floor(diffMin / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-  const diffDays = Math.floor(diffHours / 24);
-  return `${diffDays}d ago`;
-}
 
 export default function UserProfileScreen() {
   const params = useLocalSearchParams<{ id: string }>();
@@ -117,156 +86,43 @@ export default function UserProfileScreen() {
   const toast = useToast();
   const player = usePlayer();
 
-  const [loading, setLoading] = useState(true);
-  const [profile, setProfile] = useState<PublicProfile | null>(null);
-  const [playlists, setPlaylists] = useState<ApiPlaylist[]>([]);
-  const [offlinePlaylists, setOfflinePlaylists] = useState<OfflinePlaylist[]>([]);
-  const [recentTracks, setRecentTracks] = useState<PlayedTrack[]>([]);
-  const [favoriteRooms, setFavoriteRooms] = useState<FavoriteRoom[]>([]);
-  const [social, setSocial] = useState<ProfileSocialStats | null>(null);
-  const [stats, setStats] = useState<ProfileStatsData | null>(null);
-  const [isSelf, setIsSelf] = useState(false);
-  const [following, setFollowing] = useState(false);
-  const [followLoading, setFollowLoading] = useState(false);
-  const [selfTab, setSelfTab] = useState<SelfTabMode>('playlists');
-  const [cacheKb, setCacheKb] = useState(0);
-  const [preferences, setPreferences] = useState<AppPreferences>({
-    audioQuality: 'high',
-    hapticEnabled: true,
+  const profileDomain = useUserProfile({
+    targetId: rawId,
   });
-  const [isDiscordUser, setIsDiscordUser] = useState(false);
+
+  const {
+    profile,
+    isSelf,
+    loading,
+    social,
+    stats,
+    localStats,
+    playlists: offlinePlaylists,
+    apiPlaylists: playlists,
+    likedTracks: favoriteTracks,
+    recentTracks,
+    favoriteRooms,
+    preferences,
+    cacheKb,
+    following,
+    followLoading,
+    isDiscordUser,
+    playTrack,
+    playPlaylistDirect,
+    saveImportedPlaylist,
+    shufflePlay,
+    deletePlaylist,
+    toggleFollow,
+    updatePreferences,
+    clearRecent,
+    refresh,
+  } = profileDomain;
+
+  const [selfTab, setSelfTab] = useState<SelfTabMode>('playlists');
   const [importModalVisible, setImportModalVisible] = useState(false);
-  const [favoriteTracks, setFavoriteTracks] = useState<TrackInfo[]>([]);
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const session = await getStoredSession();
-      const targetId = rawId === 'me' ? session.user?.id : rawId;
-      const cleanTarget = (targetId || '').trim().replace(/^@/, '').toLowerCase();
-      const isMine =
-        rawId === 'me' ||
-        (!!session.user &&
-          (session.user.id === targetId ||
-            (session.user.discord_username && session.user.discord_username.toLowerCase() === cleanTarget) ||
-            ((session.user as any).username && (session.user as any).username.toLowerCase() === cleanTarget) ||
-            (session.user.display_name && session.user.display_name.toLowerCase() === cleanTarget)));
-      setIsSelf(isMine);
-
-      if (isMine) {
-        // Load local personal data in parallel
-        const [recents, favs, offPlists, prefs, liked] = await Promise.all([
-          getRecentlyPlayed(),
-          getFavoriteRooms(),
-          getOfflinePlaylists(),
-          getAppPreferences(),
-          getFavoriteTracks(),
-        ]);
-        setRecentTracks(recents);
-        setFavoriteRooms(favs);
-        setOfflinePlaylists(offPlists);
-        setPreferences(prefs);
-        setFavoriteTracks(liked);
-        setIsDiscordUser(!!session.user?.discord_id || !!session.user?.is_registered);
-
-        // Pre-populate self profile immediately for 0ms delay
-        setProfile({
-          id: targetId || 'guest',
-          display_name: session.user?.display_name || 'Jammer',
-          username: session.user?.discord_username || session.user?.display_name || 'jammer',
-          bio: 'OpenJam Music Explorer',
-          avatar_url: session.user?.avatar_url || null,
-        } as PublicProfile);
-        setLoading(false);
-
-        // Calculate cache usage in background without blocking render
-        void calculateStorageUsageKb().then(setCacheKb);
-      }
-
-      if (targetId) {
-        // Fetch server profile in parallel
-        const [profData, socData, statsData] = await Promise.all([
-          getPublicProfile(targetId).catch(() => null),
-          getProfileSocial(targetId).catch(() => null),
-          getProfileStats(targetId).catch(() => null),
-        ]);
-
-        if (profData) {
-          setProfile(profData.user);
-          setPlaylists(profData.playlists || []);
-        } else if (isMine && !profile) {
-          // Fallback self profile
-          setProfile({
-            id: targetId,
-            display_name: session.user?.display_name || 'Jammer',
-            username: session.user?.discord_username || session.user?.display_name || 'jammer',
-            bio: 'OpenJam Music Explorer',
-            avatar_url: session.user?.avatar_url || null,
-          } as PublicProfile);
-        }
-
-        if (socData) {
-          setSocial(socData);
-          setFollowing(socData.is_following);
-        }
-        if (statsData) {
-          setStats(statsData);
-        }
-      } else if (isMine && !profile) {
-        // Guest user self profile
-        setProfile({
-          id: 'guest',
-          display_name: 'Guest Jammer',
-          username: 'guest',
-          bio: 'Listening anonymously on OpenJam',
-          avatar_url: null,
-        } as PublicProfile);
-      }
-    } catch {
-      toast('Failed to load user profile', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [rawId, toast]);
-
-  useEffect(() => {
-    void loadData();
-  }, [loadData]);
 
   const handleToggleFollow = async () => {
-    if (isSelf || !profile) return;
-    void hapticMedium();
-    const nextState = !following;
-    setFollowing(nextState);
-    setFollowLoading(true);
-
-    setSocial((prev) =>
-      prev
-        ? {
-            ...prev,
-            followers_count: prev.followers_count + (nextState ? 1 : -1),
-            is_following: nextState,
-          }
-        : null,
-    );
-
-    const ok = await toggleFollowUser(profile.id, nextState);
-    setFollowLoading(false);
-    if (!ok) {
-      setFollowing(!nextState);
-      setSocial((prev) =>
-        prev
-          ? {
-              ...prev,
-              followers_count: prev.followers_count + (nextState ? -1 : 1),
-              is_following: !nextState,
-            }
-          : null,
-      );
-      toast('Could not update follow status', 'error');
-    } else {
-      toast(nextState ? `Following @${profile.username || profile.display_name}` : 'Unfollowed', 'info');
-    }
+    await toggleFollow();
   };
 
   const handleShare = async () => {
@@ -281,30 +137,19 @@ export default function UserProfileScreen() {
   };
 
   const handleToggleAudioQuality = async (value: boolean) => {
-    void hapticLight();
-    const updated = await updateAppPreferences({
+    await updatePreferences({
       audioQuality: value ? 'high' : 'saver',
     });
-    setPreferences(updated);
-    toast(value ? 'High-Fidelity Audio (320kbps) enabled' : 'Data Saver Audio enabled', 'info');
   };
 
   const handleToggleHaptics = async (value: boolean) => {
-    updateHapticsPreference(value);
-    const updated = await updateAppPreferences({
+    await updatePreferences({
       hapticEnabled: value,
     });
-    setPreferences(updated);
-    if (value) void hapticMedium();
-    toast(value ? 'Haptic feedback enabled' : 'Haptic feedback disabled', 'info');
   };
 
   const handleClearHistory = async () => {
-    void hapticLight();
-    await clearRecentlyPlayed();
-    setRecentTracks([]);
-    setCacheKb(await calculateStorageUsageKb());
-    toast('Listening history cleared', 'info');
+    await clearRecent();
   };
 
   const handleOpenAndroidSettings = () => {
@@ -312,111 +157,42 @@ export default function UserProfileScreen() {
     void Linking.openSettings();
   };
 
-  const handleDeleteOfflinePlaylist = async (playlistId: string, name: string) => {
-    void hapticMedium();
-    await deleteOfflinePlaylist(playlistId);
-    setOfflinePlaylists((prev) => prev.filter((p) => p.id !== playlistId));
-    setCacheKb(await calculateStorageUsageKb());
-    toast(`Deleted playlist "${name}"`, 'info');
+  const handleDeleteOfflinePlaylist = async (playlistId: string, _name: string) => {
+    await deletePlaylist(playlistId);
   };
 
   const handleSaveImportedPlaylist = async (name: string, tracks: TrackInfo[]) => {
-    try {
-      void hapticMedium();
-      const created = await saveOfflinePlaylist(name, tracks);
-      setOfflinePlaylists((prev) => [created, ...prev]);
-      setCacheKb(await calculateStorageUsageKb());
-      toast(`Imported playlist "${name}" (${tracks.length} tracks)`, 'success');
-    } catch {
-      toast('Failed to save imported playlist', 'error');
-    }
+    await saveImportedPlaylist(name, tracks);
   };
 
   const handlePlayPlaylistDirect = async (item: any) => {
-    void hapticMedium();
-    // 1. If tracks are already present in item.tracks
-    if (Array.isArray(item.tracks) && item.tracks.length > 0) {
-      const mapped = item.tracks.map((t: any) => ({
-        track_uri: t.track_uri || t.uri,
-        track_name: t.track_name || t.name,
-        artist: t.artist || 'Unknown Artist',
-        album_art_url: t.album_art_url,
-        duration_ms: t.duration_ms,
-      }));
-      player.setPlayerModalOpen(true);
-      void player.playTrack(mapped[0], mapped, { sourceTitle: item.name });
-      toast(`Playing "${item.name}"`, 'success');
-      return;
-    }
-
-    // 2. Otherwise fetch playlist tracks dynamically
-    toast(`Opening "${item.name}"…`, 'info');
-    player.setPlayerModalOpen(true);
-    try {
-      const detail = await getPlaylist(item.id);
-      if (detail && detail.tracks && detail.tracks.length > 0) {
-        const mapped = detail.tracks.map((t) => ({
-          track_uri: t.track_uri,
-          track_name: t.track_name,
-          artist: t.artist || 'Unknown Artist',
-          album_art_url: t.album_art_url,
-          duration_ms: t.duration_ms,
-        }));
-        void player.playTrack(mapped[0], mapped, { sourceTitle: item.name });
-      } else {
-        toast('Playlist is empty or has no playable tracks', 'info');
-      }
-    } catch {
-      toast('Could not start playlist playback', 'error');
-    }
+    await playPlaylistDirect(item);
   };
 
   const handlePlayFavTrack = (track: TrackInfo) => {
-    void hapticLight();
-    player.setPlayerModalOpen(true);
-    void player.playTrack(track, favoriteTracks, { sourceTitle: 'Liked Songs' });
-    toast(`Playing "${track.track_name}"`, 'success');
+    playTrack(track, favoriteTracks, { sourceTitle: 'Liked Songs' });
   };
 
   const handlePlayAllFavTracks = () => {
     if (favoriteTracks.length === 0) return;
-    void hapticMedium();
-    player.setPlayerModalOpen(true);
-    void player.playTrack(favoriteTracks[0], favoriteTracks, { sourceTitle: 'Liked Songs' });
-    toast('Playing Liked Songs', 'success');
+    playTrack(favoriteTracks[0], favoriteTracks, { sourceTitle: 'Liked Songs' });
   };
 
   const handleShuffleFavTracks = () => {
-    if (favoriteTracks.length === 0) return;
-    void hapticMedium();
-    const shuffled = shuffleTracks(favoriteTracks);
-    player.setPlayerModalOpen(true);
-    void player.playTrack(shuffled[0], shuffled, { sourceTitle: 'Liked Songs (Shuffle)' });
-    toast('Shuffling Liked Songs', 'success');
+    shufflePlay(favoriteTracks, 'Liked Songs (Shuffle)');
   };
 
   const handlePlayRecentTrack = (track: PlayedTrack) => {
-    void hapticLight();
-    player.setPlayerModalOpen(true);
-    void player.playTrack(track, recentTracks, { sourceTitle: 'Recently Played' });
-    toast(`Playing "${track.track_name}"`, 'success');
+    playTrack(track, recentTracks, { sourceTitle: 'Recently Played' });
   };
 
   const handlePlayAllRecentTracks = () => {
     if (recentTracks.length === 0) return;
-    void hapticMedium();
-    player.setPlayerModalOpen(true);
-    void player.playTrack(recentTracks[0], recentTracks, { sourceTitle: 'Recently Played' });
-    toast('Playing Recently Played', 'success');
+    playTrack(recentTracks[0], recentTracks, { sourceTitle: 'Recently Played' });
   };
 
   const handleShuffleRecentTracks = () => {
-    if (recentTracks.length === 0) return;
-    void hapticMedium();
-    const shuffled = shuffleTracks(recentTracks);
-    player.setPlayerModalOpen(true);
-    void player.playTrack(shuffled[0], shuffled, { sourceTitle: 'Recently Played (Shuffle)' });
-    toast('Shuffling Recently Played', 'success');
+    shufflePlay(recentTracks as any, 'Recently Played (Shuffle)');
   };
 
   const handleDiscordLogin = async () => {
@@ -436,8 +212,7 @@ export default function UserProfileScreen() {
           await AsyncStorage.setItem('openjam_token', token);
           const me = await fetchMe();
           if (me) {
-            setProfile(me as any);
-            setIsDiscordUser(true);
+            await refresh();
             toast(`Logged in as ${me.display_name}`, 'success');
           }
         }
@@ -514,11 +289,7 @@ export default function UserProfileScreen() {
           isSelf
             ? selfTab === 'playlists'
               ? [...playlists, ...offlinePlaylists]
-              : selfTab === 'history'
-                ? recentTracks
-                : selfTab === 'saved'
-                  ? favoriteRooms
-                  : []
+              : []
             : playlists
         }
         keyExtractor={(item: any, idx) => item.id || item.track_uri || `item-${idx}`}
@@ -732,217 +503,42 @@ export default function UserProfileScreen() {
             ) : null}
 
             {isSelf && selfTab === 'history' ? (
-              <View style={styles.sectionHeaderRow}>
-                <View style={styles.sectionHeaderTitle}>
-                  <Clock size={15} color={colors.amber} />
-                  <Text style={styles.sectionTitle}>RECENTLY PLAYED ({recentTracks.length})</Text>
-                </View>
-                {recentTracks.length > 0 && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Pressable
-                      onPress={handlePlayAllRecentTracks}
-                      style={styles.headerPillBtn}
-                      hitSlop={6}
-                      accessibilityLabel="Play all recently played tracks"
-                    >
-                      <Play size={10} color="#08080a" fill="#08080a" />
-                      <Text style={styles.headerPillBtnText}>Play All</Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={handleShuffleRecentTracks}
-                      style={styles.headerPillOutlineBtn}
-                      hitSlop={6}
-                      accessibilityLabel="Shuffle recently played tracks"
-                    >
-                      <Shuffle size={10} color={colors.amber} />
-                      <Text style={styles.headerPillOutlineText}>Shuffle</Text>
-                    </Pressable>
-                  </View>
-                )}
-              </View>
+              <ProfileHistorySection
+                recentTracks={recentTracks}
+                onPlayTrack={handlePlayRecentTrack}
+                onPlayAll={handlePlayAllRecentTracks}
+                onShuffle={handleShuffleRecentTracks}
+                onClear={handleClearHistory}
+                showClear={true}
+              />
             ) : null}
 
-            {/* If Settings Tab is active for Self */}
+            {isSelf && selfTab === 'saved' ? (
+              <ProfileSavedRoomsSection
+                favoriteRooms={favoriteRooms}
+                onJoinRoom={(roomId) => router.push({ pathname: '/room/[id]', params: { id: roomId } })}
+              />
+            ) : null}
+
             {isSelf && selfTab === 'settings' ? (
-              <View style={styles.settingsContainer}>
-                {/* Audio Experience Settings */}
-                <View style={styles.settingsCard}>
-                  <Text style={styles.settingsCardTitle}>Playback & Audio</Text>
-
-                  <View style={styles.settingsRow}>
-                    <View style={styles.settingsRowLeft}>
-                      <Headphones size={18} color={colors.amber} style={styles.settingsRowIcon} />
-                      <View style={styles.settingsTextCol}>
-                        <Text style={styles.settingsRowLabel}>High-Fidelity Audio</Text>
-                        <Text style={styles.settingsRowSub}>Stream at 320 kbps when available</Text>
-                      </View>
-                    </View>
-                    <Switch
-                      value={preferences.audioQuality === 'high'}
-                      onValueChange={handleToggleAudioQuality}
-                      trackColor={{ false: 'rgba(255, 255, 255, 0.12)', true: colors.amber }}
-                      thumbColor="#ffffff"
-                    />
-                  </View>
-
-                  <View style={styles.settingsDivider} />
-
-                  <View style={styles.settingsRow}>
-                    <View style={styles.settingsRowLeft}>
-                      <Vibrate size={18} color={colors.amber} style={styles.settingsRowIcon} />
-                      <View style={styles.settingsTextCol}>
-                        <Text style={styles.settingsRowLabel}>Haptic Feedback</Text>
-                        <Text style={styles.settingsRowSub}>Tactile vibrations on playback actions</Text>
-                      </View>
-                    </View>
-                    <Switch
-                      value={preferences.hapticEnabled}
-                      onValueChange={handleToggleHaptics}
-                      trackColor={{ false: 'rgba(255, 255, 255, 0.12)', true: colors.amber }}
-                      thumbColor="#ffffff"
-                    />
-                  </View>
-                </View>
-
-                {/* Android System Settings & Storage */}
-                <View style={styles.settingsCard}>
-                  <Text style={styles.settingsCardTitle}>System & OS Settings</Text>
-
-                  <View style={styles.settingsRow}>
-                    <View style={styles.settingsRowLeft}>
-                      <Sliders size={18} color={colors.amber} style={styles.settingsRowIcon} />
-                      <View style={styles.settingsTextCol}>
-                        <Text style={styles.settingsRowLabel}>Android App Settings</Text>
-                        <Text style={styles.settingsRowSub}>
-                          Manage system cache, sound access, and notifications in Android
-                        </Text>
-                      </View>
-                    </View>
-                    <Pressable
-                      onPress={handleOpenAndroidSettings}
-                      style={({ pressed }) => [styles.outlineActionBtn, pressed && styles.pressed]}
-                    >
-                      <ExternalLink size={13} color={colors.amber} />
-                      <Text style={styles.outlineActionBtnText}>Open</Text>
-                    </Pressable>
-                  </View>
-
-                  <View style={styles.settingsDivider} />
-
-                  <View style={styles.settingsRow}>
-                    <View style={styles.settingsRowLeft}>
-                      <Clock size={18} color={colors.text3} style={styles.settingsRowIcon} />
-                      <View style={styles.settingsTextCol}>
-                        <Text style={styles.settingsRowLabel}>Clear Listening History</Text>
-                        <Text style={styles.settingsRowSub}>Reset recently played tracks list</Text>
-                      </View>
-                    </View>
-                    <Pressable
-                      onPress={handleClearHistory}
-                      style={({ pressed }) => [styles.dangerActionBtn, pressed && styles.pressed]}
-                    >
-                      <Trash2 size={13} color={colors.red} />
-                      <Text style={styles.dangerActionBtnText}>Clear</Text>
-                    </Pressable>
-                  </View>
-                </View>
-
-                {/* Account & Session Card */}
-                <View style={styles.settingsCard}>
-                  <Text style={styles.settingsCardTitle}>Account & Session</Text>
-
-                  {isDiscordUser ? (
-                    <View style={styles.accountBadgeRow}>
-                      <ShieldCheck size={16} color={colors.green} />
-                      <Text style={styles.accountBadgeText}>
-                        Linked to Discord (@{profile.username || profile.display_name})
-                      </Text>
-                    </View>
-                  ) : (
-                    <Pressable
-                      onPress={handleDiscordLogin}
-                      style={({ pressed }) => [styles.discordLoginBtn, pressed && styles.pressed]}
-                    >
-                      <LogIn size={15} color="#ffffff" />
-                      <Text style={styles.discordLoginBtnText}>Connect Discord Account</Text>
-                    </Pressable>
-                  )}
-
-                  <Pressable
-                    onPress={handleSignOut}
-                    style={({ pressed }) => [styles.signOutBtn, pressed && styles.pressed]}
-                  >
-                    <LogOut size={15} color="#ffffff" />
-                    <Text style={styles.signOutBtnText}>
-                      {isDiscordUser ? 'Sign Out & Reset Session' : 'Reset Guest Session'}
-                    </Text>
-                  </Pressable>
-                </View>
-              </View>
+              <ProfileSettingsSection
+                preferences={preferences}
+                onToggleAudioQuality={handleToggleAudioQuality}
+                onToggleHaptics={handleToggleHaptics}
+                onOpenAndroidSettings={handleOpenAndroidSettings}
+                onClearHistory={handleClearHistory}
+                recentCount={recentTracks.length}
+                isDiscordUser={isDiscordUser}
+                usernameOrName={profile.username || profile.display_name}
+                onDiscordLogin={handleDiscordLogin}
+                onSignOut={handleSignOut}
+                onNavigatePrivacy={() => router.push('/legal/privacy')}
+                onNavigateTerms={() => router.push('/legal/terms')}
+              />
             ) : null}
           </View>
         }
         renderItem={({ item }: { item: any }) => {
-          if (isSelf && selfTab === 'settings') return null;
-
-          // History Row
-          if (isSelf && selfTab === 'history') {
-            return (
-              <Pressable
-                onPress={() => handlePlayRecentTrack(item)}
-                style={({ pressed }) => [styles.historyRow, pressed && styles.pressed]}
-                accessibilityLabel={`Play ${item.track_name} by ${item.artist}`}
-              >
-                {item.album_art_url ? (
-                  <Image source={{ uri: item.album_art_url }} style={styles.historyArt} contentFit="cover" />
-                ) : (
-                  <View style={[styles.historyArt, styles.artFallback]}>
-                    <Music size={16} color={colors.text3} />
-                  </View>
-                )}
-                <View style={styles.historyMeta}>
-                  <Text style={styles.historyTitle} numberOfLines={1}>
-                    {item.track_name}
-                  </Text>
-                  <Text style={styles.historyArtist} numberOfLines={1}>
-                    {item.artist}
-                  </Text>
-                </View>
-                {item.playedAt || item.played_at ? (
-                  <Text style={styles.historyTime}>{formatRelativeTime(item.playedAt || item.played_at)}</Text>
-                ) : null}
-                <View style={styles.historyPlayBtn}>
-                  <Play size={12} color={colors.amber} fill={colors.amber} />
-                </View>
-              </Pressable>
-            );
-          }
-
-          // Saved Rooms Row
-          if (isSelf && selfTab === 'saved') {
-            return (
-              <Pressable
-                onPress={() => {
-                  void hapticLight();
-                  router.push({ pathname: '/room/[id]', params: { id: item.id } });
-                }}
-                style={({ pressed }) => [styles.savedRoomCard, pressed && styles.pressed]}
-              >
-                <View style={styles.roomIconWrap}>
-                  <Radio size={18} color={colors.amber} />
-                </View>
-                <View style={styles.roomMeta}>
-                  <Text style={styles.roomName} numberOfLines={1}>{item.name}</Text>
-                  <Text style={styles.roomHost} numberOfLines={1}>Host: {item.hostName || 'Jammer'}</Text>
-                </View>
-                <View style={styles.joinPill}>
-                  <Text style={styles.joinPillText}>Join</Text>
-                </View>
-              </Pressable>
-            );
-          }
-
-          // Playlists Card (default)
           const isOffline = offlinePlaylists.some((p) => p.id === item.id);
           const trackCount = (item as any).track_count ?? (item as any).tracks_count ?? (item.tracks || []).length;
           return (
@@ -992,17 +588,12 @@ export default function UserProfileScreen() {
           );
         }}
         ListEmptyComponent={
-          isSelf && selfTab === 'settings' ? null : (
+          (isSelf && selfTab === 'playlists' && playlists.length === 0 && offlinePlaylists.length === 0) ||
+          (!isSelf && playlists.length === 0) ? (
             <View style={styles.emptyWrap}>
-              <Text style={styles.emptyText}>
-                {isSelf && selfTab === 'history'
-                  ? 'No listening history recorded yet'
-                  : isSelf && selfTab === 'saved'
-                    ? 'No saved rooms pinned yet'
-                    : 'No playlists created yet'}
-              </Text>
+              <Text style={styles.emptyText}>No playlists created yet</Text>
             </View>
-          )
+          ) : null
         }
       />
       <ImportPlaylistModal
@@ -1440,45 +1031,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerPillBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.amber,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: radius.full,
-  },
-  headerPillBtnText: {
-    fontFamily: fontFamily.bodySemiBold,
-    fontSize: 10,
-    color: '#08080a',
-  },
-  headerPillOutlineBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(255, 159, 28, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 159, 28, 0.3)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: radius.full,
-  },
-  headerPillOutlineText: {
-    fontFamily: fontFamily.bodySemiBold,
-    fontSize: 10,
-    color: colors.amber,
-  },
-  historyPlayBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255, 159, 28, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 4,
-  },
+
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1521,140 +1074,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginLeft: 6,
   },
-  settingsContainer: {
-    width: '100%',
-    paddingTop: spacing.sm,
-    gap: 12,
-  },
-  settingsCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
-    borderRadius: radius.md,
-    padding: spacing.md,
-  },
-  settingsCardTitle: {
-    fontFamily: fontFamily.displayBold,
-    fontSize: 12,
-    color: colors.amber,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    marginBottom: spacing.sm,
-  },
-  settingsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 6,
-  },
-  settingsRowLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    paddingRight: 12,
-  },
-  settingsRowIcon: {
-    marginRight: 10,
-  },
-  settingsTextCol: {
-    flex: 1,
-  },
-  settingsRowLabel: {
-    color: colors.text1,
-    fontFamily: fontFamily.bodyMedium,
-    fontSize: 13,
-  },
-  settingsRowSub: {
-    color: colors.text3,
-    fontFamily: fontFamily.bodyRegular,
-    fontSize: 11,
-    marginTop: 2,
-  },
-  settingsDivider: {
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    marginVertical: 8,
-  },
-  outlineActionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(255, 159, 28, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 159, 28, 0.25)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: radius.sm,
-  },
-  outlineActionBtnText: {
-    color: colors.amber,
-    fontFamily: fontFamily.bodySemiBold,
-    fontSize: 12,
-  },
-  dangerActionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(244, 63, 94, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(244, 63, 94, 0.25)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: radius.sm,
-  },
-  dangerActionBtnText: {
-    color: colors.red,
-    fontFamily: fontFamily.bodySemiBold,
-    fontSize: 12,
-  },
-  accountBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(34, 197, 94, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(34, 197, 94, 0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: radius.sm,
-    marginBottom: spacing.sm,
-  },
-  accountBadgeText: {
-    color: colors.text1,
-    fontFamily: fontFamily.bodyMedium,
-    fontSize: 12,
-    flex: 1,
-  },
-  discordLoginBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#5865F2',
-    borderRadius: radius.sm,
-    paddingVertical: 10,
-    marginBottom: spacing.xs,
-  },
-  discordLoginBtnText: {
-    color: '#ffffff',
-    fontFamily: fontFamily.bodySemiBold,
-    fontSize: 13,
-  },
-  signOutBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: '#dc2626',
-    borderRadius: radius.sm,
-    paddingVertical: 10,
-    marginTop: spacing.xs,
-  },
-  signOutBtnText: {
-    color: '#ffffff',
-    fontFamily: fontFamily.bodySemiBold,
-    fontSize: 13,
-  },
+
   emptyWrap: {
     alignItems: 'center',
     paddingVertical: spacing.xl,

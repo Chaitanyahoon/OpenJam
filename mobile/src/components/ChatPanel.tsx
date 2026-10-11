@@ -37,8 +37,13 @@ import {
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
-import { useRoom } from '../state/RoomContext';
+import {
+  useRoomChatContext,
+  useRoomReactionsContext,
+  useRoomSession,
+} from '../state/RoomContext';
 import { hapticLight } from '../utils/haptics';
+import { formatChatTimestamp } from '../utils/format';
 
 const CHAT_REACTIONS = [
   { id: 'heart', icon: <Heart size={14} color="#ef4444" fill="#ef4444" /> },
@@ -73,32 +78,11 @@ export function initials(name?: string | null): string {
     .toUpperCase();
 }
 
-function formatTimestamp(ts: number | string): string {
-  if (!ts) return '';
-  let d: Date;
-  if (typeof ts === 'string') {
-    const clean = ts.trim();
-    if (!clean.endsWith('Z') && !clean.includes('+') && !clean.slice(10).includes('-')) {
-      d = new Date(`${clean}Z`);
-    } else {
-      d = new Date(clean);
-    }
-  } else {
-    d = new Date(ts);
-  }
-  if (isNaN(d.getTime())) return '';
-  let h = d.getHours();
-  const m = d.getMinutes();
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12;
-  h = h ? h : 12;
-  const mm = m < 10 ? `0${m}` : m;
-  return `${h}:${mm} ${ampm}`;
-}
-
 export const ChatPanel = forwardRef<ChatPanelRef, { onMentionUser?: (name: string) => void }>(
   function ChatPanel({ onMentionUser }, ref) {
-    const { messages, typingUsers, sendChat, setTyping, me, listeners, sendReaction } = useRoom();
+    const { messages, typingUsers, sendChat, setTyping } = useRoomChatContext();
+    const { sendReaction } = useRoomReactionsContext();
+    const { me, listeners } = useRoomSession();
     const [input, setInput] = useState('');
     const listRef = useRef<FlatList>(null);
     const inputRef = useRef<TextInput>(null);
@@ -156,6 +140,11 @@ export const ChatPanel = forwardRef<ChatPanelRef, { onMentionUser?: (name: strin
           keyboardShouldPersistTaps="handled"
           onScroll={handleScroll}
           scrollEventThrottle={16}
+          initialNumToRender={15}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
+          updateCellsBatchingPeriod={50}
           onContentSizeChange={() => {
             if (isNearBottomRef.current) {
               listRef.current?.scrollToEnd({ animated: true });
@@ -196,7 +185,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, { onMentionUser?: (name: strin
                 <View style={styles.bubbleRowMine}>
                   <View style={styles.bubbleMine}>
                     <Text style={styles.textMine}>{item.content}</Text>
-                    <Text style={styles.timeMine}>{formatTimestamp(item.timestamp)}</Text>
+                    <Text style={styles.timeMine}>{formatChatTimestamp(item.timestamp)}</Text>
                   </View>
                 </View>
               );
@@ -210,6 +199,8 @@ export const ChatPanel = forwardRef<ChatPanelRef, { onMentionUser?: (name: strin
                       source={{ uri: item.avatar_url }}
                       style={styles.avatarImg}
                       contentFit="cover"
+                      cachePolicy="memory-disk"
+                      recyclingKey={item.avatar_url}
                       transition={200}
                     />
                   ) : (
@@ -237,7 +228,7 @@ export const ChatPanel = forwardRef<ChatPanelRef, { onMentionUser?: (name: strin
                         <Text style={styles.hostBadgeText}>Host</Text>
                       </View>
                     ) : null}
-                    <Text style={styles.timestamp}>{formatTimestamp(item.timestamp)}</Text>
+                    <Text style={styles.timestamp}>{formatChatTimestamp(item.timestamp)}</Text>
                   </View>
                   <Text style={styles.textOther}>{item.content}</Text>
                 </View>

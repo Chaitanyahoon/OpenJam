@@ -552,6 +552,11 @@ export default function OfflineVaultScreen() {
             styles.listContent,
             { paddingBottom: Math.max(insets.bottom, 16) + 50 },
           ]}
+          initialNumToRender={12}
+          maxToRenderPerBatch={10}
+          windowSize={7}
+          removeClippedSubviews={true}
+          updateCellsBatchingPeriod={50}
           ListHeaderComponent={
             <View style={styles.trackListControlsRow}>
               <View style={styles.trackListHeaderMeta}>

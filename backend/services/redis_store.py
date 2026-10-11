@@ -71,6 +71,8 @@ class RedisStore:
         else:
             self._rooms.pop(room_id, None)
 
+    delete_room = del_room
+
     def get_sid(self, sid: str) -> dict | None:
         if self.client:
             data = self.client.get(f"openjam:sid:{sid}")

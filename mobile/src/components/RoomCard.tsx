@@ -234,6 +234,8 @@ export function RoomCard({
                 source={{ uri: coverUrl }}
                 style={styles.coverImg}
                 contentFit="cover"
+                cachePolicy="memory-disk"
+                recyclingKey={coverUrl}
                 transition={200}
                 onError={() => setImageError(true)}
               />
@@ -332,7 +334,13 @@ export function RoomCard({
           {/* Host attribution */}
           <View style={styles.hostRow}>
             {room.host_avatar_url ? (
-              <Image source={{ uri: room.host_avatar_url }} style={styles.hostAvatar} contentFit="cover" />
+              <Image
+                source={{ uri: room.host_avatar_url }}
+                style={styles.hostAvatar}
+                contentFit="cover"
+                cachePolicy="memory-disk"
+                recyclingKey={room.host_avatar_url}
+              />
             ) : (
               <View
                 style={[

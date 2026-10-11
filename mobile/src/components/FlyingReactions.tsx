@@ -12,7 +12,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { Flame, Heart, Music, Sparkles, ThumbsUp } from 'lucide-react-native';
-import { useRoom, type FlyingReaction } from '../state/RoomContext';
+import { useRoomReactionsContext, type FlyingReaction } from '../state/RoomContext';
 import { colors } from '../theme';
 
 function renderReactionIcon(key: string) {
@@ -75,7 +75,7 @@ function FloatingEmoji({
 }
 
 export function FlyingReactions() {
-  const { reactions, dismissReaction } = useRoom();
+  const { reactions, dismissReaction } = useRoomReactionsContext();
   if (reactions.length === 0) return null;
   return (
     <View style={styles.overlay} pointerEvents="none">

@@ -80,6 +80,7 @@ import {
   subscribeFavoriteTracks,
 } from '../../../storage/history';
 import type { TrackInfo } from '../../../sync/protocol';
+import { formatDuration } from '../../../utils/format';
 import {
   hapticSelection,
   hapticMedium,
@@ -123,14 +124,6 @@ const STARTER_VIBES = [
     duration_ms: 195000,
   },
 ];
-
-function fmt(ms: number): string {
-  if (!ms || ms < 0 || !isFinite(ms)) return '0:00';
-  const sec = Math.floor(ms / 1000);
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `${m}:${s < 10 ? '0' : ''}${s}`;
-}
 
 const lyricsCache = new Map<string, Lyrics>();
 
@@ -660,9 +653,9 @@ export default function PlayerTab() {
 
             <View style={styles.times}>
               <Text style={[styles.time, isScrubbing && styles.timeScrubbing]}>
-                {fmt(displayPos)}
+                {formatDuration(displayPos)}
               </Text>
-              <Text style={styles.time}>{fmt(duration)}</Text>
+              <Text style={styles.time}>{formatDuration(duration)}</Text>
             </View>
 
             {/* Spotify-Inspired Tactile Transport Controls Deck */}
@@ -917,7 +910,7 @@ export default function PlayerTab() {
                       <View style={styles.starterMeta}>
                         <Text style={styles.starterTitle} numberOfLines={1}>{v.track_name}</Text>
                         <Text style={styles.starterArtist} numberOfLines={1}>
-                          {v.artist} · {fmt(v.duration_ms)}
+                          {v.artist} · {formatDuration(v.duration_ms)}
                         </Text>
                       </View>
                     </Pressable>

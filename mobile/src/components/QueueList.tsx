@@ -37,7 +37,7 @@ import {
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
-import { useRoom } from '../state/RoomContext';
+import { useRoomQueue } from '../state/RoomContext';
 import { searchTracks, searchHybridTracks, isPlaylistUrl, type TrackSearchResult } from '../api';
 import { useToast } from './ToastContext';
 import { hapticLight, hapticMedium, hapticHeavy, hapticSelection } from '../utils/haptics';
@@ -54,26 +54,9 @@ import {
   toggleFavoriteTrack,
   subscribeFavoriteTracks,
 } from '../storage/history';
+import { formatDuration } from '../utils/format';
+import { parseYouTubeId } from '../audio/streamResolver';
 import type { TrackInfo } from '../sync/protocol';
-
-function fmtDuration(ms?: number): string {
-  if (!ms || ms <= 0) return '';
-  const s = Math.floor(ms / 1000);
-  const m = Math.floor(s / 60);
-  const sec = s % 60;
-  return `${m}:${sec < 10 ? '0' : ''}${sec}`;
-}
-
-function extractYouTubeId(urlOrQuery: string): string | null {
-  const clean = urlOrQuery.trim();
-  const reg =
-    /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([^"&?\/\s]{11})/;
-  const match = clean.match(reg);
-  if (match && match[1]) return match[1];
-  const streamMatch = clean.match(/(?:\/stream\/|^yt:|^ytid:)([a-zA-Z0-9_-]{11})(?:\?|$)/);
-  if (streamMatch && streamMatch[1]) return streamMatch[1];
-  return null;
-}
 
 function QueueRowDragHandle({
   index,
@@ -135,7 +118,7 @@ export function QueueList() {
     voteTrack,
     removeTrack,
     reorderQueue,
-  } = useRoom();
+  } = useRoomQueue();
   const toast = useToast();
 
   const [query, setQuery] = useState('');
@@ -167,7 +150,7 @@ export function QueueList() {
       return;
     }
 
-    const ytId = extractYouTubeId(q);
+    const ytId = parseYouTubeId(q);
     if (ytId) {
       addTrack({
         track_uri: ytId,
@@ -196,7 +179,7 @@ export function QueueList() {
 
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
 
-    const ytId = extractYouTubeId(q);
+    const ytId = parseYouTubeId(q);
     if (isLink || ytId) {
       handleLinkAdd(q);
       return;
@@ -224,7 +207,7 @@ export function QueueList() {
     const q = query.trim();
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
 
-    if (!q || isLink || extractYouTubeId(q)) {
+    if (!q || isLink || parseYouTubeId(q)) {
       if (!q) {
         setResults([]);
         setShowResults(false);
@@ -420,7 +403,7 @@ export function QueueList() {
           ) : null}
         </View>
 
-        {(isLink || extractYouTubeId(query)) && query.trim() ? (
+        {(isLink || parseYouTubeId(query)) && query.trim() ? (
           <Pressable
             onPress={() => handleLinkAdd()}
             style={({ pressed }) => [styles.linkBtn, pressed && styles.pressed]}
@@ -474,13 +457,25 @@ export function QueueList() {
             keyExtractor={(i, idx) => i.uri || String(idx)}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
+            getItemLayout={(_, index) => ({ length: 64, offset: 64 * index, index })}
+            initialNumToRender={10}
+            maxToRenderPerBatch={10}
+            windowSize={5}
+            removeClippedSubviews={true}
             renderItem={({ item }) => (
               <Pressable
                 onPress={() => handleSelectTrack(item)}
                 style={({ pressed }) => [styles.resultRow, pressed && styles.pressed]}
               >
                 {item.album_art_url ? (
-                  <Image source={{ uri: item.album_art_url }} style={styles.resultArt} contentFit="cover" />
+                  <Image
+                    source={{ uri: item.album_art_url }}
+                    style={styles.resultArt}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                    recyclingKey={item.album_art_url}
+                    transition={150}
+                  />
                 ) : (
                   <View style={[styles.resultArt, styles.artFallback]}>
                     <Music size={18} color={colors.text3} opacity={0.6} />
@@ -491,7 +486,7 @@ export function QueueList() {
                   <Text style={styles.resultArtist} numberOfLines={1}>{item.artist}</Text>
                 </View>
                 {item.duration_ms ? (
-                  <Text style={styles.resultDuration}>{fmtDuration(item.duration_ms)}</Text>
+                  <Text style={styles.resultDuration}>{formatDuration(item.duration_ms)}</Text>
                 ) : null}
                 <View style={styles.resultActionsRow}>
                   <Pressable
@@ -564,6 +559,11 @@ export function QueueList() {
               keyExtractor={(i, index) => i.queue_item_id || i.id || `q-${index}`}
               showsVerticalScrollIndicator={false}
               style={styles.queueList}
+              initialNumToRender={12}
+              maxToRenderPerBatch={10}
+              windowSize={7}
+              removeClippedSubviews={true}
+              updateCellsBatchingPeriod={50}
               ListHeaderComponent={
                 <View>
                   {/* Dedicated Now Playing Hero in Queue Tab */}
@@ -579,6 +579,9 @@ export function QueueList() {
                             source={{ uri: activeTrack.album_art_url }}
                             style={styles.nowPlayingArt}
                             contentFit="cover"
+                            cachePolicy="memory-disk"
+                            recyclingKey={activeTrack.album_art_url}
+                            transition={150}
                           />
                         ) : (
                           <View style={[styles.nowPlayingArt, styles.artFallback]}>
@@ -595,7 +598,7 @@ export function QueueList() {
                         </View>
                         {activeTrack.duration_ms ? (
                           <Text style={styles.nowPlayingDuration}>
-                            {fmtDuration(activeTrack.duration_ms)}
+                            {formatDuration(activeTrack.duration_ms)}
                           </Text>
                         ) : null}
                         <Pressable
@@ -696,7 +699,14 @@ export function QueueList() {
 
                     {/* Album Art */}
                     {item.album_art_url ? (
-                      <Image source={{ uri: item.album_art_url }} style={styles.queueArt} contentFit="cover" />
+                      <Image
+                        source={{ uri: item.album_art_url }}
+                        style={styles.queueArt}
+                        contentFit="cover"
+                        cachePolicy="memory-disk"
+                        recyclingKey={item.album_art_url}
+                        transition={150}
+                      />
                     ) : (
                       <View style={[styles.queueArt, styles.artFallback]}>
                         <Music size={18} color={colors.text3} opacity={0.6} />

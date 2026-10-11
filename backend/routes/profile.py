@@ -326,33 +326,32 @@ def get_user_stats_internal(db: Session, user_id: str):
     from backend.models.room_visit import UserRoomVisit
     from backend.database import safe_isoformat
 
-    # 1. Base counts
-    total_queued = db.query(QueueItem).filter(QueueItem.added_by_user_id == user_id).count()
-    total_likes = db.query(UserLike).filter(UserLike.user_id == user_id).count()
-    total_playlists = db.query(Playlist).filter(Playlist.creator_id == user_id).count()
-    total_chats = db.query(ChatMessage).filter(ChatMessage.user_id == user_id).count()
-    total_votes = db.query(Vote).filter(Vote.user_id == user_id).count()
-    rooms_hosted = db.query(Room).filter(Room.host_user_id == user_id).count()
+    # 1. Batched base counts & durations in a single query
+    base_counts = db.query(
+        db.query(func.count(QueueItem.id)).filter(QueueItem.added_by_user_id == user_id).scalar_subquery(),
+        db.query(func.count(UserLike.id)).filter(UserLike.user_id == user_id).scalar_subquery(),
+        db.query(func.count(Playlist.id)).filter(Playlist.creator_id == user_id).scalar_subquery(),
+        db.query(func.count(ChatMessage.id)).filter(ChatMessage.user_id == user_id).scalar_subquery(),
+        db.query(func.count(Vote.id)).filter(Vote.user_id == user_id).scalar_subquery(),
+        db.query(func.coalesce(func.sum(UserListeningHistory.duration_ms), 0)).filter(UserListeningHistory.user_id == user_id).scalar_subquery(),
+        db.query(func.coalesce(func.sum(QueueItem.duration_ms), 0)).filter(QueueItem.added_by_user_id == user_id, QueueItem.status == "played").scalar_subquery(),
+    ).first()
+
+    total_queued = int(base_counts[0] or 0) if base_counts else 0
+    total_likes = int(base_counts[1] or 0) if base_counts else 0
+    total_playlists = int(base_counts[2] or 0) if base_counts else 0
+    total_chats = int(base_counts[3] or 0) if base_counts else 0
+    total_votes = int(base_counts[4] or 0) if base_counts else 0
+    history_duration_ms = int(base_counts[5] or 0) if base_counts else 0
+    queue_duration_ms = int(base_counts[6] or 0) if base_counts else 0
 
     # 2. Total rooms visited (distinct rooms visited + rooms hosted)
-    visited_room_ids = {r[0] for r in db.query(UserRoomVisit.room_id).filter(UserRoomVisit.user_id == user_id).all() if r[0]}
     hosted_room_ids = {r[0] for r in db.query(Room.id).filter(Room.host_user_id == user_id).all() if r[0]}
+    rooms_hosted = len(hosted_room_ids)
+    visited_room_ids = {r[0] for r in db.query(UserRoomVisit.room_id).filter(UserRoomVisit.user_id == user_id).all() if r[0]}
     total_rooms_visited = len(visited_room_ids | hosted_room_ids)
 
     # 3. Total listening time (incorporating both UserListeningHistory and played QueueItem durations)
-    history_duration_ms = db.query(
-        func.sum(UserListeningHistory.duration_ms)
-    ).filter(
-        UserListeningHistory.user_id == user_id
-    ).scalar() or 0
-
-    queue_duration_ms = db.query(
-        func.sum(QueueItem.duration_ms)
-    ).filter(
-        QueueItem.added_by_user_id == user_id,
-        QueueItem.status == "played"
-    ).scalar() or 0
-
     total_duration_ms = history_duration_ms + queue_duration_ms
     listening_time_mins = int(total_duration_ms // 60000)
 
@@ -408,8 +407,10 @@ def get_user_stats_internal(db: Session, user_id: str):
         for d_str, day_name in chart_days
     ]
 
-    # 5. Top 5 tracks (from QueueItem and UserListeningHistory)
+    # 5. Top 5 tracks and Top 5 artists (derived from shared track aggregations to eliminate redundant queries)
     track_counts = {}
+    artist_counts = {}
+
     queue_tracks = db.query(
         QueueItem.track_name,
         QueueItem.artist,
@@ -427,6 +428,8 @@ def get_user_stats_internal(db: Session, user_id: str):
         if t_name and artist:
             key = (t_name, artist, art or "")
             track_counts[key] = track_counts.get(key, 0) + cnt
+        if artist:
+            artist_counts[artist] = artist_counts.get(artist, 0) + cnt
 
     history_tracks = db.query(
         UserListeningHistory.track_name,
@@ -445,6 +448,8 @@ def get_user_stats_internal(db: Session, user_id: str):
         if t_name and artist:
             key = (t_name, artist, art or "")
             track_counts[key] = track_counts.get(key, 0) + cnt
+        if artist:
+            artist_counts[artist] = artist_counts.get(artist, 0) + cnt
 
     sorted_tracks = sorted(track_counts.items(), key=lambda x: x[1], reverse=True)[:5]
     top_tracks = [
@@ -456,34 +461,6 @@ def get_user_stats_internal(db: Session, user_id: str):
         }
         for k, cnt in sorted_tracks
     ]
-
-    # 6. Top 5 artists (from QueueItem and UserListeningHistory)
-    artist_counts = {}
-    queue_artists = db.query(
-        QueueItem.artist,
-        func.count(QueueItem.id)
-    ).filter(
-        QueueItem.added_by_user_id == user_id
-    ).group_by(
-        QueueItem.artist
-    ).all()
-
-    for artist, cnt in queue_artists:
-        if artist:
-            artist_counts[artist] = artist_counts.get(artist, 0) + cnt
-
-    history_artists = db.query(
-        UserListeningHistory.artist,
-        func.count(UserListeningHistory.id)
-    ).filter(
-        UserListeningHistory.user_id == user_id
-    ).group_by(
-        UserListeningHistory.artist
-    ).all()
-
-    for artist, cnt in history_artists:
-        if artist:
-            artist_counts[artist] = artist_counts.get(artist, 0) + cnt
 
     sorted_artists = sorted(artist_counts.items(), key=lambda x: x[1], reverse=True)[:5]
     top_artists = [
@@ -738,18 +715,37 @@ async def get_following_activity(
     active_rooms = room_manager.store.get_all_rooms()
     
     # 3. Scan active rooms for followed users
-    activities = []
+    room_matches = []
+    relevant_room_ids = []
+    relevant_friend_ids = set()
     for room_id, room_data in active_rooms.items():
-        users_in_room = room_data.get("users", {})
-        followed_in_room = followed_ids.intersection(users_in_room.keys())
-        
-        if not followed_in_room:
+        if not isinstance(room_data, dict):
             continue
-            
-        # Get room details from DB
-        room_db = db.query(Room).filter(Room.id == room_id).first()
+        users_in_room = room_data.get("users") or {}
+        if not isinstance(users_in_room, dict):
+            continue
+        followed_in_room = followed_ids.intersection(users_in_room.keys())
+        if followed_in_room:
+            relevant_room_ids.append(room_id)
+            relevant_friend_ids.update(followed_in_room)
+            room_matches.append((room_id, room_data, followed_in_room))
+
+    if not room_matches:
+        return {"activities": []}
+
+    # Batch query rooms to avoid N+1 per-room query loop
+    rooms_db = db.query(Room).filter(Room.id.in_(relevant_room_ids)).all()
+    rooms_by_id = {r.id: r for r in rooms_db}
+
+    # Batch query friends to avoid N+1 per-friend query loop
+    friends_db = db.query(User).filter(User.id.in_(relevant_friend_ids)).all()
+    friends_by_id = {u.id: u for u in friends_db}
+
+    activities = []
+    for room_id, room_data, followed_in_room in room_matches:
+        room_db = rooms_by_id.get(room_id)
         room_name = room_db.name if room_db else "Live Room"
-        
+
         # Get track info
         playback = room_data.get("playback", {})
         current_track = None
@@ -759,19 +755,19 @@ async def get_following_activity(
                 "track_name": playback.get("track_name"),
                 "artist": playback.get("artist"),
                 "album_art_url": playback.get("album_art_url"),
-                "is_playing": playback.get("is_playing", False)
+                "is_playing": playback.get("is_playing", False),
             }
-            
+
         # Add activities for each followed user in this room
         for friend_id in followed_in_room:
-            friend = db.query(User).filter(User.id == friend_id).first()
+            friend = friends_by_id.get(friend_id)
             if not friend:
                 continue
             activities.append({
                 "friend": friend.to_dict(),
                 "room_id": room_id,
                 "room_name": room_name,
-                "current_track": current_track
+                "current_track": current_track,
             })
-            
+
     return {"activities": activities}

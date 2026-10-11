@@ -27,11 +27,7 @@ import {
   type YouTubeAudioBridgeRef,
 } from './YouTubeAudioBridge';
 import { getBackendUrl } from '../api';
-import {
-  getVaultTrack,
-  recordVaultTrackPlayed,
-  resolveDirectAudioStreamUrls,
-} from '../storage/vault';
+import { resolveAudioStream, parseYouTubeId } from './streamResolver';
 import {
   isFavoriteTrack,
   toggleFavoriteTrack,
@@ -120,18 +116,7 @@ const StatusCtx = createContext<PlayerStatus>({
   durationMs: 0,
 });
 
-export function parseYouTubeId(input: string): string | null {
-  if (!input) return null;
-  const clean = input.trim();
-  if (/^[a-zA-Z0-9_-]{11}$/.test(clean)) return clean;
-  const streamMatch = clean.match(/\/stream\/([a-zA-Z0-9_-]{11})(?:\?|$)/);
-  if (streamMatch) return streamMatch[1];
-  const reg =
-    /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([^"&?\/\s]{11})/;
-  const match = clean.match(reg);
-  if (match && match[1]) return match[1];
-  return null;
-}
+export { parseYouTubeId };
 
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const player = useAudioPlayer(null, { updateInterval: 150 });
@@ -251,133 +236,22 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const loadTrack = useCallback(
     async (urlOrId: string, meta: LockScreenMeta): Promise<void> => {
-      // 1. Direct local sandboxed file playback
-      if (urlOrId && urlOrId.startsWith('file://')) {
+      const stream = await resolveAudioStream(urlOrId, meta);
+
+      if (stream.type === 'local_vault' || stream.type === 'direct_stream') {
         ytBridgeRef.current?.pause();
         setActiveDriver('expo');
         setYtPlaying(false);
-        player.replace({ uri: urlOrId });
+        sampleRef.current = { at: Date.now(), posMs: 0, playing: true };
+        player.replace({ uri: stream.uri! });
         player.volume = volumeRef.current;
         player.play();
-        if (player && typeof (player as any).setActiveForLockScreen === 'function') {
-          try {
-            (player as any).setActiveForLockScreen(
-              true,
-              {
-                title: meta.title || 'OpenJam Offline Track',
-                artist: meta.artist || 'OpenJam Vault',
-                albumTitle: 'OpenJam Audio Vault',
-                artworkUrl: meta.artworkUrl,
-              },
-              {
-                showSeekForward: true,
-                showSeekBackward: true,
-                isLiveStream: false,
-              },
-            );
-          } catch {}
-        }
-        return;
-      }
-
-      // 2. Check if track is pre-cached in sandboxed offline vault
-      try {
-        const vaultTrack = await getVaultTrack(urlOrId);
-        if (vaultTrack && vaultTrack.local_file_uri) {
-          ytBridgeRef.current?.pause();
-          setActiveDriver('expo');
-          setYtPlaying(false);
-          player.replace({ uri: vaultTrack.local_file_uri });
-          player.volume = volumeRef.current;
-          player.play();
-          void recordVaultTrackPlayed(urlOrId);
-          if (player && typeof (player as any).setActiveForLockScreen === 'function') {
-            try {
-              (player as any).setActiveForLockScreen(
-                true,
-                {
-                  title: meta.title || vaultTrack.track_name,
-                  artist: meta.artist || vaultTrack.artist,
-                  albumTitle: 'OpenJam Audio Vault',
-                  artworkUrl: meta.artworkUrl || vaultTrack.album_art_url,
-                },
-                {
-                  showSeekForward: true,
-                  showSeekBackward: true,
-                  isLiveStream: false,
-                },
-              );
-            } catch {}
-          }
-          return;
-        }
-      } catch {}
-
-      let ytId = parseYouTubeId(urlOrId);
-
-      // If it's a search query with spaces, resolve via backend search
-      if (!ytId && urlOrId && !urlOrId.startsWith('http')) {
-        try {
-          const backendUrl = getBackendUrl();
-          const resp = await fetch(
-            `${backendUrl}/search/resolve?q=${encodeURIComponent(urlOrId)}`,
-          );
-          if (resp.ok) {
-            const data = await resp.json();
-            if (data?.video_id) {
-              ytId = data.video_id;
-            }
-          }
-        } catch (err) {
-          console.warn('Failed to resolve track query:', err);
-        }
-      }
-
-      // 3. For YouTube video tracks, try direct audio streams first for native expo-audio background playback
-      let directStreamSuccess = false;
-      if (ytId) {
-        try {
-          const directUrls = await resolveDirectAudioStreamUrls(ytId);
-          for (const directUrl of directUrls) {
-            try {
-              const testCtrl = new AbortController();
-              const testTimeout = setTimeout(() => testCtrl.abort(), 2000);
-              const testRes = await fetch(directUrl, {
-                method: 'GET',
-                headers: { Range: 'bytes=0-1024' },
-                signal: testCtrl.signal,
-              });
-              clearTimeout(testTimeout);
-              if (testRes.ok || testRes.status === 206) {
-                ytBridgeRef.current?.pause();
-                setActiveDriver('expo');
-                setYtPlaying(false);
-                sampleRef.current = { at: Date.now(), posMs: 0, playing: true };
-                player.replace({ uri: directUrl });
-                player.volume = volumeRef.current;
-                player.play();
-                directStreamSuccess = true;
-                break;
-              }
-            } catch {}
-          }
-        } catch {}
-      }
-
-      // 4. Fallback to YouTube Audio Bridge WebView if direct streams failed
-      if (!directStreamSuccess && ytId) {
+      } else {
         player.pause();
         setActiveDriver('youtube');
         sampleRef.current = { at: Date.now(), posMs: 0, playing: true };
         setYtPlaying(true);
-        ytBridgeRef.current?.loadVideo(ytId, 0, true, volumeRef.current);
-      } else if (!directStreamSuccess && urlOrId && (urlOrId.startsWith('http') || urlOrId.startsWith('file://'))) {
-        ytBridgeRef.current?.pause();
-        setActiveDriver('expo');
-        setYtPlaying(false);
-        player.replace({ uri: urlOrId });
-        player.volume = volumeRef.current;
-        player.play();
+        ytBridgeRef.current?.loadVideo(stream.youtubeId || urlOrId, 0, true, volumeRef.current);
       }
 
       try {
@@ -393,9 +267,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
               ) => void;
             }
           ).setActiveForLockScreen(true, {
-            title: meta.title,
-            artist: meta.artist,
-            artworkUrl: meta.artworkUrl,
+            title: stream.title || meta.title,
+            artist: stream.artist || meta.artist,
+            artworkUrl: stream.artworkUrl || meta.artworkUrl,
           });
         }
       } catch {}
