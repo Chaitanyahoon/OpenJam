@@ -26,7 +26,7 @@ export const SocketProvider = ({ children }) => {
     // Only run on the client side
     if (typeof window === 'undefined') return;
 
-    const token = getCookie('session_token');
+    const token = getCookie('session_token') || localStorage.getItem('openjam_token');
     const guestName = localStorage.getItem('openjam_display_name') || '';
 
     const getBackendUrl = () => {

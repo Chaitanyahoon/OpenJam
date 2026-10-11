@@ -119,7 +119,8 @@ async def admin_login(request: Request, db: Session = Depends(get_db)):
     token = create_session_token(user_id, display_name=display_name, is_admin=True)
     
     response = JSONResponse(content={
-        "user": user.to_dict()
+        "user": user.to_dict(),
+        "token": token
     })
     is_prod = settings.ENVIRONMENT == "production"
     response.set_cookie(

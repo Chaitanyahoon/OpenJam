@@ -105,6 +105,13 @@ export default function AdminPage() {
       });
 
       if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data.token) {
+          localStorage.setItem('openjam_token', data.token);
+          const maxAge = 86400 * 7;
+          const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:';
+          document.cookie = `session_token=${data.token}; max-age=${maxAge}; path=/; samesite=lax${isSecure ? '; secure' : ''}`;
+        }
         setIsAuthenticated(true);
         setPassword('');
         fetchStats();

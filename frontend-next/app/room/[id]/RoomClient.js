@@ -786,7 +786,8 @@ export default function RoomClient({ roomId }) {
     const joinRoom = () => {
       const password = sessionStorage.getItem(`room_password_${roomId}`) || roomPasswordRef.current || roomPassword;
       const avatarUrl = localStorage.getItem('openjam_avatar_url');
-      socket.emit('join_room', { room_id: roomId, password, avatar_url: avatarUrl });
+      const token = (typeof localStorage !== 'undefined' ? localStorage.getItem('openjam_token') : null) || '';
+      socket.emit('join_room', { room_id: roomId, password, avatar_url: avatarUrl, token });
     };
 
     if (socket.connected) {
@@ -2745,7 +2746,8 @@ export default function RoomClient({ roomId }) {
     
     setPasswordError('');
     const avatarUrl = localStorage.getItem('openjam_avatar_url');
-    socket.emit('join_room', { room_id: roomId, password: roomPassword, avatar_url: avatarUrl });
+    const token = (typeof localStorage !== 'undefined' ? localStorage.getItem('openjam_token') : null) || '';
+    socket.emit('join_room', { room_id: roomId, password: roomPassword, avatar_url: avatarUrl, token });
   };
 
   const handleNicknameSubmit = async (e, customName = null) => {

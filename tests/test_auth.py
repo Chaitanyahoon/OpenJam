@@ -55,6 +55,8 @@ def test_admin_login_success(client):
     response = client.post("/auth/admin-login", json={"password": "openjam-admin-123"})
     assert response.status_code == 200
     assert "session_token" in response.cookies
+    assert "token" in response.json()
+    assert response.json()["user"]["is_admin"] is True
 
 
 def test_admin_login_failure(client):

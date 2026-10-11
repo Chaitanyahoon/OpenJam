@@ -202,6 +202,10 @@ async def get_room(room_id: str, request: Request, db: Session = Depends(get_db)
     current_user = get_current_user_id(request, include_name=True)
     current_user_id = current_user["id"] if current_user else None
     is_admin = bool(current_user and current_user.get("is_admin"))
+    if not is_admin and current_user_id:
+        db_u = db.query(User).filter(User.id == current_user_id).first()
+        if db_u and db_u.is_admin:
+            is_admin = True
 
     if room.is_private and room.password_hash and not check_room_access(room, current_user_id, is_admin=is_admin):
         return {
