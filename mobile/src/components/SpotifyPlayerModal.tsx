@@ -12,7 +12,7 @@
  * - Offline Vault Save button with real-time download progress and checkmark state.
  * - Up Next queue panel with touch management (clean, arrow-free reordering).
  */
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -31,6 +31,9 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
+  FadeIn,
+  FadeOut,
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withSequence,
@@ -202,19 +205,80 @@ export function SpotifyPlayerModal() {
     return unsub;
   }, [currentTrack]);
 
+  // Real-time downward drag dismissal physics
+  const modalTranslateY = useSharedValue(0);
+  const modalScale = useSharedValue(1);
+  const modalBorderRadius = useSharedValue(0);
+
+  const animatedModalContainerStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: modalTranslateY.value },
+      { scale: modalScale.value },
+    ],
+    borderRadius: modalBorderRadius.value,
+    overflow: 'hidden',
+  }));
+
+  useEffect(() => {
+    if (isPlayerModalOpen) {
+      modalTranslateY.value = 0;
+      modalScale.value = 1;
+      modalBorderRadius.value = 0;
+    }
+  }, [isPlayerModalOpen]);
+
+  const handleDismiss = useCallback(() => {
+    void hapticLight();
+    modalTranslateY.value = withTiming(SCREEN_HEIGHT, { duration: 180 }, (finished) => {
+      if (finished) {
+        runOnJS(setPlayerModalOpen)(false);
+      }
+    });
+  }, [setPlayerModalOpen, modalTranslateY]);
+
+  const handlePanDownMove = useCallback(
+    (dy: number) => {
+      if (dy > 0) {
+        modalTranslateY.value = dy;
+        modalScale.value = Math.max(0.92, 1 - (dy / SCREEN_HEIGHT) * 0.15);
+        modalBorderRadius.value = Math.min(28, (dy / 80) * 20);
+      }
+    },
+    [modalTranslateY, modalScale, modalBorderRadius],
+  );
+
+  const handlePanDownRelease = useCallback(
+    (dy: number, vy: number) => {
+      if (dy > 65 || vy > 0.4) {
+        void hapticLight();
+        modalTranslateY.value = withTiming(SCREEN_HEIGHT, { duration: 180 }, (finished) => {
+          if (finished) {
+            runOnJS(setPlayerModalOpen)(false);
+          }
+        });
+      } else {
+        modalTranslateY.value = withSpring(0, { damping: 18, stiffness: 220 });
+        modalScale.value = withSpring(1, { damping: 18, stiffness: 220 });
+        modalBorderRadius.value = withSpring(0);
+      }
+    },
+    [setPlayerModalOpen, modalTranslateY, modalScale, modalBorderRadius],
+  );
+
   // Header Swipe-Down PanResponder to collapse modal
   const headerPanResponder = useMemo(
     () =>
       PanResponder.create({
-        onMoveShouldSetPanResponder: (_, gestureState) => gestureState.dy > 12,
+        onMoveShouldSetPanResponder: (_, gestureState) =>
+          gestureState.dy > 10 && gestureState.dy > Math.abs(gestureState.dx),
+        onPanResponderMove: (_, gestureState) => {
+          handlePanDownMove(gestureState.dy);
+        },
         onPanResponderRelease: (_, gestureState) => {
-          if (gestureState.dy > 45 || gestureState.vy > 0.4) {
-            void hapticLight();
-            setPlayerModalOpen(false);
-          }
+          handlePanDownRelease(gestureState.dy, gestureState.vy);
         },
       }),
-    [setPlayerModalOpen],
+    [handlePanDownMove, handlePanDownRelease],
   );
 
   if (!isPlayerModalOpen || !currentTrack) return null;
@@ -253,6 +317,8 @@ export function SpotifyPlayerModal() {
     onSwipeNext: playNext,
     onSwipePrev: playPrev,
     onDoubleTapLike: handleToggleLike,
+    onPanDownMove: handlePanDownMove,
+    onPanDownRelease: handlePanDownRelease,
   });
 
   return (
@@ -260,52 +326,56 @@ export function SpotifyPlayerModal() {
       visible={isPlayerModalOpen}
       animationType="slide"
       presentationStyle="fullScreen"
-      onRequestClose={() => setPlayerModalOpen(false)}
+      onRequestClose={handleDismiss}
     >
-      <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-        <LinearGradient
-          colors={[palette.top, palette.mid, palette.bottom]}
-          style={StyleSheet.absoluteFill}
-        />
+      <View style={styles.modalBackdrop}>
+        <Animated.View
+          style={[
+            styles.container,
+            animatedModalContainerStyle,
+            { paddingTop: insets.top, paddingBottom: insets.bottom },
+          ]}
+        >
+          <LinearGradient
+            colors={[palette.top, palette.mid, palette.bottom]}
+            style={StyleSheet.absoluteFill}
+          />
 
-        {/* Top Header Bar with Swipe-Down Gesture */}
-        <View style={styles.header} {...headerPanResponder.panHandlers}>
-          <Pressable
-            onPress={() => {
-              void hapticLight();
-              setPlayerModalOpen(false);
-            }}
-            hitSlop={14}
-            style={styles.headerBtn}
-            accessibilityLabel="Collapse player"
-          >
-            <ChevronDown size={28} color="#ffffff" />
-          </Pressable>
+          {/* Top Header Bar with Swipe-Down Gesture */}
+          <View style={styles.header} {...headerPanResponder.panHandlers}>
+            <Pressable
+              onPress={handleDismiss}
+              hitSlop={14}
+              style={styles.headerBtn}
+              accessibilityLabel="Collapse player"
+            >
+              <ChevronDown size={28} color="#ffffff" />
+            </Pressable>
 
-          <View style={styles.headerCenter}>
-            <Text style={styles.headerEyebrow}>PLAYING FROM</Text>
-            <Text style={styles.headerTitle} numberOfLines={1}>
-              {sourceTitle.toUpperCase()}
-            </Text>
+            <View style={styles.headerCenter}>
+              <Text style={styles.headerEyebrow}>PLAYING FROM</Text>
+              <Text style={styles.headerTitle} numberOfLines={1}>
+                {sourceTitle.toUpperCase()}
+              </Text>
+            </View>
+
+            <Pressable
+              onPress={() => {
+                void hapticLight();
+                setShowQueue((prev) => !prev);
+              }}
+              hitSlop={14}
+              style={[styles.headerBtn, showQueue && styles.headerBtnActive]}
+              accessibilityLabel="Toggle queue"
+            >
+              <ListMusic size={22} color={showQueue ? colors.amber : '#ffffff'} />
+            </Pressable>
           </View>
 
-          <Pressable
-            onPress={() => {
-              void hapticLight();
-              setShowQueue((prev) => !prev);
-            }}
-            hitSlop={14}
-            style={[styles.headerBtn, showQueue && styles.headerBtnActive]}
-            accessibilityLabel="Toggle queue"
-          >
-            <ListMusic size={22} color={showQueue ? colors.amber : '#ffffff'} />
-          </Pressable>
-        </View>
-
-        {showQueue ? (
-          /* Up Next Queue Panel */
-          <View style={styles.queueContainer}>
-            <View style={styles.queueHeader}>
+          {showQueue ? (
+            /* Up Next Queue Panel */
+            <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)} style={styles.queueContainer}>
+              <View style={styles.queueHeader} {...headerPanResponder.panHandlers}>
               <View style={styles.queueHeaderTitleCol}>
                 <Text style={styles.queueHeading}>Up Next</Text>
                 <Text style={styles.queueSubheading}>
@@ -580,10 +650,10 @@ export function SpotifyPlayerModal() {
                 )}
               </View>
             </ScrollView>
-          </View>
+          </Animated.View>
         ) : (
           /* Main Player Body */
-          <View style={styles.mainContent}>
+          <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)} style={styles.mainContent}>
             {/* Album Artwork Stage with Horizontal Swipe to Skip & Double-Tap Heart */}
             <View style={styles.artworkStage} {...artworkPanResponder.panHandlers}>
               <View style={[styles.artworkGlow, { backgroundColor: palette.glow }]} />
@@ -819,7 +889,7 @@ export function SpotifyPlayerModal() {
                 )}
               </Pressable>
             )}
-          </View>
+          </Animated.View>
         )}
 
         {/* Synced Real-Time Karaoke Lyrics Fullsheet Modal */}
@@ -906,12 +976,17 @@ export function SpotifyPlayerModal() {
           track={currentTrack}
           onClose={() => setShowAddToPlaylist(false)}
         />
+        </Animated.View>
       </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
   container: {
     flex: 1,
     backgroundColor: '#08080a',

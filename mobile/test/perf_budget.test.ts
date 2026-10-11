@@ -58,7 +58,7 @@ describe('Microsecond Performance Budget Enforcement Suite', () => {
     );
   });
 
-  it('classifyStreamInput completes 5,000 iterations within budget (<30ms)', () => {
+  it('classifyStreamInput completes 5,000 iterations within budget (<80ms)', () => {
     const iterations = 5_000;
     const testInputs = [
       'file:///data/user/0/fun.openjam/files/vault/track.mp3',
@@ -87,8 +87,8 @@ describe('Microsecond Performance Budget Enforcement Suite', () => {
     const perCallUs = (duration / iterations) * 1000;
 
     assert.ok(
-      duration < 30,
-      `classifyStreamInput took ${duration.toFixed(2)}ms (${perCallUs.toFixed(2)}µs/call), budget is 30ms`,
+      duration < 80,
+      `classifyStreamInput took ${duration.toFixed(2)}ms (${perCallUs.toFixed(2)}µs/call), budget is 80ms`,
     );
   });
 

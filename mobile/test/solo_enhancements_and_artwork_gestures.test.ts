@@ -99,6 +99,31 @@ describe('Solo Enhancements & Artwork Gestures Engine', () => {
       assert.strictEqual(evaluateArtworkSwipe(-25, -0.2), 'none');
     });
 
+    function evaluateArtworkGesture(
+      dx: number,
+      dy: number,
+      vx: number,
+      vy: number,
+      threshold = 55,
+    ): 'next' | 'prev' | 'dismiss' | 'none' {
+      if (dy > threshold || (dy > 12 && vy > 0.35)) {
+        return 'dismiss';
+      }
+      if (dx < -threshold || vx < -0.35) {
+        return 'next';
+      }
+      if (dx > threshold || vx > 0.35) {
+        return 'prev';
+      }
+      return 'none';
+    }
+
+    it('detects swipe down or downward flick as modal dismiss action', () => {
+      assert.strictEqual(evaluateArtworkGesture(5, 75, 0, 0.1), 'dismiss');
+      assert.strictEqual(evaluateArtworkGesture(10, 25, 0.1, 0.45), 'dismiss');
+      assert.strictEqual(evaluateArtworkGesture(0, 10, 0, 0.1), 'none');
+    });
+
     it('detects double tap when two taps occur within 320ms', () => {
       const tap1 = 1000;
       const tap2 = 1200; // delta 200ms

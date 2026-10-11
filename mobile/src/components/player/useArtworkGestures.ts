@@ -15,6 +15,28 @@ export interface UseArtworkGesturesProps {
   onSwipeNext: () => void | Promise<void>;
   onSwipePrev: () => void | Promise<void>;
   onDoubleTapLike: () => void | Promise<void>;
+  onSwipeDown?: () => void | Promise<void>;
+  onPanDownMove?: (dy: number) => void;
+  onPanDownRelease?: (dy: number, vy: number) => void;
+}
+
+export function evaluateArtworkGesture(
+  dx: number,
+  dy: number,
+  vx: number,
+  vy: number,
+  threshold = 55,
+): 'next' | 'prev' | 'dismiss' | 'none' {
+  if (dy > threshold || (dy > 12 && vy > 0.35)) {
+    return 'dismiss';
+  }
+  if (dx < -threshold || vx < -0.35) {
+    return 'next';
+  }
+  if (dx > threshold || vx > 0.35) {
+    return 'prev';
+  }
+  return 'none';
 }
 
 export interface UseArtworkGesturesResult {
@@ -30,12 +52,16 @@ export interface UseArtworkGesturesResult {
  * - 320ms double-tap heart burst animation & like toggle
  * - Damped horizontal drag with real-time scaling
  * - Left/right swipe velocity/distance threshold detection
+ * - Downward vertical pull-to-dismiss gesture handling
  * - Spring snapback or skip transitions
  */
 export function useArtworkGestures({
   onSwipeNext,
   onSwipePrev,
   onDoubleTapLike,
+  onSwipeDown,
+  onPanDownMove,
+  onPanDownRelease,
 }: UseArtworkGesturesProps): UseArtworkGesturesResult {
   // Double-tap heart burst on album artwork
   const burstHeartScale = useSharedValue(0);
@@ -62,10 +88,12 @@ export function useArtworkGestures({
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: (_, gestureState) => {
-          return (
+          const isHorizontal =
             Math.abs(gestureState.dx) > 12 &&
-            Math.abs(gestureState.dx) > Math.abs(gestureState.dy)
-          );
+            Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+          const isVerticalDown =
+            gestureState.dy > 12 && gestureState.dy > Math.abs(gestureState.dx);
+          return isHorizontal || isVerticalDown;
         },
         onPanResponderGrant: () => {
           const now = Date.now();
@@ -87,13 +115,25 @@ export function useArtworkGestures({
           }
         },
         onPanResponderMove: (_, gestureState) => {
-          artworkTranslateX.value = gestureState.dx * 0.75;
-          artworkScale.value = Math.max(
-            0.92,
-            1 - Math.abs(gestureState.dx) / (SCREEN_WIDTH * 2),
-          );
+          if (gestureState.dy > 12 && gestureState.dy > Math.abs(gestureState.dx)) {
+            onPanDownMove?.(gestureState.dy);
+          } else {
+            artworkTranslateX.value = gestureState.dx * 0.75;
+            artworkScale.value = Math.max(
+              0.92,
+              1 - Math.abs(gestureState.dx) / (SCREEN_WIDTH * 2),
+            );
+          }
         },
         onPanResponderRelease: (_, gestureState) => {
+          if (gestureState.dy > 12 && gestureState.dy > Math.abs(gestureState.dx)) {
+            onPanDownRelease?.(gestureState.dy, gestureState.vy);
+            if (gestureState.dy > 55 || gestureState.vy > 0.35) {
+              void onSwipeDown?.();
+            }
+            return;
+          }
+
           const SWIPE_THRESHOLD = 55;
           if (gestureState.dx < -SWIPE_THRESHOLD || gestureState.vx < -0.35) {
             void hapticLight();
@@ -134,7 +174,14 @@ export function useArtworkGestures({
           }
         },
       }),
-    [onSwipeNext, onSwipePrev, onDoubleTapLike],
+    [
+      onSwipeNext,
+      onSwipePrev,
+      onDoubleTapLike,
+      onSwipeDown,
+      onPanDownMove,
+      onPanDownRelease,
+    ],
   );
 
   return {
