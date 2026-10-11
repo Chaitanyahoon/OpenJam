@@ -27,7 +27,9 @@ async def get_system_stats(
 ):
     """Retrieve quick system metrics and database counts."""
     try:
-        user_count = db.query(User).count()
+        registered_users = db.query(User).filter((User.discord_id != None) | (User.username != None)).count()
+        total_db_users = db.query(User).count()
+        guest_users = total_db_users - registered_users
         playlist_count = db.query(Playlist).count()
         
         rooms = db.query(Room).filter(Room.is_active == True).all()
@@ -54,7 +56,10 @@ async def get_system_stats(
                     
         return {
             "stats": {
-                "total_users": user_count,
+                "total_users": registered_users,
+                "registered_users": registered_users,
+                "guest_users": guest_users,
+                "total_db_users": total_db_users,
                 "total_playlists": playlist_count,
                 "active_rooms": len(rooms),
                 "online_listeners": listener_count,
@@ -354,18 +359,7 @@ async def get_all_playlists(
             selectinload(Playlist.tracks)
         ).order_by(Playlist.created_at.desc()).all()
         
-        from backend.database import safe_isoformat
-        result = []
-        for pl in playlists:
-            result.append({
-                "id": pl.id,
-                "name": pl.name,
-                "creator_name": pl.creator.display_name if pl.creator else "Unknown",
-                "is_private": pl.is_private,
-                "track_count": len(pl.tracks),
-                "created_at": safe_isoformat(pl.created_at)
-            })
-        return {"playlists": result}
+        return {"playlists": [pl.to_dict(include_tracks=True) for pl in playlists]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

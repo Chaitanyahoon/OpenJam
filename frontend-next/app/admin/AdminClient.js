@@ -6,7 +6,8 @@ import Link from 'next/link';
 import { 
   Shield, Users, Radio, ListMusic, Terminal, RefreshCw, 
   Trash2, Award, Zap, LogOut, LayoutDashboard, Database, 
-  Globe, Lock, AlertTriangle, CheckCircle, AlertCircle
+  Globe, Lock, AlertTriangle, CheckCircle, AlertCircle,
+  Eye, ExternalLink, Music
 } from 'lucide-react';
 
 export default function AdminPage() {
@@ -24,7 +25,8 @@ export default function AdminPage() {
   const [logs, setLogs] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Search query states
+  // Search and filter states
+  const [userFilter, setUserFilter] = useState('registered'); // 'registered' | 'all'
   const [searchRoomsQuery, setSearchRoomsQuery] = useState('');
   const [searchUsersQuery, setSearchUsersQuery] = useState('');
   const [searchPlaylistsQuery, setSearchPlaylistsQuery] = useState('');
@@ -32,6 +34,7 @@ export default function AdminPage() {
   const [triggeringHealthcheck, setTriggeringHealthcheck] = useState(false);
   const [broadcastMsg, setBroadcastMsg] = useState('');
   const [broadcasting, setBroadcasting] = useState(false);
+  const [selectedInspectPlaylist, setSelectedInspectPlaylist] = useState(null);
 
   // Confirmations
   const [showCloseAllConfirm, setShowCloseAllConfirm] = useState(false);
@@ -512,8 +515,11 @@ export default function AdminPage() {
                       
                       <div className="admin-metrics-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
                         <div className="metric-box glass-card" style={{ padding: '20px', borderRadius: '16px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <span className="metric-label" style={{ fontSize: '11px', color: 'var(--text-3, #64748b)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Registered Users</span>
-                          <span className="metric-val" style={{ fontSize: '32px', fontWeight: 800, color: '#fff' }}>{stats.total_users}</span>
+                          <span className="metric-label" style={{ fontSize: '11px', color: 'var(--text-3, #64748b)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Registered Users (Discord)</span>
+                          <span className="metric-val" style={{ fontSize: '32px', fontWeight: 800, color: '#fff' }}>{stats.registered_users ?? stats.total_users ?? 0}</span>
+                          {stats.guest_users != null && stats.guest_users > 0 && (
+                            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500, marginTop: '2px' }}>+{stats.guest_users} guest sessions</span>
+                          )}
                         </div>
                         <div className="metric-box glass-card" style={{ padding: '20px', borderRadius: '16px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           <span className="metric-label" style={{ fontSize: '11px', color: 'var(--text-3, #64748b)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Active Listening Rooms</span>
@@ -765,12 +771,19 @@ export default function AdminPage() {
 
                   {/* TAB 3: USERS */}
                   {activeTab === 'users' && (() => {
-                    const filteredUsers = users.filter(user => 
-                      user.display_name.toLowerCase().includes(searchUsersQuery.toLowerCase()) ||
-                      user.id.toLowerCase().includes(searchUsersQuery.toLowerCase()) ||
-                      (user.discord_username && user.discord_username.toLowerCase().includes(searchUsersQuery.toLowerCase())) ||
-                      (user.discord_id && user.discord_id.toLowerCase().includes(searchUsersQuery.toLowerCase()))
-                    );
+                    const registeredCount = users.filter(u => u.is_registered).length;
+                    const guestCount = users.length - registeredCount;
+                    const filteredUsers = users.filter(user => {
+                      if (userFilter === 'registered' && !user.is_registered) return false;
+                      const q = searchUsersQuery.toLowerCase();
+                      return (
+                        user.display_name?.toLowerCase().includes(q) ||
+                        user.id?.toLowerCase().includes(q) ||
+                        (user.discord_username && user.discord_username.toLowerCase().includes(q)) ||
+                        (user.discord_id && user.discord_id.toLowerCase().includes(q)) ||
+                        (user.username && user.username.toLowerCase().includes(q))
+                      );
+                    });
                     return (
                       <motion.div
                         key="users"
@@ -779,13 +792,53 @@ export default function AdminPage() {
                         exit={{ opacity: 0, y: -6 }}
                         transition={{ duration: 0.15 }}
                       >
-                        <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#fff', marginBottom: '20px' }}>Registered Users Directory</h3>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                          <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#fff', margin: 0 }}>Registered Users Directory</h3>
+                          
+                          {/* Registered vs Guests Filter Pills */}
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={() => setUserFilter('registered')}
+                              style={{
+                                padding: '6px 14px',
+                                borderRadius: '20px',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                background: userFilter === 'registered' ? 'rgba(88, 101, 242, 0.2)' : 'rgba(255, 255, 255, 0.03)',
+                                border: `1px solid ${userFilter === 'registered' ? '#5865F2' : 'rgba(255, 255, 255, 0.08)'}`,
+                                color: userFilter === 'registered' ? '#fff' : 'var(--text-3)',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              ● Discord Users ({registeredCount})
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setUserFilter('all')}
+                              style={{
+                                padding: '6px 14px',
+                                borderRadius: '20px',
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                background: userFilter === 'all' ? 'rgba(255, 159, 28, 0.2)' : 'rgba(255, 255, 255, 0.03)',
+                                border: `1px solid ${userFilter === 'all' ? 'var(--amber, #ff9f1c)' : 'rgba(255, 255, 255, 0.08)'}`,
+                                color: userFilter === 'all' ? '#fff' : 'var(--text-3)',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              All Inc. Guests ({users.length})
+                            </button>
+                          </div>
+                        </div>
                         
                         {users.length > 0 && (
                           <div style={{ marginBottom: '16px' }}>
                             <input
                               type="text"
-                              placeholder="Search users by name, ID or Discord..."
+                              placeholder={`Search ${userFilter === 'registered' ? 'registered' : 'all'} users by name, ID or Discord...`}
                               value={searchUsersQuery}
                               onChange={(e) => setSearchUsersQuery(e.target.value)}
                               style={{
@@ -824,12 +877,19 @@ export default function AdminPage() {
                                         {user.avatar_url ? (
                                           <img src={user.avatar_url} alt="" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
                                         ) : (
-                                          <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold', fontSize: '12px', flexShrink: 0 }}>
+                                          <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: user.is_registered ? 'rgba(88, 101, 242, 0.2)' : 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: user.is_registered ? '#5865F2' : '#fff', fontWeight: 'bold', fontSize: '12px', flexShrink: 0 }}>
                                             {user.display_name.charAt(0).toUpperCase()}
                                           </div>
                                         )}
                                         <div>
-                                          <div style={{ fontWeight: 600, color: '#fff', fontSize: '13.5px' }}>{user.display_name}</div>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <span style={{ fontWeight: 600, color: '#fff', fontSize: '13.5px' }}>{user.display_name}</span>
+                                            {user.is_registered ? (
+                                              <span style={{ fontSize: '10px', background: 'rgba(88, 101, 242, 0.15)', color: '#818cf8', padding: '1px 5px', borderRadius: '4px', fontWeight: 600 }}>Discord</span>
+                                            ) : (
+                                              <span style={{ fontSize: '10px', background: 'rgba(255, 255, 255, 0.05)', color: '#777', padding: '1px 5px', borderRadius: '4px' }}>Guest</span>
+                                            )}
+                                          </div>
                                           <div style={{ fontSize: '10px', color: '#555' }}>ID: {user.id.substring(0, 8)}...</div>
                                         </div>
                                       </div>
@@ -837,11 +897,11 @@ export default function AdminPage() {
                                     <td style={{ padding: '14px 8px', fontSize: '13px', color: '#ccc' }}>
                                       {user.discord_username ? (
                                         <div>
-                                          <div style={{ fontWeight: 500 }}>@{user.discord_username}</div>
+                                          <div style={{ fontWeight: 600, color: '#c7d2fe' }}>@{user.discord_username}</div>
                                           <div style={{ fontSize: '10px', color: '#666' }}>ID: {user.discord_id}</div>
                                         </div>
                                       ) : (
-                                        <span style={{ color: '#555', fontStyle: 'italic', fontSize: '12.5px' }}>Not Linked</span>
+                                        <span style={{ color: '#555', fontStyle: 'italic', fontSize: '12px' }}>Not Linked (Guest)</span>
                                       )}
                                     </td>
                                     <td style={{ padding: '14px 8px' }}>
@@ -989,13 +1049,54 @@ export default function AdminPage() {
                                       {playlist.created_at ? new Date(playlist.created_at).toLocaleDateString() : 'N/A'}
                                     </td>
                                     <td style={{ padding: '14px 8px' }}>
-                                      <button 
-                                        className="btn-danger-sm"
-                                        onClick={() => setShowDeletePlaylistConfirm(playlist.id)}
-                                        style={{ border: '1px solid rgba(239, 68, 68, 0.2)', color: '#f87171', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', background: 'none' }}
-                                      >
-                                        Delete Playlist
-                                      </button>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                        <a
+                                          href={`/playlist/${playlist.id}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '4px',
+                                            padding: '4px 8px',
+                                            borderRadius: '6px',
+                                            fontSize: '11px',
+                                            fontWeight: 600,
+                                            color: 'var(--amber, #ff9f1c)',
+                                            background: 'rgba(255, 159, 28, 0.08)',
+                                            border: '1px solid rgba(255, 159, 28, 0.2)',
+                                            textDecoration: 'none'
+                                          }}
+                                        >
+                                          <ExternalLink size={11} /> View
+                                        </a>
+                                        <button 
+                                          type="button"
+                                          onClick={() => setSelectedInspectPlaylist(playlist)}
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '4px',
+                                            padding: '4px 8px',
+                                            borderRadius: '6px',
+                                            fontSize: '11px',
+                                            fontWeight: 600,
+                                            color: '#fff',
+                                            background: 'rgba(255, 255, 255, 0.04)',
+                                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                                            cursor: 'pointer'
+                                          }}
+                                        >
+                                          <Eye size={11} /> Inspect ({playlist.track_count || playlist.tracks?.length || 0})
+                                        </button>
+                                        <button 
+                                          className="btn-danger-sm"
+                                          onClick={() => setShowDeletePlaylistConfirm(playlist.id)}
+                                          style={{ border: '1px solid rgba(239, 68, 68, 0.2)', color: '#f87171', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', background: 'none' }}
+                                        >
+                                          Delete
+                                        </button>
+                                      </div>
                                     </td>
                                   </tr>
                                 ))}
@@ -1234,6 +1335,109 @@ export default function AdminPage() {
                 >
                   Delete Playlist
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ══ INSPECT PLAYLIST MODAL ════════════════════════ */}
+      <AnimatePresence>
+        {selectedInspectPlaylist && (
+          <div className="modal-bg open" style={{ display: 'flex', zIndex: 2000 }} onClick={() => setSelectedInspectPlaylist(null)}>
+            <motion.div 
+              className="modal-box"
+              onClick={(e) => e.stopPropagation()}
+              initial={{ scale: 0.85, y: 30, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.85, y: 30, opacity: 0 }}
+              style={{ maxWidth: '580px', width: '92%', maxHeight: '80vh', display: 'flex', flexDirection: 'column', background: '#0d0d11', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '24px', padding: '24px', textAlign: 'left' }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <ListMusic size={18} style={{ color: 'var(--amber, #ff9f1c)' }} />
+                    <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#fff', margin: 0 }}>{selectedInspectPlaylist.name}</h3>
+                  </div>
+                  <p style={{ fontSize: '12px', color: 'var(--text-3)', margin: 0 }}>
+                    Created by <strong style={{ color: '#ccc' }}>{selectedInspectPlaylist.creator_name || 'Unknown'}</strong> • {selectedInspectPlaylist.tracks?.length || selectedInspectPlaylist.track_count || 0} tracks • {selectedInspectPlaylist.is_private ? '🔒 Private' : '🌐 Public'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedInspectPlaylist(null)}
+                  style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: '18px', padding: '4px 8px' }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Scrollable Tracks List */}
+              <div style={{ flex: 1, overflowY: 'auto', maxHeight: '420px', paddingRight: '4px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {selectedInspectPlaylist.tracks && selectedInspectPlaylist.tracks.length > 0 ? (
+                  selectedInspectPlaylist.tracks.map((t, idx) => (
+                    <div
+                      key={t.id || idx}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '8px 12px',
+                        borderRadius: '10px',
+                        background: 'rgba(255,255,255,0.02)',
+                        border: '1px solid rgba(255,255,255,0.04)'
+                      }}
+                    >
+                      <span style={{ fontSize: '11px', color: '#555', width: '20px', textAlign: 'center', fontWeight: 700 }}>{idx + 1}</span>
+                      {t.album_art_url ? (
+                        <img src={t.album_art_url} alt="" style={{ width: '36px', height: '36px', borderRadius: '6px', objectFit: 'cover' }} />
+                      ) : (
+                        <div style={{ width: '36px', height: '36px', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Music size={16} color="#888" />
+                        </div>
+                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '13px', fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {t.track_name}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#888', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {t.artist}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#666', fontVariantNumeric: 'tabular-nums' }}>
+                        {t.duration_ms ? `${Math.floor(t.duration_ms / 60000)}:${String(Math.floor((t.duration_ms % 60000) / 1000)).padStart(2, '0')}` : '--:--'}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ padding: '30px 0', textAlign: 'center', color: '#666', fontSize: '13px' }}>
+                    No tracks in this playlist yet.
+                  </div>
+                )}
+              </div>
+
+              {/* Bottom Actions */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                <span style={{ fontSize: '11px', color: '#555' }}>ID: {selectedInspectPlaylist.id}</span>
+                <a
+                  href={`/playlist/${selectedInspectPlaylist.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 16px',
+                    borderRadius: '10px',
+                    background: 'var(--amber, #ff9f1c)',
+                    color: '#000',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    textDecoration: 'none'
+                  }}
+                >
+                  <ExternalLink size={13} /> Open Full Player Page
+                </a>
               </div>
             </motion.div>
           </div>

@@ -237,3 +237,87 @@ def test_admin_clear_audio_cache(client):
     assert resp.status_code == 200
     assert resp.json()["success"] is True
 
+
+def test_admin_stats_registered_vs_guest_separation(client, db_session):
+    """Test admin system stats separating registered Discord accounts from ephemeral guest rows."""
+    from backend.models.user import User
+    import uuid
+
+    # 1. Create a guest user (no discord_id, no username)
+    guest_user = User(id=str(uuid.uuid4()), display_name="Jammer-Guest1")
+    # 2. Create a registered discord user
+    reg_user = User(id=str(uuid.uuid4()), display_name="DiscordUser", discord_id="discord-987654")
+    db_session.add_all([guest_user, reg_user])
+    db_session.commit()
+
+    # 3. Authenticate as admin
+    client.post("/auth/admin-login", json={"password": "openjam-admin-123"})
+    resp = client.get("/admin/stats")
+    assert resp.status_code == 200
+    stats = resp.json()["stats"]
+
+    # Verify registered vs guest counts
+    assert stats["registered_users"] >= 1
+    assert stats["guest_users"] >= 1
+    assert stats["total_users"] == stats["registered_users"]
+    assert stats["total_db_users"] >= stats["registered_users"] + stats["guest_users"]
+
+    # Verify /admin/users has is_registered flags
+    users_resp = client.get("/admin/users")
+    assert users_resp.status_code == 200
+    all_users = {u["id"]: u for u in users_resp.json()["users"]}
+    assert all_users[reg_user.id]["is_registered"] is True
+    assert all_users[guest_user.id]["is_registered"] is False
+
+
+def test_admin_inspect_private_playlist_bypass(client, db_session):
+    """Test admin inspecting private playlist without 403 Forbidden."""
+    from backend.models.user import User
+    from backend.models.playlist import Playlist, PlaylistTrack
+    import uuid
+
+    # 1. Create creator and private playlist with tracks
+    creator = User(id=str(uuid.uuid4()), display_name="PrivateUser", discord_id="disc-priv")
+    db_session.add(creator)
+    db_session.commit()
+
+    playlist = Playlist(
+        id=str(uuid.uuid4()),
+        name="Top Secret Mixtape",
+        creator_id=creator.id,
+        is_private=True
+    )
+    track = PlaylistTrack(
+        id=str(uuid.uuid4()),
+        playlist_id=playlist.id,
+        track_uri="yt-12345",
+        track_name="Confidential Groove",
+        artist="Secret Artist",
+        position=0
+    )
+    db_session.add_all([playlist, track])
+    db_session.commit()
+
+    # 2. Unauthenticated / anonymous visitor gets 403
+    unauth_resp = client.get(f"/playlists/{playlist.id}")
+    assert unauth_resp.status_code == 403
+
+    # 3. Authenticate as admin
+    login_resp = client.post("/auth/admin-login", json={"password": "openjam-admin-123"})
+    assert login_resp.status_code == 200
+
+    # 4. Admin accesses private playlist via standard endpoint
+    admin_pl_resp = client.get(f"/playlists/{playlist.id}")
+    assert admin_pl_resp.status_code == 200
+    assert admin_pl_resp.json()["playlist"]["name"] == "Top Secret Mixtape"
+    assert len(admin_pl_resp.json()["playlist"]["tracks"]) == 1
+
+    # 5. Admin lists playlists via /admin/playlists with tracks included
+    admin_list_resp = client.get("/admin/playlists")
+    assert admin_list_resp.status_code == 200
+    matching = [p for p in admin_list_resp.json()["playlists"] if p["id"] == playlist.id]
+    assert len(matching) == 1
+    assert len(matching[0]["tracks"]) == 1
+    assert matching[0]["tracks"][0]["track_name"] == "Confidential Groove"
+
+

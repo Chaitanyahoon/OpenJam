@@ -100,23 +100,39 @@ async def get_playlist(playlist_id: str, request: Request, db: Session = Depends
     if not playlist:
         raise HTTPException(status_code=404, detail="Playlist not found")
         
-    # Check authorization if private
-    current_user_id = get_current_user_id(request)
-    if playlist.is_private and playlist.creator_id != current_user_id:
+    # Check authorization if private (bypass for admin superuser)
+    current_user = get_current_user_id(request, include_name=True)
+    current_user_id = current_user.get("id") if current_user else None
+    is_admin = bool(current_user and current_user.get("is_admin"))
+    if not is_admin and current_user_id:
+        from backend.models.user import User
+        u = db.query(User).filter(User.id == current_user_id).first()
+        if u and u.is_admin:
+            is_admin = True
+
+    if playlist.is_private and playlist.creator_id != current_user_id and not is_admin:
         raise HTTPException(status_code=403, detail="This playlist is private")
         
     return {"playlist": playlist.to_dict(include_tracks=True)}
 
 
 @router.delete("/{playlist_id}")
-async def delete_playlist(playlist_id: str, db: Session = Depends(get_db), user_id: str = Depends(require_registered_user)):
+async def delete_playlist(playlist_id: str, request: Request, db: Session = Depends(get_db), user_id: str = Depends(require_registered_user)):
     """Delete a playlist."""
     playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
     
     if not playlist:
         raise HTTPException(status_code=404, detail="Playlist not found")
+
+    current_user = get_current_user_id(request, include_name=True)
+    is_admin = bool(current_user and current_user.get("is_admin"))
+    if not is_admin and user_id:
+        from backend.models.user import User
+        u = db.query(User).filter(User.id == user_id).first()
+        if u and u.is_admin:
+            is_admin = True
         
-    if playlist.creator_id != user_id:
+    if playlist.creator_id != user_id and not is_admin:
         raise HTTPException(status_code=403, detail="You do not own this playlist")
         
     db.delete(playlist)

@@ -39,6 +39,7 @@ class User(Base):
             "avatar_url": self.avatar_url,
             "is_premium": self.is_premium,
             "is_admin": self.is_admin,
+            "is_registered": bool(self.discord_id or self.username),
             "discord_id": self.discord_id,
             "discord_username": self.discord_username,
             "username": self.username,
