@@ -30,6 +30,28 @@ class QueueManager:
         db.refresh(item)
         return item
 
+    def add_to_queue(
+        self,
+        db: Session,
+        room_id: str,
+        track_uri: str,
+        track_name: str,
+        artist: str,
+        album_art_url: str = "",
+        duration_ms: int = 0,
+        user_id: str = "",
+        display_name: str = "",
+    ) -> QueueItem:
+        """Adapter matching socket caller signatures."""
+        track_data = {
+            "uri": track_uri,
+            "name": track_name,
+            "artist": artist,
+            "album_art_url": album_art_url,
+            "duration_ms": duration_ms,
+        }
+        return self.add_track(db, room_id, track_data, user_id, display_name)
+
     def vote_track(self, db: Session, queue_item_id: str, user_id: str) -> bool:
         item = db.query(QueueItem).filter(QueueItem.id == queue_item_id).first()
         if not item:

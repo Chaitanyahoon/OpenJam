@@ -1,7 +1,10 @@
 """Room CRUD routes."""
 
 import json
+import logging
 from fastapi import APIRouter, Request, Depends, HTTPException, Query
+
+logger = logging.getLogger(__name__)
 from sqlalchemy.orm import Session, selectinload
 from backend.database import get_db
 from backend.models.room import Room

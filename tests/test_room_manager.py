@@ -87,3 +87,49 @@ def test_leave_room_prunes_stale_recently_left():
     recently_left = room_manager.store.get_recently_left()
     assert "stale-user" not in recently_left
     assert "user-1" in recently_left
+
+
+def test_queue_manager_add_to_queue_adapter(db_session, test_room):
+    from backend.services.queue_manager import queue_manager
+    item = queue_manager.add_to_queue(
+        db=db_session,
+        room_id=test_room.id,
+        track_uri="spotify:track:xyz123",
+        track_name="Test Lounge Beat",
+        artist="DJ Test",
+        album_art_url="https://example.com/cover.jpg",
+        duration_ms=180000,
+        user_id="bot-1",
+        display_name="OpenJam Bot",
+    )
+    assert item is not None
+    assert item.track_name == "Test Lounge Beat"
+    assert item.track_uri == "spotify:track:xyz123"
+    assert item.added_by_name == "OpenJam Bot"
+
+
+def test_redis_store_l1_cache_and_error_resilience():
+    from unittest.mock import MagicMock
+    from backend.services.redis_store import RedisStore
+
+    store = RedisStore()
+    mock_client = MagicMock()
+    store.client = mock_client
+
+    # 1. Test set_room and L1 cache hit without calling client.get
+    store.set_room("cached-room", {"name": "Cached", "users": {}})
+    mock_client.set.assert_called_once()
+    
+    # get_room within TTL should hit L1 cache and NOT call client.get
+    room = store.get_room("cached-room")
+    assert room["name"] == "Cached"
+    mock_client.get.assert_not_called()
+
+    # 2. Test error resilience: client.get raises ResponseError (e.g. Upstash daily quota exceeded)
+    store._room_expiries["cached-room"] = 0  # expire L1 cache
+    import redis
+    mock_client.get.side_effect = redis.exceptions.ResponseError("ERR Daily request limit exceeded")
+    
+    # Must NOT raise exception; returns local fallback gracefully
+    fallback_room = store.get_room("cached-room")
+    assert fallback_room["name"] == "Cached"

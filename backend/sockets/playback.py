@@ -224,20 +224,26 @@ async def _do_advance(room_id: str, sio: socketio.AsyncServer):
 
 
 async def _playback_sync_loop(room_id: str, sio: socketio.AsyncServer):
-    """Broadcast playback state every 2 seconds, using wall-clock for accurate position."""
+    """Broadcast playback state every 2 seconds, using wall-clock for accurate position.
+    
+    Throttles Redis persistence writes to 30s intervals to conserve free-tier command quotas.
+    """
     last_tick = datetime.now(timezone.utc)
+    tick_count = 0
 
     while True:
         await asyncio.sleep(2)
+        tick_count += 1
 
         # Stop loop if room is empty or no longer exists
-        if room_manager.get_listener_count(room_id) == 0:
+        room = room_manager.store.get_room(room_id)
+        if not room or len(room.get("users", {})) == 0:
             from backend.logger import get_logger
             get_logger(__name__).info(f"Sync loop stopping: room {room_id} has 0 listeners")
             stop_sync_loop(room_id)
             return
 
-        playback = room_manager.get_playback(room_id)
+        playback = room.get("playback")
         if not playback or not playback.get("track_uri"):
             last_tick = datetime.now(timezone.utc)
             continue
@@ -253,7 +259,7 @@ async def _playback_sync_loop(room_id: str, sio: socketio.AsyncServer):
         if playback.get("is_buffering"):
             # Emit current state with is_buffering=True so listeners freeze progress
             try:
-                host_sid = room_manager.get_host_sid(room_id)
+                host_sid = room.get("host_sid")
                 await sio.emit("playback_sync", _make_json_safe(playback), room=room_id, skip_sid=host_sid)
             except Exception as e:
                 from backend.logger import get_logger
@@ -267,9 +273,7 @@ async def _playback_sync_loop(room_id: str, sio: socketio.AsyncServer):
             limit,
         )
 
-
         # Auto-advance when track ends (with an 8-second grace period to let the host client handle it first)
-        duration = playback.get("duration_ms", 0)
         if duration and new_pos >= duration + 8000:
             if playback.get("loop"):
                 room_manager.update_playback(
@@ -307,24 +311,30 @@ async def _playback_sync_loop(room_id: str, sio: socketio.AsyncServer):
                     await _do_advance(room_id, sio)
             return
 
-        # Update server-side position
-        room_manager.update_playback(
-            room_id=room_id,
-            track_uri=playback["track_uri"],
-            track_name=playback.get("track_name", ""),
-            artist=playback.get("artist", ""),
-            album_art_url=playback.get("album_art_url", ""),
-            position_ms=new_pos,
-            duration_ms=playback.get("duration_ms", 0),
-            is_playing=True,
-            loop=playback.get("loop", False),
-        )
+        # Update position in local state
+        playback["position_ms"] = new_pos
+        playback["updated_at"] = now.isoformat()
+        room["playback"] = playback
+        room_manager.store._rooms[room_id] = room
+
+        # Throttle Redis persistence to once every 15 ticks (30s) to conserve Upstash commands
+        if tick_count % 15 == 0:
+            room_manager.update_playback(
+                room_id=room_id,
+                track_uri=playback["track_uri"],
+                track_name=playback.get("track_name", ""),
+                artist=playback.get("artist", ""),
+                album_art_url=playback.get("album_art_url", ""),
+                position_ms=new_pos,
+                duration_ms=playback.get("duration_ms", 0),
+                is_playing=True,
+                loop=playback.get("loop", False),
+            )
 
         # Emit to all listeners (including host for UI sync, but host player ignores position)
-        updated = room_manager.get_playback(room_id)
         try:
-            host_sid = room_manager.get_host_sid(room_id)
-            await sio.emit("playback_sync", _make_json_safe(updated), room=room_id, skip_sid=host_sid)
+            host_sid = room.get("host_sid")
+            await sio.emit("playback_sync", _make_json_safe(playback), room=room_id, skip_sid=host_sid)
         except Exception as e:
             from backend.logger import get_logger
             logger = get_logger(__name__)
