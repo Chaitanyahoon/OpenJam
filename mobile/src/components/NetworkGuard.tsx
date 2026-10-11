@@ -22,7 +22,7 @@ export function NetworkGuard({ children }: { children: React.ReactNode }) {
         if (!isOnline) {
           wasOffline.current = true;
           void hapticMedium();
-          toast('Offline mode active • Playing saved vault music', 'info');
+          toast('Offline mode active • Playing downloaded music', 'info');
         }
         return;
       }
@@ -30,7 +30,7 @@ export function NetworkGuard({ children }: { children: React.ReactNode }) {
       if (!isOnline) {
         wasOffline.current = true;
         void hapticMedium();
-        toast('Network disconnected • Switched to Offline Vault', 'info');
+        toast('Network disconnected • Switched to Downloads', 'info');
       } else {
         if (wasOffline.current) {
           wasOffline.current = false;

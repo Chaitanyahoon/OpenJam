@@ -367,10 +367,10 @@ export function QueueList() {
         }
       }
       setIsVaultSaved(true);
-      toast(`Saved ${count} track${count > 1 ? 's' : ''} to offline vault!`, 'success');
+      toast(`Downloaded ${count} track${count > 1 ? 's' : ''}!`, 'success');
       void hapticMedium();
     } catch {
-      toast('Failed saving queue to vault', 'error');
+      toast('Failed downloading queue', 'error');
     } finally {
       setIsSavingVault(false);
     }
@@ -631,7 +631,7 @@ export function QueueList() {
                           pressed && styles.pressed,
                         ]}
                         hitSlop={6}
-                        accessibilityLabel="Save entire queue to offline vault"
+                        accessibilityLabel="Download entire queue"
                       >
                         {isSavingVault || isAnyDownloading ? (
                           <>

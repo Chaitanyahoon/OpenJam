@@ -221,11 +221,11 @@ export function SpotifyPlayerModal() {
 
   const handleDownload = async () => {
     if (isDownloaded) {
-      toast('Song is already stored in Offline Vault', 'info');
+      toast('Song is already downloaded', 'info');
       return;
     }
     void hapticMedium();
-    toast(`Downloading "${currentTrack.track_name}" to Offline Vault…`, 'info');
+    toast(`Downloading "${currentTrack.track_name}" for offline play…`, 'info');
     try {
       await downloadTrackToVault(currentTrack, isLiked);
       setIsDownloaded(true);
@@ -631,7 +631,7 @@ export function SpotifyPlayerModal() {
                   onPress={handleDownload}
                   hitSlop={10}
                   style={styles.actionIconBtn}
-                  accessibilityLabel="Save song to Offline Vault"
+                  accessibilityLabel="Download song for offline listening"
                 >
                   {downloadProgress?.state === 'downloading' ? (
                     <ActivityIndicator size="small" color={colors.amber} />

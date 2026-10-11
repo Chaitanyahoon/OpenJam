@@ -93,10 +93,10 @@ export const GenreFilterBar: React.FC<GenreFilterBarProps> = ({
             onPress={onOpenOfflineVault}
             hitSlop={8}
             style={({ pressed }) => [styles.offlineVaultBtn, pressed && styles.pressed]}
-            accessibilityLabel="Open Offline Audio Vault"
+            accessibilityLabel="Open Downloads"
           >
             <HardDrive size={12} color={colors.amber} />
-            <Text style={styles.offlineVaultBtnText}>Offline Vault</Text>
+            <Text style={styles.offlineVaultBtnText}>Downloads</Text>
           </Pressable>
         )}
       </View>

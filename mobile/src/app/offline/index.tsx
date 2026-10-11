@@ -146,7 +146,7 @@ export default function OfflineVaultScreen() {
       setActivePlayingUri(track.track_uri);
       const isLikedTab = activeTab === 'liked';
       await playTrack(track, displayedTracks, {
-        sourceTitle: isLikedTab ? 'Liked Songs' : 'Offline Vault',
+        sourceTitle: isLikedTab ? 'Liked Songs' : 'Downloads',
       });
       setPlayerModalOpen(true);
       toast(`Playing "${track.track_name}" offline`, 'success');
@@ -233,14 +233,14 @@ export default function OfflineVaultScreen() {
     }
 
     setIsBatchDownloading(false);
-    toast(`Saved ${successCount} tracks to offline vault!`, 'success');
+    toast(`Downloaded ${successCount} tracks!`, 'success');
     await loadData();
   };
 
   // Clear entire vault
   const handleClearAll = () => {
     Alert.alert(
-      'Clear Offline Vault',
+      'Clear Downloads',
       'This will delete all downloaded audio files from your device. You can re-download anytime.',
       [
         { text: 'Cancel', style: 'cancel' },
@@ -251,7 +251,7 @@ export default function OfflineVaultScreen() {
             pause();
             setActivePlayingUri(null);
             await clearVault();
-            toast('Offline vault cleared', 'info');
+            toast('Downloads cleared', 'info');
             void loadData();
           },
         },
@@ -272,7 +272,10 @@ export default function OfflineVaultScreen() {
         is_private: false,
       });
       toast(`Room "${newRoom.name}" created! Broadcasting...`, 'success');
-      router.push(`/room/${newRoom.id}`);
+      router.push({
+        pathname: '/room/[id]',
+        params: { id: newRoom.id, name: newRoom.name || '' },
+      });
     } catch {
       toast('Could not create live room. Check connection.', 'error');
     }
@@ -284,7 +287,7 @@ export default function OfflineVaultScreen() {
     const first = displayedTracks[0];
     setActivePlayingUri(first.track_uri);
     await playTrack(first, displayedTracks, {
-      sourceTitle: activeTab === 'liked' ? 'Liked Songs' : 'Offline Vault',
+      sourceTitle: activeTab === 'liked' ? 'Liked Songs' : 'Downloads',
     });
     setPlayerModalOpen(true);
     toast(`Playing ${displayedTracks.length} tracks`, 'success');
@@ -297,7 +300,7 @@ export default function OfflineVaultScreen() {
     const first = shuffled[0];
     setActivePlayingUri(first.track_uri);
     await playTrack(first, shuffled, {
-      sourceTitle: activeTab === 'liked' ? 'Liked Songs (Shuffle)' : 'Offline Vault (Shuffle)',
+      sourceTitle: activeTab === 'liked' ? 'Liked Songs (Shuffle)' : 'Downloads (Shuffle)',
     });
     setPlayerModalOpen(true);
     toast(`Shuffling ${shuffled.length} tracks`, 'success');
@@ -343,7 +346,7 @@ export default function OfflineVaultScreen() {
 
         <View style={styles.headerTitleWrap}>
           <Text style={[styles.headerTitle, isCompact && styles.headerTitleCompact]}>
-            Offline Audio Vault
+            Downloads
           </Text>
           <View style={styles.offlineStatusChip}>
             <View style={styles.statusDotGreen} />
@@ -366,7 +369,7 @@ export default function OfflineVaultScreen() {
         <View style={styles.offlineNoticeBanner}>
           <WifiOff size={13} color="#f59e0b" />
           <Text style={styles.offlineNoticeText}>
-            No internet connection • Playing from local vault storage
+            No internet connection • Playing downloaded music
           </Text>
         </View>
       ) : (

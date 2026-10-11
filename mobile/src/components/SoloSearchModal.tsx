@@ -264,7 +264,7 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
     onClose();
     setPlayerModalOpen(true);
     toast(`Playing "${track.track_name}" offline`, 'success');
-    void playTrack(track, vaultTracks, { sourceTitle: 'Offline Vault' });
+    void playTrack(track, vaultTracks, { sourceTitle: 'Downloads' });
   };
 
   return (
@@ -443,7 +443,7 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
                   <Text style={styles.offlineNoticeText} numberOfLines={1}>
                     {vaultTracks.length > 0
                       ? `Offline Mode • ${vaultTracks.length} downloaded track${vaultTracks.length === 1 ? '' : 's'} ready`
-                      : 'Offline Mode • No downloaded tracks in Vault'}
+                      : 'Offline Mode • No downloaded tracks'}
                   </Text>
                 </View>
                 <Pressable
@@ -453,7 +453,7 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
                   }}
                   hitSlop={8}
                 >
-                  <Text style={styles.offlineNoticeLink}>Open Vault</Text>
+                  <Text style={styles.offlineNoticeLink}>Downloads</Text>
                 </Pressable>
               </View>
             )}
@@ -473,7 +473,7 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
                     }}
                     hitSlop={8}
                   >
-                    <Text style={styles.clearAllText}>Vault ({vaultTracks.length})</Text>
+                    <Text style={styles.clearAllText}>View All ({vaultTracks.length})</Text>
                   </Pressable>
                 </View>
                 {vaultTracks.slice(0, 5).map((item, i) => (

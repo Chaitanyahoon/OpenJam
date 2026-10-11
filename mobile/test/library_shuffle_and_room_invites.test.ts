@@ -77,9 +77,9 @@ describe('Library Shuffle & Room Invite Engine', () => {
     assert.ok(liveMsg.includes('Chill Beats'));
   });
 
-  it('maps Liked Songs and Offline Vault playback parameters accurately', () => {
+  it('maps Liked Songs and Downloads playback parameters accurately', () => {
     const buildPlaybackOptions = (isShuffle: boolean, isLikedTab: boolean) => {
-      let sourceTitle = isLikedTab ? 'Liked Songs' : 'Offline Vault';
+      let sourceTitle = isLikedTab ? 'Liked Songs' : 'Downloads';
       if (isShuffle) {
         sourceTitle += ' (Shuffle)';
       }
@@ -88,7 +88,7 @@ describe('Library Shuffle & Room Invite Engine', () => {
 
     assert.deepStrictEqual(buildPlaybackOptions(false, true), { sourceTitle: 'Liked Songs' });
     assert.deepStrictEqual(buildPlaybackOptions(true, true), { sourceTitle: 'Liked Songs (Shuffle)' });
-    assert.deepStrictEqual(buildPlaybackOptions(false, false), { sourceTitle: 'Offline Vault' });
-    assert.deepStrictEqual(buildPlaybackOptions(true, false), { sourceTitle: 'Offline Vault (Shuffle)' });
+    assert.deepStrictEqual(buildPlaybackOptions(false, false), { sourceTitle: 'Downloads' });
+    assert.deepStrictEqual(buildPlaybackOptions(true, false), { sourceTitle: 'Downloads (Shuffle)' });
   });
 });

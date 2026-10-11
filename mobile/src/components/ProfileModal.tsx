@@ -492,11 +492,11 @@ export function ProfileModal({
                   router.push('/offline');
                 }}
                 style={({ pressed }) => [styles.offlineVaultCtaBtn, pressed && styles.pressed]}
-                accessibilityLabel="Open Offline Audio Vault"
+                accessibilityLabel="Open Downloads"
               >
                 <View style={styles.offlineVaultCtaLeft}>
                   <HardDrive size={14} color={colors.amber} />
-                  <Text style={styles.offlineVaultCtaText}>Offline Audio Vault</Text>
+                  <Text style={styles.offlineVaultCtaText}>Downloads</Text>
                 </View>
                 <View style={styles.offlineVaultCtaRight}>
                   <Text style={styles.offlineVaultCtaBadge}>Ready Offline</Text>

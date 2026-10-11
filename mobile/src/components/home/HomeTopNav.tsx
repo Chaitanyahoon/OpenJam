@@ -53,7 +53,7 @@ export const HomeTopNav: React.FC<HomeTopNavProps> = ({
           onPress={onOpenVault}
           style={({ pressed }) => [styles.navVaultBtn, pressed && styles.pressed]}
           hitSlop={8}
-          accessibilityLabel="Open Offline Audio Vault"
+          accessibilityLabel="Open Downloads"
         >
           <HardDrive size={16} color={colors.amber} />
         </Pressable>

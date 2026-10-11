@@ -309,7 +309,7 @@ export async function searchHybridTracks(
           localMatches.push({
             uri: vt.track_uri,
             name: vt.track_name,
-            artist: vt.artist || 'Offline Vault',
+            artist: vt.artist || 'Downloads',
             album_art_url: vt.album_art_url,
             duration_ms: vt.duration_ms,
           });

@@ -238,7 +238,7 @@ export default function PlayerTab() {
   const handleDownloadCurrentTrack = useCallback(async () => {
     if (!nowPlaying) return;
     if (isTrackDownloaded) {
-      toast('Track already in offline vault', 'info');
+      toast('Track already downloaded', 'info');
       return;
     }
     try {
@@ -246,7 +246,7 @@ export default function PlayerTab() {
       toast(`Downloading "${nowPlaying.track_name}"…`, 'info');
       await downloadTrackToVault(nowPlaying, false);
       setIsTrackDownloaded(true);
-      toast(`Saved to offline vault!`, 'success');
+      toast('Downloaded!', 'success');
     } catch (err: any) {
       console.warn('Failed to download track:', err);
       toast('Failed to download track', 'error');
@@ -285,7 +285,7 @@ export default function PlayerTab() {
         }
       }
       setIsVaultSaved(true);
-      toast(`Saved ${savedCount} track${savedCount > 1 ? 's' : ''} to offline vault!`, 'success');
+      toast(`Downloaded ${savedCount} track${savedCount > 1 ? 's' : ''}!`, 'success');
       void hapticMedium();
     } catch (err) {
       console.warn('Failed saving session to vault:', err);
@@ -534,13 +534,13 @@ export default function PlayerTab() {
               </View>
 
               <View style={styles.trackActionsRow}>
-                {/* Save to Offline Vault */}
+                {/* Save to Downloads */}
                 <Pressable
                   onPress={handleDownloadCurrentTrack}
                   disabled={currentDownload?.state === 'downloading'}
                   style={({ pressed }) => [styles.actionIconBtn, pressed && styles.pressed]}
                   hitSlop={10}
-                  accessibilityLabel="Download song to offline vault"
+                  accessibilityLabel="Download song"
                 >
                   {currentDownload?.state === 'downloading' ? (
                     <ActivityIndicator size="small" color={colors.amber} />

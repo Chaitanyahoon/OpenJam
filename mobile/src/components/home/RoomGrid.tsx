@@ -83,7 +83,7 @@ export const RoomGridEmptyState: React.FC<RoomGridEmptyStateProps> = ({
       </View>
       <Text style={styles.feedEmptyTitle}>No Active Jam Rooms</Text>
       <Text style={styles.feedEmptyDesc}>
-        No one is broadcasting right now. Be the first DJ to spin up a live session, or explore music saved in your Offline Vault!
+        No one is broadcasting right now. Be the first DJ to spin up a live session, or explore your downloaded music!
       </Text>
       <View style={styles.feedEmptyActions}>
         <Pressable
@@ -110,10 +110,10 @@ export const RoomGridEmptyState: React.FC<RoomGridEmptyStateProps> = ({
             onOpenOfflineVault();
           }}
           style={({ pressed }) => [styles.feedEmptyVaultBtn, pressed && styles.pressed]}
-          accessibilityLabel="Open Offline Audio Vault"
+          accessibilityLabel="Open Downloads"
         >
           <HardDrive size={14} color={colors.amber} />
-          <Text style={styles.feedEmptyVaultText}>Offline Vault</Text>
+          <Text style={styles.feedEmptyVaultText}>Downloads</Text>
         </Pressable>
       </View>
     </Animated.View>
