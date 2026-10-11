@@ -365,17 +365,29 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     [player],
   );
 
+  const duckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (duckIntervalRef.current) clearInterval(duckIntervalRef.current);
+    };
+  }, []);
+
   const duckVolume = useCallback(
     (targetRatio = 0.2, durationMs = 200) => {
+      if (duckIntervalRef.current) clearInterval(duckIntervalRef.current);
       const startVolume = volumeRef.current;
       const startTime = Date.now();
-      const interval = setInterval(() => {
+      duckIntervalRef.current = setInterval(() => {
         const elapsed = Date.now() - startTime;
         const progress = Math.min(1, elapsed / durationMs);
         const current = startVolume - (startVolume - startVolume * targetRatio) * progress;
         player.volume = current;
         ytBridgeRef.current?.setVolume(current);
-        if (progress >= 1) clearInterval(interval);
+        if (progress >= 1) {
+          if (duckIntervalRef.current) clearInterval(duckIntervalRef.current);
+          duckIntervalRef.current = null;
+        }
       }, 25);
     },
     [player],
@@ -383,16 +395,20 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const restoreVolume = useCallback(
     (durationMs = 200) => {
+      if (duckIntervalRef.current) clearInterval(duckIntervalRef.current);
       const startVolume = player.volume;
       const targetVolume = volumeRef.current;
       const startTime = Date.now();
-      const interval = setInterval(() => {
+      duckIntervalRef.current = setInterval(() => {
         const elapsed = Date.now() - startTime;
         const progress = Math.min(1, elapsed / durationMs);
         const current = startVolume + (targetVolume - startVolume) * progress;
         player.volume = current;
         ytBridgeRef.current?.setVolume(current);
-        if (progress >= 1) clearInterval(interval);
+        if (progress >= 1) {
+          if (duckIntervalRef.current) clearInterval(duckIntervalRef.current);
+          duckIntervalRef.current = null;
+        }
       }, 25);
     },
     [player],
@@ -853,21 +869,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     });
     return unregister;
   }, [sourceTitle, isCurrentlyPlaying, pause, play, playNext, playPrev]);
-
-  // Remote notification tap response handler (expand Spotify Player sheet)
-  useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data as
-        | { action?: string; roomId?: string }
-        | undefined;
-      if (data?.roomId === 'solo') {
-        setPlayerModalOpen(true);
-      }
-    });
-    return () => {
-      sub.remove();
-    };
-  }, []);
 
   // expo-audio runtime error fallback to YouTubeAudioBridge
   useEffect(() => {

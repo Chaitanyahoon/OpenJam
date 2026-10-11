@@ -65,7 +65,7 @@ import { colors, radius, spacing } from '../../../theme';
 import { fontFamily } from '../../../fonts';
 import { useRoom } from '../../../state/RoomContext';
 import { usePlayer, usePlayerStatus } from '../../../audio/PlayerContext';
-import { fetchLyrics, type Lyrics, activeLyricIndex } from '../../../audio/lyrics';
+import { useLyricsController } from '../../../components/player/useLyricsController';
 import { useToast } from '../../../components/ToastContext';
 import {
   downloadTrackToVault,
@@ -125,8 +125,6 @@ const STARTER_VIBES = [
   },
 ];
 
-const lyricsCache = new Map<string, Lyrics>();
-
 export default function PlayerTab() {
   const {
     roomId,
@@ -175,9 +173,6 @@ export default function PlayerTab() {
 
   const [barWidth, setBarWidth] = useState(0);
   const [lyricsOpen, setLyricsOpen] = useState(false);
-  const [lyrics, setLyrics] = useState<Lyrics>({ lines: [], synced: false });
-  const [lyricsLoading, setLyricsLoading] = useState(false);
-  const lyricsScrollRef = useRef<ScrollView>(null);
 
   // Universal Song Like & Reactive State
   const [isLiked, setIsLiked] = useState(false);
@@ -423,52 +418,19 @@ export default function PlayerTab() {
   const displayPos = isScrubbing ? scrubPos : pos;
   const ratio = duration > 0 ? Math.min(1, Math.max(0, displayPos / duration)) : 0;
 
-  // Lazy-load lyrics only when sheet is opened (or if track changes while open)
-  useEffect(() => {
-    if (!lyricsOpen) return;
-    if (!nowPlaying?.track_name) {
-      setLyrics({ lines: [], synced: false });
-      return;
-    }
-    const cacheKey = nowPlaying.track_uri || `${nowPlaying.artist || ''}-${nowPlaying.track_name}`;
-    const cached = lyricsCache.get(cacheKey);
-    if (cached) {
-      setLyrics(cached);
-      return;
-    }
-    let cancelled = false;
-    setLyricsLoading(true);
-    const durSec = Math.round(duration / 1000);
-    fetchLyrics(nowPlaying.artist ?? '', nowPlaying.track_name, durSec)
-      .then((res) => {
-        if (!cancelled) {
-          lyricsCache.set(cacheKey, res);
-          setLyrics(res);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLyricsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [lyricsOpen, nowPlaying?.track_name, nowPlaying?.artist, nowPlaying?.track_uri, duration]);
-
-  // Active line calculation for synced lyrics
-  const activeIdx = useMemo(() => {
-    if (!lyrics.synced || lyrics.lines.length === 0) return -1;
-    return activeLyricIndex(lyrics.lines, pos);
-  }, [lyrics.lines, lyrics.synced, pos]);
-
-  // Auto-scroll lyrics to keep active line centered
-  useEffect(() => {
-    if (lyricsOpen && lyrics.synced && activeIdx >= 0 && lyricsScrollRef.current) {
-      lyricsScrollRef.current.scrollTo({
-        y: Math.max(0, activeIdx * 42 - 100),
-        animated: true,
-      });
-    }
-  }, [activeIdx, lyricsOpen, lyrics.synced]);
+  // Synchronized Karaoke Lyrics Hook
+  const {
+    lyrics,
+    lyricsLoading,
+    activeLineIdx: activeIdx,
+    lyricsScrollRef,
+  } = useLyricsController({
+    trackName: nowPlaying?.track_name,
+    artist: nowPlaying?.artist,
+    durationMs: duration,
+    currentPosMs: pos,
+    showLyricsModal: lyricsOpen,
+  });
 
   const onSeekPress = (e: GestureResponderEvent) => {
     if (!canControl || duration <= 0) return;
@@ -797,7 +759,7 @@ export default function PlayerTab() {
                 <View style={styles.lyricsHeader}>
                   <View style={styles.lyricsHeaderTitleRow}>
                     <Text style={styles.lyricsHeaderTitle}>Lyrics</Text>
-                    {lyrics.synced ? (
+                    {lyrics?.synced ? (
                       <View style={styles.syncedBadge}>
                         <Text style={styles.syncedBadgeText}>SYNCED</Text>
                       </View>
@@ -812,13 +774,13 @@ export default function PlayerTab() {
                   <View style={styles.lyricsEmptyState}>
                     <Text style={styles.lyricsHint}>Finding lyrics…</Text>
                   </View>
-                ) : lyrics.lines.length === 0 ? (
+                ) : !lyrics || lyrics.lines.length === 0 ? (
                   <View style={styles.lyricsEmptyState}>
                     <Text style={styles.lyricsHint}>No lyrics available for this track</Text>
                   </View>
                 ) : (
                   <ScrollView
-                    ref={lyricsScrollRef}
+                    ref={lyricsScrollRef as React.RefObject<ScrollView>}
                     nestedScrollEnabled={true}
                     style={styles.lyricsScrollList}
                     contentContainerStyle={styles.lyricsContentContainer}
