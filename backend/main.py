@@ -9,9 +9,8 @@ from fastapi import FastAPI, Request, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, Response, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from backend.limiter import limiter
 
 from backend.config import settings
 from backend.database import init_db, get_db
@@ -53,9 +52,6 @@ if sentry_dsn:
     except ImportError:
         logger.warning("sentry-sdk not installed, error tracking disabled")
 
-# Rate limiting
-limiter = Limiter(key_func=get_remote_address, default_limits=["120/minute"])
-
 # Setup Socket.io manager for scaling if Redis is configured (free-tier safe fallback)
 sio_mgr = None
 if settings.REDIS_URL:
@@ -76,7 +72,16 @@ sio = socketio.AsyncServer(
 app = FastAPI(title="Open Jam", version="1.0.0")
 app.state.limiter = limiter
 app.state.sio = sio
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.exception_handler(RateLimitExceeded)
+async def custom_rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+    msg = f"Rate limit exceeded: {exc.detail}"
+    return JSONResponse(
+        status_code=429,
+        content={"detail": msg, "error": msg},
+        headers={"Retry-After": "60"},
+    )
 
 @app.exception_handler(404)
 async def custom_404_handler(request: Request, exc):

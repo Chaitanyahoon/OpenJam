@@ -648,6 +648,26 @@ def test_get_now_playing_batch(db_session, test_room, test_user):
     assert room2.id not in batch
 
 
+def test_create_room_rate_limiting(client, auth_headers):
+    """Test that room creation is rate-limited to 10 requests per minute."""
+    payload = {
+        "name": "Spam Room",
+        "description": "Checking rate limits",
+        "genre_tags": ["chill"],
+    }
+
+    # 10 creations should succeed
+    for i in range(10):
+        res = client.post("/rooms", json={"name": f"Room {i}", "genre_tags": ["chill"]}, headers=auth_headers)
+        assert res.status_code == 200, f"Request {i+1} failed with {res.status_code}"
+
+    # 11th creation must be rate-limited (HTTP 429)
+    res_blocked = client.post("/rooms", json=payload, headers=auth_headers)
+    assert res_blocked.status_code == 429
+    assert "Rate limit exceeded" in res_blocked.json().get("detail", "")
+    assert res_blocked.headers.get("retry-after") is not None
+
+
 
 
 

@@ -13,6 +13,7 @@ from backend.database import get_db
 
 from backend.middleware.auth import create_session_token, get_current_user_id, revoke_token
 from backend.config import settings
+from backend.limiter import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,7 @@ def _sanitize_name(name: str) -> str:
 
 
 @router.post("/join")
+@limiter.limit("30/minute")
 async def join(request: Request):
     """Create an anonymous session. Accepts { display_name } and sets a session cookie."""
     try:
@@ -78,6 +80,7 @@ async def join(request: Request):
 
 
 @router.post("/admin-login")
+@limiter.limit("5/minute")
 async def admin_login(request: Request, db: Session = Depends(get_db)):
     try:
         body = await request.json()

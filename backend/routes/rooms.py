@@ -13,6 +13,7 @@ from backend.middleware.auth import get_current_user_id, require_auth
 from backend.services.room_manager import room_manager
 from backend.services.queue_manager import queue_manager
 from backend.schemas import CreateRoomRequest, RoomListResponse
+from backend.limiter import limiter
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
 
@@ -82,6 +83,7 @@ def _hash_password(raw_password: str) -> str:
 
 
 @router.post("")
+@limiter.limit("10/minute")
 async def create_room(request: Request, create_room_req: CreateRoomRequest, db: Session = Depends(get_db)):
     """Create a new room. Upserts a lightweight User record for the host."""
     user_data = get_current_user_id(request, include_name=True)

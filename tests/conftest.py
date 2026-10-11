@@ -44,9 +44,14 @@ def db_session(db_engine):
     session.close()
 
 
+from backend.limiter import limiter
+
+
 @pytest.fixture(scope="function")
 def client(db_session):
     """Create test client with database override."""
+    limiter.reset()
+
     def override_get_db():
         try:
             yield db_session
@@ -56,6 +61,7 @@ def client(db_session):
     app.dependency_overrides[get_db] = override_get_db
     yield TestClient(app)
     app.dependency_overrides.clear()
+    limiter.reset()
 
 
 @pytest.fixture(scope="function")
