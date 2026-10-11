@@ -11,8 +11,10 @@ from backend.models.chat_message import ChatMessage
 from backend.models.vote import Vote
 from backend.middleware.auth import require_admin
 import logging
+import time
 from backend.routes.auth import log_auth_event
 from backend.services.room_manager import room_manager
+from backend.services.queue_manager import queue_manager
 
 logger = logging.getLogger(__name__)
 
@@ -37,13 +39,27 @@ async def get_system_stats(
                 room_data = redis_rooms[r.id]
                 if room_data and "users" in room_data:
                     listener_count += len(room_data.get("users", {}) or {})
+
+        redis_client = getattr(room_manager.store, "client", None)
+        redis_info = {"connected": False, "keys": 0, "ping_ms": None}
+        if redis_client:
+            try:
+                t0 = time.time()
+                if redis_client.ping():
+                    redis_info["connected"] = True
+                    redis_info["ping_ms"] = round((time.time() - t0) * 1000, 1)
+                    redis_info["keys"] = redis_client.dbsize()
+            except Exception:
+                pass
                     
         return {
             "stats": {
                 "total_users": user_count,
                 "total_playlists": playlist_count,
                 "active_rooms": len(rooms),
-                "online_listeners": listener_count
+                "online_listeners": listener_count,
+                "redis": redis_info,
+                "db_connected": True
             }
         }
     except Exception as e:
@@ -60,6 +76,7 @@ async def get_all_rooms(
         rooms = db.query(Room).options(selectinload(Room.host)).filter(Room.is_active == True).order_by(Room.created_at.desc()).all()
         
         redis_rooms = room_manager.store.get_all_rooms()
+        now_playing_map = queue_manager.get_now_playing_batch(db, [r.id for r in rooms])
         
         result = []
         for room in rooms:
@@ -71,13 +88,39 @@ async def get_all_rooms(
                 
             data = room.to_dict(
                 listener_count=listeners,
-                host_name=room.host.display_name if room.host else "Unknown"
+                host_name=room.host.display_name if room.host else "Unknown",
+                current_track=now_playing_map.get(room.id)
             )
             result.append(data)
             
         return {"rooms": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/broadcast")
+async def broadcast_announcement(
+    request: Request,
+    admin_id: str = Depends(require_admin)
+):
+    """Broadcast global announcement across all active rooms via Socket.IO."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    message = (body.get("message") or "").strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="Announcement message cannot be empty.")
+
+    sio = getattr(request.app.state, "sio", None)
+    if sio:
+        await sio.emit("system_announcement", {
+            "message": message,
+            "sender": "System Admin"
+        })
+    logger.info(f"Admin '{admin_id}' broadcasted announcement: {message}")
+    log_auth_event(f"Admin '{admin_id}' broadcasted announcement: {message[:60]}")
+    return {"success": True, "message": "Announcement broadcast successfully."}
 
 
 @router.delete("/rooms")

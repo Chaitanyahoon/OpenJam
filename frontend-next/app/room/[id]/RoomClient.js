@@ -1157,6 +1157,12 @@ export default function RoomClient({ roomId }) {
       setAllowGuestControls(data.allow_guest_controls || false);
     });
 
+    socket.on('system_announcement', (data) => {
+      if (data?.message) {
+        triggerToast(`📢 Announcement: ${data.message}`, 'warning');
+      }
+    });
+
     return () => {
       socket.off('connect', joinRoom);
       socket.off('sync_pong');
@@ -1178,6 +1184,7 @@ export default function RoomClient({ roomId }) {
       socket.off('user_stop_typing');
       socket.off('room_closed');
       socket.off('guest_controls_updated');
+      socket.off('system_announcement');
       socket.emit('leave_room', { room_id: roomId });
     };
   }, [socket, isReady, roomId]);

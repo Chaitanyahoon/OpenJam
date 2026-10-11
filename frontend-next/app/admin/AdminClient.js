@@ -30,6 +30,8 @@ export default function AdminPage() {
   const [searchPlaylistsQuery, setSearchPlaylistsQuery] = useState('');
   const [searchLogsQuery, setSearchLogsQuery] = useState('');
   const [triggeringHealthcheck, setTriggeringHealthcheck] = useState(false);
+  const [broadcastMsg, setBroadcastMsg] = useState('');
+  const [broadcasting, setBroadcasting] = useState(false);
 
   // Confirmations
   const [showCloseAllConfirm, setShowCloseAllConfirm] = useState(false);
@@ -267,6 +269,30 @@ export default function AdminPage() {
     }
   };
 
+  const handleBroadcast = async (e) => {
+    e.preventDefault();
+    if (!broadcastMsg.trim()) return;
+    setBroadcasting(true);
+    try {
+      const res = await fetch('/admin/broadcast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: broadcastMsg.trim() }),
+      });
+      if (res.ok) {
+        setBroadcastMsg('');
+        alert('Announcement broadcasted to all rooms successfully!');
+      } else {
+        const err = await res.json();
+        alert(err.detail || 'Failed to send broadcast');
+      }
+    } catch (err) {
+      alert(`Broadcast Error: ${err.message}`);
+    } finally {
+      setBroadcasting(false);
+    }
+  };
+
   if (loading && !isAuthenticated) {
     return (
       <div className="admin-page-wrap">
@@ -460,14 +486,56 @@ export default function AdminPage() {
                         </div>
                       </div>
 
-                      <div style={{ marginTop: '24px', padding: '20px', borderRadius: '16px', background: 'rgba(255,159,28,0.02)', border: '1px solid rgba(255,159,28,0.08)', display: 'flex', gap: '16px', alignItems: 'center' }}>
-                        <Database size={24} style={{ color: 'var(--amber, #ff9f1c)', flexShrink: 0 }} />
-                        <div>
-                          <h4 style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>Connected State Cache</h4>
-                          <p style={{ fontSize: '12.5px', color: 'var(--text-3, #64748b)', marginTop: '2px', lineHeight: 1.5 }}>
-                            Database state engine is active. User profile registries, tracks index collections, and active session rooms are fully synched with Redis backend cache storage.
-                          </p>
+                      {/* Free-Tier Infrastructure & Quota Monitor */}
+                      <div style={{ marginTop: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
+                        <div style={{ padding: '16px', borderRadius: '14px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: stats.redis?.connected ? '#10b981' : '#f87171', boxShadow: stats.redis?.connected ? '0 0 10px #10b981' : 'none', flexShrink: 0 }} />
+                          <div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-3, #64748b)', fontWeight: 600, textTransform: 'uppercase' }}>Redis Engine</div>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>{stats.redis?.connected ? 'Online' : 'Degraded'} {stats.redis?.ping_ms != null ? `(${stats.redis.ping_ms}ms)` : ''}</div>
+                          </div>
                         </div>
+                        <div style={{ padding: '16px', borderRadius: '14px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <Database size={16} style={{ color: 'var(--amber, #ff9f1c)', flexShrink: 0 }} />
+                          <div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-3, #64748b)', fontWeight: 600, textTransform: 'uppercase' }}>Redis Keys (Quota)</div>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>{stats.redis?.keys ?? '—'} active keys</div>
+                          </div>
+                        </div>
+                        <div style={{ padding: '16px', borderRadius: '14px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: stats.db_connected ? '#10b981' : '#f87171', boxShadow: stats.db_connected ? '0 0 10px #10b981' : 'none', flexShrink: 0 }} />
+                          <div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-3, #64748b)', fontWeight: 600, textTransform: 'uppercase' }}>PostgreSQL Pool</div>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>{stats.db_connected ? 'Connected (Pool OK)' : 'Offline'}</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Global Announcement Broadcast */}
+                      <div style={{ marginTop: '20px', padding: '20px', borderRadius: '16px', background: 'rgba(255,159,28,0.03)', border: '1px solid rgba(255,159,28,0.12)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                          <Radio size={16} style={{ color: 'var(--amber, #ff9f1c)' }} />
+                          <h4 style={{ fontSize: '14px', fontWeight: 700, color: '#fff', margin: 0 }}>Global Room Broadcast</h4>
+                        </div>
+                        <p style={{ fontSize: '12.5px', color: 'var(--text-3, #64748b)', margin: '0 0 12px 0' }}>
+                          Broadcast an instant notification banner to listeners across all live rooms via Socket.IO.
+                        </p>
+                        <form onSubmit={handleBroadcast} style={{ display: 'flex', gap: '10px' }}>
+                          <input
+                            type="text"
+                            placeholder="e.g. Scheduled maintenance in 10 minutes or server upgrade..."
+                            value={broadcastMsg}
+                            onChange={(e) => setBroadcastMsg(e.target.value)}
+                            style={{ flex: 1, padding: '10px 14px', borderRadius: '10px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', fontSize: '13px', outline: 'none' }}
+                          />
+                          <button
+                            type="submit"
+                            disabled={broadcasting || !broadcastMsg.trim()}
+                            style={{ padding: '10px 18px', background: 'var(--amber, #ff9f1c)', color: '#000', fontWeight: 700, borderRadius: '10px', border: 'none', cursor: broadcasting ? 'default' : 'pointer', fontSize: '13px', opacity: !broadcastMsg.trim() ? 0.6 : 1 }}
+                          >
+                            {broadcasting ? 'Broadcasting...' : 'Broadcast'}
+                          </button>
+                        </form>
                       </div>
 
                       <div style={{ marginTop: '16px', padding: '20px', borderRadius: '16px', background: 'rgba(56,189,248,0.02)', border: '1px solid rgba(56,189,248,0.08)', display: 'flex', gap: '16px', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -559,6 +627,7 @@ export default function AdminPage() {
                                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                   <th style={{ padding: '12px 8px', fontSize: '12px', color: 'var(--text-3)' }}>Status</th>
                                   <th style={{ padding: '12px 8px', fontSize: '12px', color: 'var(--text-3)' }}>Room details</th>
+                                  <th style={{ padding: '12px 8px', fontSize: '12px', color: 'var(--text-3)' }}>Now Playing</th>
                                   <th style={{ padding: '12px 8px', fontSize: '12px', color: 'var(--text-3)' }}>Host</th>
                                   <th style={{ padding: '12px 8px', fontSize: '12px', color: 'var(--text-3)' }}>Listeners</th>
                                   <th style={{ padding: '12px 8px', fontSize: '12px', color: 'var(--text-3)' }}>Created</th>
@@ -573,17 +642,36 @@ export default function AdminPage() {
                                       <div style={{ fontWeight: 600, color: '#fff', fontSize: '14px' }}>{room.name}</div>
                                       <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>ID: {room.id}</div>
                                     </td>
+                                    <td style={{ padding: '14px 8px', fontSize: '13px', color: '#ccc', maxWidth: '220px' }}>
+                                      {room.current_track?.track_name ? (
+                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                          <span style={{ fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🎵 {room.current_track.track_name}</span>
+                                          <span style={{ fontSize: '11px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{room.current_track.artist}</span>
+                                        </div>
+                                      ) : (
+                                        <span style={{ fontSize: '12px', color: '#666', fontStyle: 'italic' }}>Idle (No track)</span>
+                                      )}
+                                    </td>
                                     <td style={{ padding: '14px 8px', fontSize: '13px', color: '#ccc' }}>{room.host_name}</td>
                                     <td style={{ padding: '14px 8px' }}><span style={{ fontSize: '12px', background: 'rgba(255,255,255,0.04)', padding: '4px 8px', borderRadius: '10px', color: '#fff' }}>👤 {room.listener_count}</span></td>
                                     <td style={{ padding: '14px 8px', fontSize: '12px', color: '#666' }}>{new Date(room.created_at).toLocaleString()}</td>
                                     <td style={{ padding: '14px 8px' }}>
-                                      <button 
-                                        className="btn-danger-sm" 
-                                        onClick={() => setShowDeleteRoomConfirm(room.id)}
-                                        style={{ border: '1px solid rgba(239, 68, 68, 0.2)', color: '#f87171', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', background: 'none' }}
-                                      >
-                                        Force Close
-                                      </button>
+                                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                        <Link 
+                                          href={`/room/${room.id}`} 
+                                          target="_blank"
+                                          style={{ border: '1px solid rgba(255,255,255,0.12)', color: '#fff', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', textDecoration: 'none', background: 'rgba(255,255,255,0.04)' }}
+                                        >
+                                          Join
+                                        </Link>
+                                        <button 
+                                          className="btn-danger-sm" 
+                                          onClick={() => setShowDeleteRoomConfirm(room.id)}
+                                          style={{ border: '1px solid rgba(239, 68, 68, 0.2)', color: '#f87171', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', background: 'none' }}
+                                        >
+                                          Force Close
+                                        </button>
+                                      </div>
                                     </td>
                                   </tr>
                                 ))}

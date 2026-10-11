@@ -135,3 +135,26 @@ async def test_socket_connect_rejects_revoked_token(monkeypatch):
     # The saved session should not have the revoked user_id
     assert saved_session.get("user_id") != "victim_user"
 
+
+def test_admin_get_stats_and_broadcast(client):
+    """Test getting admin stats with infrastructure gauges and broadcasting announcement."""
+    login_resp = client.post("/auth/admin-login", json={"password": "openjam-admin-123"})
+    assert login_resp.status_code == 200
+
+    # 1. Stats endpoint
+    stats_resp = client.get("/admin/stats")
+    assert stats_resp.status_code == 200
+    stats_data = stats_resp.json()
+    assert "stats" in stats_data
+    assert "redis" in stats_data["stats"]
+    assert "total_users" in stats_data["stats"]
+
+    # 2. Broadcast endpoint
+    broadcast_resp = client.post("/admin/broadcast", json={"message": "Server restart in 10 minutes"})
+    assert broadcast_resp.status_code == 200
+    assert broadcast_resp.json()["success"] is True
+
+    # 3. Broadcast validation (empty message)
+    empty_broadcast_resp = client.post("/admin/broadcast", json={"message": "   "})
+    assert empty_broadcast_resp.status_code == 400
+
