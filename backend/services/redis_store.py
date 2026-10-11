@@ -103,6 +103,17 @@ class RedisStore:
         else:
             self._recently_left = data
 
+    def is_token_revoked(self, token: str) -> bool:
+        if self.client:
+            return bool(self.client.exists(f"openjam:revoked:{token}"))
+        return token in settings.REVOKED_TOKENS
+
+    def revoke_token(self, token: str) -> None:
+        if self.client:
+            self.client.set(f"openjam:revoked:{token}", "1", ex=86400 * 30)
+        else:
+            settings.REVOKED_TOKENS.add(token)
+
     def get_active_room_ids(self) -> list:
         if self.client:
             keys = list(self.client.scan_iter("openjam:room:*"))

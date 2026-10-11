@@ -5,8 +5,10 @@ from sqlalchemy.orm import Session
 from backend.database import get_db
 from itsdangerous import URLSafeTimedSerializer
 from backend.config import settings
+from backend.services.redis_store import RedisStore
 
 serializer = URLSafeTimedSerializer(settings.SECRET_KEY)
+_store = RedisStore()
 
 
 def create_session_token(user_id: str, display_name: str = "", is_admin: bool = False, avatar_url: str = None) -> str:
@@ -15,7 +17,7 @@ def create_session_token(user_id: str, display_name: str = "", is_admin: bool = 
 
 def get_user_id_from_token(token: str) -> str | None:
     try:
-        if token in settings.REVOKED_TOKENS:
+        if _store.is_token_revoked(token):
             return None
         data = serializer.loads(token, max_age=86400 * 30)  # 30-day token lifetime
         return data.get("user_id")
@@ -32,7 +34,7 @@ def get_current_user_id(request: Request, include_name: bool = False):
             token = auth_header[7:]
     if not token:
         return None
-    if token in settings.REVOKED_TOKENS:
+    if _store.is_token_revoked(token):
         return None
     try:
         data = serializer.loads(token, max_age=86400 * 30)  # 30-day token lifetime
@@ -54,7 +56,7 @@ def get_current_user_id(request: Request, include_name: bool = False):
 
 
 def revoke_token(token: str) -> None:
-    settings.REVOKED_TOKENS.add(token)
+    _store.revoke_token(token)
 
 
 def require_auth(request: Request) -> str:

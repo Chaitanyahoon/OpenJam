@@ -601,6 +601,53 @@ def test_room_manager_can_control():
     assert room_manager.can_control(room_id, "sid_host") is True
 
 
+def test_get_now_playing_batch(db_session, test_room, test_user):
+    """Test QueueManager.get_now_playing_batch correctly maps playing tracks across multiple rooms."""
+    from backend.services.queue_manager import queue_manager
+    from backend.models.queue_item import QueueItem
+    from backend.models.room import Room
+
+    room2 = Room(
+        name="Batch Test Room 2",
+        host_user_id=test_user.id,
+        genre_tags=json.dumps(["ambient"]),
+        queue_mode="open",
+    )
+    db_session.add(room2)
+    db_session.commit()
+
+    # Empty batch check
+    assert queue_manager.get_now_playing_batch(db_session, []) == {}
+
+    # Room with playing item
+    item1 = QueueItem(
+        room_id=test_room.id,
+        track_uri="track_123",
+        track_name="Playing Song",
+        artist="Artist A",
+        status="playing",
+        added_by_user_id=test_user.id,
+        added_by_name=test_user.display_name,
+    )
+    # Room with pending item (not playing)
+    item2 = QueueItem(
+        room_id=room2.id,
+        track_uri="track_456",
+        track_name="Pending Song",
+        artist="Artist B",
+        status="pending",
+        added_by_user_id=test_user.id,
+        added_by_name=test_user.display_name,
+    )
+    db_session.add_all([item1, item2])
+    db_session.commit()
+
+    batch = queue_manager.get_now_playing_batch(db_session, [test_room.id, room2.id])
+    assert test_room.id in batch
+    assert batch[test_room.id]["track_name"] == "Playing Song"
+    assert room2.id not in batch
+
+
 
 
 

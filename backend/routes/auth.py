@@ -85,10 +85,8 @@ async def admin_login(request: Request, db: Session = Depends(get_db)):
         body = {}
         
     password = body.get("password", "")
-    import os
-    admin_password = os.getenv("ADMIN_PASSWORD", "openjam-admin-123")
-    
-    if password.strip() != admin_password.strip():
+    import secrets
+    if not secrets.compare_digest(password.strip(), settings.ADMIN_PASSWORD.strip()):
         return JSONResponse({"error": "Invalid admin password"}, status_code=401)
         
     # Get current session or create new one

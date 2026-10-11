@@ -4,6 +4,11 @@ import assert from 'node:assert/strict';
 /**
  * Pure stream classifier extracted for testing stream resolver seam
  */
+const BARE_ID_REGEX = /^[a-zA-Z0-9_-]{11}$/;
+const STREAM_MATCH_REGEX = /\/stream\/([a-zA-Z0-9_-]{11})(?:\?|$)/;
+const YT_MATCH_REGEX =
+  /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([^"&?\/\s]{11})/;
+
 export function classifyStreamInput(input: string): {
   isLocalFile: boolean;
   isHttpUrl: boolean;
@@ -14,23 +19,21 @@ export function classifyStreamInput(input: string): {
   }
   const clean = input.trim();
   const isLocalFile = clean.startsWith('file://');
+  if (isLocalFile) {
+    return { isLocalFile: true, isHttpUrl: false, parsedYouTubeId: null };
+  }
+
   const isHttpUrl = clean.startsWith('http://') || clean.startsWith('https://');
 
   let parsedYouTubeId: string | null = null;
-  if (/^[a-zA-Z0-9_-]{11}$/.test(clean)) {
+  if (clean.length === 11 && BARE_ID_REGEX.test(clean)) {
     parsedYouTubeId = clean;
-  } else {
-    const streamMatch = clean.match(/\/stream\/([a-zA-Z0-9_-]{11})(?:\?|$)/);
-    if (streamMatch) {
-      parsedYouTubeId = streamMatch[1];
-    } else {
-      const reg =
-        /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([^"&?\/\s]{11})/;
-      const match = clean.match(reg);
-      if (match && match[1]) {
-        parsedYouTubeId = match[1];
-      }
-    }
+  } else if (clean.includes('/stream/')) {
+    const streamMatch = clean.match(STREAM_MATCH_REGEX);
+    if (streamMatch) parsedYouTubeId = streamMatch[1];
+  } else if (clean.includes('youtu')) {
+    const match = clean.match(YT_MATCH_REGEX);
+    if (match && match[1]) parsedYouTubeId = match[1];
   }
 
   return { isLocalFile, isHttpUrl, parsedYouTubeId };

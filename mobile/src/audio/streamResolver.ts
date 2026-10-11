@@ -14,18 +14,28 @@ export interface ResolvedAudioStream {
   artworkUrl?: string;
 }
 
+const BARE_YT_REGEX = /^[a-zA-Z0-9_-]{11}$/;
+const PREFIX_REGEX = /^(?:yt:|ytid:)([a-zA-Z0-9_-]{11})(?:\?|$)/;
+const STREAM_REGEX = /\/stream\/([a-zA-Z0-9_-]{11})(?:\?|$)/;
+const YT_URL_REGEX =
+  /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([^"&?\/\s]{11})/;
+
 export function parseYouTubeId(input: string): string | null {
   if (!input) return null;
   const clean = input.trim();
-  if (/^[a-zA-Z0-9_-]{11}$/.test(clean)) return clean;
-  const prefixMatch = clean.match(/^(?:yt:|ytid:)([a-zA-Z0-9_-]{11})(?:\?|$)/);
-  if (prefixMatch) return prefixMatch[1];
-  const streamMatch = clean.match(/\/stream\/([a-zA-Z0-9_-]{11})(?:\?|$)/);
-  if (streamMatch) return streamMatch[1];
-  const reg =
-    /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([^"&?\/\s]{11})/;
-  const match = clean.match(reg);
-  if (match && match[1]) return match[1];
+  if (clean.length === 11 && BARE_YT_REGEX.test(clean)) return clean;
+  if (clean.startsWith('yt:') || clean.startsWith('ytid:')) {
+    const prefixMatch = clean.match(PREFIX_REGEX);
+    if (prefixMatch) return prefixMatch[1];
+  }
+  if (clean.includes('/stream/')) {
+    const streamMatch = clean.match(STREAM_REGEX);
+    if (streamMatch) return streamMatch[1];
+  }
+  if (clean.includes('youtu')) {
+    const match = clean.match(YT_URL_REGEX);
+    if (match && match[1]) return match[1];
+  }
   return null;
 }
 

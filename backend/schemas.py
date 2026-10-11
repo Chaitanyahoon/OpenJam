@@ -71,13 +71,6 @@ class QueueTrackRequest(BaseModel):
     duration_ms: int = Field(0, ge=0)
 
 
-class QueueItemRequest(BaseModel):
-    track_uri: str = Field(..., min_length=1, max_length=500, description="Playable track lookup query or media URI")
-    track_name: str = Field(..., min_length=1, max_length=255)
-    artist: str = Field(..., min_length=1, max_length=255)
-    album_art_url: Optional[str] = None
-    duration_ms: int = Field(0, ge=0)
-
 
 class QueueItemResponse(BaseModel):
     id: str
@@ -107,30 +100,6 @@ class UserResponse(BaseModel):
 
 class CurrentUserResponse(BaseModel):
     user: Optional[UserResponse] = None
-
-
-# ---- Search Models ----
-class SearchTracksRequest(BaseModel):
-    query: str = Field(..., min_length=1, max_length=255)
-    limit: int = Field(10, ge=1, le=50)
-
-
-class TrackResult(BaseModel):
-    uri: str
-    name: str
-    artist: str
-    album_art: Optional[str]
-    duration_ms: int
-
-
-class SearchTracksResponse(BaseModel):
-    results: list[TrackResult]
-
-
-# ---- Error Models ----
-class ErrorResponse(BaseModel):
-    detail: str
-    status_code: int
 
 
 # ---- Like & Playlist Models ----

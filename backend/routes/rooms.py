@@ -39,6 +39,7 @@ async def list_rooms(
         from datetime import datetime, timezone
         now = datetime.now(timezone.utc)
 
+        now_playing_map = queue_manager.get_now_playing_batch(db, [r.id for r in rooms])
         visible_rooms = []
         for room in rooms:
             count = listener_counts.get(room.id, 0)
@@ -58,7 +59,7 @@ async def list_rooms(
                 continue
                 
             host_name = room.host.display_name if room.host else "Unknown"
-            now_playing = queue_manager.get_now_playing(db, room.id)
+            now_playing = now_playing_map.get(room.id)
             visible_rooms.append(room.to_dict(
                 listener_count=count,
                 current_track=now_playing,

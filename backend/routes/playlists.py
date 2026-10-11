@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session, selectinload
 from backend.database import get_db
@@ -238,7 +239,6 @@ async def remove_track_from_playlist(
 
 
 from pydantic import BaseModel
-from datetime import datetime, timezone
 
 class AutoSyncToggleRequest(BaseModel):
     enabled: bool

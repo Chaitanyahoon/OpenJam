@@ -55,13 +55,13 @@ def register_connection_handlers(sio: socketio.AsyncServer):
         user_id = None
         avatar_url = None
         if token:
-            from itsdangerous import URLSafeTimedSerializer
-            from backend.config import settings
+            from backend.middleware.auth import serializer, _store
             try:
-                data = URLSafeTimedSerializer(settings.SECRET_KEY).loads(token, max_age=86400 * 30)
-                user_id = data.get("user_id")
-                display_name = data.get("display_name")
-                avatar_url = data.get("avatar_url")
+                if not _store.is_token_revoked(token):
+                    data = serializer.loads(token, max_age=86400 * 30)
+                    user_id = data.get("user_id")
+                    display_name = data.get("display_name")
+                    avatar_url = data.get("avatar_url")
             except Exception:
                 pass
 

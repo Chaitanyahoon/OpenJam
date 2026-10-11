@@ -65,3 +65,36 @@ def test_like_unlike_playlist_flow(client, auth_headers, test_user, db_session):
     liked_resp = client.get("/playlists/liked", headers=auth_headers)
     assert liked_resp.status_code == 200
     assert len(liked_resp.json()["playlists"]) == 0
+
+
+def test_create_playlist_with_imported_tracks(client, auth_headers, monkeypatch):
+    """Test create_playlist with import_url populates tracks and sets last_synced_at cleanly."""
+    from backend.routes import playlists
+
+    async def mock_import_playlist(url: str):
+        return {
+            "name": "Imported Vibes",
+            "tracks": [
+                {
+                    "track_uri": "imported_1",
+                    "track_name": "Track 1",
+                    "artist": "Artist 1",
+                    "duration_ms": 180000,
+                }
+            ],
+        }
+
+    monkeypatch.setattr(playlists, "import_playlist", mock_import_playlist)
+
+    payload = {
+        "name": "My Synced Playlist",
+        "import_url": "https://open.spotify.com/playlist/test12345",
+        "is_private": False,
+    }
+    response = client.post("/playlists", json=payload, headers=auth_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["message"] == "Playlist created successfully"
+    assert data["playlist"]["last_synced_at"] is not None
+    assert len(data["playlist"]["tracks"]) == 1
+    assert data["playlist"]["tracks"][0]["track_uri"] == "imported_1"
