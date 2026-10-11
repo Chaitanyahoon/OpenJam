@@ -567,7 +567,7 @@ export default function HomePage() {
       const r = await fetch('/rooms', { credentials: 'include' });
       if (r.ok) {
         const data = await r.json();
-        const liveRooms = (data.rooms || []).filter((rm) => rm.id !== 'openjam-lounge');
+        const liveRooms = data.rooms || [];
         setRooms(liveRooms);
         if (typeof window !== 'undefined' && liveRooms.length > 0) {
           try {

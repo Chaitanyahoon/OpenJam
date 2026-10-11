@@ -182,7 +182,6 @@ export async function getRooms(): Promise<RoomSummary[]> {
   try {
     const data = await request<{ rooms: any[] }>('/rooms');
     const liveRooms = (data.rooms ?? [])
-      .filter((r) => r.id !== 'openjam-lounge')
       .map((r) => ({
         ...r,
         now_playing: r.now_playing || r.current_track || null,

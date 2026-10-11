@@ -179,6 +179,20 @@ export default function AdminPage() {
     }
   };
 
+  const handlePurgeChat = async (roomId) => {
+    if (!window.confirm(`Purge all chat messages in room ${roomId}?`)) return;
+    try {
+      const res = await fetch(`/admin/rooms/${roomId}/chat`, { method: 'DELETE' });
+      if (res.ok) {
+        alert('Room chat purged successfully.');
+      } else {
+        alert('Failed to purge room chat.');
+      }
+    } catch (err) {
+      alert(`Error purging chat: ${err.message}`);
+    }
+  };
+
   const handleCloseAllRooms = async () => {
     try {
       const res = await fetch('/admin/rooms', { method: 'DELETE' });
@@ -664,6 +678,13 @@ export default function AdminPage() {
                                         >
                                           Join
                                         </Link>
+                                        <button 
+                                          className="btn-secondary-sm"
+                                          onClick={() => handlePurgeChat(room.id)}
+                                          style={{ border: '1px solid rgba(255, 159, 28, 0.25)', color: 'var(--amber, #ff9f1c)', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', background: 'none' }}
+                                        >
+                                          Purge Chat
+                                        </button>
                                         <button 
                                           className="btn-danger-sm" 
                                           onClick={() => setShowDeleteRoomConfirm(room.id)}

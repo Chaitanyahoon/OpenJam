@@ -191,6 +191,26 @@ async def force_delete_room(
     return {"success": True, "message": f"Room {room_id} has been force-closed and deleted."}
 
 
+@router.delete("/rooms/{room_id}/chat")
+async def purge_room_chat(
+    room_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin_id: str = Depends(require_admin)
+):
+    """Purge all chat messages for a specific room."""
+    db.query(ChatMessage).filter(ChatMessage.room_id == room_id).delete()
+    db.commit()
+
+    sio = getattr(request.app.state, "sio", None)
+    if sio:
+        await sio.emit("chat_history", {"messages": []}, room=room_id)
+
+    logger.info(f"Admin '{admin_id}' purged chat for room '{room_id}'.")
+    log_auth_event(f"Admin '{admin_id}' purged chat for room '{room_id}'.")
+    return {"success": True, "message": f"Chat history for room {room_id} purged."}
+
+
 @router.get("/users")
 async def get_all_users(
     db: Session = Depends(get_db),

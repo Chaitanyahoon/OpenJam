@@ -158,3 +158,30 @@ def test_admin_get_stats_and_broadcast(client):
     empty_broadcast_resp = client.post("/admin/broadcast", json={"message": "   "})
     assert empty_broadcast_resp.status_code == 400
 
+
+def test_admin_purge_room_chat(client, db_session, test_user, test_room):
+    """Test admin purging chat messages in a room."""
+    from backend.models.chat_message import ChatMessage
+
+    # 1. Add chat messages
+    msg = ChatMessage(id="msg-purge-1", room_id=test_room.id, user_id=test_user.id, content="Spam message")
+    db_session.add(msg)
+    db_session.commit()
+
+    # 2. Unauthenticated request rejected
+    unauth_resp = client.delete(f"/admin/rooms/{test_room.id}/chat")
+    assert unauth_resp.status_code in (401, 403)
+
+    # 3. Authenticate as admin
+    login_resp = client.post("/auth/admin-login", json={"password": "openjam-admin-123"})
+    assert login_resp.status_code == 200
+
+    # 4. Purge chat
+    purge_resp = client.delete(f"/admin/rooms/{test_room.id}/chat")
+    assert purge_resp.status_code == 200
+    assert purge_resp.json()["success"] is True
+
+    # 5. Verify message deleted
+    remaining = db_session.query(ChatMessage).filter(ChatMessage.room_id == test_room.id).count()
+    assert remaining == 0
+
