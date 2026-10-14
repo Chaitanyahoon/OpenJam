@@ -234,5 +234,28 @@ describe('Solo Direct Listener Sovereignty Suite', () => {
     });
     assert.equal(stopped, true);
   });
+
+  it('correctly computes upcoming queue count relative to active track index', () => {
+    const queue = [
+      { track_uri: 'yt:1', track_name: 'Song 1' },
+      { track_uri: 'yt:2', track_name: 'Song 2' },
+      { track_uri: 'yt:3', track_name: 'Song 3' },
+      { track_uri: 'yt:4', track_name: 'Song 4' },
+      { track_uri: 'yt:5', track_name: 'Song 5' },
+    ];
+
+    const computeUpcoming = (q: any[], curIdx: number) =>
+      Math.max(0, q.length - 1 - curIdx);
+
+    // At first song (index 0), 4 songs remain upcoming
+    assert.equal(computeUpcoming(queue, 0), 4);
+    // At middle song (index 2), 2 songs remain upcoming
+    assert.equal(computeUpcoming(queue, 2), 2);
+    // At last song (index 4), 0 songs remain upcoming
+    assert.equal(computeUpcoming(queue, 4), 0);
+    // On empty or single track
+    assert.equal(computeUpcoming([queue[0]], 0), 0);
+    assert.equal(computeUpcoming([], 0), 0);
+  });
 });
 

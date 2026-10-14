@@ -264,8 +264,9 @@ const styles = StyleSheet.create({
     height: 200,
     opacity: 0.01,
     position: 'absolute',
-    top: -9999,
-    left: -9999,
+    bottom: 0,
+    right: 0,
+    zIndex: -999,
     overflow: 'hidden',
   },
   webView: {

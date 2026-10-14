@@ -513,9 +513,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         const cur = currentTrackRef.current;
         const seedQuery = cur ? `${cur.track_name} ${cur.artist || ''}`.trim() : 'chill lofi';
         const backendUrl = getBackendUrl();
+        const ctrl = new AbortController();
+        const timeout = setTimeout(() => ctrl.abort(), 4000);
         const resp = await fetch(
           `${backendUrl}/search/recommendations?seed=${encodeURIComponent(seedQuery)}`,
+          { signal: ctrl.signal },
         );
+        clearTimeout(timeout);
         if (resp.ok) {
           const recommendations: TrackInfo[] = await resp.json();
           if (Array.isArray(recommendations) && recommendations.length > 0) {
@@ -701,9 +705,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         try {
           const query = `${cur.track_name} ${cur.artist || ''}`.trim();
           const backendUrl = getBackendUrl();
+          const ctrl = new AbortController();
+          const timeout = setTimeout(() => ctrl.abort(), 4000);
           const resp = await fetch(
             `${backendUrl}/search/alternate?q=${encodeURIComponent(query)}&exclude=${encodeURIComponent(cur.track_uri)}`,
+            { signal: ctrl.signal },
           );
+          clearTimeout(timeout);
           if (resp.ok) {
             const data = await resp.json();
             if (data?.video_id) {

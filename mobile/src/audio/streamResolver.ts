@@ -84,9 +84,13 @@ export async function resolveAudioStream(
   if (!ytId && urlOrId && !urlOrId.startsWith('http')) {
     try {
       const backendUrl = getBackendUrl();
+      const ctrl = new AbortController();
+      const timeout = setTimeout(() => ctrl.abort(), 5000);
       const resp = await fetch(
         `${backendUrl}/search/resolve?q=${encodeURIComponent(urlOrId)}`,
+        { signal: ctrl.signal },
       );
+      clearTimeout(timeout);
       if (resp.ok) {
         const data = await resp.json();
         if (data?.video_id) {

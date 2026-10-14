@@ -198,7 +198,7 @@ export async function updateMediaNotification(meta: MediaNotificationMeta): Prom
       content: {
         title: meta.title,
         body: subtext,
-        subtitle: meta.roomId ? 'Jam Room' : 'Solo Jam',
+        subtitle: meta.roomId && meta.roomId !== 'solo' ? 'Live Room' : 'Solo Jam',
         categoryIdentifier: meta.isPlaying ? MEDIA_CATEGORY_PLAYING : MEDIA_CATEGORY_PAUSED,
         sticky: meta.isPlaying,
         autoDismiss: false,

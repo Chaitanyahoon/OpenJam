@@ -83,7 +83,10 @@ export async function fetchLyrics(
 
   for (const url of tries) {
     try {
-      const res = await fetch(url);
+      const ctrl = new AbortController();
+      const timeout = setTimeout(() => ctrl.abort(), 3000);
+      const res = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(timeout);
       if (!res.ok) continue;
       const data = await res.json();
       const hit = Array.isArray(data) ? data[0] : data;

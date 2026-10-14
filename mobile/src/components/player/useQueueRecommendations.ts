@@ -57,10 +57,14 @@ export function useQueueRecommendations({
   useEffect(() => {
     if (!showQueue || !currentTrack?.track_name) return;
     let cancelled = false;
+    const ctrl = new AbortController();
+    const timeout = setTimeout(() => ctrl.abort(), 4000);
     setLoadingRecommendations(true);
     const seed = `${currentTrack.track_name} ${currentTrack.artist || ''}`.trim();
     const backendUrl = getBackendUrl();
-    fetch(`${backendUrl}/search/recommendations?seed=${encodeURIComponent(seed)}`)
+    fetch(`${backendUrl}/search/recommendations?seed=${encodeURIComponent(seed)}`, {
+      signal: ctrl.signal,
+    })
       .then((res) => (res.ok ? res.json() : []))
       .then((data: TrackInfo[]) => {
         if (!cancelled && Array.isArray(data)) {
@@ -69,11 +73,14 @@ export function useQueueRecommendations({
       })
       .catch(() => {})
       .finally(() => {
+        clearTimeout(timeout);
         if (!cancelled) setLoadingRecommendations(false);
       });
 
     return () => {
       cancelled = true;
+      clearTimeout(timeout);
+      ctrl.abort();
     };
   }, [showQueue, currentTrack?.track_name, currentTrack?.artist]);
 

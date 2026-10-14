@@ -559,7 +559,7 @@ export function SpotifyPlayerModal() {
                         key={`${track.track_uri}_${actualIdx}`}
                         onPress={() => {
                           void hapticLight();
-                          void playTrack(track);
+                          void playTrack(track, undefined, { index: actualIdx });
                         }}
                         style={styles.queueItem}
                       >
@@ -861,7 +861,7 @@ export function SpotifyPlayerModal() {
               >
                 <ListMusic size={15} color="#ffffff" />
                 <Text style={styles.queuePillText}>
-                  Queue ({Math.max(0, queue.length - 1)})
+                  Queue ({Math.max(0, queue.length - 1 - currentIndex)})
                 </Text>
               </Pressable>
             </View>

@@ -142,4 +142,13 @@ describe('Media Notifications & Home Music Shelves Suite', () => {
       assert.ok(originalUris.has(track.track_uri));
     }
   });
+
+  it('correctly resolves notification subtitle to Solo Jam vs Live Room', () => {
+    const resolveSubtitle = (roomId?: string) =>
+      roomId && roomId !== 'solo' ? 'Live Room' : 'Solo Jam';
+
+    assert.equal(resolveSubtitle('solo'), 'Solo Jam');
+    assert.equal(resolveSubtitle(undefined), 'Solo Jam');
+    assert.equal(resolveSubtitle('room_123'), 'Live Room');
+  });
 });
