@@ -187,6 +187,7 @@ export function SpotifyPlayerModal() {
 
   // Check offline download status for current track
   useEffect(() => {
+    setDownloadProgress(null);
     if (!currentTrack?.track_uri) {
       setIsDownloaded(false);
       return;

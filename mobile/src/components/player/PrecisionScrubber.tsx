@@ -51,6 +51,7 @@ export function PrecisionScrubber({
   const [scrubRatio, setScrubRatio] = useState(0);
   const [scrubSpeed, setScrubSpeed] = useState(1.0);
 
+  const scrubRatioRef = useRef(0);
   const trackBarWidthRef = useRef(SCREEN_WIDTH - 64);
   const lastTouchXRef = useRef(0);
   const startYRef = useRef(0);
@@ -82,6 +83,7 @@ export function PrecisionScrubber({
           setIsScrubbing(true);
           const touchX = evt.nativeEvent.locationX;
           const initialRatio = Math.max(0, Math.min(1, touchX / trackBarWidthRef.current));
+          scrubRatioRef.current = initialRatio;
           setScrubRatio(initialRatio);
           lastTouchXRef.current = evt.nativeEvent.pageX;
           startYRef.current = evt.nativeEvent.pageY;
@@ -98,11 +100,13 @@ export function PrecisionScrubber({
           setScrubSpeed(speed);
 
           const deltaRatio = (deltaX * speed) / trackBarWidthRef.current;
-          setScrubRatio((prev) => Math.max(0, Math.min(1, prev + deltaRatio)));
+          const nextRatio = Math.max(0, Math.min(1, scrubRatioRef.current + deltaRatio));
+          scrubRatioRef.current = nextRatio;
+          setScrubRatio(nextRatio);
           lastTouchXRef.current = currentX;
         },
         onPanResponderRelease: async () => {
-          const finalRatio = scrubRatio;
+          const finalRatio = scrubRatioRef.current;
           const targetMs = Math.round(finalRatio * effectiveDuration);
           setCurrentPosMs(targetMs);
           setIsScrubbing(false);
@@ -116,7 +120,7 @@ export function PrecisionScrubber({
           setScrubSpeed(1.0);
         },
       }),
-    [effectiveDuration, scrubRatio, seekToMs, onPositionChange],
+    [effectiveDuration, seekToMs, onPositionChange],
   );
 
   return (

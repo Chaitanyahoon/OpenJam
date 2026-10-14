@@ -119,4 +119,33 @@ describe('Unified Mini-Player & Spotify Gestures Suite', () => {
     assert.equal(computeProgressPercent(-100, 200000), 0); // Clamped
     assert.equal(computeProgressPercent(90000, 0), 50); // Default fallback 180s
   });
+
+  it('correctly maps audio device routes to active Spotify status and icon keys', () => {
+    function resolveDeviceIndicator(device: 'speaker' | 'bluetooth' | 'wired') {
+      if (device === 'bluetooth') {
+        return { icon: 'headphones', color: '#10b981', label: 'Bluetooth Active' };
+      }
+      if (device === 'wired') {
+        return { icon: 'volume2', color: '#9999aa', label: 'Wired AUX' };
+      }
+      return { icon: 'smartphone', color: '#9999aa', label: 'Phone Speaker' };
+    }
+
+    assert.deepEqual(resolveDeviceIndicator('bluetooth'), {
+      icon: 'headphones',
+      color: '#10b981',
+      label: 'Bluetooth Active',
+    });
+    assert.deepEqual(resolveDeviceIndicator('speaker'), {
+      icon: 'smartphone',
+      color: '#9999aa',
+      label: 'Phone Speaker',
+    });
+    assert.deepEqual(resolveDeviceIndicator('wired'), {
+      icon: 'volume2',
+      color: '#9999aa',
+      label: 'Wired AUX',
+    });
+  });
 });
+

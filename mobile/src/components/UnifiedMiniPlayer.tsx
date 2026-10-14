@@ -21,7 +21,7 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { Heart, Pause, Play, Radio, Speaker } from 'lucide-react-native';
+import { Headphones, Heart, Pause, Play, Radio, Smartphone, Volume2 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../theme';
 import { fontFamily } from '../fonts';
 import { usePlayer, usePlayerStatus } from '../audio/PlayerContext';
@@ -217,9 +217,15 @@ export function UnifiedMiniPlayer({
                   }}
                   hitSlop={8}
                   style={styles.actionBtn}
-                  accessibilityLabel="Audio controls"
+                  accessibilityLabel="Audio device routing"
                 >
-                  <Speaker size={18} color="#9999aa" />
+                  {player.activeAudioDevice === 'bluetooth' ? (
+                    <Headphones size={17} color="#10b981" />
+                  ) : player.activeAudioDevice === 'wired' ? (
+                    <Volume2 size={17} color="#9999aa" />
+                  ) : (
+                    <Smartphone size={17} color="#9999aa" />
+                  )}
                 </Pressable>
 
                 {!activeTrack.isRoom && (
