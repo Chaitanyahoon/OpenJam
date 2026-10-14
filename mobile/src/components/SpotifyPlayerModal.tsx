@@ -229,12 +229,13 @@ export function SpotifyPlayerModal() {
 
   const handleDismiss = useCallback(() => {
     void hapticLight();
+    modalScale.value = withTiming(0.92, { duration: 180 });
     modalTranslateY.value = withTiming(SCREEN_HEIGHT, { duration: 180 }, (finished) => {
       if (finished) {
         runOnJS(setPlayerModalOpen)(false);
       }
     });
-  }, [setPlayerModalOpen, modalTranslateY]);
+  }, [setPlayerModalOpen, modalTranslateY, modalScale]);
 
   const handlePanDownMove = useCallback(
     (dy: number) => {
@@ -251,6 +252,7 @@ export function SpotifyPlayerModal() {
     (dy: number, vy: number) => {
       if (dy > 65 || vy > 0.4) {
         void hapticLight();
+        modalScale.value = withTiming(0.92, { duration: 180 });
         modalTranslateY.value = withTiming(SCREEN_HEIGHT, { duration: 180 }, (finished) => {
           if (finished) {
             runOnJS(setPlayerModalOpen)(false);
