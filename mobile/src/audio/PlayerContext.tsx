@@ -804,6 +804,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const isCurrentlyPlaying =
     activeDriver === 'youtube' ? ytPlaying : !!status.playing;
+  const isCurrentlyPlayingRef = useRef(isCurrentlyPlaying);
+  isCurrentlyPlayingRef.current = isCurrentlyPlaying;
   const isLoaded =
     activeDriver === 'youtube' ? true : !!status.isLoaded;
   const currentDurationMs =
@@ -856,7 +858,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (sourceTitle === 'room') return; // Managed by RoomContext
     const unregister = registerMediaActionListener((action) => {
       if (action === 'play_pause') {
-        if (isCurrentlyPlaying) {
+        if (isCurrentlyPlayingRef.current) {
           pause();
         } else {
           play();
@@ -868,7 +870,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       }
     });
     return unregister;
-  }, [sourceTitle, isCurrentlyPlaying, pause, play, playNext, playPrev]);
+  }, [sourceTitle, pause, play, playNext, playPrev]);
 
   // expo-audio runtime error fallback to YouTubeAudioBridge
   useEffect(() => {

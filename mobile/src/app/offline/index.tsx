@@ -158,7 +158,7 @@ export default function OfflineVaultScreen() {
   // Delete a downloaded track
   const handleDeleteTrack = async (trackUri: string, trackName: string) => {
     Alert.alert(
-      'Remove from Vault',
+      'Remove Download',
       `Delete "${trackName}" from your device? This frees up local storage.`,
       [
         { text: 'Cancel', style: 'cancel' },
@@ -463,7 +463,7 @@ export default function OfflineVaultScreen() {
           style={[styles.tabChip, activeTab === 'all' && styles.tabChipActive]}
         >
           <Text style={[styles.tabChipText, activeTab === 'all' && styles.tabChipTextActive]}>
-            All Vault ({vaultTracks.length})
+            All Downloads ({vaultTracks.length})
           </Text>
         </Pressable>
 
@@ -490,7 +490,7 @@ export default function OfflineVaultScreen() {
       {isLoading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.amber} />
-          <Text style={styles.loadingText}>Loading audio vault...</Text>
+          <Text style={styles.loadingText}>Loading downloads...</Text>
         </View>
       ) : activeTab === 'playlists' ? (
         /* Playlists Tab */
@@ -572,7 +572,7 @@ export default function OfflineVaultScreen() {
                   onPress={handlePlayAllVault}
                   style={({ pressed }) => [styles.vaultPlayAllBtn, pressed && styles.pressed]}
                   hitSlop={6}
-                  accessibilityLabel="Play all tracks in vault"
+                  accessibilityLabel="Play all downloaded tracks"
                 >
                   <Play size={10} color="#08080a" fill="#08080a" />
                   <Text style={styles.vaultPlayAllText}>Play All</Text>
@@ -581,7 +581,7 @@ export default function OfflineVaultScreen() {
                   onPress={handleShuffleVault}
                   style={({ pressed }) => [styles.vaultShuffleBtn, pressed && styles.pressed]}
                   hitSlop={6}
-                  accessibilityLabel="Shuffle all tracks in vault"
+                  accessibilityLabel="Shuffle all downloaded tracks"
                 >
                   <Shuffle size={10} color={colors.amber} />
                   <Text style={styles.vaultShuffleText}>Shuffle</Text>
