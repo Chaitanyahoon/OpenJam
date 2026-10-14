@@ -69,13 +69,6 @@ export const HeroHeader: React.FC<HeroHeaderProps> = ({
           style={({ pressed }) => [styles.soloBtn, pressed && styles.pressed]}
           accessibilityLabel="Start Solo Jam"
         >
-          <LinearGradient
-            colors={['#ffb03a', '#ff9f1c']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFill}
-            pointerEvents="none"
-          />
           <Headphones size={17} color="#08080a" strokeWidth={2.4} />
           <Text style={styles.soloBtnText}>Solo Jam • Listen Immediately</Text>
         </Pressable>
@@ -164,6 +157,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 13,
     borderRadius: radius.full,
+    backgroundColor: '#ff9f1c',
     overflow: 'hidden',
     position: 'relative',
     shadowColor: colors.amber,

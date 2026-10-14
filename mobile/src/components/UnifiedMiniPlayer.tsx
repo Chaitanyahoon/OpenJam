@@ -127,6 +127,7 @@ export function UnifiedMiniPlayer({
 
   // Pan Gesture: Horizontal swipe to skip, Upward drag to expand
   const panGesture = Gesture.Pan()
+    .minDistance(10)
     .onUpdate((e) => {
       translateX.value = e.translationX * 0.75;
       if (e.translationY < 0) {
@@ -180,33 +181,39 @@ export function UnifiedMiniPlayer({
         <GestureDetector gesture={composedGesture}>
           <Animated.View style={[styles.container, animatedStyle]}>
             <View style={styles.contentRow}>
-              {/* Clean Modern Album Art (No Vinyl) */}
-              <Image
-                source={{ uri: activeTrack.artworkUrl }}
-                style={styles.artwork}
-                contentFit="cover"
-                transition={150}
-              />
+              <Pressable
+                onPress={expandPlayer}
+                style={styles.trackMainTouchArea}
+                accessibilityLabel="Expand player"
+              >
+                {/* Clean Modern Album Art (No Vinyl) */}
+                <Image
+                  source={{ uri: activeTrack.artworkUrl }}
+                  style={styles.artwork}
+                  contentFit="cover"
+                  transition={150}
+                />
 
-              {/* Title & Artist */}
-              <View style={styles.trackInfo}>
-                <View style={styles.titleRow}>
-                  {activeTrack.isRoom && (
-                    <View style={styles.liveRoomBadge}>
-                      <Radio size={10} color={colors.amber} style={{ marginRight: 3 }} />
-                      <Text style={styles.liveRoomBadgeText} numberOfLines={1}>
-                        ROOM
-                      </Text>
-                    </View>
-                  )}
-                  <Text style={styles.title} numberOfLines={1}>
-                    {activeTrack.title}
+                {/* Title & Artist */}
+                <View style={styles.trackInfo}>
+                  <View style={styles.titleRow}>
+                    {activeTrack.isRoom && (
+                      <View style={styles.liveRoomBadge}>
+                        <Radio size={10} color={colors.amber} style={{ marginRight: 3 }} />
+                        <Text style={styles.liveRoomBadgeText} numberOfLines={1}>
+                          ROOM
+                        </Text>
+                      </View>
+                    )}
+                    <Text style={styles.title} numberOfLines={1}>
+                      {activeTrack.title}
+                    </Text>
+                  </View>
+                  <Text style={styles.artist} numberOfLines={1}>
+                    {activeTrack.isRoom ? `🎧 ${activeTrack.artist}` : activeTrack.artist}
                   </Text>
                 </View>
-                <Text style={styles.artist} numberOfLines={1}>
-                  {activeTrack.isRoom ? `🎧 ${activeTrack.artist}` : activeTrack.artist}
-                </Text>
-              </View>
+              </Pressable>
 
               {/* Quick Actions */}
               <View style={styles.actions}>
@@ -301,6 +308,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 10,
     paddingVertical: 6,
+  },
+  trackMainTouchArea: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   artwork: {
     width: 42,

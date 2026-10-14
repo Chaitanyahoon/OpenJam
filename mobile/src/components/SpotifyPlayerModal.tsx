@@ -343,6 +343,7 @@ export function SpotifyPlayerModal() {
           <LinearGradient
             colors={[palette.top, palette.mid, palette.bottom]}
             style={StyleSheet.absoluteFill}
+            pointerEvents="none"
           />
 
           {/* Top Header Bar with Swipe-Down Gesture */}
