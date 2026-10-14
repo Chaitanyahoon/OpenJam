@@ -18,7 +18,7 @@ export const NetworkStatusPill: React.FC<NetworkStatusPillProps> = ({
       <View style={styles.networkStatusPillOffline}>
         <WifiOff size={13} color="#f59e0b" strokeWidth={2.4} />
         <Text style={styles.networkStatusTextOffline}>
-          Offline Mode • Playing Saved Vault Music
+          Offline Mode • Playing Downloaded Music
         </Text>
       </View>
     );

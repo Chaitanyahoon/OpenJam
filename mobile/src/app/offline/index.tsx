@@ -391,7 +391,7 @@ export default function OfflineVaultScreen() {
             <HardDrive size={16} color={colors.amber} />
           </View>
           <View style={styles.storageTextWrap}>
-            <Text style={styles.storageTitle}>SANDBOXED STORAGE</Text>
+            <Text style={styles.storageTitle}>DEVICE STORAGE</Text>
             <Text style={styles.storageSubtitle}>
               {stats.formattedSize} used • {stats.totalTracks} tracks stored
             </Text>
@@ -427,7 +427,7 @@ export default function OfflineVaultScreen() {
               <>
                 <ActivityIndicator size="small" color="#08080a" />
                 <Text style={styles.downloadAllBtnText}>
-                  Saving ({batchProgress.done}/{batchProgress.total})...
+                  Downloading ({batchProgress.done}/{batchProgress.total})...
                 </Text>
               </>
             ) : (

@@ -438,13 +438,25 @@ export default function Landing() {
           <RoomGridItem room={item} onPress={handleRoomPress} onFavoriteToggle={loadFavorites} />
         )}
         ListEmptyComponent={
-          !isOnline ? null : ready ? (
+          !isOnline ? (
+            <RoomGridEmptyState
+              isSearching={false}
+              searchQuery=""
+              onClearSearchAndFilters={() => {}}
+              onCreateRoom={() => {}}
+              onOpenOfflineVault={() => { void hapticMedium(); router.push('/offline'); }}
+              isOnline={false}
+              onStartSoloJam={handleStartSoloJam}
+            />
+          ) : ready ? (
             <RoomGridEmptyState
               isSearching={searchQuery.trim().length > 0}
               searchQuery={searchQuery}
               onClearSearchAndFilters={() => { void hapticMedium(); setSearchQuery(''); setSelectedGenre('All'); }}
               onCreateRoom={() => { void hapticMedium(); if (user) setShowCreate(true); else setShowIdentity(true); }}
               onOpenOfflineVault={() => { void hapticMedium(); router.push('/offline'); }}
+              isOnline={true}
+              onStartSoloJam={handleStartSoloJam}
             />
           ) : (
             <RoomCardSkeletonList count={2} />

@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
-import { HardDrive, Radio, Search, Sparkles } from 'lucide-react-native';
+import { DownloadCloud, HardDrive, Headphones, Radio, Search, Sparkles, WifiOff } from 'lucide-react-native';
 import type { RoomSummary } from '../../api';
 import { RoomCard } from '../RoomCard';
 import { RoomCardSkeletonList } from '../RoomCardSkeleton';
@@ -43,6 +43,8 @@ export interface RoomGridEmptyStateProps {
   onClearSearchAndFilters: () => void;
   onCreateRoom: () => void;
   onOpenOfflineVault: () => void;
+  isOnline?: boolean;
+  onStartSoloJam?: () => void;
 }
 
 export const RoomGridEmptyState: React.FC<RoomGridEmptyStateProps> = ({
@@ -51,7 +53,55 @@ export const RoomGridEmptyState: React.FC<RoomGridEmptyStateProps> = ({
   onClearSearchAndFilters,
   onCreateRoom,
   onOpenOfflineVault,
+  isOnline = true,
+  onStartSoloJam,
 }) => {
+  if (!isOnline) {
+    return (
+      <Animated.View entering={FadeInDown.duration(250)} style={styles.feedEmptyCard}>
+        <View style={styles.feedEmptyIconWrap}>
+          <WifiOff size={24} color="#f59e0b" strokeWidth={2.2} />
+        </View>
+        <Text style={styles.feedEmptyTitle}>You're Offline</Text>
+        <Text style={styles.feedEmptyDesc}>
+          Live collaborative rooms require internet. You can play your downloaded music or listen in Solo Jam!
+        </Text>
+        <View style={styles.feedEmptyActions}>
+          <Pressable
+            onPress={() => {
+              void hapticMedium();
+              onOpenOfflineVault();
+            }}
+            style={({ pressed }) => [styles.feedEmptyCreateBtn, pressed && styles.pressed]}
+            accessibilityLabel="Open Downloads"
+          >
+            <LinearGradient
+              colors={['#ffb03a', '#ff9f1c']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.feedEmptyCreateGradient}
+            >
+              <DownloadCloud size={15} color="#08080a" strokeWidth={2.4} />
+              <Text style={styles.feedEmptyCreateText}>Downloads</Text>
+            </LinearGradient>
+          </Pressable>
+          {onStartSoloJam && (
+            <Pressable
+              onPress={() => {
+                void hapticMedium();
+                onStartSoloJam();
+              }}
+              style={({ pressed }) => [styles.feedEmptyVaultBtn, pressed && styles.pressed]}
+              accessibilityLabel="Start Solo Jam"
+            >
+              <Headphones size={14} color={colors.amber} />
+              <Text style={styles.feedEmptyVaultText}>Solo Jam</Text>
+            </Pressable>
+          )}
+        </View>
+      </Animated.View>
+    );
+  }
   if (isSearching) {
     return (
       <Animated.View entering={FadeInDown.duration(250)} style={styles.searchEmptyCard}>

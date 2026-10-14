@@ -351,12 +351,12 @@ export function QueueList() {
           toast('No tracks to save', 'info');
         } else {
           setIsVaultSaved(true);
-          toast('All upcoming tracks already in your vault!', 'info');
+          toast('All upcoming tracks are already downloaded!', 'info');
         }
         return;
       }
 
-      toast(`Saving ${toDownload.length} track${toDownload.length > 1 ? 's' : ''} to vault…`, 'info');
+      toast(`Downloading ${toDownload.length} track${toDownload.length > 1 ? 's' : ''}…`, 'info');
       let count = 0;
       for (const t of toDownload) {
         try {
@@ -648,7 +648,7 @@ export function QueueList() {
                         ) : (
                           <>
                             <DownloadCloud size={12} color={colors.amber} />
-                            <Text style={styles.saveVaultText}>Save to Vault</Text>
+                            <Text style={styles.saveVaultText}>Download All</Text>
                           </>
                         )}
                       </Pressable>

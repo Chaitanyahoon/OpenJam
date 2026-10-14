@@ -1,6 +1,6 @@
 import React from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { HardDrive, LogIn } from 'lucide-react-native';
+import { DownloadCloud, LogIn } from 'lucide-react-native';
 import type { ApiUser } from '../../api';
 import { colors, radius } from '../../theme';
 import { fontFamily } from '../../fonts';
@@ -55,7 +55,7 @@ export const HomeTopNav: React.FC<HomeTopNavProps> = ({
           hitSlop={8}
           accessibilityLabel="Open Downloads"
         >
-          <HardDrive size={16} color={colors.amber} />
+          <DownloadCloud size={16} color={colors.amber} />
         </Pressable>
 
         {user ? (

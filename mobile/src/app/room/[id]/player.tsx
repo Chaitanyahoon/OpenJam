@@ -266,30 +266,30 @@ export default function PlayerTab() {
 
       if (toDownload.length === 0) {
         if (!nowPlaying && queue.length === 0) {
-          toast('No tracks in session to save', 'info');
+          toast('No tracks in session to download', 'info');
         } else {
           setIsVaultSaved(true);
-          toast('All session tracks already in your vault!', 'info');
+          toast('All session tracks are already downloaded!', 'info');
         }
         return;
       }
 
-      toast(`Saving ${toDownload.length} session track${toDownload.length > 1 ? 's' : ''} to vault…`, 'info');
+      toast(`Downloading ${toDownload.length} session track${toDownload.length > 1 ? 's' : ''}…`, 'info');
       let savedCount = 0;
       for (const track of toDownload) {
         try {
           await downloadTrackToVault(track, false);
           savedCount++;
         } catch (e) {
-          console.warn('Failed saving track to vault:', track.track_name, e);
+          console.warn('Failed saving track to downloads:', track.track_name, e);
         }
       }
       setIsVaultSaved(true);
       toast(`Downloaded ${savedCount} track${savedCount > 1 ? 's' : ''}!`, 'success');
       void hapticMedium();
     } catch (err) {
-      console.warn('Failed saving session to vault:', err);
-      toast('Could not save session to vault', 'error');
+      console.warn('Failed downloading session tracks:', err);
+      toast('Could not download session tracks', 'error');
     } finally {
       setIsSavingVault(false);
     }
