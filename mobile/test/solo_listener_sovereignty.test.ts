@@ -33,10 +33,17 @@ export function pureResolveCurrentIndex(
   track: TestTrack,
   existingQueue: TestTrack[],
   newQueue?: TestTrack[],
+  explicitIndex?: number,
 ): { queue: TestTrack[]; currentIndex: number } {
   if (newQueue && newQueue.length > 0) {
-    const idx = newQueue.findIndex((t) => t.track_uri === track.track_uri);
+    const idx =
+      typeof explicitIndex === 'number'
+        ? explicitIndex
+        : newQueue.findIndex((t) => t.track_uri === track.track_uri);
     return { queue: newQueue, currentIndex: Math.max(0, idx) };
+  }
+  if (typeof explicitIndex === 'number') {
+    return { queue: existingQueue, currentIndex: explicitIndex };
   }
   const existingIdx = existingQueue.findIndex((t) => t.track_uri === track.track_uri);
   return {
@@ -185,6 +192,47 @@ describe('Solo Direct Listener Sovereignty Suite', () => {
       : null;
 
     assert.equal(noticeText, 'Offline Mode • 3 downloaded tracks ready');
+  });
+
+  it('correctly tracks identical duplicate tracks via explicitIndex without jumping backwards', () => {
+    const trackA: TestTrack = { track_uri: 'yt:song1', track_name: 'Song One' };
+    const trackB: TestTrack = { track_uri: 'yt:song2', track_name: 'Song Two' };
+    // Queue contains duplicates: [trackA, trackB, trackA]
+    const queueWithDuplicates = [trackA, trackB, trackA];
+
+    // Playing the second trackA at index 2
+    const result = pureResolveCurrentIndex(trackA, queueWithDuplicates, undefined, 2);
+    assert.equal(result.currentIndex, 2);
+    assert.equal(result.queue[result.currentIndex].track_name, 'Song One');
+
+    // Without explicitIndex, findIndex would have mistakenly chosen 0
+    const legacyResult = pureResolveCurrentIndex(trackA, queueWithDuplicates);
+    assert.equal(legacyResult.currentIndex, 0);
+  });
+
+  it('safely tolerates native touch events without stopPropagation method', () => {
+    // Native React Native GestureResponderEvent has no stopPropagation method
+    const nativeEvent: Record<string, unknown> = {
+      target: 101,
+      touches: [],
+      timestamp: Date.now(),
+    };
+
+    let stopped = false;
+    const webEvent = {
+      stopPropagation: () => {
+        stopped = true;
+      },
+    };
+
+    assert.doesNotThrow(() => {
+      (nativeEvent as { stopPropagation?: () => void })?.stopPropagation?.();
+    });
+
+    assert.doesNotThrow(() => {
+      (webEvent as { stopPropagation?: () => void })?.stopPropagation?.();
+    });
+    assert.equal(stopped, true);
   });
 });
 

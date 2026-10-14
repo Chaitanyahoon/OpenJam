@@ -398,7 +398,7 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
                   {/* 1-Tap Add to Queue Button */}
                   <Pressable
                     onPress={(e) => {
-                      e.stopPropagation();
+                      e?.stopPropagation?.();
                       handleAddToQueue(item);
                     }}
                     hitSlop={8}

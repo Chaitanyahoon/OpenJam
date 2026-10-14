@@ -701,7 +701,7 @@ export function ProfileModal({
                           <View style={styles.playlistActions}>
                             <Pressable
                               onPress={(e) => {
-                                e.stopPropagation();
+                                e?.stopPropagation?.();
                                 void handlePlayPlaylistDirect(pl);
                               }}
                               hitSlop={8}

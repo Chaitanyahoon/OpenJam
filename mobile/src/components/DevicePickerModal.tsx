@@ -108,7 +108,7 @@ export function DevicePickerModal({
             styles.sheet,
             { paddingBottom: Math.max(insets.bottom, 20) + 12 },
           ]}
-          onPress={(e) => e.stopPropagation()}
+          onPress={(e) => e?.stopPropagation?.()}
         >
           {/* Sheet Handlebar */}
           <View style={styles.handleWrap}>
@@ -173,7 +173,7 @@ export function DevicePickerModal({
                   {d.action && (
                     <Pressable
                       onPress={(e) => {
-                        e.stopPropagation();
+                        e?.stopPropagation?.();
                         d.action?.onPress();
                       }}
                       hitSlop={8}

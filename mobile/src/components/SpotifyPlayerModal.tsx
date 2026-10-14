@@ -578,7 +578,7 @@ export function SpotifyPlayerModal() {
                         </View>
                         <Pressable
                           onPress={(e) => {
-                            e.stopPropagation();
+                            e?.stopPropagation?.();
                             void hapticLight();
                             removeFromQueue(actualIdx);
                           }}

@@ -507,7 +507,7 @@ export default function PlaylistDetailScreen() {
               <View style={styles.trackRowActions}>
                 <Pressable
                   onPress={(e) => {
-                    e.stopPropagation();
+                    e?.stopPropagation?.();
                     void hapticLight();
                     player.addToQueue({
                       track_uri: item.track_uri,
@@ -528,7 +528,7 @@ export default function PlaylistDetailScreen() {
                 {isLocal && (
                   <Pressable
                     onPress={(e) => {
-                      e.stopPropagation();
+                      e?.stopPropagation?.();
                       void handleRemoveTrack(item.track_uri);
                     }}
                     hitSlop={12}

@@ -562,7 +562,7 @@ export default function UserProfileScreen() {
               </View>
               <Pressable
                 onPress={(e) => {
-                  e.stopPropagation();
+                  e?.stopPropagation?.();
                   void handlePlayPlaylistDirect(item);
                 }}
                 hitSlop={8}
@@ -574,7 +574,7 @@ export default function UserProfileScreen() {
               {isSelf && isOffline ? (
                 <Pressable
                   onPress={(e) => {
-                    e.stopPropagation();
+                    e?.stopPropagation?.();
                     void handleDeleteOfflinePlaylist(item.id, item.name);
                   }}
                   hitSlop={8}

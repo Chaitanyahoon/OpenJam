@@ -81,7 +81,7 @@ export interface PlayerControls {
   playTrack: (
     track: TrackInfo,
     newQueue?: TrackInfo[],
-    options?: { sourceTitle?: string; autoPlay?: boolean; initialPositionMs?: number },
+    options?: { sourceTitle?: string; autoPlay?: boolean; initialPositionMs?: number; index?: number },
   ) => Promise<void>;
   playNext: () => Promise<void>;
   playPrev: () => Promise<void>;
@@ -432,7 +432,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     async (
       track: TrackInfo,
       newQueue?: TrackInfo[],
-      options?: { sourceTitle?: string; autoPlay?: boolean; initialPositionMs?: number },
+      options?: { sourceTitle?: string; autoPlay?: boolean; initialPositionMs?: number; index?: number },
     ) => {
       if (!track) return;
       setCurrentTrack(track);
@@ -442,8 +442,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
       if (newQueue && newQueue.length > 0) {
         setQueueState(newQueue);
-        const idx = newQueue.findIndex((t) => t.track_uri === track.track_uri);
+        const idx =
+          typeof options?.index === 'number'
+            ? options.index
+            : newQueue.findIndex((t) => t.track_uri === track.track_uri);
         setCurrentIndex(idx >= 0 ? idx : 0);
+      } else if (typeof options?.index === 'number') {
+        setCurrentIndex(options.index);
       } else {
         const existingIdx = queueRef.current.findIndex((t) => t.track_uri === track.track_uri);
         if (existingIdx >= 0) {
@@ -491,11 +496,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (nextIdx < q.length) {
       setCurrentIndex(nextIdx);
       const nextTrack = q[nextIdx];
-      await playTrack(nextTrack);
+      await playTrack(nextTrack, undefined, { index: nextIdx });
     } else if (repeatRef.current === 'all') {
       setCurrentIndex(0);
       const firstTrack = q[0];
-      await playTrack(firstTrack);
+      await playTrack(firstTrack, undefined, { index: 0 });
     } else {
       // Reached the end of the user's Up Next queue
       if (!radioAutoPlayRef.current) {
@@ -541,7 +546,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
     const prevIdx = Math.max(0, currentIndexRef.current - 1);
     setCurrentIndex(prevIdx);
-    await playTrack(q[prevIdx]);
+    await playTrack(q[prevIdx], undefined, { index: prevIdx });
   }, [positionMs, seekToMs, playTrack]);
 
   const toggleLike = useCallback(async (): Promise<boolean> => {

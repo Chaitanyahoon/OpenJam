@@ -61,7 +61,7 @@ function Shell({
         ]}
         onPress={onClose}
       >
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={styles.sheet} onPress={(e) => e?.stopPropagation?.()}>
           {children}
         </Pressable>
       </Pressable>

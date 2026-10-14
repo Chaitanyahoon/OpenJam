@@ -212,7 +212,7 @@ export function UnifiedMiniPlayer({
               <View style={styles.actions}>
                 <Pressable
                   onPress={(e) => {
-                    e.stopPropagation();
+                    e?.stopPropagation?.();
                     expandPlayer();
                   }}
                   hitSlop={8}
@@ -231,7 +231,7 @@ export function UnifiedMiniPlayer({
                 {!activeTrack.isRoom && (
                   <Pressable
                     onPress={(e) => {
-                      e.stopPropagation();
+                      e?.stopPropagation?.();
                       void hapticMedium();
                       void player.toggleLike();
                     }}
@@ -249,7 +249,7 @@ export function UnifiedMiniPlayer({
 
                 <Pressable
                   onPress={(e) => {
-                    e.stopPropagation();
+                    e?.stopPropagation?.();
                     handleTogglePlay();
                   }}
                   hitSlop={10}
