@@ -283,9 +283,8 @@ export function SpotifyPlayerModal() {
     [handlePanDownMove, handlePanDownRelease],
   );
 
-  if (!isPlayerModalOpen || !currentTrack) return null;
-
-  const handleDownload = async () => {
+  const handleDownload = useCallback(async () => {
+    if (!currentTrack) return;
     if (isDownloaded) {
       toast('Song is already downloaded', 'info');
       return;
@@ -299,9 +298,9 @@ export function SpotifyPlayerModal() {
     } catch {
       toast('Could not download audio stream right now. Try again later.', 'error');
     }
-  };
+  }, [currentTrack, isDownloaded, isLiked, toast]);
 
-  const handleToggleLike = async () => {
+  const handleToggleLike = useCallback(async () => {
     heartScale.value = withSequence(
       withTiming(1.35, { duration: 110 }),
       withSpring(1.0, { damping: 10, stiffness: 220 }),
@@ -309,7 +308,7 @@ export function SpotifyPlayerModal() {
     void hapticMedium();
     const liked = await toggleLike();
     toast(liked ? 'Added to Liked Songs' : 'Removed from Liked Songs', 'info');
-  };
+  }, [heartScale, toggleLike, toast]);
 
   const {
     artworkPanResponder,
@@ -322,6 +321,8 @@ export function SpotifyPlayerModal() {
     onPanDownMove: handlePanDownMove,
     onPanDownRelease: handlePanDownRelease,
   });
+
+  if (!isPlayerModalOpen || !currentTrack) return null;
 
   return (
     <Modal
