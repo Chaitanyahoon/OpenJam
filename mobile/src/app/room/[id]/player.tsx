@@ -159,7 +159,11 @@ export default function PlayerTab() {
   // Responsive modern artwork sizing (Hero album card)
   const maxAvailableWidth = windowWidth - spacing.lg * 2;
   const maxStageWidth = Math.min(maxAvailableWidth, 380);
-  const artworkSize = Math.max(180, Math.min(maxStageWidth, Math.floor(windowHeight * 0.36), 320));
+  const isCompactHeight = windowHeight < 720;
+  const artworkSize = Math.max(
+    140,
+    Math.min(maxStageWidth, Math.floor(windowHeight * (isCompactHeight ? 0.24 : 0.36)), 320),
+  );
 
   const [pos, setPos] = useState(0);
   useEffect(() => {
@@ -545,9 +549,9 @@ export default function PlayerTab() {
                   {currentDownload?.state === 'downloading' ? (
                     <ActivityIndicator size="small" color={colors.amber} />
                   ) : isTrackDownloaded ? (
-                    <CheckCircle2 size={22} color="#10b981" />
+                    <CheckCircle2 size={20} color="#10b981" />
                   ) : (
-                    <DownloadCloud size={22} color={colors.text3} />
+                    <DownloadCloud size={20} color={colors.text3} />
                   )}
                 </Pressable>
 
@@ -559,7 +563,7 @@ export default function PlayerTab() {
                   accessibilityLabel={isLiked ? 'Unlike track' : 'Like track'}
                 >
                   <Heart
-                    size={24}
+                    size={20}
                     color={isLiked ? '#ef4444' : colors.text3}
                     fill={isLiked ? '#ef4444' : 'transparent'}
                   />
@@ -637,7 +641,7 @@ export default function PlayerTab() {
                 hitSlop={10}
                 accessibilityLabel="Shuffle queue"
               >
-                <Shuffle size={20} color={colors.text3} />
+                <Shuffle size={18} color={colors.text3} strokeWidth={2} />
               </Pressable>
 
               {/* Previous button */}
@@ -655,10 +659,10 @@ export default function PlayerTab() {
                 hitSlop={12}
                 accessibilityLabel="Previous track"
               >
-                <SkipBack size={26} color={colors.text1} fill={colors.text1} />
+                <SkipBack size={22} color={colors.text1} fill={colors.text1} />
               </Pressable>
 
-              {/* Center Play / Pause 72px Button with Warm Amber Halo */}
+              {/* Center Play / Pause Button with Warm Amber Halo */}
               <Pressable
                 onPress={() => {
                   togglePlay();
@@ -679,9 +683,9 @@ export default function PlayerTab() {
                   style={styles.playBtn}
                 >
                   {isPlaying ? (
-                    <Pause size={28} color="#08080a" fill="#08080a" />
+                    <Pause size={24} color="#08080a" fill="#08080a" />
                   ) : (
-                    <Play size={28} color="#08080a" fill="#08080a" style={{ marginLeft: 3 }} />
+                    <Play size={24} color="#08080a" fill="#08080a" style={{ marginLeft: 2 }} />
                   )}
                 </LinearGradient>
               </Pressable>
@@ -701,7 +705,7 @@ export default function PlayerTab() {
                 hitSlop={12}
                 accessibilityLabel="Next track"
               >
-                <SkipForward size={26} color={colors.text1} fill={colors.text1} />
+                <SkipForward size={22} color={colors.text1} fill={colors.text1} />
               </Pressable>
 
               {/* Repeat button */}
@@ -719,7 +723,7 @@ export default function PlayerTab() {
                 hitSlop={10}
                 accessibilityLabel="Toggle repeat"
               >
-                <Repeat size={20} color={loop ? colors.amber : colors.text3} />
+                <Repeat size={18} color={loop ? colors.amber : colors.text3} strokeWidth={2} />
                 {loop ? <View style={styles.loopDot} /> : null}
               </Pressable>
             </View>
@@ -946,8 +950,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
-    marginTop: spacing.sm,
-    marginBottom: spacing.lg,
+    marginTop: spacing.xs,
+    marginBottom: spacing.xs,
   },
   artworkAura: {
     position: 'absolute',
@@ -1084,8 +1088,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: spacing.xs,
-    marginBottom: spacing.sm,
+    marginTop: 2,
+    marginBottom: spacing.xs,
   },
   trackMetaCol: {
     flex: 1,
@@ -1124,8 +1128,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 4,
-    marginTop: spacing.md,
-    marginBottom: spacing.xs,
+    marginTop: spacing.xs,
+    marginBottom: 2,
   },
   deckRouteBadge: {
     flexDirection: 'row',
@@ -1205,8 +1209,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: spacing.sm,
-    marginBottom: spacing.xs,
+    marginTop: spacing.xs,
+    marginBottom: 2,
   },
   liveBadge: {
     flexDirection: 'row',
@@ -1238,7 +1242,7 @@ const styles = StyleSheet.create({
   // Full-width Scrubber Deck
   progressHit: {
     width: '100%',
-    paddingVertical: 12,
+    paddingVertical: 8,
   },
   progressBg: {
     height: 5,
@@ -1279,8 +1283,8 @@ const styles = StyleSheet.create({
     width: '100%',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 4,
-    marginBottom: spacing.md,
+    marginTop: 2,
+    marginBottom: spacing.xs,
   },
   time: {
     fontFamily: fontFamily.bodyRegular,
@@ -1299,7 +1303,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.xs,
-    marginVertical: spacing.sm,
+    marginVertical: spacing.xs,
   },
   sideBtn: {
     width: 44,
@@ -1324,27 +1328,27 @@ const styles = StyleSheet.create({
     backgroundColor: colors.amber,
   },
   ctlBtn: {
-    width: 52,
-    height: 52,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
   ctlGlyph: {
-    fontSize: 28,
+    fontSize: 22,
     color: colors.text1,
   },
   playBtnWrap: {
-    borderRadius: 36,
+    borderRadius: 30,
     shadowColor: colors.amber,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.5,
-    shadowRadius: 22,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 8,
   },
   playBtn: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
   },

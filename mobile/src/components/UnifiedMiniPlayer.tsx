@@ -231,11 +231,11 @@ export function UnifiedMiniPlayer({
                   accessibilityLabel="Audio device routing"
                 >
                   {player.activeAudioDevice === 'bluetooth' ? (
-                    <Headphones size={17} color="#10b981" />
+                    <Headphones size={15} color="#10b981" />
                   ) : player.activeAudioDevice === 'wired' ? (
-                    <Volume2 size={17} color="#9999aa" />
+                    <Volume2 size={15} color="#9999aa" />
                   ) : (
-                    <Smartphone size={17} color="#9999aa" />
+                    <Smartphone size={15} color="#9999aa" />
                   )}
                 </Pressable>
 
@@ -251,7 +251,7 @@ export function UnifiedMiniPlayer({
                     accessibilityLabel={player.isLiked ? 'Unlike song' : 'Like song'}
                   >
                     <Heart
-                      size={20}
+                      size={18}
                       color={player.isLiked ? colors.amber : '#9999aa'}
                       fill={player.isLiked ? colors.amber : 'transparent'}
                     />
@@ -268,9 +268,9 @@ export function UnifiedMiniPlayer({
                   accessibilityLabel={activeTrack.isPlaying ? 'Pause' : 'Play'}
                 >
                   {activeTrack.isPlaying ? (
-                    <Pause size={20} color="#08080a" fill="#08080a" />
+                    <Pause size={16} color="#08080a" fill="#08080a" />
                   ) : (
-                    <Play size={20} color="#08080a" fill="#08080a" style={{ marginLeft: 2 }} />
+                    <Play size={16} color="#08080a" fill="#08080a" style={{ marginLeft: 2 }} />
                   )}
                 </Pressable>
               </View>

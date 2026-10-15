@@ -167,7 +167,7 @@ export function CreateRoomModal({
           />
         </View>
         <Pressable onPress={rollRoomName} style={styles.diceBtn} accessibilityLabel="Randomize room name">
-          <Shuffle size={20} color={colors.amber} />
+          <Shuffle size={16} color={colors.amber} strokeWidth={2.2} />
         </Pressable>
       </View>
 
@@ -535,7 +535,9 @@ export function LeaveModal({
   return (
     <Shell visible={visible} onClose={onClose}>
       <View style={styles.leaveIconWrap}>
-        <LogOut size={40} color={colors.red} />
+        <View style={styles.leaveIconCircle}>
+          <LogOut size={22} color={colors.red} strokeWidth={2.2} />
+        </View>
       </View>
       <Title style={{ textAlign: 'center' }}>Leave Live Room?</Title>
       <Subtitle style={[styles.sub, { textAlign: 'center' }]}>
@@ -551,7 +553,7 @@ export function LeaveModal({
             onPress={onContinueSolo}
             style={({ pressed }) => [styles.continueSoloBtn, pressed && styles.pressed]}
           >
-            <Headphones size={18} color="#08080a" />
+            <Headphones size={15} color="#08080a" strokeWidth={2.2} />
             <Text style={styles.continueSoloText}>Keep Listening Solo</Text>
           </Pressable>
         </View>
@@ -1080,7 +1082,17 @@ const styles = StyleSheet.create({
   },
   leaveIconWrap: {
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
+  },
+  leaveIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(244, 63, 94, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(244, 63, 94, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   leaveBtnRow: {
     flexDirection: 'row',

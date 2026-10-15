@@ -286,7 +286,7 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
             style={styles.backBtn}
             accessibilityLabel="Close search"
           >
-            <ArrowLeft size={24} color="#ffffff" />
+            <ArrowLeft size={20} color="#ffffff" strokeWidth={2.2} />
           </Pressable>
 
           <View style={styles.headerTitleWrap}>
@@ -304,7 +304,7 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
         {/* Search Input Bar */}
         <View style={styles.searchBarWrap}>
           <View style={styles.searchBar}>
-            <Search size={18} color="#777788" style={{ marginRight: 8 }} />
+            <Search size={16} color="#777788" style={{ marginRight: 8 }} />
             <TextInput
               ref={inputRef}
               value={query}
@@ -425,7 +425,9 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
           />
         ) : query.trim().length > 0 ? (
           <View style={styles.emptyWrap}>
-            <Music size={40} color="#333344" />
+            <View style={styles.emptyIconCircle}>
+              <Music size={24} color="#666677" />
+            </View>
             <Text style={styles.emptyTitle}>No songs found for "{query}"</Text>
             <Text style={styles.emptySubtitle}>Try searching an artist name, song title, or genre vibe</Text>
           </View>
@@ -577,7 +579,9 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
               </View>
             ) : recentSearches.length === 0 && vaultTracks.length === 0 ? (
               <View style={styles.introBox}>
-                <Headphones size={44} color={colors.amber} style={{ marginBottom: 12 }} />
+                <View style={styles.introIconCircle}>
+                  <Headphones size={26} color={colors.amber} strokeWidth={2.2} />
+                </View>
                 <Text style={styles.introTitle}>Ready to Listen Solo?</Text>
                 <Text style={styles.introSubtitle}>
                   Search for any song, artist, or pick one of the vibes above to start streaming immediately.
@@ -772,6 +776,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     gap: 8,
   },
+  emptyIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
   emptyTitle: {
     fontFamily: fontFamily.displayBold,
     fontSize: 16,
@@ -894,6 +909,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 32,
+  },
+  introIconCircle: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
   },
   introTitle: {
     fontFamily: fontFamily.displayBold,

@@ -357,7 +357,7 @@ export function SpotifyPlayerModal() {
               style={styles.headerBtn}
               accessibilityLabel="Collapse player"
             >
-              <ChevronDown size={28} color="#ffffff" />
+              <ChevronDown size={22} color="#ffffff" strokeWidth={2.4} />
             </Pressable>
 
             <View style={styles.headerCenter}>
@@ -376,7 +376,7 @@ export function SpotifyPlayerModal() {
               style={[styles.headerBtn, showQueue && styles.headerBtnActive]}
               accessibilityLabel="Toggle queue"
             >
-              <ListMusic size={22} color={showQueue ? colors.amber : '#ffffff'} />
+              <ListMusic size={19} color={showQueue ? colors.amber : '#ffffff'} strokeWidth={2.2} />
             </Pressable>
           </View>
 
@@ -720,7 +720,7 @@ export function SpotifyPlayerModal() {
                   style={styles.actionIconBtn}
                   accessibilityLabel="Add song to playlist"
                 >
-                  <ListPlus size={24} color="#9999aa" />
+                  <ListPlus size={20} color="#9999aa" strokeWidth={2} />
                 </Pressable>
 
                 <Pressable
@@ -732,9 +732,9 @@ export function SpotifyPlayerModal() {
                   {downloadProgress?.state === 'downloading' ? (
                     <ActivityIndicator size="small" color={colors.amber} />
                   ) : isDownloaded ? (
-                    <CheckCircle2 size={24} color={colors.green} />
+                    <CheckCircle2 size={20} color={colors.green} strokeWidth={2.2} />
                   ) : (
-                    <DownloadCloud size={24} color="#9999aa" />
+                    <DownloadCloud size={20} color="#9999aa" strokeWidth={2} />
                   )}
                 </Pressable>
 
@@ -746,7 +746,7 @@ export function SpotifyPlayerModal() {
                 >
                   <Animated.View style={animatedHeartStyle}>
                     <Heart
-                      size={26}
+                      size={21}
                       color={isLiked ? palette.accent : '#9999aa'}
                       fill={isLiked ? palette.accent : 'transparent'}
                     />
@@ -776,7 +776,7 @@ export function SpotifyPlayerModal() {
                 style={styles.sideControlBtn}
                 accessibilityLabel="Toggle shuffle"
               >
-                <Shuffle size={20} color={shuffle ? colors.amber : '#888899'} />
+                <Shuffle size={18} color={shuffle ? colors.amber : '#888899'} strokeWidth={2} />
                 {shuffle && <View style={styles.activeDot} />}
               </Pressable>
 
@@ -789,7 +789,7 @@ export function SpotifyPlayerModal() {
                 style={styles.stepBtn}
                 accessibilityLabel="Previous track"
               >
-                <SkipBack size={28} color="#ffffff" fill="#ffffff" />
+                <SkipBack size={22} color="#ffffff" fill="#ffffff" />
               </Pressable>
 
               <Pressable
@@ -802,9 +802,9 @@ export function SpotifyPlayerModal() {
                 accessibilityLabel={playing ? 'Pause' : 'Play'}
               >
                 {playing ? (
-                  <Pause size={30} color="#08080a" fill="#08080a" />
+                  <Pause size={24} color="#08080a" fill="#08080a" />
                 ) : (
-                  <Play size={30} color="#08080a" fill="#08080a" style={{ marginLeft: 3 }} />
+                  <Play size={24} color="#08080a" fill="#08080a" style={{ marginLeft: 2 }} />
                 )}
               </Pressable>
 
@@ -817,7 +817,7 @@ export function SpotifyPlayerModal() {
                 style={styles.stepBtn}
                 accessibilityLabel="Next track"
               >
-                <SkipForward size={28} color="#ffffff" fill="#ffffff" />
+                <SkipForward size={22} color="#ffffff" fill="#ffffff" />
               </Pressable>
 
               <Pressable
@@ -830,9 +830,9 @@ export function SpotifyPlayerModal() {
                 accessibilityLabel="Toggle repeat"
               >
                 {repeat === 'one' ? (
-                  <Repeat1 size={20} color={colors.amber} />
+                  <Repeat1 size={18} color={colors.amber} strokeWidth={2.2} />
                 ) : (
-                  <Repeat size={20} color={repeat === 'all' ? colors.amber : '#888899'} />
+                  <Repeat size={18} color={repeat === 'all' ? colors.amber : '#888899'} strokeWidth={2} />
                 )}
                 {repeat !== 'off' && <View style={styles.activeDot} />}
               </Pressable>
@@ -941,7 +941,7 @@ export function SpotifyPlayerModal() {
                 style={styles.headerBtn}
                 accessibilityLabel="Close lyrics"
               >
-                <ChevronDown size={28} color="#ffffff" />
+                <ChevronDown size={22} color="#ffffff" strokeWidth={2.4} />
               </Pressable>
 
               <View style={styles.headerCenter}>
@@ -1150,9 +1150,9 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   playPauseBtn: {
-    width: 66,
-    height: 66,
-    borderRadius: 33,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: colors.amber,
     alignItems: 'center',
     justifyContent: 'center',

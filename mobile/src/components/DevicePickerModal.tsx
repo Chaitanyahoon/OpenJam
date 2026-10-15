@@ -75,13 +75,13 @@ export function DevicePickerModal({
       id: 'speaker',
       title: 'Phone Speaker',
       subtitle: 'This phone • Internal speaker',
-      icon: <Smartphone size={22} color={activeDevice === 'speaker' ? '#10b981' : colors.text2} />,
+      icon: <Smartphone size={20} color={activeDevice === 'speaker' ? '#10b981' : colors.text2} />,
     },
     {
       id: 'bluetooth',
       title: 'Bluetooth Audio',
       subtitle: 'Wireless headphones, earbuds, car audio',
-      icon: <Headphones size={22} color={activeDevice === 'bluetooth' ? '#10b981' : colors.text2} />,
+      icon: <Headphones size={20} color={activeDevice === 'bluetooth' ? '#10b981' : colors.text2} />,
       action: {
         label: 'Settings',
         onPress: handleOpenBluetoothSettings,
@@ -91,7 +91,7 @@ export function DevicePickerModal({
       id: 'wired',
       title: 'Wired Headphones / AUX',
       subtitle: 'Connected via 3.5mm jack or Type-C adapter',
-      icon: <Volume2 size={22} color={activeDevice === 'wired' ? '#10b981' : colors.text2} />,
+      icon: <Volume2 size={20} color={activeDevice === 'wired' ? '#10b981' : colors.text2} />,
     },
   ];
 
@@ -130,7 +130,7 @@ export function DevicePickerModal({
               style={styles.closeBtn}
               accessibilityLabel="Close device picker"
             >
-              <X size={20} color={colors.text2} />
+              <X size={17} color={colors.text2} strokeWidth={2.2} />
             </Pressable>
           </View>
 
