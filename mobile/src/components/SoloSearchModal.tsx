@@ -876,6 +876,7 @@ const styles = StyleSheet.create({
   },
   recentInfo: {
     flex: 1,
+    minWidth: 0,
   },
   recentTitle: {
     fontFamily: fontFamily.bodySemiBold,

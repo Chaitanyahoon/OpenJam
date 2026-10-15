@@ -51,20 +51,32 @@ function Shell({
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable
-        style={[
-          styles.backdrop,
-          {
-            paddingTop: Math.max(insets.top, spacing.lg),
-            paddingBottom: Math.max(insets.bottom, spacing.lg),
-          },
-        ]}
-        onPress={onClose}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.keyboardAvoid}
       >
-        <Pressable style={styles.sheet} onPress={(e) => e?.stopPropagation?.()}>
-          {children}
+        <Pressable
+          style={[
+            styles.backdrop,
+            {
+              paddingTop: Math.max(insets.top, spacing.md),
+              paddingBottom: Math.max(insets.bottom, spacing.md),
+            },
+          ]}
+          onPress={onClose}
+        >
+          <Pressable style={styles.sheet} onPress={(e) => e?.stopPropagation?.()}>
+            <ScrollView
+              bounces={false}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.sheetScrollContent}
+            >
+              {children}
+            </ScrollView>
+          </Pressable>
         </Pressable>
-      </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -827,22 +839,28 @@ export function RoomInviteModal({
 }
 
 const styles = StyleSheet.create({
+  keyboardAvoid: {
+    flex: 1,
+  },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
-    padding: spacing.lg,
+    padding: spacing.md,
   },
   sheet: {
     backgroundColor: '#0d0d12',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.09)',
     borderRadius: 24,
-    padding: spacing.lg,
     maxWidth: 480,
+    maxHeight: '92%',
     width: '100%',
     alignSelf: 'center',
     overflow: 'hidden',
+  },
+  sheetScrollContent: {
+    padding: spacing.lg,
   },
   createModalBadge: {
     flexDirection: 'row',

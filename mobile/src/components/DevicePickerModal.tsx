@@ -83,7 +83,7 @@ export function DevicePickerModal({
       subtitle: 'Wireless headphones, earbuds, car audio',
       icon: <Headphones size={22} color={activeDevice === 'bluetooth' ? '#10b981' : colors.text2} />,
       action: {
-        label: 'Pair / Settings',
+        label: 'Settings',
         onPress: handleOpenBluetoothSettings,
       },
     },

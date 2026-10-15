@@ -405,7 +405,7 @@ export default function PlaylistDetailScreen() {
                   style={styles.playGradient}
                 >
                   <Play size={16} color="#08080a" fill="#08080a" style={{ marginLeft: 2 }} />
-                  <Text style={styles.playPlaylistText}>Play</Text>
+                  <Text style={styles.playPlaylistText} numberOfLines={1}>Play</Text>
                 </LinearGradient>
               </Pressable>
 
@@ -420,7 +420,7 @@ export default function PlaylistDetailScreen() {
                 accessibilityLabel="Shuffle playlist"
               >
                 <Shuffle size={16} color="#ffffff" strokeWidth={2.2} />
-                <Text style={styles.shufflePlaylistText}>Shuffle</Text>
+                <Text style={styles.shufflePlaylistText} numberOfLines={1}>Shuffle</Text>
               </Pressable>
 
               <Pressable
@@ -434,7 +434,7 @@ export default function PlaylistDetailScreen() {
                 accessibilityLabel="Add playlist to queue"
               >
                 <ListPlus size={16} color="#ffffff" strokeWidth={2.2} />
-                <Text style={styles.queuePlaylistText}>Queue</Text>
+                <Text style={styles.queuePlaylistText} numberOfLines={1}>Queue</Text>
               </Pressable>
 
               {isLocal && (
@@ -744,7 +744,7 @@ const styles = StyleSheet.create({
   playlistActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
     marginTop: 8,
     width: '100%',
   },
@@ -757,21 +757,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
   },
   playPlaylistText: {
     color: '#08080a',
     fontFamily: fontFamily.displayBold,
-    fontSize: 14,
+    fontSize: 13,
   },
   shufflePlaylistBtn: {
     flex: 2,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
     borderRadius: radius.full,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderWidth: 1,
@@ -780,7 +782,7 @@ const styles = StyleSheet.create({
   shufflePlaylistText: {
     color: '#ffffff',
     fontFamily: fontFamily.displayBold,
-    fontSize: 14,
+    fontSize: 13,
   },
   queuePlaylistBtn: {
     flex: 2,
@@ -788,7 +790,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingVertical: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
     borderRadius: radius.full,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderWidth: 1,
@@ -797,12 +800,12 @@ const styles = StyleSheet.create({
   queuePlaylistText: {
     color: '#ffffff',
     fontFamily: fontFamily.displayBold,
-    fontSize: 14,
+    fontSize: 13,
   },
   jamRoomIconBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: 'rgba(255, 159, 28, 0.12)',
     borderWidth: 1,
     borderColor: 'rgba(255, 159, 28, 0.3)',
@@ -904,9 +907,9 @@ const styles = StyleSheet.create({
     opacity: 0.45,
   },
   addSongsIconBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: 'rgba(255, 159, 28, 0.12)',
     borderWidth: 1,
     borderColor: 'rgba(255, 159, 28, 0.3)',
