@@ -429,7 +429,6 @@ export default function Landing() {
                 onSearchFocus={setSearchFocused}
                 onClearSearch={() => setSearchQuery('')}
                 onSelectGenre={setSelectedGenre}
-                onOpenOfflineVault={() => router.push('/offline')}
               />
             )}
           </View>

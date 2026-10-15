@@ -13,6 +13,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import Animated, {
   runOnJS,
@@ -39,9 +40,12 @@ export function UnifiedMiniPlayer({
   bottomOffset = 0,
   onExpand,
 }: UnifiedMiniPlayerProps) {
+  const insets = useSafeAreaInsets();
   const player = usePlayer();
   const playerStatus = usePlayerStatus();
   const room = useOptionalRoom();
+
+  const effectiveBottom = Math.max(bottomOffset, insets.bottom, 10);
 
   const [currentPosMs, setCurrentPosMs] = useState(0);
 
@@ -174,7 +178,7 @@ export function UnifiedMiniPlayer({
     <View
       style={[
         styles.containerWrapper,
-        { bottom: bottomOffset + 12 },
+        { bottom: effectiveBottom },
       ]}
       pointerEvents="box-none"
     >

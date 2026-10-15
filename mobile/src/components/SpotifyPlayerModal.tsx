@@ -16,7 +16,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
-  Dimensions,
   Modal,
   PanResponder,
   Pressable,
@@ -24,6 +23,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -90,11 +90,9 @@ import { PrecisionScrubber } from './player/PrecisionScrubber';
 import { formatDuration } from '../utils/format';
 import type { TrackInfo } from '../sync/protocol';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const ARTWORK_SIZE = Math.min(SCREEN_WIDTH - 64, 340);
-
 export function SpotifyPlayerModal() {
   const insets = useSafeAreaInsets();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const toast = useToast();
   const {
     currentTrack,
@@ -155,9 +153,14 @@ export function SpotifyPlayerModal() {
     onAddToQueue: addToQueue,
   });
 
-  const lastTouchXRef = useRef(0);
-  const startYRef = useRef(0);
-  const trackBarWidthRef = useRef(SCREEN_WIDTH - 64);
+  // Dynamically scale artwork based on viewport height and safe-insets
+  const availableArtworkHeight = Math.max(
+    160,
+    screenHeight - insets.top - insets.bottom - 320,
+  );
+  const dynamicArtworkSize = Math.floor(
+    Math.min(screenWidth - 48, Math.min(330, availableArtworkHeight)),
+  );
 
   const optionalRoom = useOptionalRoom();
 
@@ -231,22 +234,22 @@ export function SpotifyPlayerModal() {
   const handleDismiss = useCallback(() => {
     void hapticLight();
     modalScale.value = withTiming(0.92, { duration: 180 });
-    modalTranslateY.value = withTiming(SCREEN_HEIGHT, { duration: 180 }, (finished) => {
+    modalTranslateY.value = withTiming(screenHeight, { duration: 180 }, (finished) => {
       if (finished) {
         runOnJS(setPlayerModalOpen)(false);
       }
     });
-  }, [setPlayerModalOpen, modalTranslateY, modalScale]);
+  }, [setPlayerModalOpen, modalTranslateY, modalScale, screenHeight]);
 
   const handlePanDownMove = useCallback(
     (dy: number) => {
       if (dy > 0) {
         modalTranslateY.value = dy;
-        modalScale.value = Math.max(0.92, 1 - (dy / SCREEN_HEIGHT) * 0.15);
+        modalScale.value = Math.max(0.92, 1 - (dy / screenHeight) * 0.15);
         modalBorderRadius.value = Math.min(28, (dy / 80) * 20);
       }
     },
-    [modalTranslateY, modalScale, modalBorderRadius],
+    [modalTranslateY, modalScale, modalBorderRadius, screenHeight],
   );
 
   const handlePanDownRelease = useCallback(
@@ -254,7 +257,7 @@ export function SpotifyPlayerModal() {
       if (dy > 65 || vy > 0.4) {
         void hapticLight();
         modalScale.value = withTiming(0.92, { duration: 180 });
-        modalTranslateY.value = withTiming(SCREEN_HEIGHT, { duration: 180 }, (finished) => {
+        modalTranslateY.value = withTiming(screenHeight, { duration: 180 }, (finished) => {
           if (finished) {
             runOnJS(setPlayerModalOpen)(false);
           }
@@ -265,7 +268,7 @@ export function SpotifyPlayerModal() {
         modalBorderRadius.value = withSpring(0);
       }
     },
-    [setPlayerModalOpen, modalTranslateY, modalScale, modalBorderRadius],
+    [setPlayerModalOpen, modalTranslateY, modalScale, modalBorderRadius, screenHeight],
   );
 
   // Header Swipe-Down PanResponder to collapse modal
@@ -337,7 +340,7 @@ export function SpotifyPlayerModal() {
           style={[
             styles.container,
             animatedModalContainerStyle,
-            { paddingTop: insets.top, paddingBottom: insets.bottom },
+            { paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, 10) },
           ]}
         >
           <LinearGradient
@@ -661,19 +664,37 @@ export function SpotifyPlayerModal() {
           <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)} style={styles.mainContent}>
             {/* Album Artwork Stage with Horizontal Swipe to Skip & Double-Tap Heart */}
             <View style={styles.artworkStage} {...artworkPanResponder.panHandlers}>
-              <View style={[styles.artworkGlow, { backgroundColor: palette.glow }]} />
-              <Animated.View style={[styles.artworkContainer, animatedArtworkStyle]}>
+              <View
+                style={[
+                  styles.artworkGlow,
+                  {
+                    width: dynamicArtworkSize,
+                    height: dynamicArtworkSize,
+                    backgroundColor: palette.glow,
+                  },
+                ]}
+              />
+              <Animated.View
+                style={[
+                  styles.artworkContainer,
+                  { width: dynamicArtworkSize, height: dynamicArtworkSize },
+                  animatedArtworkStyle,
+                ]}
+              >
                 <Image
                   source={{
                     uri: currentTrack.album_art_url || 'https://openjam.fun/default_art.png',
                   }}
-                  style={styles.artwork}
+                  style={[
+                    styles.artwork,
+                    { width: dynamicArtworkSize, height: dynamicArtworkSize },
+                  ]}
                   contentFit="cover"
                   transition={200}
                 />
                 {/* Double-tap Burst Heart */}
                 <Animated.View style={[styles.burstHeartWrap, animatedBurstHeartStyle]} pointerEvents="none">
-                  <Heart size={84} color="#ffffff" fill="#ef4444" strokeWidth={1.5} />
+                  <Heart size={Math.min(84, Math.floor(dynamicArtworkSize * 0.35))} color="#ffffff" fill="#ef4444" strokeWidth={1.5} />
                 </Animated.View>
               </Animated.View>
             </View>
@@ -1030,33 +1051,27 @@ const styles = StyleSheet.create({
   },
   mainContent: {
     flex: 1,
-    paddingHorizontal: 32,
+    paddingHorizontal: 24,
     justifyContent: 'space-between',
-    paddingBottom: 24,
-    paddingTop: 12,
+    paddingBottom: 8,
+    paddingTop: 6,
   },
   artworkStage: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 12,
+    marginVertical: 8,
   },
   artworkGlow: {
     position: 'absolute',
-    width: ARTWORK_SIZE,
-    height: ARTWORK_SIZE,
     borderRadius: 20,
     backgroundColor: 'rgba(255, 159, 28, 0.12)',
     transform: [{ scale: 1.05 }],
   },
   artworkContainer: {
-    width: ARTWORK_SIZE,
-    height: ARTWORK_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
   },
   artwork: {
-    width: ARTWORK_SIZE,
-    height: ARTWORK_SIZE,
     borderRadius: 16,
     backgroundColor: '#181822',
     borderWidth: 1,
@@ -1077,7 +1092,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 8,
+    marginTop: 6,
   },
   trackTextCol: {
     flex: 1,
@@ -1114,7 +1129,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 8,
-    marginVertical: 8,
+    marginVertical: 4,
   },
   sideControlBtn: {
     width: 40,
@@ -1376,9 +1391,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 6,
-    marginTop: 6,
-    marginBottom: 12,
+    paddingHorizontal: 4,
+    marginTop: 4,
+    marginBottom: 6,
   },
   deviceRoutePill: {
     flexDirection: 'row',

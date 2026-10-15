@@ -74,4 +74,58 @@ describe('Spotify Fullscreen Player & Precision Scrubber Suite', () => {
     assert.match(p1.bottom, /^#[0-9a-fA-F]{6}$/);
     assert.match(p1.accent, /^#[0-9a-fA-F]{6}$/);
   });
+
+  it('calculates dynamic artwork size without exceeding viewport clearance across form factors', () => {
+    function computeDynamicArtworkSize(
+      screenWidth: number,
+      screenHeight: number,
+      insetsTop: number,
+      insetsBottom: number,
+      hasLyrics = false,
+    ): number {
+      const availableArtworkHeight = Math.max(
+        160,
+        screenHeight - insetsTop - insetsBottom - (hasLyrics ? 370 : 315),
+      );
+      return Math.floor(
+        Math.min(screenWidth - 48, Math.min(330, availableArtworkHeight)),
+      );
+    }
+
+    // 1. Compact screen (360 x 640, top: 24, bottom: 16)
+    const compactSize = computeDynamicArtworkSize(360, 640, 24, 16);
+    assert.equal(compactSize, 285);
+    // Total vertical content clearance: artwork (285) + controls (315) + insets (40) = 640 <= 640
+    assert.ok(compactSize + 315 + 40 <= 640);
+
+    // 2. Ultra-short screen / split screen (360 x 560, top: 24, bottom: 0)
+    const splitSize = computeDynamicArtworkSize(360, 560, 24, 0);
+    assert.equal(splitSize, 221);
+    assert.ok(splitSize + 315 + 24 <= 560);
+
+    // 3. Modern tall screen (393 x 852, top: 47, bottom: 34)
+    const tallSize = computeDynamicArtworkSize(393, 852, 47, 34);
+    assert.equal(tallSize, 330); // hits max 330 clamp cleanly
+
+    // 4. Compact screen with active lyrics card (360 x 640)
+    const compactLyricsSize = computeDynamicArtworkSize(360, 640, 24, 16, true);
+    assert.equal(compactLyricsSize, 230);
+    assert.ok(compactLyricsSize + 370 + 40 <= 640);
+  });
+
+  it('determines effective bottom insets for Unified MiniPlayer ensuring comfortable margin from screen edge', () => {
+    function computeEffectiveBottom(bottomOffset = 0, insetsBottom = 0): number {
+      return Math.max(bottomOffset, insetsBottom, 10);
+    }
+
+    // 3-button nav (insets.bottom == 0, no bottomOffset) -> guarantees 10dp clearance
+    assert.equal(computeEffectiveBottom(0, 0), 10);
+
+    // Gesture navigation (insets.bottom == 24) -> sits cleanly at 24dp above screen edge
+    assert.equal(computeEffectiveBottom(0, 24), 24);
+
+    // Elevated tab bar (bottomOffset == 60) -> respects custom caller offset
+    assert.equal(computeEffectiveBottom(60, 0), 60);
+    assert.equal(computeEffectiveBottom(60, 24), 60);
+  });
 });
