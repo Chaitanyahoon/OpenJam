@@ -4872,11 +4872,24 @@ export default function RoomClient({ roomId }) {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.15, ease: 'easeOut' }}
-                className="members-list"
-                style={{ display: 'flex', flexDirection: 'column', gap: '16px', height: '100%', padding: '4px 2px' }}
+                className="people-tab-panel members-list"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '16px',
+                  flex: 1,
+                  height: '100%',
+                  maxHeight: 'none',
+                  padding: '16px 20px',
+                  overflowY: 'auto',
+                  overflowX: 'hidden',
+                  background: 'transparent',
+                  border: 'none',
+                  boxSizing: 'border-box'
+                }}
               >
                 {/* Header counter */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px', flexShrink: 0 }}>
                   <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-3)' }}>
                     In Room — {listeners.length}
                   </span>
@@ -4898,8 +4911,8 @@ export default function RoomClient({ roomId }) {
                   const isSelf = me && hostUid === me.id;
 
                   return (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <span style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--amber)', paddingLeft: '8px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 }}>
+                      <span style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--amber)', paddingLeft: '4px' }}>
                         👑 Room Host
                       </span>
                       <div 
@@ -4908,11 +4921,14 @@ export default function RoomClient({ roomId }) {
                           background: 'rgba(255, 159, 28, 0.08)',
                           border: '1px solid rgba(255, 159, 28, 0.28)',
                           borderRadius: '14px',
-                          padding: '10px 14px',
+                          padding: '12px 14px',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '10px',
-                          cursor: hostUser.is_registered ? 'pointer' : 'default'
+                          gap: '12px',
+                          cursor: hostUser.is_registered ? 'pointer' : 'default',
+                          boxSizing: 'border-box',
+                          width: '100%',
+                          marginBottom: 0
                         }}
                         onClick={() => {
                           if (hostUser.is_registered && hostUid) {
@@ -4974,8 +4990,8 @@ export default function RoomClient({ roomId }) {
                 })()}
 
                 {/* Other Listeners Section */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <span style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)', paddingLeft: '8px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 }}>
+                  <span style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)', paddingLeft: '4px' }}>
                     Listeners ({listeners.filter(u => !room || (u.user_id || u.id) !== room.host_user_id).length})
                   </span>
                   {listeners.filter(u => !room || (u.user_id || u.id) !== room.host_user_id).length > 0 ? (
@@ -4992,12 +5008,15 @@ export default function RoomClient({ roomId }) {
                               background: 'rgba(255, 255, 255, 0.02)',
                               border: '1px solid rgba(255, 255, 255, 0.04)',
                               borderRadius: '12px',
-                              padding: '8px 12px',
+                              padding: '10px 14px',
                               display: 'flex',
                               alignItems: 'center',
-                              gap: '10px',
+                              gap: '12px',
                               cursor: user.is_registered ? 'pointer' : 'default',
-                              transition: 'all 0.2s ease'
+                              transition: 'all 0.2s ease',
+                              boxSizing: 'border-box',
+                              width: '100%',
+                              marginBottom: 0
                             }}
                             onClick={() => {
                               if (user.is_registered) {

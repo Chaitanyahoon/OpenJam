@@ -8455,14 +8455,16 @@ body:not(.room-page) .navbar:hover {
 }
 
 .members-list {
-  padding: 10px 20px 16px;
+  padding: 16px 20px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-height: 160px;
+  gap: 12px;
+  flex: 1;
+  max-height: none;
   overflow-y: auto;
-  border-top: 1px solid rgba(255, 255, 255, 0.03);
-  background: rgba(0, 0, 0, 0.15);
+  overflow-x: hidden;
+  background: transparent;
+  box-sizing: border-box;
 }
 
 .member-item {
@@ -9855,6 +9857,7 @@ body:not(.room-page) .navbar:hover {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .sidebar-tab-content .queue-search-wrap {
@@ -9880,10 +9883,35 @@ body:not(.room-page) .navbar:hover {
   padding: 16px 20px;
 }
 
-.sidebar-tab-content .members-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px 20px;
+.sidebar-tab-content .members-list,
+.sidebar-tab-content .people-tab-panel {
+  flex: 1 !important;
+  max-height: none !important;
+  height: 100% !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 16px 20px !important;
+  background: transparent !important;
+  border: none !important;
+  box-sizing: border-box !important;
+}
+
+.sidebar-tab-content .members-list::-webkit-scrollbar,
+.sidebar-tab-content .people-tab-panel::-webkit-scrollbar {
+  width: 4px;
+}
+.sidebar-tab-content .members-list::-webkit-scrollbar-track,
+.sidebar-tab-content .people-tab-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-tab-content .members-list::-webkit-scrollbar-thumb,
+.sidebar-tab-content .people-tab-panel::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 99px;
+}
+.sidebar-tab-content .members-list::-webkit-scrollbar-thumb:hover,
+.sidebar-tab-content .people-tab-panel::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
 }
 
 @media (max-width: 900px) {
@@ -10106,14 +10134,21 @@ body:not(.room-page) .navbar:hover {
   border: 1px solid rgba(255, 255, 255, 0.03) !important;
   border-radius: 14px !important;
   margin-bottom: 8px !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 100% !important;
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 .member-item:hover {
   background: rgba(255, 255, 255, 0.035) !important;
   border-color: rgba(255, 255, 255, 0.06) !important;
-  transform: translateX(3px) !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+.member-item.is-host-card {
+  background: rgba(255, 159, 28, 0.08) !important;
+  border: 1px solid rgba(255, 159, 28, 0.28) !important;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
