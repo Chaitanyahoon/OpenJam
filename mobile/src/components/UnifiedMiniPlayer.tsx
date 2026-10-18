@@ -137,19 +137,19 @@ export function UnifiedMiniPlayer({
     }
   };
 
-  // Pan Gesture: Horizontal swipe to skip, Upward drag to expand
+  // Pan Gesture: Horizontal swipe to skip, Upward drag to expand, Downward drag to dismiss
   const panGesture = Gesture.Pan()
     .minDistance(10)
     .onUpdate((e) => {
       translateX.value = e.translationX * 0.75;
-      if (e.translationY < 0) {
-        translateY.value = e.translationY * 0.5;
-      }
+      translateY.value = e.translationY * 0.5;
     })
     .onEnd((e) => {
-      // Check upward drag for expand
+      // Check upward drag for expand, downward drag to dismiss solo player
       if (translateY.value < -40 || e.velocityY < -500) {
         runOnJS(expandPlayer)();
+      } else if ((translateY.value > 45 || e.velocityY > 450) && !activeTrack?.isRoom) {
+        runOnJS(player.clearPlayback)();
       }
       translateY.value = withSpring(0, { damping: 16, stiffness: 180 });
 

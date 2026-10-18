@@ -207,16 +207,14 @@ export function RoomProvider({
   const lastServerTsRef = useRef<number>(0);
   const lastActionTimeRef = useRef<number>(0);
 
-  // Clear solo playback and claim media notification ownership for collaborative rooms
+  // Claim media notification ownership while room is mounted; clear solo playback for collab rooms
   useEffect(() => {
+    playerRef.current.setSourceTitle('room');
     if (!isSolo) {
       playerRef.current.clearPlayback();
-      playerRef.current.setSourceTitle('room');
     }
     return () => {
-      if (!isSolo) {
-        playerRef.current.setSourceTitle('Solo Jam');
-      }
+      playerRef.current.setSourceTitle('Solo Jam');
     };
   }, [isSolo]);
 
@@ -300,6 +298,15 @@ export function RoomProvider({
       const engine = engineRef.current;
       const target = engine.targetPositionMs(data, isHostRef.current);
       const shouldPlay = !!data.is_playing && !data.is_buffering;
+
+      // Ignore stale server play/pause state within 1200ms of local user transport click
+      if (
+        !forceReload &&
+        Date.now() - lastActionTimeRef.current < 1200 &&
+        shouldPlay !== playingRef.current
+      ) {
+        return;
+      }
 
       const newNowPlaying: TrackInfo | null = data.track_uri
         ? {

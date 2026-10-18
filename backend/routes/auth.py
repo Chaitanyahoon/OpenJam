@@ -199,26 +199,23 @@ def get_redirect_uri(request: Request) -> str:
     if env_uri:
         return env_uri
         
-    # 2. Fallback to FRONTEND_URL if configured
+    # 2. Dynamic host detection from incoming request
+    forwarded_host = request.headers.get("x-forwarded-host")
+    host = forwarded_host or request.headers.get("host")
+    if host:
+        is_local = "localhost" in host or "127.0.0.1" in host
+        scheme = "http" if is_local else "https"
+        forwarded_proto = request.headers.get("x-forwarded-proto")
+        if forwarded_proto and not is_local:
+            scheme = forwarded_proto
+        return f"{scheme}://{host}/auth/discord/callback"
+
+    # 3. Fallback to FRONTEND_URL if configured
     from backend.config import settings
     if settings.FRONTEND_URL:
         return f"{settings.FRONTEND_URL.rstrip('/')}/auth/discord/callback"
         
-    # 3. Fallback to dynamic host detection
-    forwarded_host = request.headers.get("x-forwarded-host")
-    if forwarded_host:
-        host = forwarded_host
-    else:
-        host = request.headers.get("host", "localhost:8000")
-        
-    is_local = "localhost" in host or "127.0.0.1" in host
-    scheme = "http" if is_local else "https"
-    
-    forwarded_proto = request.headers.get("x-forwarded-proto")
-    if forwarded_proto and not is_local:
-        scheme = forwarded_proto
-        
-    return f"{scheme}://{host}/auth/discord/callback"
+    return "http://localhost:8000/auth/discord/callback"
 
 
 @router.get("/discord")

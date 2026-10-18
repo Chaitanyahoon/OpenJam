@@ -140,8 +140,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [sourceTitle, setSourceTitle] = useState('Solo Jam');
 
   const [activeAudioDevice, setActiveAudioDeviceState] = useState<AudioDeviceRoute>('speaker');
-  const [radioAutoPlay, setRadioAutoPlayState] = useState<boolean>(true);
-  const radioAutoPlayRef = useRef(true);
+  const [radioAutoPlay, setRadioAutoPlayState] = useState<boolean>(false);
+  const radioAutoPlayRef = useRef(false);
   radioAutoPlayRef.current = radioAutoPlay;
 
   const currentTrackRef = useRef<TrackInfo | null>(null);
@@ -173,8 +173,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           setRadioAutoPlayState(val);
           radioAutoPlayRef.current = val;
         } else {
-          setRadioAutoPlayState(true);
-          radioAutoPlayRef.current = true;
+          setRadioAutoPlayState(false);
+          radioAutoPlayRef.current = false;
         }
       })
       .catch(() => {});

@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
   avatarInitial: {
     fontFamily: fontFamily.displayBold,
     fontSize: 15,
-    color: '#08080a',
+    color: '#ffffff',
   },
   onlineDot: {
     position: 'absolute',

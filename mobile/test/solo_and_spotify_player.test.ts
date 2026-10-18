@@ -414,5 +414,30 @@ describe('Solo Jam & Spotify Player Upgrades Suite', () => {
     setAudioDevice('speaker');
     assert.equal(currentRoute, 'speaker');
   });
+
+  it('defaults radio auto-play to off when unconfigured in storage', () => {
+    function resolveRadioAutoPlay(savedValue: string | null): boolean {
+      if (savedValue !== null) {
+        return savedValue === 'true';
+      }
+      return false; // Default off per user requirement
+    }
+
+    assert.equal(resolveRadioAutoPlay(null), false);
+    assert.equal(resolveRadioAutoPlay('false'), false);
+    assert.equal(resolveRadioAutoPlay('true'), true);
+  });
+
+  it('determines downward gesture dismissal threshold for UnifiedMiniPlayer', () => {
+    function shouldDismissSoloMiniPlayer(translateY: number, velocityY: number, isRoom: boolean): boolean {
+      if (isRoom) return false;
+      return translateY > 45 || velocityY > 450;
+    }
+
+    assert.equal(shouldDismissSoloMiniPlayer(50, 0, false), true);
+    assert.equal(shouldDismissSoloMiniPlayer(10, 500, false), true);
+    assert.equal(shouldDismissSoloMiniPlayer(20, 100, false), false);
+    assert.equal(shouldDismissSoloMiniPlayer(60, 600, true), false); // Protected in rooms
+  });
 });
 
