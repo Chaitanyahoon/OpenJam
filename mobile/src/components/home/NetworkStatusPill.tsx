@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { WifiOff, CheckCircle2 } from 'lucide-react-native';
 import { radius } from '../../theme';
 import { fontFamily } from '../../fonts';
@@ -7,21 +7,32 @@ import { fontFamily } from '../../fonts';
 export interface NetworkStatusPillProps {
   isOnline: boolean;
   showReconnected: boolean;
+  onPressOffline?: () => void;
 }
 
 export const NetworkStatusPill: React.FC<NetworkStatusPillProps> = ({
   isOnline,
   showReconnected,
+  onPressOffline,
 }) => {
   if (!isOnline) {
-    return (
+    const pill = (
       <View style={styles.networkStatusPillOffline}>
         <WifiOff size={13} color="#f59e0b" strokeWidth={2.4} />
         <Text style={styles.networkStatusTextOffline}>
-          Offline Mode • Playing Downloaded Music
+          Offline Mode • Tap to Open Downloads
         </Text>
       </View>
     );
+
+    if (onPressOffline) {
+      return (
+        <Pressable onPress={onPressOffline} hitSlop={6} accessibilityLabel="Open Downloads">
+          {pill}
+        </Pressable>
+      );
+    }
+    return pill;
   }
 
   if (showReconnected) {

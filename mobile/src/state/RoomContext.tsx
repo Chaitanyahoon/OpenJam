@@ -16,8 +16,8 @@ import { AppState } from 'react-native';
 import { router } from 'expo-router';
 import { useSocket } from './SocketContext';
 import { usePlayer } from '../audio/PlayerContext';
-import { SyncEngine } from '../sync/engine';
-import { streamUrl, getStoredSession, deleteRoom, updateRoom, type ApiUser } from '../api';
+import { streamUrl, getBackendUrl, getStoredSession, deleteRoom, updateRoom, type ApiUser } from '../api';
+import { parseYouTubeId } from '../audio/streamResolver';
 import { recordTrackPlayed, consumePendingSoloQueue } from '../storage/history';
 import {
   updateMediaNotification,
@@ -37,6 +37,7 @@ import {
   type SyncPongPayload,
   type TrackInfo,
 } from '../sync/protocol';
+import { SyncEngine } from '../sync/engine';
 import { useRoomChat, type RoomChatApi } from './useRoomChat';
 import { useRoomReactions, type FlyingReaction, type RoomReactionsApi } from './useRoomReactions';
 
@@ -185,6 +186,20 @@ export function RoomProvider({
   const joinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncSeqRef = useRef<number>(0);
   const lastServerTsRef = useRef<number>(0);
+  const lastActionTimeRef = useRef<number>(0);
+
+  // Clear solo playback and claim media notification ownership for collaborative rooms
+  useEffect(() => {
+    if (!isSolo) {
+      playerRef.current.clearPlayback();
+      playerRef.current.setSourceTitle('room');
+    }
+    return () => {
+      if (!isSolo) {
+        playerRef.current.setSourceTitle('Solo Jam');
+      }
+    };
+  }, [isSolo]);
 
   const chat = useRoomChat({ roomId, socketRef, meRef });
   const reactionsCtrl = useRoomReactions({ roomId, socketRef });
@@ -860,6 +875,7 @@ export function RoomProvider({
 
   const togglePlay = useCallback(() => {
     if (!canControl) return;
+    lastActionTimeRef.current = Date.now();
     const p = playerRef.current;
     const next = !playingRef.current;
     if (next) p.play();
@@ -873,6 +889,7 @@ export function RoomProvider({
 
   const nextTrack = useCallback(() => {
     if (!canControl) return;
+    lastActionTimeRef.current = Date.now();
     if (isSolo) {
       if (queue.length > 0) {
         const [next, ...rest] = queue;
@@ -888,6 +905,21 @@ export function RoomProvider({
         toast('End of queue', 'info');
       }
       return;
+    }
+    // Optimistic skip for collaborative room: stop old audio immediately and show next song
+    playerRef.current.pause();
+    if (queue.length > 0) {
+      const [next, ...rest] = queue;
+      setNowPlaying({
+        track_uri: next.track_uri,
+        track_name: next.track_name,
+        artist: next.artist,
+        album_art_url: next.album_art_url,
+        duration_ms: next.duration_ms,
+      });
+      setQueue(rest);
+      setIsPlaying(true);
+      playingRef.current = true;
     }
     socketRef.current?.emit(C2S.NEXT_TRACK, { room_id: roomId });
   }, [canControl, roomId, isSolo, queue, playNow, toast]);
@@ -943,17 +975,24 @@ export function RoomProvider({
         roomId,
         artworkUrl: nowPlaying.album_art_url,
       });
+      player.setLockScreenActive(true, {
+        title: nowPlaying.track_name,
+        artist: nowPlaying.artist || 'Live Room',
+        artworkUrl: nowPlaying.album_art_url,
+      });
     } else {
       void dismissMediaNotification();
+      player.setLockScreenActive(false);
     }
-  }, [nowPlaying?.track_name, nowPlaying?.artist, nowPlaying?.album_art_url, isPlaying, roomId]);
+  }, [nowPlaying?.track_name, nowPlaying?.artist, nowPlaying?.album_art_url, isPlaying, roomId, player]);
 
   // Clean up media notification on room unmount
   useEffect(() => {
     return () => {
       void dismissMediaNotification();
+      player.setLockScreenActive(false);
     };
-  }, []);
+  }, [player]);
 
   // Listen to media notification actions (Play/Pause, Next, Prev)
   useEffect(() => {
@@ -971,6 +1010,27 @@ export function RoomProvider({
     };
   }, [togglePlay, nextTrack, previousTrack]);
 
+  // Next-Track Audio Pre-Caching Seam for Collaborative Rooms
+  const prewarmedRoomTrackRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!nowPlaying?.duration_ms || queue.length === 0) return;
+    const durSec = nowPlaying.duration_ms / 1000;
+    const posSec = player.positionMs() / 1000;
+    if (durSec > 20 && durSec - posSec <= 12 && isPlaying) {
+      const nextTrack = queue[0];
+      if (nextTrack?.track_uri && prewarmedRoomTrackRef.current !== nextTrack.track_uri) {
+        prewarmedRoomTrackRef.current = nextTrack.track_uri;
+        const ytId = parseYouTubeId(nextTrack.track_uri);
+        if (ytId) {
+          const backendUrl = getBackendUrl();
+          fetch(`${backendUrl}/stream/${ytId}`, {
+            headers: { Range: 'bytes=0-65536' },
+          }).catch(() => {});
+        }
+      }
+    }
+  }, [nowPlaying?.duration_ms, isPlaying, queue, player]);
 
   const toggleRepeat = useCallback(() => {
     if (!canControl) return;
@@ -1045,7 +1105,7 @@ export function RoomProvider({
 
   const removeTrack = useCallback(
     (queueItemId: string) => {
-      if (!isHost || !queueItemId) return;
+      if (!canControl || !queueItemId) return;
       if (isSolo) {
         setQueue((prev) =>
           prev.filter((item) => item.queue_item_id !== queueItemId && item.id !== queueItemId),
@@ -1062,12 +1122,12 @@ export function RoomProvider({
       );
       toast('Track removed', 'info');
     },
-    [isHost, roomId, toast, isSolo],
+    [canControl, roomId, toast, isSolo],
   );
 
   const reorderQueue = useCallback(
     (orderedIds: string[]) => {
-      if (!orderedIds || orderedIds.length === 0) return;
+      if (!canControl || !orderedIds || orderedIds.length === 0) return;
       if (!isSolo) {
         socketRef.current?.emit(C2S.REORDER_QUEUE, {
           room_id: roomId,
@@ -1090,7 +1150,7 @@ export function RoomProvider({
         return updated;
       });
     },
-    [roomId, isSolo],
+    [canControl, roomId, isSolo],
   );
 
   const transferHost = useCallback(

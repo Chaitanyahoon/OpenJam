@@ -931,7 +931,7 @@ export default function AdminPage() {
                                     <td style={{ padding: '14px 8px' }}>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                         {user.avatar_url ? (
-                                          <img src={user.avatar_url} alt="" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                                          <img src={user.avatar_url} alt="" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                                         ) : (
                                           <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: user.is_registered ? 'rgba(88, 101, 242, 0.2)' : 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: user.is_registered ? '#5865F2' : '#fff', fontWeight: 'bold', fontSize: '12px', flexShrink: 0 }}>
                                             {user.display_name.charAt(0).toUpperCase()}
@@ -1510,7 +1510,7 @@ export default function AdminPage() {
                     >
                       <span style={{ fontSize: '11px', color: '#555', width: '20px', textAlign: 'center', fontWeight: 700 }}>{idx + 1}</span>
                       {t.album_art_url ? (
-                        <img src={t.album_art_url} alt="" style={{ width: '36px', height: '36px', borderRadius: '6px', objectFit: 'cover' }} />
+                        <img src={t.album_art_url} alt="" style={{ width: '36px', height: '36px', borderRadius: '6px', objectFit: 'cover' }} onError={(e) => { e.currentTarget.src = '/placeholder.svg'; }} />
                       ) : (
                         <div style={{ width: '36px', height: '36px', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <Music size={16} color="#888" />

@@ -5,12 +5,12 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import PixelTransition from './PixelTransition';
 
-const getDefaultBanner = () => null;
+const getDefaultBanner = () => '/placeholder.svg';
 
 function RoomCard({ room, nameColor, getInitials, href }) {
   const t = room.current_track;
   const isPlaying = !!(t && t.track_name);
-  const coverUrl = isPlaying ? (t.album_art_url || null) : null;
+  const coverUrl = isPlaying ? (t.album_art_url || '/placeholder.svg') : null;
   const trackName = isPlaying ? t.track_name : 'No track playing';
   const artistName = isPlaying ? t.artist : 'Idle room';
   const coverAlt = isPlaying ? `Album art for ${trackName} by ${artistName}` : `Cover for ${room.name}`;
@@ -33,7 +33,10 @@ function RoomCard({ room, nameColor, getInitials, href }) {
                   <img decoding="async" loading="lazy"
                     className="room-card-cover-img"
                     src={coverUrl}
-                    onError={(e) => { e.currentTarget.src = getDefaultBanner(room); }}
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = getDefaultBanner();
+                    }}
                     alt={coverAlt}
                     style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                   />

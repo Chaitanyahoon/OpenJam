@@ -225,113 +225,14 @@ function extractVideoId(uri: string): string | null {
 }
 
 /**
- * Resolves direct audio stream URLs using client-side extractors (Cobalt, Piped, Invidious)
- * running on the mobile device's residential/mobile IP to bypass cloud datacenter blocks.
+ * Resolves direct audio stream URLs using OpenJam backend AudioStreamEngine proxy.
  */
 export async function resolveDirectAudioStreamUrls(videoId: string): Promise<string[]> {
   const backendUrl = getBackendUrl();
-  const urls: string[] = [];
-
-  const clientExtractors = [
-    // 1. Piped Instances (Fastest, low latency direct audio streams)
-    async () => {
-      const pipedEndpoints = [
-        `https://pipedapi.adminforge.de/streams/${videoId}`,
-        `https://pipedapi.astartes.nl/streams/${videoId}`,
-        `https://pipedapi.leptons.xyz/streams/${videoId}`,
-        `https://pipedapi.smnz.de/streams/${videoId}`,
-        `https://piped-api.lunar.icu/streams/${videoId}`,
-      ];
-      for (const ep of pipedEndpoints) {
-        try {
-          const c = new AbortController();
-          const t = setTimeout(() => c.abort(), 3500);
-          const res = await fetch(ep, { signal: c.signal });
-          clearTimeout(t);
-          if (res.ok) {
-            const d = await res.json();
-            const streams = d?.audioStreams;
-            if (Array.isArray(streams) && streams.length > 0) {
-              const best = streams.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0))[0];
-              if (best?.url) return best.url;
-            }
-          }
-        } catch {}
-      }
-      return null;
-    },
-
-    // 2. Invidious Instances (Direct audio stream extraction)
-    async () => {
-      const invEndpoints = [
-        `https://invidious.nerdvpn.de/api/v1/videos/${videoId}`,
-        `https://inv.nadeko.net/api/v1/videos/${videoId}`,
-        `https://invidious.tiekoetter.com/api/v1/videos/${videoId}`,
-        `https://iv.ggtyler.dev/api/v1/videos/${videoId}`,
-        `https://invidious.f5.si/api/v1/videos/${videoId}`,
-      ];
-      for (const ep of invEndpoints) {
-        try {
-          const c = new AbortController();
-          const t = setTimeout(() => c.abort(), 3500);
-          const res = await fetch(ep, { signal: c.signal });
-          clearTimeout(t);
-          if (res.ok) {
-            const d = await res.json();
-            const formats = d?.adaptiveFormats || d?.formatStreams || [];
-            const audio = formats.find((f: any) => f.type?.includes('audio') || f.audioQuality);
-            if (audio?.url) return audio.url;
-          }
-        } catch {}
-      }
-      return null;
-    },
-
-    // 3. Cobalt Instances
-    async () => {
-      const cobaltEndpoints = [
-        'https://cobalt-api.kwiatekm.pl',
-        'https://api.cobalt.blackcat.sweeux.org',
-      ];
-      for (const ep of cobaltEndpoints) {
-        try {
-          const c = new AbortController();
-          const t = setTimeout(() => c.abort(), 3500);
-          const res = await fetch(ep, {
-            method: 'POST',
-            headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              url: `https://www.youtube.com/watch?v=${videoId}`,
-              downloadMode: 'audio',
-              audioFormat: 'mp3',
-            }),
-            signal: c.signal,
-          });
-          clearTimeout(t);
-          if (res.ok) {
-            const d = await res.json();
-            if (d?.url && typeof d.url === 'string') return d.url;
-          }
-        } catch {}
-      }
-      return null;
-    },
+  return [
+    `${backendUrl}/stream/${videoId}`,
+    `${backendUrl}/stream/${videoId}?low=true`,
   ];
-
-  try {
-    const results = await Promise.allSettled(clientExtractors.map((fn) => fn()));
-    for (const r of results) {
-      if (r.status === 'fulfilled' && r.value) {
-        urls.push(r.value);
-      }
-    }
-  } catch {}
-
-  // Backend stream proxy fallback
-  urls.push(`${backendUrl}/stream/${videoId}`);
-  urls.push(`${backendUrl}/stream/${videoId}?low=true`);
-
-  return urls;
 }
 
 /**
@@ -392,22 +293,6 @@ export async function downloadTrackToVault(
       console.warn('[Vault] Track resolution warning:', resolveErr);
     }
 
-    // Direct client search fallback if backend was sleeping or cold
-    if (!videoId) {
-      try {
-        const searchRes = await fetch(
-          `https://pipedapi.adminforge.de/search?q=${encodeURIComponent(query)}&filter=music_songs`,
-        );
-        if (searchRes.ok) {
-          const sData = await searchRes.json();
-          if (Array.isArray(sData?.items) && sData.items.length > 0) {
-            const first = sData.items[0];
-            const parsed = extractVideoId(first.url || '');
-            if (parsed) videoId = parsed;
-          }
-        }
-      } catch {}
-    }
   }
 
   // Candidate URLs with fallback qualities and cache-busting
@@ -429,6 +314,7 @@ export async function downloadTrackToVault(
 
   let success = false;
   let lastError: any = null;
+  let resolvedTargetUri = localTargetUri;
 
   for (let attempt = 0; attempt < candidateUrls.length; attempt++) {
     const candidateUrl = candidateUrls[attempt];
@@ -445,15 +331,32 @@ export async function downloadTrackToVault(
           onProgress?.(current, total, pct);
         },
       );
-      await downloadResumable.downloadAsync();
+      const downloadResult = await downloadResumable.downloadAsync();
 
-      const stat = await FileSystem.getInfoAsync(localTargetUri);
+      let actualTargetUri = localTargetUri;
+      const contentType = (
+        downloadResult?.headers?.['content-type'] ||
+        downloadResult?.headers?.['Content-Type'] ||
+        ''
+      ).toLowerCase();
+      if (contentType.includes('webm') || contentType.includes('opus')) {
+        const webmUri = localTargetUri.replace(/\.m4a$/, '.webm');
+        await FileSystem.moveAsync({ from: localTargetUri, to: webmUri });
+        actualTargetUri = webmUri;
+      } else if (contentType.includes('mp3') || contentType.includes('mpeg')) {
+        const mp3Uri = localTargetUri.replace(/\.m4a$/, '.mp3');
+        await FileSystem.moveAsync({ from: localTargetUri, to: mp3Uri });
+        actualTargetUri = mp3Uri;
+      }
+
+      const stat = await FileSystem.getInfoAsync(actualTargetUri);
       if (stat.exists && stat.size && stat.size > 1000) {
         success = true;
+        resolvedTargetUri = actualTargetUri;
         break;
       } else {
         try {
-          await FileSystem.deleteAsync(localTargetUri, { idempotent: true });
+          await FileSystem.deleteAsync(actualTargetUri, { idempotent: true });
         } catch {}
       }
     } catch (downloadErr) {
@@ -470,18 +373,18 @@ export async function downloadTrackToVault(
 
   if (!success) {
     try {
-      await FileSystem.deleteAsync(localTargetUri, { idempotent: true });
+      await FileSystem.deleteAsync(resolvedTargetUri, { idempotent: true });
     } catch {}
     updateProgress(track.track_uri, { state: 'error', percent: 0, error: lastError?.message || 'Download failed' });
     throw new Error(`Failed to download audio for "${track.track_name}". Server may be busy, please retry.`);
   }
 
-  const stat = await FileSystem.getInfoAsync(localTargetUri);
+  const stat = await FileSystem.getInfoAsync(resolvedTargetUri);
   const fileSize = stat.exists && 'size' in stat ? (stat.size ?? 0) : 0;
   const now = Date.now();
   const vaultEntry: VaultTrack = {
     ...track,
-    local_file_uri: localTargetUri,
+    local_file_uri: resolvedTargetUri,
     file_size_bytes: fileSize,
     downloaded_at: now,
     is_liked: isLiked,

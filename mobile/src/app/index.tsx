@@ -10,14 +10,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 
-import { useNetworkStatus } from '../utils/network';
+import { useNetworkStatus, isDeviceOnline } from '../utils/network';
 import { colors, spacing } from '../theme';
 import { clearSession, fetchMe, getBackendUrl, getCachedRooms, getRooms, getStoredSession, joinAsGuest, saveAuthToken, type ApiUser, type RoomSummary } from '../api';
 import { useAppHeartbeat } from '../utils/heartbeat';
 import { useSocket } from '../state/SocketContext';
 import { RoomCardSkeletonList } from '../components/RoomCardSkeleton';
 import { CreateRoomModal, IdentityModal, JoinWithCodeModal, RoomPasswordModal } from '../components/Modals';
-import { ProfileModal } from '../components/ProfileModal';
 import { getFavoriteRooms, type FavoriteRoom, type PlayedTrack, getRecentlyPlayed } from '../storage/history';
 import type { TrackInfo } from '../sync/protocol';
 import { hapticMedium } from '../utils/haptics';
@@ -65,7 +64,6 @@ export default function Landing() {
   const [selectedGenre, setSelectedGenre] = useState('All');
   const [refreshing, setRefreshing] = useState(false);
   const [showIdentity, setShowIdentity] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [showJoinWithCode, setShowJoinWithCode] = useState(false);
   const [showSoloSearch, setShowSoloSearch] = useState(false);
@@ -83,6 +81,7 @@ export default function Landing() {
   const searchInputRef = useRef<TextInput>(null);
   const handledTokensRef = useRef<Set<string>>(new Set());
   const authSuccessRef = useRef(false);
+  const isAuthenticatingRef = useRef(false);
   const isOnline = useNetworkStatus();
   const prevOnlineRef = useRef(isOnline);
   const insets = useSafeAreaInsets();
@@ -153,27 +152,22 @@ export default function Landing() {
         registerPushToken().catch(() => {});
         promptFirstLaunchPermissions();
       } else {
-        const guestName = `EchoJammer${Math.floor(100 + Math.random() * 900)}`;
-        joinAsGuest(guestName)
-          .then((guestSession) => {
-            if (!isMounted || !guestSession?.user) return;
-            setUser(guestSession.user);
-            connect().catch(() => {});
-            registerPushToken().catch(() => {});
-            promptFirstLaunchPermissions();
-          })
-          .catch(() => {
-            if (isMounted) setShowIdentity(true);
-          });
+        if (isMounted && !isAuthenticatingRef.current) {
+          setShowIdentity(true);
+        }
       }
 
-      const syncTimer = setTimeout(() => { if (isMounted) setIsSyncingCloud(true); }, 2200);
-      try {
-        const liveRooms = await getRooms();
-        if (isMounted) setRooms(liveRooms);
-      } catch {} finally {
-        clearTimeout(syncTimer);
+      if (!isDeviceOnline()) {
         if (isMounted) setIsSyncingCloud(false);
+      } else {
+        const syncTimer = setTimeout(() => { if (isMounted) setIsSyncingCloud(true); }, 2200);
+        try {
+          const liveRooms = await getRooms();
+          if (isMounted) setRooms(liveRooms);
+        } catch {} finally {
+          clearTimeout(syncTimer);
+          if (isMounted) setIsSyncingCloud(false);
+        }
       }
     })();
     return () => { isMounted = false; };
@@ -195,6 +189,7 @@ export default function Landing() {
       }
       if (token) {
         authSuccessRef.current = true;
+        isAuthenticatingRef.current = false;
         if (handledTokensRef.current.has(token)) return true;
         handledTokensRef.current.add(token);
         disconnect();
@@ -215,6 +210,7 @@ export default function Landing() {
         }
         return true;
       } else if (url.includes('error=')) {
+        isAuthenticatingRef.current = false;
         const errMatch = url.match(/[?&#]error=([a-zA-Z0-9_]+)/);
         const reason = errMatch ? errMatch[1].replace(/_/g, ' ') : 'authorization denied';
         setAuthError(`Discord sign-in was interrupted (${reason}). You can retry or join as a guest.`);
@@ -245,6 +241,7 @@ export default function Landing() {
     try {
       setAuthError(null);
       authSuccessRef.current = false;
+      isAuthenticatingRef.current = true;
       const backendUrl = getBackendUrl();
       const redirectScheme = Linking.createURL('/');
       const authUrl = `${backendUrl}/auth/discord?state=${encodeURIComponent(redirectScheme)}`;
@@ -255,13 +252,19 @@ export default function Landing() {
         setTimeout(async () => {
           if (!authSuccessRef.current) {
             const currentSession = await getStoredSession();
-            if (currentSession.token) { authSuccessRef.current = true; return; }
+            if (currentSession.user?.is_registered || currentSession.user?.discord_id) {
+              authSuccessRef.current = true;
+              isAuthenticatingRef.current = false;
+              return;
+            }
+            isAuthenticatingRef.current = false;
             setAuthError('The Discord sign-in window was closed. You can retry or continue as a guest.');
             setShowIdentity(true);
           }
-        }, 500);
+        }, 1500);
       }
     } catch {
+      isAuthenticatingRef.current = false;
       if (!authSuccessRef.current) {
         setAuthError('Could not reach Discord authentication server. Check your connection or continue as a guest.');
         setShowIdentity(true);
@@ -289,6 +292,7 @@ export default function Landing() {
     disconnect();
     await clearSession();
     setUser(null);
+    setShowIdentity(true);
     toast('Signed out', 'info');
   };
 
@@ -312,11 +316,6 @@ export default function Landing() {
     });
   };
 
-  const handleProfileJoinRoom = (roomId: string) => {
-    setShowProfile(false);
-    openRoom({ id: roomId });
-  };
-
   const handleStartSoloJam = () => {
     void hapticMedium();
     if (currentTrack) {
@@ -324,18 +323,6 @@ export default function Landing() {
     } else {
       setShowSoloSearch(true);
     }
-  };
-
-  const handleProfilePlayTrack = (
-    track: PlayedTrack,
-    queue?: TrackInfo[],
-    options?: { sourceTitle?: string },
-  ) => {
-    setShowProfile(false);
-    void playTrack(track, queue || recentTracks, {
-      sourceTitle: options?.sourceTitle || 'Recently Played',
-    });
-    setPlayerModalOpen(true);
   };
 
   const handleRoomPress = (room: RoomSummary) => {
@@ -403,11 +390,21 @@ export default function Landing() {
               user={user}
               initials={initials}
               onOpenVault={() => { void hapticMedium(); router.push('/offline'); }}
-              onOpenProfile={() => setShowProfile(true)}
+              onOpenProfile={() => {
+                void hapticMedium();
+                router.push({ pathname: '/profile/[id]', params: { id: user?.id || 'me' } });
+              }}
               onOpenSignIn={() => setShowIdentity(true)}
               bgOpacity={Math.max(0, Math.min(1, (scrollOffsetY - 25) / 50))}
             />
-            <NetworkStatusPill isOnline={isOnline} showReconnected={showReconnectedPill} />
+            <NetworkStatusPill
+              isOnline={isOnline}
+              showReconnected={showReconnectedPill}
+              onPressOffline={() => {
+                void hapticMedium();
+                router.push('/offline');
+              }}
+            />
             <HeroHeader
               onStartSoloJam={handleStartSoloJam}
               onCreateLiveRoom={() => { void hapticMedium(); if (user) setShowCreate(true); else setShowIdentity(true); }}
@@ -475,18 +472,6 @@ export default function Landing() {
       <SoloSearchModal
         visible={showSoloSearch}
         onClose={() => setShowSoloSearch(false)}
-      />
-
-      <ProfileModal
-        visible={showProfile}
-        user={user}
-        currentName={user?.display_name}
-        onClose={() => setShowProfile(false)}
-        onUpdateGuestName={handleUpdateGuestName}
-        onDiscordLogin={handleDiscordLogin}
-        onSignOut={handleSignOut}
-        onJoinRoom={handleProfileJoinRoom}
-        onPlayTrack={handleProfilePlayTrack}
       />
       <IdentityModal
         visible={showIdentity}

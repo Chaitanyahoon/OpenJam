@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "fun.openjam.app",
+      "sha256_cert_fingerprints": [
+        "14:6D:E9:7D:0F:52:AB:E0:EC:9D:6A:FD:53:C2:59:7A:B4:A1:6A:B2:D6:3E:9F:8A:27:0C:69:B0:09:6E:9A:9B"
+      ]
+    }
+  }
+]

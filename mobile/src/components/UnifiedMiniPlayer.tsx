@@ -52,6 +52,11 @@ export function UnifiedMiniPlayer({
   // Poll current position smoothly when playing
   useEffect(() => {
     if (!player.currentTrack && !room?.nowPlaying) return;
+    const isPlaying = room ? room.isPlaying : playerStatus.playing;
+    if (!isPlaying) {
+      setCurrentPosMs(player.positionMs());
+      return;
+    }
     const interval = setInterval(() => {
       setCurrentPosMs(player.positionMs());
     }, 400);
@@ -60,6 +65,7 @@ export function UnifiedMiniPlayer({
 
   // Harmonized Active Track Resolution
   const isRoomActive = Boolean(room?.nowPlaying);
+  const isCollabRoom = Boolean(room && !room.isSolo);
   const activeTrack = isRoomActive && room?.nowPlaying
     ? {
         title: room.nowPlaying.track_name,
@@ -69,6 +75,8 @@ export function UnifiedMiniPlayer({
         isRoom: true,
         roomName: room.roomName || 'OpenJam Room',
       }
+    : isCollabRoom
+    ? null
     : player.currentTrack
     ? {
         title: player.currentTrack.track_name,

@@ -54,36 +54,11 @@ export async function requestFirstLaunchPermissions(): Promise<{
   try {
     const alreadyAsked = await AsyncStorage.getItem(FIRST_LAUNCH_PERMISSIONS_KEY);
     if (alreadyAsked === 'true') {
-      return { notificationsGranted: true, storageGranted: true };
+      const current = await getNotificationPermissionStatus();
+      return { notificationsGranted: current === 'granted', storageGranted: true };
     }
 
-    let notificationsGranted = false;
-
-    if (Platform.OS === 'android') {
-      const apiLevel =
-        typeof Platform.Version === 'number'
-          ? Platform.Version
-          : parseInt(String(Platform.Version), 10) || 30;
-
-      // Android 13+ (API 33+) requires runtime permission for notifications
-      if (apiLevel >= 33 && PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS) {
-        const res = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
-        );
-        notificationsGranted = res === PermissionsAndroid.RESULTS.GRANTED;
-      } else {
-        notificationsGranted = true;
-      }
-    }
-
-    // Ensure expo-notifications permission state is also synced
-    try {
-      const notifRes = await Notifications.requestPermissionsAsync();
-      if (notifRes.status === 'granted') {
-        notificationsGranted = true;
-      }
-    } catch {}
-
+    const notificationsGranted = await requestNotificationPermission();
     await AsyncStorage.setItem(FIRST_LAUNCH_PERMISSIONS_KEY, 'true');
     // Sandboxed storage in FileSystem.documentDirectory is always granted
     return { notificationsGranted, storageGranted: true };

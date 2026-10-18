@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import {
+  Check,
   ChevronRight,
   ExternalLink,
   Headphones,
@@ -14,6 +15,10 @@ import {
 import { colors, radius, spacing } from '../../theme';
 import { fontFamily } from '../../fonts';
 import type { AppPreferences } from '../../storage/history';
+import {
+  getNotificationPermissionStatus,
+  requestNotificationPermission,
+} from '../../permissions';
 
 export interface ProfileSettingsSectionProps {
   preferences: AppPreferences;
@@ -44,6 +49,26 @@ export function ProfileSettingsSection({
   onNavigatePrivacy,
   onNavigateTerms,
 }: ProfileSettingsSectionProps) {
+  const [notifGranted, setNotifGranted] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    void getNotificationPermissionStatus().then((s) => {
+      setNotifGranted(s === 'granted');
+    });
+  }, []);
+
+  const handleToggleNotifications = async () => {
+    if (notifGranted) {
+      onOpenAndroidSettings();
+    } else {
+      const granted = await requestNotificationPermission();
+      setNotifGranted(granted);
+      if (!granted) {
+        onOpenAndroidSettings();
+      }
+    }
+  };
+
   return (
     <View style={styles.container}>
       {/* 1. App & Playback Preferences */}
@@ -94,16 +119,58 @@ export function ProfileSettingsSection({
         </View>
       </View>
 
-      {/* 2. System & Storage */}
+      {/* 2. System, Permissions & Storage */}
       <View style={[styles.headerRow, { marginTop: spacing.md }]}>
-        <Text style={styles.sectionTitle}>SYSTEM & LOCAL STORAGE</Text>
+        <Text style={styles.sectionTitle}>SYSTEM, PERMISSIONS & STORAGE</Text>
+      </View>
+
+      <View style={styles.card}>
+        <View style={styles.cardInfo}>
+          <Text style={styles.cardTitle}>Jam & Room Notifications</Text>
+          <Text style={styles.cardSub}>
+            Alerts for friend invites, room chat mentions, and live stations.
+          </Text>
+        </View>
+        <Pressable
+          onPress={handleToggleNotifications}
+          style={({ pressed }) => [
+            styles.outlineActionBtn,
+            notifGranted && styles.grantedBadge,
+            pressed && styles.pressed,
+          ]}
+          accessibilityLabel="Manage notification permissions"
+        >
+          {notifGranted ? (
+            <>
+              <Check size={12} color="#10b981" />
+              <Text style={[styles.outlineActionBtnText, { color: '#10b981' }]}>Allowed</Text>
+            </>
+          ) : (
+            <Text style={styles.outlineActionBtnText}>Enable</Text>
+          )}
+        </Pressable>
+      </View>
+
+      <View style={styles.card}>
+        <View style={styles.cardInfo}>
+          <Text style={styles.cardTitle}>Offline Storage Sandbox</Text>
+          <Text style={styles.cardSub}>
+            Private app sandbox for music downloads. Always secure and accessible.
+          </Text>
+        </View>
+        <View style={styles.grantedBadge}>
+          <ShieldCheck size={13} color="#10b981" />
+          <Text style={[styles.outlineActionBtnText, { color: '#10b981', marginLeft: 4 }]}>
+            Secure
+          </Text>
+        </View>
       </View>
 
       <View style={styles.card}>
         <View style={styles.cardInfo}>
           <Text style={styles.cardTitle}>System App Settings</Text>
           <Text style={styles.cardSub}>
-            Manage OS permissions, clear system caches, and sound output.
+            Manage OS permissions, clear system caches, and audio output.
           </Text>
         </View>
         <Pressable
@@ -254,6 +321,17 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 159, 28, 0.12)',
     borderWidth: 1,
     borderColor: 'rgba(255, 159, 28, 0.3)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.sm,
+  },
+  grantedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: radius.sm,

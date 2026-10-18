@@ -2612,7 +2612,7 @@ export default function RoomClient({ roomId }) {
                     track_uri: track.uri,
                     track_name: track.name,
                     artist: track.artist,
-                    album_art_url: track.album_art_url || '/static/img/logo.png',
+                    album_art_url: track.album_art_url || '/placeholder.svg',
                     duration_ms: track.duration_ms || 0
                   });
                 });
@@ -2643,7 +2643,7 @@ export default function RoomClient({ roomId }) {
             track_uri: track_uri,
             track_name: 'YouTube Video',
             artist: 'YouTube',
-            album_art_url: '/static/img/logo.png',
+            album_art_url: `https://i.ytimg.com/vi/${track_uri}/mqdefault.jpg`,
             duration_ms: 0
           });
         } else {
@@ -2651,7 +2651,7 @@ export default function RoomClient({ roomId }) {
             track_uri: lineClean,
             track_name: lineClean,
             artist: 'Search Query',
-            album_art_url: '/static/img/logo.png',
+            album_art_url: '/placeholder.svg',
             duration_ms: 0
           });
         }
@@ -2909,6 +2909,43 @@ export default function RoomClient({ roomId }) {
 
       {/* Floating Reactions Render */}
       <div ref={reactionContainerRef} className="reaction-container" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 1000 }} />
+
+      {/* ══ MOBILE APP BANNER ════════════════════════════════════ */}
+      {typeof window !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) && (
+        <aside
+          aria-label="Open in App"
+          style={{
+            background: 'linear-gradient(90deg, #ff9f1c 0%, #ffb03a 100%)',
+            color: '#08080a',
+            padding: '7px 12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '12px',
+            fontWeight: 600,
+            zIndex: 1100,
+            position: 'relative',
+          }}
+        >
+          <span>🎵 Have the OpenJam app? Listen with lock-screen controls!</span>
+          <a
+            href={`openjam://room/${roomId}`}
+            style={{
+              background: '#08080a',
+              color: '#ffffff',
+              padding: '3px 10px',
+              borderRadius: '999px',
+              textDecoration: 'none',
+              fontSize: '11px',
+              fontWeight: 700,
+              marginLeft: '8px',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Open App
+          </a>
+        </aside>
+      )}
 
       {/* ══ UNIFIED PREMIUM HEADER ═════════════════════════════════ */}
       <header className="unified-header">
@@ -3480,7 +3517,7 @@ export default function RoomClient({ roomId }) {
                               title={isHost ? 'Click to add to queue, Double click or Drag onto player to Play Now' : 'Click or Drag to add to queue'}
                               style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', cursor: 'grab' }}
                             >
-                              <img decoding="async" loading="lazy" draggable="false" src={track.album_art_url || '/placeholder.svg'} alt="" style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} />
+                              <img decoding="async" loading="lazy" draggable="false" src={track.album_art_url || '/placeholder.svg'} alt="" style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} onError={(e) => { e.currentTarget.src = '/placeholder.svg'; }} />
                               <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
                                 <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.track_name || track.name}</span>
                                 <span style={{ fontSize: '11px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.artist}</span>
@@ -3700,7 +3737,7 @@ export default function RoomClient({ roomId }) {
                                     }}
                                     style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', cursor: 'pointer' }}
                                   >
-                                    <img decoding="async" loading="lazy" draggable="false" src={track.album_art_url || '/placeholder.svg'} alt="" style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} />
+                                    <img decoding="async" loading="lazy" draggable="false" src={track.album_art_url || '/placeholder.svg'} alt="" style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} onError={(e) => { e.currentTarget.src = '/placeholder.svg'; }} />
                                     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
                                       <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.track_name}</span>
                                       <span style={{ fontSize: '11px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.artist}</span>
@@ -3732,7 +3769,7 @@ export default function RoomClient({ roomId }) {
                                     }}
                                     style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', cursor: 'pointer' }}
                                   >
-                                    <img decoding="async" loading="lazy" src={track.album_art_url || '/placeholder.svg'} alt="" style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} />
+                                    <img decoding="async" loading="lazy" src={track.album_art_url || '/placeholder.svg'} alt="" style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} onError={(e) => { e.currentTarget.src = '/placeholder.svg'; }} />
                                     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
                                       <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.track_name || track.name}</span>
                                       <span style={{ fontSize: '11px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.artist}</span>
@@ -4994,7 +5031,7 @@ export default function RoomClient({ roomId }) {
           <div className="mini-player-progress-fill" style={{ width: `${playbackState.durationMs > 0 ? (playbackState.positionMs / playbackState.durationMs) * 100 : 0}%` }}></div>
         </div>
         <button type="button" className="mini-player-main" onClick={() => setActiveTab('playing')}>
-          <img decoding="async" className="mini-art" src={nowPlaying?.album_art_url || '/static/img/logo.png'} alt="" width="44" height="44" style={{ borderRadius: '6px', objectFit: 'cover' }} />
+          <img decoding="async" className="mini-art" src={nowPlaying?.album_art_url || '/placeholder.svg'} alt="" width="44" height="44" style={{ borderRadius: '6px', objectFit: 'cover' }} onError={(e) => { e.currentTarget.src = '/placeholder.svg'; }} />
           <div className="mini-info">
             <div className="mini-title">{nowPlaying ? nowPlaying.track_name : 'Nothing playing'}</div>
             <div className="mini-artist">{nowPlaying ? nowPlaying.artist : 'Add a track to the queue'}</div>
@@ -6513,9 +6550,10 @@ export default function RoomClient({ roomId }) {
                               <GripVertical size={14} style={{ color: 'rgba(255,255,255,0.3)', flexShrink: 0 }} />
                             )}
                             <img
-                              src={track.album_art_url || '/static/img/logo.png'}
+                              src={track.album_art_url || '/placeholder.svg'}
                               alt=""
                               style={{ width: '40px', height: '40px', borderRadius: '8px', objectFit: 'cover' }}
+                              onError={(e) => { e.currentTarget.src = '/placeholder.svg'; }}
                             />
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

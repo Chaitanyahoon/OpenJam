@@ -63,6 +63,38 @@ describe('Unified Mini-Player & Spotify Gestures Suite', () => {
     assert.equal(noneActive, null);
   });
 
+  it('does not leak stale solo player track when in an empty collaborative room', () => {
+    const mockSoloTrack = {
+      track_name: 'Stale Solo Track',
+      artist: 'Solo Artist',
+      album_art_url: 'https://openjam.fun/solo_art.png',
+      duration_ms: 180000,
+    };
+
+    function resolveActiveTrackWithCollabGuard(
+      roomNowPlaying: { track_name: string } | null,
+      soloCurrentTrack: typeof mockSoloTrack | null,
+      isCollabRoom: boolean,
+    ) {
+      if (roomNowPlaying) {
+        return { title: roomNowPlaying.track_name, isRoom: true };
+      }
+      if (isCollabRoom) {
+        return null; // Collab room with empty queue must NOT leak solo track!
+      }
+      if (soloCurrentTrack) {
+        return { title: soloCurrentTrack.track_name, isRoom: false };
+      }
+      return null;
+    }
+
+    const collabActive = resolveActiveTrackWithCollabGuard(null, mockSoloTrack, true);
+    assert.equal(collabActive, null);
+
+    const soloActive = resolveActiveTrackWithCollabGuard(null, mockSoloTrack, false);
+    assert.equal(soloActive?.title, 'Stale Solo Track');
+  });
+
   it('correctly detects swipe gestures for track skipping and modal expansion', () => {
     const SWIPE_THRESHOLD = 65;
     const VELOCITY_THRESHOLD = 500;

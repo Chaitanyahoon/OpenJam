@@ -1,12 +1,13 @@
+import * as FileSystem from 'expo-file-system';
 import { getBackendUrl } from '../api';
 import {
   getVaultTrack,
   recordVaultTrackPlayed,
-  resolveDirectAudioStreamUrls,
+  deleteTrackFromVault,
 } from '../storage/vault';
 
 export interface ResolvedAudioStream {
-  type: 'local_vault' | 'direct_stream' | 'youtube_bridge';
+  type: 'local_vault' | 'direct_stream';
   uri?: string;
   youtubeId?: string;
   title?: string;
@@ -67,14 +68,20 @@ export async function resolveAudioStream(
   try {
     const vaultTrack = await getVaultTrack(urlOrId);
     if (vaultTrack && vaultTrack.local_file_uri) {
-      void recordVaultTrackPlayed(urlOrId);
-      return {
-        type: 'local_vault',
-        uri: vaultTrack.local_file_uri,
-        title: meta?.title || vaultTrack.track_name,
-        artist: meta?.artist || vaultTrack.artist,
-        artworkUrl: meta?.artworkUrl || vaultTrack.album_art_url,
-      };
+      const fileInfo = await FileSystem.getInfoAsync(vaultTrack.local_file_uri);
+      if (fileInfo.exists && (fileInfo.size ?? 0) > 1000) {
+        void recordVaultTrackPlayed(urlOrId);
+        return {
+          type: 'local_vault',
+          uri: vaultTrack.local_file_uri,
+          title: meta?.title || vaultTrack.track_name,
+          artist: meta?.artist || vaultTrack.artist,
+          artworkUrl: meta?.artworkUrl || vaultTrack.album_art_url,
+        };
+      } else {
+        // Corrupted or removed from disk by OS cache cleaner
+        void deleteTrackFromVault(urlOrId).catch(() => {});
+      }
     }
   } catch {}
 
@@ -102,41 +109,16 @@ export async function resolveAudioStream(
     }
   }
 
-  // 3. Direct audio stream candidate probe for YouTube video
+  // 3. Direct audio stream for YouTube video
   if (ytId) {
-    try {
-      const directUrls = await resolveDirectAudioStreamUrls(ytId);
-      for (const directUrl of directUrls) {
-        try {
-          const testCtrl = new AbortController();
-          const testTimeout = setTimeout(() => testCtrl.abort(), 2000);
-          const testRes = await fetch(directUrl, {
-            method: 'GET',
-            headers: { Range: 'bytes=0-1024' },
-            signal: testCtrl.signal,
-          });
-          clearTimeout(testTimeout);
-          if (testRes.ok || testRes.status === 206) {
-            return {
-              type: 'direct_stream',
-              uri: directUrl,
-              youtubeId: ytId,
-              title: meta?.title,
-              artist: meta?.artist,
-              artworkUrl: meta?.artworkUrl,
-            };
-          }
-        } catch {}
-      }
-    } catch {}
-
-    // Fallback to YouTube Audio Bridge
+    const backendUrl = getBackendUrl();
     return {
-      type: 'youtube_bridge',
+      type: 'direct_stream',
+      uri: `${backendUrl}/stream/${ytId}`,
       youtubeId: ytId,
       title: meta?.title,
       artist: meta?.artist,
-      artworkUrl: meta?.artworkUrl,
+      artworkUrl: meta?.artworkUrl || `https://i.ytimg.com/vi/${ytId}/mqdefault.jpg`,
     };
   }
 
@@ -151,8 +133,10 @@ export async function resolveAudioStream(
     };
   }
 
+  const backendUrl = getBackendUrl();
   return {
-    type: 'youtube_bridge',
+    type: 'direct_stream',
+    uri: `${backendUrl}/stream/${encodeURIComponent(urlOrId)}`,
     youtubeId: urlOrId,
     title: meta?.title,
     artist: meta?.artist,

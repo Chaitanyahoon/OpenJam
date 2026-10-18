@@ -11,21 +11,19 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Share2, Crown, Activity, User, Edit3, Trash2, QrCode, Copy } from 'lucide-react-native';
 import { router } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
-import * as Linking from 'expo-linking';
 import { colors, radius, spacing } from '../../../theme';
 import { fontFamily } from '../../../fonts';
 import { useRoom } from '../../../state/RoomContext';
 import { initials, nameColor } from '../../../components/ChatPanel';
-import { ProfileModal } from '../../../components/ProfileModal';
 import { EditRoomModal, ListenerActionModal, RoomInviteModal } from '../../../components/Modals';
-import { clearSession, getStoredSession, joinAsGuest, getBackendUrl, saveAuthToken, type ApiUser } from '../../../api';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useToast } from '../../../components/ToastContext';
 import { copyToClipboard } from '../../../utils/clipboard';
 import { hapticLight } from '../../../utils/haptics';
 import type { PlayedTrack } from '../../../storage/history';
 
 export default function PeopleTab() {
+  const insets = useSafeAreaInsets();
   const {
     roomId,
     roomName,
@@ -40,75 +38,9 @@ export default function PeopleTab() {
     kickUser,
   } = useRoom();
   const toast = useToast();
-  const [showProfile, setShowProfile] = useState(false);
   const [showEditRoom, setShowEditRoom] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [selectedListener, setSelectedListener] = useState<any | null>(null);
-  const [sessionUser, setSessionUser] = useState<ApiUser | null>(null);
-
-  useEffect(() => {
-    void getStoredSession().then((s) => {
-      if (s.user) setSessionUser(s.user);
-    });
-  }, []);
-
-  const handleUpdateGuestName = async (newName: string) => {
-    try {
-      const { user: u } = await joinAsGuest(newName);
-      setSessionUser(u);
-      toast(`Guest name updated to "${u.display_name}"`, 'success');
-    } catch {
-      toast('Could not update guest profile', 'error');
-    }
-  };
-
-  const handleSignOut = async () => {
-    await clearSession();
-    setSessionUser(null);
-    toast('Signed out', 'info');
-  };
-
-  const handleDiscordLogin = async () => {
-    try {
-      const backendUrl = getBackendUrl();
-      const redirectScheme = Linking.createURL('/');
-      const authUrl = `${backendUrl}/auth/discord?state=${encodeURIComponent(redirectScheme)}`;
-
-      const res = await WebBrowser.openAuthSessionAsync(authUrl, redirectScheme);
-
-      if (res.type === 'success' && res.url) {
-        const url = res.url;
-        const match = url.match(/[?&#]token=([^&]+)/);
-        const token = match ? decodeURIComponent(match[1]) : null;
-        if (token) {
-          const profile = await saveAuthToken(token);
-          if (profile) {
-            setSessionUser(profile);
-            toast(
-              `Connected as ${profile.discord_username ? '@' + profile.discord_username : profile.display_name}!`,
-              'success',
-            );
-          }
-        }
-      }
-    } catch {
-      toast('Could not connect to Discord', 'error');
-    }
-  };
-
-  const handleJoinRoom = (targetRoomId: string) => {
-    setShowProfile(false);
-    if (targetRoomId !== roomId) {
-      router.replace({ pathname: '/room/[id]', params: { id: targetRoomId } });
-    }
-  };
-
-  const handlePlayTrack = (track: PlayedTrack) => {
-    setShowProfile(false);
-    if (track.roomId && track.roomId !== roomId) {
-      router.replace({ pathname: '/room/[id]', params: { id: track.roomId } });
-    }
-  };
 
   const handleCopyCode = async () => {
     void hapticLight();
@@ -123,7 +55,7 @@ export default function PeopleTab() {
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `Join my live room "${roomName || 'OpenJam Room'}" on OpenJam!\nRoom Code: #${roomId}\nLink: https://www.openjam.fun/room/${roomId}`,
+        message: `🎵 Join my live room "${roomName || 'OpenJam Room'}" on OpenJam!\n\n📱 In App: openjam://room/${roomId}\n🌐 Web: https://www.openjam.fun/room/${roomId}\n\nRoom Code: #${roomId}`,
         title: `OpenJam – ${roomName || 'Live Room'}`,
       });
     } catch {
@@ -198,7 +130,7 @@ export default function PeopleTab() {
       <FlatList
         data={sortedListeners}
         keyExtractor={(l) => l.user_id}
-        contentContainerStyle={styles.container}
+        contentContainerStyle={[styles.container, { paddingBottom: insets.bottom + 140 }]}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <>
@@ -213,7 +145,7 @@ export default function PeopleTab() {
                   accessibilityLabel={`Copy room code #${roomId}`}
                 >
                   <Copy size={11} color={colors.amber} />
-                  <Text style={styles.shareCodeText}>#{roomId}</Text>
+                  <Text style={styles.shareCodeText} numberOfLines={1} ellipsizeMode="middle">#{roomId}</Text>
                   <Text style={styles.shareCodeCopyHint}>Tap to copy</Text>
                 </Pressable>
               </View>
@@ -298,7 +230,7 @@ export default function PeopleTab() {
               </View>
 
               <Pressable
-                onPress={() => setShowProfile(true)}
+                onPress={() => router.push({ pathname: '/profile/[id]', params: { id: me?.id || 'me' } })}
                 style={({ pressed }) => [styles.myProfileBtn, pressed && styles.pressed]}
                 hitSlop={8}
                 accessibilityLabel="View your profile"
@@ -313,7 +245,7 @@ export default function PeopleTab() {
           const isMe = me && item.user_id === me.id;
           return (
             <Pressable
-              onPress={isMe ? () => setShowProfile(true) : () => setSelectedListener(item)}
+              onPress={isMe ? () => router.push({ pathname: '/profile/[id]', params: { id: me?.id || 'me' } }) : () => setSelectedListener(item)}
               style={({ pressed }) => [
                 styles.listenerCard,
                 isMe && styles.listenerCardMe,
@@ -383,18 +315,6 @@ export default function PeopleTab() {
         }
       />
 
-      <ProfileModal
-        visible={showProfile}
-        user={sessionUser || me}
-        currentName={sessionUser?.display_name || me?.display_name}
-        onClose={() => setShowProfile(false)}
-        onUpdateGuestName={handleUpdateGuestName}
-        onDiscordLogin={handleDiscordLogin}
-        onSignOut={handleSignOut}
-        onJoinRoom={handleJoinRoom}
-        onPlayTrack={handlePlayTrack}
-      />
-
       <EditRoomModal
         visible={showEditRoom}
         currentName={roomName}
@@ -456,6 +376,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 12,
     backgroundColor: 'rgba(255, 255, 255, 0.04)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
@@ -465,6 +386,7 @@ const styles = StyleSheet.create({
   },
   shareMeta: {
     flex: 1,
+    flexShrink: 1,
   },
   shareTitle: {
     fontFamily: fontFamily.displayBold,
@@ -474,20 +396,22 @@ const styles = StyleSheet.create({
   shareCodePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
     backgroundColor: 'rgba(255, 159, 28, 0.1)',
     borderWidth: 1,
     borderColor: 'rgba(255, 159, 28, 0.25)',
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: radius.sm,
     alignSelf: 'flex-start',
     marginTop: 4,
+    maxWidth: '100%',
   },
   shareCodeText: {
     fontFamily: fontFamily.displaySemiBold,
     fontSize: 12,
     color: colors.amber,
+    maxWidth: 120,
   },
   shareCodeCopyHint: {
     fontFamily: fontFamily.bodyRegular,
@@ -696,7 +620,7 @@ const styles = StyleSheet.create({
   avatarInitial: {
     fontFamily: fontFamily.displayBold,
     fontSize: 16,
-    color: '#08080a',
+    color: '#ffffff',
   },
   onlineDot: {
     position: 'absolute',

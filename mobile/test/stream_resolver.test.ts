@@ -39,7 +39,7 @@ export function classifyStreamInput(input: string): {
   return { isLocalFile, isHttpUrl, parsedYouTubeId };
 }
 
-export type StreamResolutionStrategy = 'local_vault' | 'direct_stream' | 'youtube_bridge';
+export type StreamResolutionStrategy = 'local_vault' | 'direct_stream';
 
 export function determineStreamStrategy(params: {
   isLocalFile: boolean;
@@ -50,10 +50,7 @@ export function determineStreamStrategy(params: {
   if (params.isLocalFile || params.hasVaultFile) {
     return 'local_vault';
   }
-  if (params.hasDirectStream) {
-    return 'direct_stream';
-  }
-  return 'youtube_bridge';
+  return 'direct_stream';
 }
 
 describe('Audio Stream Resolver Seam Suite', () => {
@@ -113,14 +110,14 @@ describe('Audio Stream Resolver Seam Suite', () => {
       assert.equal(strategy, 'direct_stream');
     });
 
-    it('falls back to headless YouTube bridge when direct streams fail', () => {
+    it('routes remote youtube tracks directly to native stream engine', () => {
       const strategy = determineStreamStrategy({
         isLocalFile: false,
         hasVaultFile: false,
         hasDirectStream: false,
         hasYouTubeId: true,
       });
-      assert.equal(strategy, 'youtube_bridge');
+      assert.equal(strategy, 'direct_stream');
     });
   });
 });

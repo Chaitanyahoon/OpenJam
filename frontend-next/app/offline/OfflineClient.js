@@ -559,6 +559,7 @@ export default function OfflinePage() {
                             src={track.album_art_url || '/static/img/default_art.png'}
                             alt={track.track_name}
                             style={{ width: '48px', height: '48px', borderRadius: '8px', objectFit: 'cover' }}
+                            onError={(e) => { e.currentTarget.src = '/static/img/default_art.png'; }}
                           />
                           <button
                             type="button"
@@ -794,6 +795,7 @@ export default function OfflinePage() {
               src={activeTrack.album_art_url || '/static/img/default_art.png'}
               alt={activeTrack.track_name}
               style={{ width: '48px', height: '48px', borderRadius: '8px', objectFit: 'cover' }}
+              onError={(e) => { e.currentTarget.src = '/static/img/default_art.png'; }}
             />
             <div style={{ overflow: 'hidden' }}>
               <div style={{ fontWeight: 700, fontSize: '14px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>

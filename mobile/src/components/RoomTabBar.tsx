@@ -48,9 +48,13 @@ function MiniPlayer({ onOpen }: { onOpen: () => void }) {
   const [pos, setPos] = useState(0);
 
   useEffect(() => {
+    if (!isPlaying) {
+      if (player) setPos(player.positionMs());
+      return;
+    }
     const t = setInterval(() => setPos(player.positionMs()), 500);
     return () => clearInterval(t);
-  }, [player]);
+  }, [player, isPlaying]);
 
   if (!nowPlaying) return null;
   const duration = durationMs || nowPlaying.duration_ms || 0;

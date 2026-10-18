@@ -103,7 +103,7 @@ export const metadata = {
     type: "website",
     images: [
       {
-        url: `${SITE_URL}/static/img/hero_visual_showcase.webp`,
+        url: `${SITE_URL}/static/img/og-image.png`,
         width: 1200,
         height: 630,
         alt: "OpenJam — Listen to Music with Friends Online Free",
@@ -114,7 +114,7 @@ export const metadata = {
     card: "summary_large_image",
     title: "OpenJam — Listen to Music with Friends Online Free | Virtual Music Room",
     description: "OpenJam is a virtual music room platform to listen to music with friends online free. Sync YouTube music with friends in a shared music listening room with real-time synced music playback.",
-    images: [`${SITE_URL}/static/img/hero_visual_showcase.webp`],
+    images: [`${SITE_URL}/static/img/og-image.png`],
   },
   appleWebApp: {
     capable: true,

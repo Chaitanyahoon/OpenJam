@@ -150,6 +150,7 @@ export default function ProfileLikes({
                     src={track.album_art_url} 
                     alt="" 
                     style={{ width: '46px', height: '46px', borderRadius: '8px', objectFit: 'cover' }} 
+                    onError={(e) => { e.currentTarget.src = '/placeholder.svg'; }}
                   />
                 ) : (
                   <div style={{ width: '46px', height: '46px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

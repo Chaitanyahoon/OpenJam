@@ -1384,6 +1384,7 @@ export default function HomePage() {
                               src={track.album_art_url || '/static/img/default_art.png'}
                               alt={track.track_name}
                               style={{ width: '48px', height: '48px', borderRadius: '8px', objectFit: 'cover' }}
+                              onError={(e) => { e.currentTarget.src = '/static/img/default_art.png'; }}
                             />
                             <button
                               type="button"

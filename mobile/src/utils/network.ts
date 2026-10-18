@@ -137,3 +137,6 @@ AppState.addEventListener('change', (state) => {
     void pingConnection();
   }
 });
+
+// Fast initial connectivity verification on module evaluation
+void pingConnection();

@@ -4,7 +4,7 @@
  * Allows users to search any song/artist or paste YouTube/Spotify links,
  * explore instant starter vibes, and 1-tap play directly into Solo Jam mode.
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -41,6 +41,7 @@ import { searchHybridTracks, type TrackSearchResult } from '../api';
 import { useToast } from './ToastContext';
 import { hapticLight, hapticMedium } from '../utils/haptics';
 import { useNetworkStatus } from '../utils/network';
+import { formatDuration } from '../utils/format';
 import { getVaultTracks, type VaultTrack } from '../storage/vault';
 import {
   getRecentlyPlayed,
@@ -52,10 +53,13 @@ import {
 } from '../storage/history';
 import type { TrackInfo } from '../sync/protocol';
 
-interface SoloSearchModalProps {
+export interface SoloSearchModalProps {
   visible: boolean;
   onClose: () => void;
-  mode?: 'play' | 'queue';
+  mode?: 'play' | 'queue' | 'playlist';
+  playlistName?: string;
+  existingTrackUris?: Set<string>;
+  onTrackSelect?: (track: TrackInfo) => void;
 }
 
 const STARTER_VIBES = [
@@ -67,9 +71,14 @@ const STARTER_VIBES = [
   { id: 'electronic', label: 'Electronic', query: 'electronic melodic beats' },
 ];
 
-import { formatDuration } from '../utils/format';
-
-export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchModalProps) {
+export function SoloSearchModal({
+  visible,
+  onClose,
+  mode = 'play',
+  playlistName,
+  existingTrackUris,
+  onTrackSelect,
+}: SoloSearchModalProps) {
   const insets = useSafeAreaInsets();
   const toast = useToast();
   const { playTrack, addToQueue, playNextInQueue, setPlayerModalOpen } = usePlayer();
@@ -81,6 +90,7 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
   const [recentTracks, setRecentTracks] = useState<PlayedTrack[]>([]);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [vaultTracks, setVaultTracks] = useState<VaultTrack[]>([]);
+  const vaultTrackUris = useMemo(() => new Set(vaultTracks.map((t) => t.track_uri)), [vaultTracks]);
   const [activeVibe, setActiveVibe] = useState<string | null>(null);
   const [addedUris, setAddedUris] = useState<Set<string>>(new Set());
 
@@ -93,6 +103,7 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
       void getRecentlyPlayed().then(setRecentTracks).catch(() => {});
       void getRecentSearches().then(setRecentSearches).catch(() => {});
       void getVaultTracks().then(setVaultTracks).catch(() => {});
+      setAddedUris(new Set(existingTrackUris || []));
       setTimeout(() => inputRef.current?.focus(), 150);
     } else {
       setQuery('');
@@ -100,7 +111,7 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
       setActiveVibe(null);
       setAddedUris(new Set());
     }
-  }, [visible]);
+  }, [visible, existingTrackUris]);
 
   const executeSearch = useCallback(
     async (searchTerm: string) => {
@@ -183,6 +194,21 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
   };
 
   const handlePlaySelected = (item: TrackSearchResult) => {
+    if (mode === 'playlist') {
+      if (addedUris.has(item.uri)) return;
+      void hapticLight();
+      setAddedUris((prev) => new Set(prev).add(item.uri));
+      const trackInfo: TrackInfo = {
+        track_uri: item.uri,
+        track_name: item.name,
+        artist: item.artist,
+        album_art_url: item.album_art_url,
+        duration_ms: item.duration_ms,
+      };
+      onTrackSelect?.(trackInfo);
+      toast(`Added "${item.name}" to playlist`, 'success');
+      return;
+    }
     if (mode === 'queue') {
       handleAddToQueue(item);
       return;
@@ -206,6 +232,10 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
   };
 
   const handleAddToQueue = (item: TrackSearchResult) => {
+    if (mode === 'playlist') {
+      handlePlaySelected(item);
+      return;
+    }
     if (addedUris.has(item.uri)) return;
     void hapticLight();
     setAddedUris((prev) => new Set(prev).add(item.uri));
@@ -222,6 +252,21 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
   };
 
   const handlePlayRecent = (track: PlayedTrack) => {
+    if (mode === 'playlist') {
+      if (addedUris.has(track.track_uri)) return;
+      void hapticLight();
+      setAddedUris((prev) => new Set(prev).add(track.track_uri));
+      const trackInfo: TrackInfo = {
+        track_uri: track.track_uri,
+        track_name: track.track_name,
+        artist: track.artist,
+        album_art_url: track.album_art_url,
+        duration_ms: track.duration_ms,
+      };
+      onTrackSelect?.(trackInfo);
+      toast(`Added "${track.track_name}" to playlist`, 'success');
+      return;
+    }
     if (mode === 'queue') {
       if (addedUris.has(track.track_uri)) return;
       void hapticLight();
@@ -252,6 +297,14 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
   };
 
   const handlePlayVaultTrack = (track: VaultTrack) => {
+    if (mode === 'playlist') {
+      if (addedUris.has(track.track_uri)) return;
+      void hapticLight();
+      setAddedUris((prev) => new Set(prev).add(track.track_uri));
+      onTrackSelect?.(track);
+      toast(`Added "${track.track_name}" to playlist`, 'success');
+      return;
+    }
     if (mode === 'queue') {
       if (addedUris.has(track.track_uri)) return;
       void hapticLight();
@@ -291,10 +344,18 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
 
           <View style={styles.headerTitleWrap}>
             <Text style={styles.headerTitle}>
-              {mode === 'queue' ? 'Add to Queue' : 'Solo Jam'}
+              {mode === 'queue'
+                ? 'Add to Queue'
+                : mode === 'playlist'
+                ? `Add to ${playlistName || 'Playlist'}`
+                : 'Solo Jam'}
             </Text>
             <Text style={styles.headerSubtitle}>
-              {mode === 'queue' ? 'Tap songs or + to add to Up Next' : 'Search & play any music instantly'}
+              {mode === 'queue'
+                ? 'Tap songs or + to add to Up Next'
+                : mode === 'playlist'
+                ? 'Tap songs or + to add to playlist'
+                : 'Search & play any music instantly'}
             </Text>
           </View>
 
@@ -385,9 +446,14 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
                   <Text style={styles.trackTitle} numberOfLines={1}>
                     {item.name}
                   </Text>
-                  <Text style={styles.trackArtist} numberOfLines={1}>
-                    {item.artist}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    {vaultTrackUris.has(item.uri) && (
+                      <CheckCircle2 size={11} color="#10b981" style={{ marginRight: 4 }} />
+                    )}
+                    <Text style={styles.trackArtist} numberOfLines={1}>
+                      {item.artist}
+                    </Text>
+                  </View>
                 </View>
 
                 <View style={styles.trackActionsRow}>
@@ -406,7 +472,7 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
                       styles.addQueueBtn,
                       addedUris.has(item.uri) && styles.addQueueBtnSuccess,
                     ]}
-                    accessibilityLabel={`Add ${item.name} to queue`}
+                    accessibilityLabel={mode === 'playlist' ? (addedUris.has(item.uri) ? 'Already added' : `Add ${item.name} to playlist`) : `Add ${item.name} to queue`}
                   >
                     {addedUris.has(item.uri) ? (
                       <Check size={14} color="#10b981" strokeWidth={2.5} />
@@ -416,9 +482,11 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
                   </Pressable>
 
                   {/* 1-Tap Play Now Button */}
-                  <View style={styles.playBtn}>
-                    <Play size={13} color="#08080a" fill="#08080a" style={{ marginLeft: 2 }} />
-                  </View>
+                  {mode !== 'playlist' && (
+                    <View style={styles.playBtn}>
+                      <Play size={13} color="#08080a" fill="#08080a" style={{ marginLeft: 2 }} />
+                    </View>
+                  )}
                 </View>
               </Pressable>
             )}
@@ -497,10 +565,18 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
                         {item.artist}
                       </Text>
                     </View>
-                    <View style={styles.vaultBadge}>
-                      <CheckCircle2 size={11} color="#10b981" style={{ marginRight: 3 }} />
-                      <Text style={styles.vaultBadgeText}>Offline</Text>
-                    </View>
+                    {mode === 'playlist' || mode === 'queue' ? (
+                      addedUris.has(item.track_uri) ? (
+                        <Check size={16} color="#10b981" strokeWidth={2.5} />
+                      ) : (
+                        <Plus size={16} color={colors.amber} />
+                      )
+                    ) : (
+                      <View style={styles.vaultBadge}>
+                        <CheckCircle2 size={11} color="#10b981" style={{ marginRight: 3 }} />
+                        <Text style={styles.vaultBadgeText}>Offline</Text>
+                      </View>
+                    )}
                   </Pressable>
                 ))}
               </View>
@@ -569,11 +645,24 @@ export function SoloSearchModal({ visible, onClose, mode = 'play' }: SoloSearchM
                       <Text style={styles.recentTitle} numberOfLines={1}>
                         {item.track_name}
                       </Text>
-                      <Text style={styles.recentArtist} numberOfLines={1}>
-                        {item.artist}
-                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        {vaultTrackUris.has(item.track_uri) && (
+                          <CheckCircle2 size={11} color="#10b981" style={{ marginRight: 4 }} />
+                        )}
+                        <Text style={styles.recentArtist} numberOfLines={1}>
+                          {item.artist}
+                        </Text>
+                      </View>
                     </View>
-                    <Play size={16} color={colors.amber} />
+                    {mode === 'playlist' || mode === 'queue' ? (
+                      addedUris.has(item.track_uri) ? (
+                        <Check size={16} color="#10b981" strokeWidth={2.5} />
+                      ) : (
+                        <Plus size={16} color={colors.amber} />
+                      )
+                    ) : (
+                      <Play size={16} color={colors.amber} />
+                    )}
                   </Pressable>
                 ))}
               </View>

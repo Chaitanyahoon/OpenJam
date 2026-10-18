@@ -77,7 +77,7 @@ function RoomHeader() {
       await Share.share({
         message: isSolo
           ? 'Jamming on OpenJam! Check it out: https://www.openjam.fun'
-          : `Join my live room "${displayName}" on OpenJam!\nRoom Code: #${roomId}\nLink: https://www.openjam.fun/room/${roomId}`,
+          : `🎵 Join my live room "${displayName}" on OpenJam!\n\n📱 In App: openjam://room/${roomId}\n🌐 Web: https://www.openjam.fun/room/${roomId}\n\nRoom Code: #${roomId}`,
         title: `OpenJam – ${displayName}`,
       });
     } catch {

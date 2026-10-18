@@ -16,8 +16,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Modal,
   PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -81,7 +83,6 @@ import {
 import { hapticLight, hapticMedium } from '../utils/haptics';
 import { useToast } from './ToastContext';
 import { getAmbientPalette } from '../utils/palette';
-import { DevicePickerModal } from './DevicePickerModal';
 import { AddToPlaylistModal } from './AddToPlaylistModal';
 import { useArtworkGestures } from './player/useArtworkGestures';
 import { useLyricsController } from './player/useLyricsController';
@@ -127,7 +128,6 @@ export function SpotifyPlayerModal() {
 
   const [lyricsPosMs, setLyricsPosMs] = useState(0);
   const [showQueue, setShowQueue] = useState(false);
-  const [showDevicePicker, setShowDevicePicker] = useState(false);
   const [showAddToPlaylist, setShowAddToPlaylist] = useState(false);
   const [isDownloaded, setIsDownloaded] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<TrackDownloadProgress | null>(null);
@@ -843,10 +843,18 @@ export function SpotifyPlayerModal() {
               <Pressable
                 onPress={() => {
                   void hapticLight();
-                  setShowDevicePicker(true);
+                  if (Platform.OS === 'android') {
+                    Linking.sendIntent('android.settings.BLUETOOTH_SETTINGS').catch(() => {
+                      Linking.openSettings().catch(() => {});
+                    });
+                  } else {
+                    Linking.openURL('App-Prefs:Bluetooth').catch(() => {
+                      Linking.openSettings().catch(() => {});
+                    });
+                  }
                 }}
                 style={styles.deviceRoutePill}
-                accessibilityLabel="Select audio output device"
+                accessibilityLabel="Open Bluetooth audio settings"
               >
                 {activeAudioDevice === 'bluetooth' ? (
                   <>
@@ -987,14 +995,6 @@ export function SpotifyPlayerModal() {
             </ScrollView>
           </View>
         </Modal>
-
-        {/* Connect to a Device Modal */}
-        <DevicePickerModal
-          visible={showDevicePicker}
-          onClose={() => setShowDevicePicker(false)}
-          activeDevice={activeAudioDevice}
-          onSelectDevice={setAudioDevice}
-        />
 
         {/* Add to Playlist Modal */}
         <AddToPlaylistModal

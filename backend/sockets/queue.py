@@ -434,9 +434,9 @@ def register_queue_handlers(sio: socketio.AsyncServer):
             return
         room_id = info["room_id"]
 
-        # Only host can remove tracks
-        if not room_manager.is_host(room_id, sid):
-            await sio.emit("queue_error", {"message": "Only the host can remove tracks"}, to=sid)
+        # Allow host or authorized guests (with guest controls enabled) to remove tracks
+        if not room_manager.can_control(room_id, sid):
+            await sio.emit("queue_error", {"message": "You do not have permission to remove tracks"}, to=sid)
             return
 
         queue_item_id = data.get("queue_item_id")
@@ -514,6 +514,9 @@ def register_queue_handlers(sio: socketio.AsyncServer):
         if not info:
             return
         room_id = info["room_id"]
+        if not room_manager.can_control(room_id, sid):
+            await sio.emit("queue_error", {"message": "You do not have permission to reorder the queue"}, to=sid)
+            return
 
         ordered_ids = data.get("ordered_ids")  # list of queue item IDs in new order
         if not ordered_ids:

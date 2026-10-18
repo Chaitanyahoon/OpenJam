@@ -546,6 +546,10 @@ export default function ProfileHero({
                 <img 
                   src={editedAvatarUrl || profile?.avatar_url || "/default-avatar.png"} 
                   alt="" 
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = "/default-avatar.png";
+                  }}
                   style={{ 
                     width: '48px', 
                     height: '48px', 

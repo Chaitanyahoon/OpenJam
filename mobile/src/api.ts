@@ -10,6 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getBackendUrl } from './config';
 import { getVaultTracks } from './storage/vault';
 import { getRecentlyPlayed } from './storage/history';
+import { isDeviceOnline, notifyNetworkFailure, notifyNetworkSuccess } from './utils/network';
 export { getBackendUrl };
 
 const TOKEN_KEY = 'openjam_token';
@@ -68,6 +69,10 @@ async function authHeaders(): Promise<Record<string, string>> {
 }
 
 async function request<T>(path: string, init?: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
+  if (!isDeviceOnline()) {
+    throw new Error(`Device is offline: ${path}`);
+  }
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => {
     controller.abort();
@@ -88,11 +93,15 @@ async function request<T>(path: string, init?: RequestInit, timeoutMs = DEFAULT_
       const text = await res.text().catch(() => '');
       throw new Error(`API ${res.status} ${path}: ${text.slice(0, 200)}`);
     }
+    notifyNetworkSuccess();
     return (await res.json()) as T;
   } catch (err: any) {
     clearTimeout(timeoutId);
     if (err?.name === 'AbortError') {
       throw new Error(`API request timed out after ${timeoutMs}ms for ${path}`);
+    }
+    if (err?.message?.includes('Network request failed') || err?.message?.includes('fetch failed')) {
+      notifyNetworkFailure();
     }
     throw err;
   }
@@ -179,6 +188,9 @@ export async function getCachedRooms(): Promise<RoomSummary[]> {
 }
 
 export async function getRooms(): Promise<RoomSummary[]> {
+  if (!isDeviceOnline()) {
+    return await getCachedRooms();
+  }
   try {
     const data = await request<{ rooms: any[] }>('/rooms');
     const liveRooms = (data.rooms ?? [])

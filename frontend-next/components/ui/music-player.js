@@ -435,7 +435,19 @@ export const MusicPlayer = ({
                   }}
                 >
                   {track.artwork ? (
-                    <img decoding="async" loading="lazy" draggable="false" src={track.artwork} alt={track.title ? `${track.title} by ${track.artist || 'Unknown Artist'}` : 'Album Artwork'} className="mp-artwork-img" style={{ display: 'block', width: '100%', height: '100%', aspectRatio: '1/1', objectFit: 'cover', margin: '0 auto' }} />
+                    <img
+                      decoding="async"
+                      loading="lazy"
+                      draggable="false"
+                      src={track.artwork}
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = '/placeholder.svg';
+                      }}
+                      alt={track.title ? `${track.title} by ${track.artist || 'Unknown Artist'}` : 'Album Artwork'}
+                      className="mp-artwork-img"
+                      style={{ display: 'block', width: '100%', height: '100%', aspectRatio: '1/1', objectFit: 'cover', margin: '0 auto' }}
+                    />
                   ) : (
                     <div className="mp-artwork-fallback" style={{ width: '100%', height: '100%', aspectRatio: '1/1', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
                       <Music className="h-12 w-12" />

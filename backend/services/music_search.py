@@ -133,7 +133,7 @@ class MusicSearchService:
                                 "uri": vid,
                                 "name": clean_title,
                                 "artist": clean_channel,
-                                "album_art_url": f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg",
+                                "album_art_url": f"https://i.ytimg.com/vi/{vid}/mqdefault.jpg",
                                 "duration_ms": 210000,
                             })
                         return tracks
@@ -239,7 +239,7 @@ class MusicSearchService:
                     if raw_url:
                         artwork = re.sub(r"=w\d+-h\d+", "=w600-h600", raw_url)
                 if not artwork and video_id:
-                    artwork = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
+                    artwork = f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg"
                     
                 # Duration
                 duration_seconds = r.get("duration_seconds")
@@ -495,7 +495,7 @@ class MusicSearchService:
                 
             title = data.get("title") or "YouTube Video"
             author = data.get("author_name") or "YouTube"
-            thumbnail = data.get("thumbnail_url") or f"https://img.youtube.com/vi/{video_id}/0.jpg"
+            thumbnail = data.get("thumbnail_url") or f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg"
             
             clean_author = author.replace(" - Topic", "").strip()
             song_title = title

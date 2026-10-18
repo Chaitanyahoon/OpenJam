@@ -14,7 +14,7 @@ export const metadata = {
     type: "website",
     images: [
       {
-        url: "https://www.openjam.fun/static/img/hero_visual_showcase.webp",
+        url: "https://www.openjam.fun/static/img/og-image.png",
         width: 1200,
         height: 630,
         alt: "OpenJam Privacy Policy",
@@ -25,7 +25,7 @@ export const metadata = {
     card: "summary_large_image",
     title: "Privacy Policy | OpenJam",
     description: "Learn how OpenJam collects, uses, and safeguards your temporary session and listening room data.",
-    images: ["https://www.openjam.fun/static/img/hero_visual_showcase.webp"],
+    images: ["https://www.openjam.fun/static/img/og-image.png"],
   },
 };
 

@@ -32,7 +32,7 @@ export function getScrubPillLabel(speed: number): string {
 export interface PrecisionScrubberProps {
   durationMs: number;
   positionMs: () => number;
-  seekToMs: (ms: number) => Promise<void>;
+  seekToMs: (ms: number) => Promise<void> | void;
   accentColor?: string;
   isPlayerModalOpen: boolean;
   onPositionChange?: (posMs: number) => void;

@@ -5,13 +5,13 @@ import { useGesture } from '@use-gesture/react';
 import './DomeGallery.css';
 
 const DEFAULT_IMAGES = [
-  { src: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&h=400&fit=crop', alt: 'Vinyl records' },
-  { src: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=400&fit=crop', alt: 'Concert stage' },
-  { src: 'https://images.unsplash.com/photo-1514320291840-2e0a9bf2a9ae?w=400&h=400&fit=crop', alt: 'Music studio' },
-  { src: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&h=400&fit=crop', alt: 'DJ mixing' },
-  { src: 'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=400&h=400&fit=crop', alt: 'Live performance' },
-  { src: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=400&h=400&fit=crop', alt: 'Headphones' },
-  { src: 'https://images.unsplash.com/photo-1571974599782-87624638275a?w=400&h=400&fit=crop', alt: 'Neon lights' },
+  { src: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/a6/6e/bf/a66ebf79-5008-8948-b352-a790fc87446b/19UM1IM04638.rgb.jpg/500x500bb.jpg', alt: 'Blinding Lights', trackName: 'Blinding Lights', artist: 'The Weeknd' },
+  { src: 'https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/28/71/00/287100fb-5c31-0195-5343-e6b3625886d0/886443969834.jpg/500x500bb.jpg', alt: 'Sweater Weather', trackName: 'Sweater Weather', artist: 'The Neighbourhood' },
+  { src: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/a0/9a/2c/a09a2ca3-a5a6-814b-0af7-640dc0aef0aa/091012682261.jpg/500x500bb.jpg', alt: 'The Less I Know The Better', trackName: 'The Less I Know The Better', artist: 'Tame Impala' },
+  { src: 'https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/e8/43/5f/e8435ffa-b6b9-b171-40ab-4ff3959ab661/886443919266.jpg/500x500bb.jpg', alt: 'Instant Crush', trackName: 'Instant Crush', artist: 'Daft Punk' },
+  { src: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/98/75/dd/9875dd83-34f6-40ef-3987-fd13646409be/5034644208930_homeodyssey.jpg/500x500bb.jpg', alt: 'Resonance', trackName: 'Resonance', artist: 'Home' },
+  { src: 'https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/da/8b/77/da8b7731-6f4f-eacf-5e74-8b23389eefa1/20UMGIM03371.rgb.jpg/500x500bb.jpg', alt: 'Heat Waves', trackName: 'Heat Waves', artist: 'Glass Animals' },
+  { src: 'https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/83/3a/f7/833af71b-2e0c-3303-24f5-8f5c546c073b/20UMGIM21167.rgb.jpg/500x500bb.jpg', alt: 'Save Your Tears', trackName: 'Save Your Tears', artist: 'The Weeknd' },
 ];
 
 const DEFAULTS = {
@@ -610,7 +610,7 @@ export default function DomeGallery({
                     alt={it.alt} 
                     onError={(e) => {
                       e.target.onerror = null;
-                      e.target.style.display = 'none';
+                      e.target.src = '/placeholder.svg';
                     }}
                   />
                   {(it.trackName || it.artist) && (

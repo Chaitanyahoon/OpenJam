@@ -84,6 +84,7 @@ export default function MusicPill({
               animation: isPlaying ? 'spinVinyl 10s linear infinite' : 'none'
             }}
             draggable={false}
+            onError={(e) => { e.currentTarget.src = '/placeholder.svg'; }}
           />
         </div>
 

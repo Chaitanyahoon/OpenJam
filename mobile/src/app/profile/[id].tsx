@@ -52,6 +52,7 @@ import { fontFamily } from '../../fonts';
 import {
   clearSession,
   fetchMe,
+  saveAuthToken,
   getBackendUrl,
   type PublicProfile,
   type ApiPlaylist,
@@ -209,8 +210,7 @@ export default function UserProfileScreen() {
           if (match) token = match[1];
         }
         if (token) {
-          await AsyncStorage.setItem('openjam_token', token);
-          const me = await fetchMe();
+          const me = await saveAuthToken(token);
           if (me) {
             await refresh();
             toast(`Logged in as ${me.display_name}`, 'success');

@@ -18,14 +18,11 @@ import React, {
   useState,
 } from 'react';
 import {
+  preload,
   setAudioModeAsync,
   useAudioPlayer,
   useAudioPlayerStatus,
 } from 'expo-audio';
-import {
-  YouTubeAudioBridge,
-  type YouTubeAudioBridgeRef,
-} from './YouTubeAudioBridge';
 import { getBackendUrl } from '../api';
 import { resolveAudioStream, parseYouTubeId } from './streamResolver';
 import {
@@ -60,6 +57,7 @@ export interface PlayerControls {
   seekToMs: (ms: number) => Promise<void>;
   positionMs: () => number;
   updateMeta: (meta: LockScreenMeta) => void;
+  setLockScreenActive: (active: boolean, meta?: LockScreenMeta) => void;
   volume: number;
   setVolume: (v: number) => void;
   duckVolume: (targetRatio?: number, durationMs?: number) => void;
@@ -101,6 +99,8 @@ export interface PlayerControls {
   setAudioDevice: (device: AudioDeviceRoute) => void;
   radioAutoPlay: boolean;
   toggleRadioAutoPlay: () => void;
+  setSourceTitle: (title: string) => void;
+  clearPlayback: () => void;
 }
 
 export interface PlayerStatus {
@@ -121,11 +121,6 @@ export { parseYouTubeId };
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const player = useAudioPlayer(null, { updateInterval: 150 });
   const status = useAudioPlayerStatus(player);
-  const ytBridgeRef = useRef<YouTubeAudioBridgeRef>(null);
-
-  const [activeDriver, setActiveDriver] = useState<'expo' | 'youtube'>('youtube');
-  const [ytPlaying, setYtPlaying] = useState(false);
-  const [ytDurationMs, setYtDurationMs] = useState(0);
   const [volume, setVolumeState] = useState(1);
   const volumeRef = useRef(1);
   volumeRef.current = volume;
@@ -155,6 +150,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   repeatRef.current = repeat;
   const shuffleRef = useRef(false);
   shuffleRef.current = shuffle;
+  const lastFinishedUriRef = useRef<string | null>(null);
 
   // Load saved device output route and radio autoplay preference
   useEffect(() => {
@@ -172,6 +168,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           const val = saved === 'true';
           setRadioAutoPlayState(val);
           radioAutoPlayRef.current = val;
+        } else {
+          setRadioAutoPlayState(true);
+          radioAutoPlayRef.current = true;
         }
       })
       .catch(() => {});
@@ -216,15 +215,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Update sample when Expo Audio polls
+  // Update sample when Expo Audio polls
   useEffect(() => {
-    if (activeDriver === 'expo') {
-      sampleRef.current = {
-        at: Date.now(),
-        posMs: (status.currentTime ?? 0) * 1000,
-        playing: !!status.playing,
-      };
-    }
-  }, [status, activeDriver]);
+    sampleRef.current = {
+      at: Date.now(),
+      posMs: (status.currentTime ?? 0) * 1000,
+      playing: !!status.playing,
+    };
+  }, [status]);
 
   useEffect(() => {
     setAudioModeAsync({
@@ -237,21 +235,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const loadTrack = useCallback(
     async (urlOrId: string, meta: LockScreenMeta): Promise<void> => {
       const stream = await resolveAudioStream(urlOrId, meta);
-
-      if (stream.type === 'local_vault' || stream.type === 'direct_stream') {
-        ytBridgeRef.current?.pause();
-        setActiveDriver('expo');
-        setYtPlaying(false);
+      if (stream.uri) {
         sampleRef.current = { at: Date.now(), posMs: 0, playing: true };
-        player.replace({ uri: stream.uri! });
+        player.replace({ uri: stream.uri });
         player.volume = volumeRef.current;
         player.play();
-      } else {
-        player.pause();
-        setActiveDriver('youtube');
-        sampleRef.current = { at: Date.now(), posMs: 0, playing: true };
-        setYtPlaying(true);
-        ytBridgeRef.current?.loadVideo(stream.youtubeId || urlOrId, 0, true, volumeRef.current);
       }
 
       try {
@@ -278,49 +266,25 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   );
 
   const play = useCallback(() => {
-    if (activeDriver === 'youtube') {
-      ytBridgeRef.current?.play();
-      setYtPlaying(true);
-      sampleRef.current = {
-        at: Date.now(),
-        posMs: sampleRef.current.posMs,
-        playing: true,
-      };
-    } else {
-      player.play();
-    }
-  }, [activeDriver, player]);
+    player.play();
+  }, [player]);
 
   const pause = useCallback(() => {
-    if (activeDriver === 'youtube') {
-      ytBridgeRef.current?.pause();
-      setYtPlaying(false);
-      sampleRef.current = {
-        at: Date.now(),
-        posMs: sampleRef.current.posMs,
-        playing: false,
-      };
-    } else {
-      player.pause();
-    }
-  }, [activeDriver, player]);
+    player.pause();
+  }, [player]);
 
   const seekToMs = useCallback(
     async (ms: number) => {
       lastSeekTimeRef.current = Date.now();
       const safeMs = Math.max(0, ms);
-      if (activeDriver === 'youtube') {
-        ytBridgeRef.current?.seekTo(safeMs / 1000);
-      } else {
-        await player.seekTo(safeMs / 1000);
-      }
+      await player.seekTo(safeMs / 1000);
       sampleRef.current = {
         at: Date.now(),
         posMs: safeMs,
         playing: sampleRef.current.playing,
       };
     },
-    [activeDriver, player],
+    [player],
   );
 
   const positionMs = useCallback(() => {
@@ -355,11 +319,23 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     [player],
   );
 
+  const setLockScreenActive = useCallback(
+    (active: boolean, meta?: LockScreenMeta) => {
+      try {
+        if (typeof (player as any).setActiveForLockScreen === 'function') {
+          (player as any).setActiveForLockScreen(active, meta);
+        } else if (!active && typeof (player as any).clearLockScreenControls === 'function') {
+          (player as any).clearLockScreenControls();
+        }
+      } catch {}
+    },
+    [player],
+  );
+
   const setVolume = useCallback(
     (v: number) => {
       const clamped = Math.min(1, Math.max(0, v));
       player.volume = clamped;
-      ytBridgeRef.current?.setVolume(clamped);
       setVolumeState(clamped);
     },
     [player],
@@ -383,7 +359,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         const progress = Math.min(1, elapsed / durationMs);
         const current = startVolume - (startVolume - startVolume * targetRatio) * progress;
         player.volume = current;
-        ytBridgeRef.current?.setVolume(current);
         if (progress >= 1) {
           if (duckIntervalRef.current) clearInterval(duckIntervalRef.current);
           duckIntervalRef.current = null;
@@ -404,7 +379,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         const progress = Math.min(1, elapsed / durationMs);
         const current = startVolume + (targetVolume - startVolume) * progress;
         player.volume = current;
-        ytBridgeRef.current?.setVolume(current);
         if (progress >= 1) {
           if (duckIntervalRef.current) clearInterval(duckIntervalRef.current);
           duckIntervalRef.current = null;
@@ -457,6 +431,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       }
 
       void recordTrackPlayed(track);
+      lastFinishedUriRef.current = null;
 
       await loadTrack(track.track_uri, {
         title: track.track_name,
@@ -480,6 +455,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (q.length === 0) return;
 
     if (repeatRef.current === 'one') {
+      lastFinishedUriRef.current = null;
       await seekToMs(0);
       play();
       return;
@@ -634,97 +610,72 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
   }, [playNext]);
 
-  // Native expo-audio track completion listener
+  // Native expo-audio track completion listener with deduplication and boundary fallback
   useEffect(() => {
-    if (activeDriver === 'expo' && (status as { didJustFinish?: boolean })?.didJustFinish) {
+    const curUri = currentTrackRef.current?.track_uri;
+    const isFinished =
+      Boolean((status as { didJustFinish?: boolean })?.didJustFinish) ||
+      (status.duration > 0 &&
+        status.currentTime >= status.duration - 0.25 &&
+        !status.playing &&
+        status.isLoaded);
+
+    if (isFinished && curUri && lastFinishedUriRef.current !== curUri) {
+      lastFinishedUriRef.current = curUri;
       handleTrackFinished();
     }
-  }, [activeDriver, status, handleTrackFinished]);
+  }, [status, handleTrackFinished]);
 
-  // YouTube Audio Bridge callbacks
-  const handleYtProgress = useCallback(
-    (currentTimeSec: number, durationSec: number) => {
-      if (activeDriver === 'youtube') {
-        const posMs = currentTimeSec * 1000;
-        sampleRef.current = {
-          at: Date.now(),
-          posMs,
-          playing: ytPlaying,
-        };
-        const durMs = Math.round(durationSec * 1000);
-        if (durMs > 0 && durMs !== ytDurationMs) {
-          setYtDurationMs(durMs);
+  // Next-Track Audio Pre-Caching Seam (Gapless Spotify-Grade Playback)
+  const prewarmedUriRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const curTime = status.currentTime ?? 0;
+    const dur = status.duration ?? 0;
+    if (dur > 20 && dur - curTime <= 12 && status.playing) {
+      const q = queueRef.current;
+      const idx = currentIndexRef.current;
+      const nextTrack = q[idx + 1];
+      if (nextTrack?.track_uri && prewarmedUriRef.current !== nextTrack.track_uri) {
+        prewarmedUriRef.current = nextTrack.track_uri;
+        void resolveAudioStream(nextTrack.track_uri, {
+          title: nextTrack.track_name,
+          artist: nextTrack.artist,
+          artworkUrl: nextTrack.album_art_url,
+        }).then((resolved) => {
+          if (resolved?.uri) {
+            try {
+              preload(resolved.uri);
+            } catch {}
+          }
+        });
+        const ytId = parseYouTubeId(nextTrack.track_uri);
+        if (ytId) {
+          const backendUrl = getBackendUrl();
+          fetch(`${backendUrl}/stream/${ytId}`, {
+            headers: { Range: 'bytes=0-65536' },
+          }).catch(() => {});
         }
       }
-    },
-    [activeDriver, ytPlaying, ytDurationMs],
-  );
-
-  const handleYtPlaying = useCallback(() => {
-    if (activeDriver === 'youtube') {
-      setYtPlaying(true);
-      sampleRef.current = {
-        at: Date.now(),
-        posMs: sampleRef.current.posMs,
-        playing: true,
-      };
     }
-  }, [activeDriver]);
+  }, [status.currentTime, status.duration, status.playing]);
 
-  const handleYtPaused = useCallback(() => {
-    if (activeDriver === 'youtube') {
-      setYtPlaying(false);
-      sampleRef.current = {
-        at: Date.now(),
-        posMs: sampleRef.current.posMs,
-        playing: false,
-      };
-    }
-  }, [activeDriver]);
-
-  const handleYtEnded = useCallback(() => {
-    if (activeDriver === 'youtube') {
-      setYtPlaying(false);
-      sampleRef.current = {
-        at: Date.now(),
-        posMs: ytDurationMs,
-        playing: false,
-      };
-      handleTrackFinished();
-    }
-  }, [activeDriver, ytDurationMs, handleTrackFinished]);
-
-  const handleYtError = useCallback(async (code: number | string) => {
-    console.warn('[Player] YouTube Audio Bridge error code:', code);
-    onTrackErrorCbRef.current?.(code);
-
-    // If embed is restricted (150 / 101), auto-resolve alternate audio source
-    if (code === 150 || code === 101 || code === '150' || code === '101') {
-      const cur = currentTrackRef.current;
-      if (cur) {
-        try {
-          const query = `${cur.track_name} ${cur.artist || ''}`.trim();
-          const backendUrl = getBackendUrl();
-          const ctrl = new AbortController();
-          const timeout = setTimeout(() => ctrl.abort(), 4000);
-          const resp = await fetch(
-            `${backendUrl}/search/alternate?q=${encodeURIComponent(query)}&exclude=${encodeURIComponent(cur.track_uri)}`,
-            { signal: ctrl.signal },
-          );
-          clearTimeout(timeout);
-          if (resp.ok) {
-            const data = await resp.json();
-            if (data?.video_id) {
-              ytBridgeRef.current?.loadVideo(data.video_id, 0, true, volumeRef.current);
-              return;
-            }
-          }
-        } catch {}
+  const clearPlayback = useCallback(() => {
+    try {
+      player.pause();
+      void player.seekTo(0);
+      if (typeof (player as any).setActiveForLockScreen === 'function') {
+        (player as any).setActiveForLockScreen(false, { title: '', artist: '' });
       }
-      // If alternate fails, skip to next track
-      void playNext();
-    }
-  }, [playNext]);
+    } catch {}
+    lastFinishedUriRef.current = null;
+    sampleRef.current = { at: Date.now(), posMs: 0, playing: false };
+    setCurrentTrack(null);
+    currentTrackRef.current = null;
+    setQueueState([]);
+    queueRef.current = [];
+    setCurrentIndex(0);
+  }, [player]);
 
   const controls = useMemo<PlayerControls>(
     () => ({
@@ -734,6 +685,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       seekToMs,
       positionMs,
       updateMeta,
+      setLockScreenActive,
       volume,
       setVolume,
       duckVolume,
@@ -750,6 +702,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       isLiked,
       isPlayerModalOpen,
       sourceTitle,
+      setSourceTitle,
+      clearPlayback,
 
       playTrack,
       playNext,
@@ -777,6 +731,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       seekToMs,
       positionMs,
       updateMeta,
+      setLockScreenActive,
       volume,
       setVolume,
       duckVolume,
@@ -793,6 +748,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       isLiked,
       isPlayerModalOpen,
       sourceTitle,
+      clearPlayback,
 
       playTrack,
       playNext,
@@ -815,16 +771,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     ],
   );
 
-  const isCurrentlyPlaying =
-    activeDriver === 'youtube' ? ytPlaying : !!status.playing;
+  const isCurrentlyPlaying = !!status.playing;
   const isCurrentlyPlayingRef = useRef(isCurrentlyPlaying);
   isCurrentlyPlayingRef.current = isCurrentlyPlaying;
-  const isLoaded =
-    activeDriver === 'youtube' ? true : !!status.isLoaded;
-  const currentDurationMs =
-    activeDriver === 'youtube'
-      ? ytDurationMs
-      : (status.duration ?? 0) * 1000;
+  const isLoaded = !!status.isLoaded;
+  const currentDurationMs = (status.duration ?? 0) * 1000;
 
   const statusValue = useMemo<PlayerStatus>(
     () => ({
@@ -885,32 +836,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     return unregister;
   }, [sourceTitle, pause, play, playNext, playPrev]);
 
-  // expo-audio runtime error fallback to YouTubeAudioBridge
-  useEffect(() => {
-    if (activeDriver === 'expo' && (status as any)?.status === 'error') {
-      const cur = currentTrackRef.current;
-      const ytId = cur ? parseYouTubeId(cur.track_uri) : null;
-      if (ytId) {
-        console.warn('[Player] expo-audio error reported, falling back to YouTube Audio Bridge');
-        setActiveDriver('youtube');
-        setYtPlaying(true);
-        ytBridgeRef.current?.loadVideo(ytId, 0, true, volumeRef.current);
-      }
-    }
-  }, [activeDriver, status]);
-
   return (
     <ControlsCtx.Provider value={controls}>
       <StatusCtx.Provider value={statusValue}>
         {children}
-        <YouTubeAudioBridge
-          ref={ytBridgeRef}
-          onProgress={handleYtProgress}
-          onPlaying={handleYtPlaying}
-          onPaused={handleYtPaused}
-          onEnded={handleYtEnded}
-          onError={handleYtError}
-        />
       </StatusCtx.Provider>
     </ControlsCtx.Provider>
   );

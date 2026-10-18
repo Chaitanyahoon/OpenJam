@@ -341,9 +341,8 @@ async def discord_callback(request: Request, code: str = "", state: str = ""):
                 user.discord_username = raw_discord_handle
                 user.avatar_url = avatar_url  # Always sync latest Discord avatar
                 
-                # If display name was a generic anonymous name or empty, upgrade to Discord name
-                if not user.display_name or user.display_name.startswith("Jammer-") or user.display_name == "Jammer":
-                    user.display_name = discord_display_name
+                # Always upgrade display name to Discord name when authenticating via Discord
+                user.display_name = discord_display_name
                     
                 if not user.username:
                     import re
@@ -411,7 +410,7 @@ async def discord_callback(request: Request, code: str = "", state: str = ""):
         if clean_state and (clean_state.startswith("openjam:") or clean_state.startswith("exp:")):
             delimiter = "&" if "?" in clean_state else "?"
             redirect_target = f"{clean_state}{delimiter}token={session_token}"
-            response = RedirectResponse(url=redirect_target, status_code=307)
+            response = RedirectResponse(url=redirect_target, status_code=302)
         else:
             response = RedirectResponse(f"{settings.FRONTEND_URL}/#token={session_token}")
         is_prod = settings.ENVIRONMENT == "production"

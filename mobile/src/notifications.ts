@@ -105,17 +105,17 @@ export async function setupMediaPlaybackNotification(): Promise<void> {
     await Notifications.setNotificationCategoryAsync(MEDIA_CATEGORY_PLAYING, [
       {
         identifier: MEDIA_ACTIONS.PREV,
-        buttonTitle: 'Previous',
+        buttonTitle: '⏮ Prev',
         options: { opensAppToForeground: false },
       },
       {
         identifier: MEDIA_ACTIONS.PLAY_PAUSE,
-        buttonTitle: 'Pause',
+        buttonTitle: '⏸ Pause',
         options: { opensAppToForeground: false },
       },
       {
         identifier: MEDIA_ACTIONS.NEXT,
-        buttonTitle: 'Next',
+        buttonTitle: '⏭ Next',
         options: { opensAppToForeground: false },
       },
     ]);
@@ -124,17 +124,17 @@ export async function setupMediaPlaybackNotification(): Promise<void> {
     await Notifications.setNotificationCategoryAsync(MEDIA_CATEGORY_PAUSED, [
       {
         identifier: MEDIA_ACTIONS.PREV,
-        buttonTitle: 'Previous',
+        buttonTitle: '⏮ Prev',
         options: { opensAppToForeground: false },
       },
       {
         identifier: MEDIA_ACTIONS.PLAY_PAUSE,
-        buttonTitle: 'Play',
+        buttonTitle: '▶ Play',
         options: { opensAppToForeground: false },
       },
       {
         identifier: MEDIA_ACTIONS.NEXT,
-        buttonTitle: 'Next',
+        buttonTitle: '⏭ Next',
         options: { opensAppToForeground: false },
       },
     ]);
@@ -143,17 +143,17 @@ export async function setupMediaPlaybackNotification(): Promise<void> {
     await Notifications.setNotificationCategoryAsync(MEDIA_CATEGORY_ID, [
       {
         identifier: MEDIA_ACTIONS.PREV,
-        buttonTitle: 'Previous',
+        buttonTitle: '⏮ Prev',
         options: { opensAppToForeground: false },
       },
       {
         identifier: MEDIA_ACTIONS.PLAY_PAUSE,
-        buttonTitle: 'Play/Pause',
+        buttonTitle: '⏯ Play/Pause',
         options: { opensAppToForeground: false },
       },
       {
         identifier: MEDIA_ACTIONS.NEXT,
-        buttonTitle: 'Next',
+        buttonTitle: '⏭ Next',
         options: { opensAppToForeground: false },
       },
     ]);
@@ -208,7 +208,7 @@ export async function updateMediaNotification(meta: MediaNotificationMeta): Prom
           roomId: meta.roomId || 'solo',
         },
       },
-      trigger: null,
+      trigger: { channelId: MEDIA_CHANNEL_ID },
     });
   } catch (err) {
     // Graceful fallback if background notification permission denied

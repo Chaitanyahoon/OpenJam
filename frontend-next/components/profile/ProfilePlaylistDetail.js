@@ -86,7 +86,7 @@ export default function ProfilePlaylistDetail({
         <div className="profile-playlist-mosaic">
           {tracks.slice(0, 4).map((track, i) => (
             track.album_art_url ? (
-              <img key={i} src={track.album_art_url} alt="" className="profile-playlist-mosaic-img" />
+              <img key={i} src={track.album_art_url} alt="" className="profile-playlist-mosaic-img" onError={(e) => { e.currentTarget.src = '/placeholder.svg'; }} />
             ) : (
               <div key={i} className="profile-playlist-mosaic-fallback"><Disc size={16} /></div>
             )
@@ -101,6 +101,7 @@ export default function ProfilePlaylistDetail({
           src={tracks[0].album_art_url} 
           alt={playlist.name} 
           style={{ width: '100%', aspectRatio: 1, borderRadius: '12px', objectFit: 'cover', border: '1px solid rgba(255,255,255,0.04)' }} 
+          onError={(e) => { e.currentTarget.src = '/placeholder.svg'; }}
         />
       );
     }

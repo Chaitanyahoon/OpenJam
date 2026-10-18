@@ -49,11 +49,11 @@
   ],
   "screenshots": [
     {
-      "src": "/static/img/icon-512.png",
-      "sizes": "512x512",
+      "src": "/static/img/og-image.png",
+      "sizes": "1200x630",
       "type": "image/png",
-      "form_factor": "narrow",
-      "label": "OpenJam Vinyl Player"
+      "form_factor": "wide",
+      "label": "OpenJam Real-Time Music Player"
     }
   ]
 }

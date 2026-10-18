@@ -339,6 +339,17 @@ export function QueueList() {
   const [isSavingVault, setIsSavingVault] = useState(false);
   const [isVaultSaved, setIsVaultSaved] = useState(false);
 
+  const [vaultUris, setVaultUris] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    let active = true;
+    void getVaultTracks().then((tracks) => {
+      if (active) setVaultUris(new Set(tracks.map((t) => t.track_uri)));
+    });
+    return () => {
+      active = false;
+    };
+  }, [downloadProgressMap, isVaultSaved]);
+
   const handleSaveQueueToVault = async () => {
     try {
       setIsSavingVault(true);
@@ -592,9 +603,14 @@ export function QueueList() {
                           <Text style={styles.nowPlayingTitle} numberOfLines={1}>
                             {activeTrack.track_name}
                           </Text>
-                          <Text style={styles.nowPlayingArtist} numberOfLines={1}>
-                            {activeTrack.artist}
-                          </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            {vaultUris.has(activeTrack.track_uri) && (
+                              <CheckCircle2 size={11} color="#10b981" style={{ marginRight: 4 }} />
+                            )}
+                            <Text style={styles.nowPlayingArtist} numberOfLines={1}>
+                              {activeTrack.artist}
+                            </Text>
+                          </View>
                         </View>
                         {activeTrack.duration_ms ? (
                           <Text style={styles.nowPlayingDuration}>
@@ -719,6 +735,9 @@ export function QueueList() {
                         {item.track_name}
                       </Text>
                       <View style={styles.artistRow}>
+                        {vaultUris.has(item.track_uri) && (
+                          <CheckCircle2 size={11} color="#10b981" style={{ marginRight: 4 }} />
+                        )}
                         <Text style={styles.queueArtist} numberOfLines={1}>
                           {item.artist}
                         </Text>
@@ -802,8 +821,8 @@ export function QueueList() {
                       />
                     ) : null}
 
-                    {/* Host Remove */}
-                    {isHost ? (
+                    {/* Track Remove (Host or Guest Control) */}
+                    {canControl ? (
                       <Pressable
                         onPress={() => {
                           removeTrack(itemId);

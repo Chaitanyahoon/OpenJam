@@ -10,7 +10,7 @@ export async function generateMetadata({ params }) {
   const resolvedParams = await params;
   const id = resolvedParams?.id;
 
-  const staticFallbackImage = 'https://www.openjam.fun/static/img/hero_visual_showcase.webp';
+  const staticFallbackImage = 'https://www.openjam.fun/static/img/og-image.png';
 
   if (!id || id === 'loading') {
     return {
@@ -76,16 +76,7 @@ export async function generateMetadata({ params }) {
           description = `🎧 Live in "${room.name}" (${count} listening) — Tap to tune in and sync music together in real time!`;
         }
 
-        const ogParams = new URLSearchParams();
-        if (inviter) ogParams.set('inviter', inviter);
-        if (listenerCount > 0) ogParams.set('listener_count', listenerCount.toString());
-        if (currentTrack) {
-          if (currentTrack.track_name) ogParams.set('track_name', currentTrack.track_name);
-          if (currentTrack.artist) ogParams.set('artist', currentTrack.artist);
-          if (currentTrack.album_art_url) ogParams.set('cover_art_url', currentTrack.album_art_url);
-        }
-
-        const ogImage = `https://www.openjam.fun/api/og/room/${id}.png?${ogParams.toString()}`;
+        const ogImage = currentTrack?.album_art_url || staticFallbackImage;
 
         return {
           title,

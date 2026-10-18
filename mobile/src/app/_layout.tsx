@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import {
@@ -23,7 +23,6 @@ import { NetworkGuard } from '../components/NetworkGuard';
 import { SpotifyPlayerModal } from '../components/SpotifyPlayerModal';
 
 import * as Notifications from 'expo-notifications';
-import { router } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});

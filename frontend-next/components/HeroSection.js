@@ -598,7 +598,8 @@ function HeroSection({
                         className="mobile-vinyl-cover"
                         loading="lazy"
                         onError={(e) => {
-                          e.target.style.display = 'none';
+                          e.target.onerror = null;
+                          e.target.src = '/placeholder.svg';
                         }}
                       />
                     </div>

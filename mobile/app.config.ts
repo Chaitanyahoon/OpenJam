@@ -9,7 +9,7 @@ import type { ExpoConfig } from 'expo/config';
 const config: ExpoConfig = {
   name: 'OpenJam',
   slug: 'openjam-mobile',
-  version: '1.0.29',
+  version: '1.0.30',
   orientation: 'portrait',
   icon: './assets/images/icon.png',
   scheme: 'openjam',
@@ -17,7 +17,7 @@ const config: ExpoConfig = {
   assetBundlePatterns: ['**/*'],
   android: {
     package: 'fun.openjam.app',
-    versionCode: 29,
+    versionCode: 30,
     adaptiveIcon: {
       backgroundColor: '#08080a',
       foregroundImage: './assets/images/android-icon-foreground.png',
@@ -34,6 +34,32 @@ const config: ExpoConfig = {
       'android.permission.MODIFY_AUDIO_SETTINGS',
       'android.permission.POST_NOTIFICATIONS',
     ],
+    intentFilters: [
+      {
+        action: 'VIEW',
+        autoVerify: true,
+        data: [
+          {
+            scheme: 'https',
+            host: 'openjam.fun',
+            pathPrefix: '/room',
+          },
+          {
+            scheme: 'https',
+            host: 'www.openjam.fun',
+            pathPrefix: '/room',
+          },
+        ],
+        category: ['BROWSABLE', 'DEFAULT'],
+      },
+    ],
+  },
+  ios: {
+    bundleIdentifier: 'fun.openjam.app',
+    supportsTablet: true,
+    infoPlist: {
+      UIBackgroundModes: ['audio'],
+    },
   },
   plugins: [
     'expo-router',

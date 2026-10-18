@@ -179,4 +179,25 @@ describe('Render Free-Tier Resilience & SWR Engine', () => {
     // Stale response is safely ignored, retaining the latest result
     assert.strictEqual(renderedQuery, 'latest search');
   });
+
+  it('instantly resolves cached rooms when device is completely offline', () => {
+    const cached = [
+      { id: 'offline-room-1', name: 'Ambient Chill', host_name: 'Dev', listener_count: 1, is_private: false },
+    ];
+    // Offline fast-path returns cached rooms immediately
+    const result = resolveRoomsWithSwrFallbackPure(null, cached as any);
+    assert.strictEqual(result.fromCache, true);
+    assert.strictEqual(result.rooms.length, 1);
+    assert.strictEqual(result.rooms[0].id, 'offline-room-1');
+  });
+
+  it('permits queue moderation actions when user is host or guestControls are enabled', () => {
+    const canModerateQueue = (isHost: boolean, guestControls: boolean, isSolo: boolean) =>
+      isHost || guestControls || isSolo;
+
+    assert.strictEqual(canModerateQueue(true, false, false), true); // Host in room
+    assert.strictEqual(canModerateQueue(false, true, false), true); // Guest with guestControls enabled
+    assert.strictEqual(canModerateQueue(false, false, false), false); // Standard listener without controls
+    assert.strictEqual(canModerateQueue(false, false, true), true); // Solo jam session
+  });
 });

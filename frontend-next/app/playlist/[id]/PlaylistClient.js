@@ -565,6 +565,7 @@ export default function PlaylistClient() {
                       src={track.album_art_url} 
                       alt={track.track_name} 
                       style={{ width: '40px', height: '40px', borderRadius: '6px', objectFit: 'cover' }} 
+                      onError={(e) => { e.currentTarget.src = '/placeholder.svg'; }}
                     />
                   ) : (
                     <div style={{

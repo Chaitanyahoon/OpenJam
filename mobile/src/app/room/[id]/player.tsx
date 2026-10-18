@@ -17,8 +17,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  GestureResponderEvent,
-  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -65,6 +63,7 @@ import { colors, radius, spacing } from '../../../theme';
 import { fontFamily } from '../../../fonts';
 import { useRoom } from '../../../state/RoomContext';
 import { usePlayer, usePlayerStatus } from '../../../audio/PlayerContext';
+import { PrecisionScrubber } from '../../../components/player/PrecisionScrubber';
 import { useLyricsController } from '../../../components/player/useLyricsController';
 import { useToast } from '../../../components/ToastContext';
 import {
@@ -82,7 +81,6 @@ import {
 import type { TrackInfo } from '../../../sync/protocol';
 import { formatDuration } from '../../../utils/format';
 import {
-  hapticSelection,
   hapticMedium,
   hapticLight,
   hapticHeavy,
@@ -165,17 +163,7 @@ export default function PlayerTab() {
     Math.min(maxStageWidth, Math.floor(windowHeight * (isCompactHeight ? 0.24 : 0.36)), 320),
   );
 
-  const [pos, setPos] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => {
-      if (player) {
-        setPos(player.positionMs());
-      }
-    }, 250);
-    return () => clearInterval(t);
-  }, [player]);
-
-  const [barWidth, setBarWidth] = useState(0);
+  const [lyricsPosMs, setLyricsPosMs] = useState(0);
   const [lyricsOpen, setLyricsOpen] = useState(false);
 
   // Universal Song Like & Reactive State
@@ -343,85 +331,6 @@ export default function PlayerTab() {
   const duration =
     durationMs > 0 ? durationMs : (nowPlaying?.duration_ms ?? 0);
 
-  const [isScrubbing, setIsScrubbing] = useState(false);
-  const [scrubPos, setScrubPos] = useState(0);
-  const scrubPosRef = useRef(0);
-  const barWidthRef = useRef(0);
-  barWidthRef.current = barWidth;
-  const durationRef = useRef(duration);
-  durationRef.current = duration;
-  const canControlRef = useRef(canControl);
-  canControlRef.current = canControl;
-
-  const barLayoutRef = useRef<{ pageX: number; width: number }>({ pageX: 0, width: 0 });
-  const scrubberViewRef = useRef<View>(null);
-
-  const measureScrubber = useCallback(() => {
-    scrubberViewRef.current?.measure((_x, _y, width, _height, pageX) => {
-      if (width > 0) {
-        barLayoutRef.current = { pageX, width };
-        setBarWidth(width);
-      }
-    });
-  }, []);
-
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => canControlRef.current,
-        onMoveShouldSetPanResponder: () => canControlRef.current,
-        onPanResponderGrant: (evt) => {
-          if (!canControlRef.current || durationRef.current <= 0) return;
-          measureScrubber();
-          const pageX = evt.nativeEvent.pageX;
-          const left = barLayoutRef.current.pageX || 0;
-          const width = barLayoutRef.current.width || barWidthRef.current;
-          if (width <= 0) return;
-          const touchX = pageX - left;
-          const target = Math.round(
-            (Math.max(0, Math.min(touchX, width)) / width) * durationRef.current,
-          );
-          scrubPosRef.current = target;
-          setScrubPos(target);
-          setIsScrubbing(true);
-          void hapticSelection();
-        },
-        onPanResponderMove: (evt) => {
-          if (!canControlRef.current || durationRef.current <= 0) return;
-          const pageX = evt.nativeEvent.pageX;
-          const left = barLayoutRef.current.pageX || 0;
-          const width = barLayoutRef.current.width || barWidthRef.current;
-          if (width <= 0) return;
-          const touchX = pageX - left;
-          const target = Math.round(
-            (Math.max(0, Math.min(touchX, width)) / width) * durationRef.current,
-          );
-          if (Math.abs(target - scrubPosRef.current) > 1000) {
-            void hapticSelection();
-          }
-          scrubPosRef.current = target;
-          setScrubPos(target);
-        },
-        onPanResponderRelease: () => {
-          if (!canControlRef.current || durationRef.current <= 0) {
-            setIsScrubbing(false);
-            return;
-          }
-          const finalTarget = scrubPosRef.current;
-          setIsScrubbing(false);
-          seekToMs(finalTarget);
-          void hapticMedium();
-        },
-        onPanResponderTerminate: () => {
-          setIsScrubbing(false);
-        },
-      }),
-    [seekToMs, measureScrubber],
-  );
-
-  const displayPos = isScrubbing ? scrubPos : pos;
-  const ratio = duration > 0 ? Math.min(1, Math.max(0, displayPos / duration)) : 0;
-
   // Synchronized Karaoke Lyrics Hook
   const {
     lyrics,
@@ -432,21 +341,9 @@ export default function PlayerTab() {
     trackName: nowPlaying?.track_name,
     artist: nowPlaying?.artist,
     durationMs: duration,
-    currentPosMs: pos,
+    currentPosMs: lyricsPosMs,
     showLyricsModal: lyricsOpen,
   });
-
-  const onSeekPress = (e: GestureResponderEvent) => {
-    if (!canControl || duration <= 0) return;
-    measureScrubber();
-    const pageX = e.nativeEvent.pageX;
-    const left = barLayoutRef.current.pageX || 0;
-    const width = barLayoutRef.current.width || barWidth;
-    if (width <= 0) return;
-    const touchX = pageX - left;
-    const targetMs = Math.round((Math.max(0, Math.min(touchX, width)) / width) * duration);
-    seekToMs(targetMs);
-  };
 
   const navigation = useNavigation<any>();
   const goQueue = () => {
@@ -594,35 +491,15 @@ export default function PlayerTab() {
               </View>
             </View>
 
-            {/* Full-Width Scrubber Deck with Monospace Timecodes & Smooth PanResponder */}
-            <View
-              ref={scrubberViewRef}
-              onLayout={(e) => {
-                setBarWidth(e.nativeEvent.layout.width);
-                measureScrubber();
-              }}
-              {...panResponder.panHandlers}
-              style={styles.progressHit}
-              accessibilityLabel="Track Scrubber"
-            >
-              <View style={styles.progressBg}>
-                <View style={[styles.progressFill, { width: `${ratio * 100}%` }]}>
-                  <View
-                    style={[
-                      styles.progressKnob,
-                      isScrubbing && styles.progressKnobActive,
-                    ]}
-                  />
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.times}>
-              <Text style={[styles.time, isScrubbing && styles.timeScrubbing]}>
-                {formatDuration(displayPos)}
-              </Text>
-              <Text style={styles.time}>{formatDuration(duration)}</Text>
-            </View>
+            {/* Precision Audio Scrubber */}
+            <PrecisionScrubber
+              durationMs={duration}
+              positionMs={player ? () => player.positionMs() : () => 0}
+              seekToMs={seekToMs}
+              accentColor={colors.amber}
+              isPlayerModalOpen={true}
+              onPositionChange={lyricsOpen ? setLyricsPosMs : undefined}
+            />
 
             {/* Spotify-Inspired Tactile Transport Controls Deck */}
             <View style={styles.controls}>
@@ -1240,62 +1117,6 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   // Full-width Scrubber Deck
-  progressHit: {
-    width: '100%',
-    paddingVertical: 8,
-  },
-  progressBg: {
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: colors.amber,
-    borderRadius: 2.5,
-    position: 'relative',
-    justifyContent: 'center',
-  },
-  progressKnob: {
-    position: 'absolute',
-    right: -4,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#ffffff',
-    shadowColor: colors.amber,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  progressKnobActive: {
-    transform: [{ scale: 1.5 }],
-    backgroundColor: '#ffffff',
-    shadowColor: colors.amber,
-    shadowOpacity: 0.95,
-    shadowRadius: 10,
-    elevation: 8,
-  },
-  times: {
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 2,
-    marginBottom: spacing.xs,
-  },
-  time: {
-    fontFamily: fontFamily.bodyRegular,
-    fontSize: 12.5,
-    color: colors.text3,
-    fontVariant: ['tabular-nums'],
-  },
-  timeScrubbing: {
-    color: colors.amber,
-    fontFamily: fontFamily.displayBold,
-  },
   // Spotify Transport Controls Deck
   controls: {
     width: '100%',

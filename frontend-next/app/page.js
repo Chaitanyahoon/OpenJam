@@ -31,7 +31,7 @@ export const metadata = {
     type: "website",
     images: [
       {
-        url: "https://www.openjam.fun/static/img/hero_visual_showcase.webp",
+        url: "https://www.openjam.fun/static/img/og-image.png",
         width: 1200,
         height: 630,
         alt: "OpenJam — Listen to Music with Friends Online Free",
@@ -42,7 +42,7 @@ export const metadata = {
     card: "summary_large_image",
     title: "Listen to Music with Friends Online Free | Virtual Music Room — OpenJam",
     description: "Join a shared music listening room on OpenJam to sync YouTube music with friends. Experience millisecond-accurate synced music playback and listen to music with friends online free.",
-    images: ["https://www.openjam.fun/static/img/hero_visual_showcase.webp"],
+    images: ["https://www.openjam.fun/static/img/og-image.png"],
   }
 };
 
