@@ -801,6 +801,7 @@ export default function RoomClient({ roomId }) {
       const avatarUrl = localStorage.getItem('openjam_avatar_url');
       const token = (typeof localStorage !== 'undefined' ? localStorage.getItem('openjam_token') : null) || '';
       socket.emit('join_room', { room_id: roomId, password, avatar_url: avatarUrl, token });
+      syncClock();
     };
 
     if (socket.connected) {
@@ -1091,7 +1092,7 @@ export default function RoomClient({ roomId }) {
 
       if (playerRef.current) {
         let adjustedPosition = data.position_ms;
-        if (!isHostUser && data.server_timestamp) {
+        if (!isHostUser && data.is_playing && data.server_timestamp) {
           const offset = clockStatsRef.current.offset || 0;
           const latency = (Date.now() + offset) - data.server_timestamp;
           if (latency > 0 && latency < 5000) {

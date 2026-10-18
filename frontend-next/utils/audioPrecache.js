@@ -1,5 +1,26 @@
 import { offlineDb } from './offlineDb';
 
+const getBackendUrl = () => {
+  if (typeof window !== 'undefined') {
+    const isLocal = window.location.hostname === 'localhost' ||
+                    window.location.hostname === '127.0.0.1' ||
+                    window.location.hostname.startsWith('192.168.') ||
+                    window.location.hostname.startsWith('10.') ||
+                    /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(window.location.hostname);
+    if (isLocal) {
+      return `http://${window.location.hostname}:8000`;
+    }
+  }
+  if (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_BACKEND_URL) {
+    const url = process.env.NEXT_PUBLIC_BACKEND_URL;
+    if (url !== 'undefined' && url !== 'null' && url.trim() !== '') {
+      return url.replace(/\/$/, '');
+    }
+  }
+  return 'https://api.openjam.fun';
+};
+const BACKEND_URL = getBackendUrl();
+
 const MAX_PRECACHE_TRACKS = 15;
 
 /**
@@ -80,11 +101,10 @@ class AudioPrecacheManager {
         precached: true
       };
 
-      // If track has an audio URL, attempt a lightweight metadata/range fetch
-      if (track.audio_url || track.stream_url) {
+      // Pre-warm the browser cache via fetch with Range header
+      const streamUrl = track.audio_url || track.stream_url || (trackId && trackId.length === 11 ? `${BACKEND_URL}/stream/${trackId}` : null);
+      if (streamUrl) {
         try {
-          const streamUrl = track.audio_url || track.stream_url;
-          // Pre-warm the browser cache via fetch with Range header
           fetch(streamUrl, {
             headers: { Range: 'bytes=0-65535' },
             mode: 'cors',

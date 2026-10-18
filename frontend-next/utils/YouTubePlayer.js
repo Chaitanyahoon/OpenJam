@@ -327,7 +327,7 @@ export default class YouTubePlayer {
         if (!this._isDestroyed && audioElement.readyState < 2 && !audioElement.paused) {
           this._handleAudioError('stalled_timeout', audioElement);
         }
-      }, 1500);
+      }, 5000);
       this._stallTimers.set(audioElement, timer);
     });
 
@@ -341,7 +341,7 @@ export default class YouTubePlayer {
         if (!this._isDestroyed && audioElement.readyState < 2 && !audioElement.paused) {
           this._handleAudioError('waiting_timeout', audioElement);
         }
-      }, 1500);
+      }, 5000);
       this._stallTimers.set(audioElement, timer);
     });
   }
@@ -854,10 +854,10 @@ export default class YouTubePlayer {
     if (this._loadTimeout) clearTimeout(this._loadTimeout);
     this._loadTimeout = setTimeout(() => {
       if (!this._isDestroyed && this.currentVideoId === videoId && this.player.readyState < 2 && this.player.src && !this.player.src.startsWith('data:')) {
-        console.warn('Stream load timeout after 1.5s, switching to native player');
+        console.warn('Stream load timeout after 5s, switching to native player');
         this._handleAudioError('load_timeout', this.player);
       }
-    }, 1500);
+    }, 5000);
 
     this.player.loop = false;
     this._loadInitiatedAt = Date.now();
