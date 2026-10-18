@@ -25,7 +25,9 @@ demo_video/
 node_modules/
 /package.json
 /package-lock.json
+dist/
 *.apk
+*.log
 local.properties
 /*.png
 mobile/res/
