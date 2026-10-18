@@ -1223,12 +1223,17 @@ export default function RoomClient({ roomId }) {
           durationMs: dur,
           isPlaying: playing
         };
-        setPlaybackState((prev) => ({
-          ...prev,
-          positionMs: pos,
-          durationMs: dur,
-          isPlaying: playing
-        }));
+        setPlaybackState((prev) => {
+          if (prev.isPlaying !== playing || prev.durationMs !== dur || Math.abs(prev.positionMs - pos) >= 250) {
+            return {
+              ...prev,
+              positionMs: pos,
+              durationMs: dur,
+              isPlaying: playing
+            };
+          }
+          return prev;
+        });
       },
       onStateChange: (state) => {
         const playing = state === 'play';
