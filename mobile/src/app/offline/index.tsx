@@ -141,17 +141,25 @@ export default function OfflineVaultScreen() {
 
   // Play an offline track via local file URI
   const handlePlayOfflineTrack = async (track: VaultTrack | TrackInfo) => {
+    const isDownloaded = vaultTracks.some((vt) => vt.track_uri === track.track_uri);
+    if (!isOnline && !isDownloaded) {
+      toast('Connect to internet to play this track', 'info');
+      return;
+    }
     try {
       void hapticLight();
       setActivePlayingUri(track.track_uri);
       const isLikedTab = activeTab === 'liked';
-      await playTrack(track, displayedTracks, {
+      const playlist = !isOnline && isLikedTab
+        ? displayedTracks.filter((t) => vaultTracks.some((vt) => vt.track_uri === t.track_uri))
+        : displayedTracks;
+      await playTrack(track, playlist, {
         sourceTitle: isLikedTab ? 'Liked Songs' : 'Downloads',
       });
       setPlayerModalOpen(true);
-      toast(`Playing "${track.track_name}" offline`, 'success');
+      toast(isDownloaded ? `Playing "${track.track_name}" offline` : `Playing "${track.track_name}"`, 'success');
     } catch {
-      toast('Failed to play offline track', 'error');
+      toast('Failed to play track', 'error');
     }
   };
 
@@ -282,21 +290,33 @@ export default function OfflineVaultScreen() {
   };
 
   const handlePlayAllVault = async () => {
-    if (displayedTracks.length === 0) return;
+    const playlist = !isOnline && activeTab === 'liked'
+      ? displayedTracks.filter((t) => vaultTracks.some((vt) => vt.track_uri === t.track_uri))
+      : displayedTracks;
+    if (playlist.length === 0) {
+      toast(!isOnline ? 'No downloaded tracks available offline' : 'No tracks to play', 'info');
+      return;
+    }
     void hapticMedium();
-    const first = displayedTracks[0];
+    const first = playlist[0];
     setActivePlayingUri(first.track_uri);
-    await playTrack(first, displayedTracks, {
+    await playTrack(first, playlist, {
       sourceTitle: activeTab === 'liked' ? 'Liked Songs' : 'Downloads',
     });
     setPlayerModalOpen(true);
-    toast(`Playing ${displayedTracks.length} tracks`, 'success');
+    toast(`Playing ${playlist.length} tracks`, 'success');
   };
 
   const handleShuffleVault = async () => {
-    if (displayedTracks.length === 0) return;
+    const playlist = !isOnline && activeTab === 'liked'
+      ? displayedTracks.filter((t) => vaultTracks.some((vt) => vt.track_uri === t.track_uri))
+      : displayedTracks;
+    if (playlist.length === 0) {
+      toast(!isOnline ? 'No downloaded tracks available offline' : 'No tracks to shuffle', 'info');
+      return;
+    }
     void hapticMedium();
-    const shuffled = shuffleTracks(displayedTracks);
+    const shuffled = shuffleTracks(playlist);
     const first = shuffled[0];
     setActivePlayingUri(first.track_uri);
     await playTrack(first, shuffled, {

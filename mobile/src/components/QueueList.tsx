@@ -473,6 +473,7 @@ export function QueueList() {
             maxToRenderPerBatch={10}
             windowSize={5}
             removeClippedSubviews={true}
+            contentContainerStyle={styles.listContentPadding}
             renderItem={({ item }) => (
               <Pressable
                 onPress={() => handleSelectTrack(item)}
@@ -570,6 +571,7 @@ export function QueueList() {
               keyExtractor={(i, index) => i.queue_item_id || i.id || `q-${index}`}
               showsVerticalScrollIndicator={false}
               style={styles.queueList}
+              contentContainerStyle={styles.listContentPadding}
               initialNumToRender={12}
               maxToRenderPerBatch={10}
               windowSize={7}
@@ -1422,5 +1424,8 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.bodySemiBold,
     fontSize: 12.5,
     color: colors.amber,
+  },
+  listContentPadding: {
+    paddingBottom: 40,
   },
 });

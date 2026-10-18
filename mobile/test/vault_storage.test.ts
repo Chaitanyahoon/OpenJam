@@ -378,5 +378,37 @@ describe('OpenJam Offline Audio Vault & Storage Engine', () => {
       assert.strictEqual(match, null);
     });
   });
+
+  describe('Offline Playback Filtering Seam', () => {
+    function filterOfflinePlayableTracksPure(
+      tracks: Array<{ track_uri: string }>,
+      vaultUris: Set<string>,
+      isOnline: boolean,
+    ) {
+      if (isOnline) return tracks;
+      return tracks.filter((t) => vaultUris.has(t.track_uri));
+    }
+
+    it('returns only downloaded tracks when offline', () => {
+      const allTracks = [
+        { track_uri: 'yt:1', track_name: 'Downloaded' },
+        { track_uri: 'yt:2', track_name: 'Online Only' },
+      ];
+      const vaultUris = new Set(['yt:1']);
+      const offlinePlayable = filterOfflinePlayableTracksPure(allTracks, vaultUris, false);
+      assert.strictEqual(offlinePlayable.length, 1);
+      assert.strictEqual(offlinePlayable[0].track_uri, 'yt:1');
+    });
+
+    it('returns all tracks when online', () => {
+      const allTracks = [
+        { track_uri: 'yt:1', track_name: 'Downloaded' },
+        { track_uri: 'yt:2', track_name: 'Online Only' },
+      ];
+      const vaultUris = new Set(['yt:1']);
+      const onlinePlayable = filterOfflinePlayableTracksPure(allTracks, vaultUris, true);
+      assert.strictEqual(onlinePlayable.length, 2);
+    });
+  });
 });
 
