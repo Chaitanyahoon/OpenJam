@@ -147,7 +147,7 @@ export function pruneLruVaultPure(
  */
 export function filterSessionTracksToDownloadPure(
   nowPlaying: TrackInfo | null,
-  queue: Array<{ track_uri?: string; track_name?: string; artist?: string; album_art_url?: string; duration_ms?: number }>,
+  queue: { track_uri?: string; track_name?: string; artist?: string; album_art_url?: string; duration_ms?: number }[],
   existingVaultUris: Set<string>,
 ): TrackInfo[] {
   const result: TrackInfo[] = [];

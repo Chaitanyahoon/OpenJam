@@ -1101,7 +1101,7 @@ export function RoomProvider({
     try {
       await deleteRoom(roomId);
       setRoomClosed(true);
-    } catch (err) {
+    } catch {
       toast('Could not close room', 'error');
     }
   }, [roomId, toast]);
@@ -1113,7 +1113,7 @@ export function RoomProvider({
         const res = await updateRoom(roomId, data);
         if (res.name) setRoomName(res.name);
         toast('Room updated', 'success');
-      } catch (err) {
+      } catch {
         toast('Could not update room details', 'error');
       }
     },
