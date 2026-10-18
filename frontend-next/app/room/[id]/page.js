@@ -102,6 +102,18 @@ export async function generateMetadata({ params }) {
               },
             ],
           },
+          appLinks: {
+            android: {
+              package: 'fun.openjam.app',
+              app_name: 'OpenJam',
+              url: `openjam://room/${id}`,
+            },
+            ios: {
+              app_store_id: '0000000000',
+              app_name: 'OpenJam',
+              url: `openjam://room/${id}`,
+            },
+          },
           twitter: {
             card: 'summary_large_image',
             title,

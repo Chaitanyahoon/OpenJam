@@ -658,6 +658,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.bodySemiBold,
     fontSize: 15,
     color: colors.text1,
+    flexShrink: 1,
   },
   youBadge: {
     backgroundColor: 'rgba(255, 159, 28, 0.2)',
@@ -732,6 +733,5 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.8,
-    transform: [{ scale: 0.96 }],
   },
 });

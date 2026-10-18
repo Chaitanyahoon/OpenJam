@@ -384,11 +384,9 @@ export async function downloadTrackToVault(
       );
       const downloadResult = await downloadResumable.downloadAsync();
       const status = downloadResult?.status ?? 200;
-      const contentType = (
-        downloadResult?.headers?.['content-type'] ||
-        downloadResult?.headers?.['Content-Type'] ||
-        ''
-      ).toLowerCase();
+      const headers = downloadResult?.headers || {};
+      const ctKey = Object.keys(headers).find((k) => k.toLowerCase() === 'content-type');
+      const contentType = (ctKey ? String(headers[ctKey]) : '').toLowerCase();
 
       if (status >= 400 || contentType.includes('html') || contentType.includes('json') || contentType.includes('text')) {
         throw new Error(`Invalid audio stream response (status ${status}, type ${contentType})`);

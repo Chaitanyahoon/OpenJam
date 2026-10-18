@@ -17,6 +17,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { AppState } from 'react-native';
 import {
   preload,
   setAudioModeAsync,
@@ -229,11 +230,21 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, [status]);
 
   useEffect(() => {
-    setAudioModeAsync({
-      playsInSilentMode: true,
-      shouldPlayInBackground: true,
-      interruptionMode: 'doNotMix',
-    }).catch(() => {});
+    const applyAudioMode = () => {
+      setAudioModeAsync({
+        playsInSilentMode: true,
+        shouldPlayInBackground: true,
+        interruptionMode: 'doNotMix',
+      }).catch(() => {});
+    };
+    applyAudioMode();
+
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active' || state === 'background') {
+        applyAudioMode();
+      }
+    });
+    return () => sub.remove();
   }, []);
 
   const loadTrack = useCallback(
