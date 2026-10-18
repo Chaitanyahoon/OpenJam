@@ -337,7 +337,7 @@ export function RoomProvider({
           if (shouldPlay) p.play();
           else p.pause();
           playingRef.current = shouldPlay;
-        } else if (evalResult.tier === 3 && !p.isSeekingRecently()) {
+        } else if (evalResult.tier === 3 && Math.abs(evalResult.driftMs) > 2500 && !p.isSeekingRecently()) {
           await p.seekToMs(target);
         }
       }
