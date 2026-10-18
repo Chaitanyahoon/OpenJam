@@ -55,6 +55,18 @@ export function prepareRoomToSoloHandoff(
   };
 }
 
+/**
+ * Prepares teardown state for room closure or explicit leave-and-pause.
+ */
+export function prepareRoomTeardown() {
+  return {
+    clearPlayback: true,
+    dismissNotification: true,
+    resetLockscreen: true,
+    redirectTo: '/',
+  };
+}
+
 describe('Seamless Solo ⇋ Room Audio Handoff Engine', () => {
   it('correctly prepares Solo to Room handoff with seeded queue and room title', () => {
     const currentTrack: TrackInfo = {
@@ -113,5 +125,13 @@ describe('Seamless Solo ⇋ Room Audio Handoff Engine', () => {
     assert.strictEqual(handoff.shouldContinueSolo, false);
     assert.strictEqual(handoff.soloTrack, null);
     assert.strictEqual(handoff.soloQueue.length, 0);
+  });
+
+  it('correctly prepares room teardown on room close or leave-and-pause', () => {
+    const teardown = prepareRoomTeardown();
+    assert.strictEqual(teardown.clearPlayback, true);
+    assert.strictEqual(teardown.dismissNotification, true);
+    assert.strictEqual(teardown.resetLockscreen, true);
+    assert.strictEqual(teardown.redirectTo, '/');
   });
 });

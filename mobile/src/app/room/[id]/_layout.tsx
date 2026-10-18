@@ -219,11 +219,12 @@ function RoomGuards({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (roomClosed) {
+      player.clearPlayback();
       Alert.alert('Room closed', 'The host closed this room.', [
         { text: 'OK', onPress: () => router.replace('/') },
       ]);
     }
-  }, [roomClosed]);
+  }, [roomClosed, player]);
 
   useEffect(() => {
     if (joinError) {
@@ -252,7 +253,7 @@ function RoomGuards({ children }: { children: React.ReactNode }) {
 
   const handleLeaveAndPause = () => {
     setShowLeave(false);
-    player.pause();
+    player.clearPlayback();
     router.replace('/');
   };
 

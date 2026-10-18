@@ -701,6 +701,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         (player as any).setActiveForLockScreen(false, { title: '', artist: '' });
       }
     } catch {}
+    void dismissMediaNotification();
     lastFinishedUriRef.current = null;
     sampleRef.current = { at: Date.now(), posMs: 0, playing: false };
     setCurrentTrack(null);
