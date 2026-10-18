@@ -133,6 +133,19 @@ export default function RoomClient({ roomId }) {
   const [skipVotes, setSkipVotes] = useState({ votes: 0, required: 0, voted: false });
   const [isReady, setIsReady] = useState(false);
   const [isShuffled, setIsShuffled] = useState(false);
+  const [showAppBanner, setShowAppBanner] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+      try {
+        if (!sessionStorage.getItem('openjam_app_banner_dismissed')) {
+          setShowAppBanner(true);
+        }
+      } catch {
+        setShowAppBanner(true);
+      }
+    }
+  }, []);
 
   // Refs for scrolling and canvas
   const chatEndRef = useRef(null);
@@ -2911,7 +2924,7 @@ export default function RoomClient({ roomId }) {
       <div ref={reactionContainerRef} className="reaction-container" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 1000 }} />
 
       {/* ══ MOBILE APP BANNER ════════════════════════════════════ */}
-      {typeof window !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) && (
+      {showAppBanner && (
         <aside
           aria-label="Open in App"
           style={{
@@ -2927,7 +2940,31 @@ export default function RoomClient({ roomId }) {
             position: 'relative',
           }}
         >
-          <span>🎵 Have the OpenJam app? Listen with lock-screen controls!</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setShowAppBanner(false);
+                try { sessionStorage.setItem('openjam_app_banner_dismissed', '1'); } catch {}
+              }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#08080a',
+                fontSize: '13px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                padding: '0 4px',
+                lineHeight: 1,
+              }}
+              aria-label="Dismiss banner"
+            >
+              ✕
+            </button>
+            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              🎵 Have the OpenJam app? Listen with lock-screen controls!
+            </span>
+          </div>
           <a
             href={`openjam://room/${roomId}`}
             style={{
@@ -2940,6 +2977,7 @@ export default function RoomClient({ roomId }) {
               fontWeight: 700,
               marginLeft: '8px',
               whiteSpace: 'nowrap',
+              flexShrink: 0,
             }}
           >
             Open App

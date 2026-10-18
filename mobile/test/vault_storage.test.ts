@@ -246,4 +246,44 @@ describe('OpenJam Offline Audio Vault & Storage Engine', () => {
     const emptyDownload = filterSessionTracksToDownloadPure(null, [], existingUris);
     assert.strictEqual(emptyDownload.length, 0);
   });
+
+  describe('Downloaded Audio Validation', () => {
+    function isValidDownloadedAudio(
+      sizeBytes: number,
+      contentType?: string,
+      httpStatus?: number,
+    ): boolean {
+      if (httpStatus !== undefined && (httpStatus < 200 || httpStatus >= 300)) {
+        return false;
+      }
+      if (contentType) {
+        const ct = contentType.toLowerCase();
+        if (ct.includes('html') || ct.includes('json') || ct.includes('text')) {
+          return false;
+        }
+      }
+      return Number.isFinite(sizeBytes) && sizeBytes >= 32768;
+    }
+
+    it('rejects HTTP error status codes', () => {
+      assert.strictEqual(isValidDownloadedAudio(100000, 'audio/mp4', 403), false);
+      assert.strictEqual(isValidDownloadedAudio(100000, 'audio/mp4', 404), false);
+      assert.strictEqual(isValidDownloadedAudio(100000, 'audio/mp4', 500), false);
+      assert.strictEqual(isValidDownloadedAudio(100000, 'audio/mp4', 200), true);
+      assert.strictEqual(isValidDownloadedAudio(100000, 'audio/mp4', 206), true);
+    });
+
+    it('rejects HTML/JSON error payloads regardless of status', () => {
+      assert.strictEqual(isValidDownloadedAudio(50000, 'text/html; charset=utf-8', 200), false);
+      assert.strictEqual(isValidDownloadedAudio(50000, 'application/json', 200), false);
+    });
+
+    it('rejects files below minimum 32KB audio threshold', () => {
+      assert.strictEqual(isValidDownloadedAudio(1200, 'audio/mp4', 200), false);
+      assert.strictEqual(isValidDownloadedAudio(32767, 'audio/mp4', 200), false);
+      assert.strictEqual(isValidDownloadedAudio(32768, 'audio/mp4', 200), true);
+      assert.strictEqual(isValidDownloadedAudio(2500000, 'audio/mp4', 200), true);
+    });
+  });
 });
+

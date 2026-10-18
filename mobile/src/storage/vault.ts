@@ -227,6 +227,23 @@ function extractVideoId(uri: string): string | null {
 /**
  * Resolves direct audio stream URLs using OpenJam backend AudioStreamEngine proxy.
  */
+export function isValidDownloadedAudio(
+  sizeBytes: number,
+  contentType?: string,
+  httpStatus?: number,
+): boolean {
+  if (httpStatus !== undefined && (httpStatus < 200 || httpStatus >= 300)) {
+    return false;
+  }
+  if (contentType) {
+    const ct = contentType.toLowerCase();
+    if (ct.includes('html') || ct.includes('json') || ct.includes('text')) {
+      return false;
+    }
+  }
+  return Number.isFinite(sizeBytes) && sizeBytes >= 32768; // Minimum 32 KB for valid audio
+}
+
 export async function resolveDirectAudioStreamUrls(videoId: string): Promise<string[]> {
   const backendUrl = getBackendUrl();
   return [
@@ -259,7 +276,7 @@ export async function downloadTrackToVault(
   const existing = await getVaultTrack(track.track_uri);
   if (existing) {
     const fileInfo = await FileSystem.getInfoAsync(existing.local_file_uri);
-    if (fileInfo.exists && fileInfo.size && fileInfo.size > 1000) {
+    if (fileInfo.exists && fileInfo.size && isValidDownloadedAudio(fileInfo.size)) {
       updateProgress(track.track_uri, { state: 'completed', percent: 100 });
       onProgress?.(fileInfo.size, fileInfo.size, 100);
       return existing;
@@ -332,13 +349,18 @@ export async function downloadTrackToVault(
         },
       );
       const downloadResult = await downloadResumable.downloadAsync();
-
-      let actualTargetUri = localTargetUri;
+      const status = downloadResult?.status ?? 200;
       const contentType = (
         downloadResult?.headers?.['content-type'] ||
         downloadResult?.headers?.['Content-Type'] ||
         ''
       ).toLowerCase();
+
+      if (status >= 400 || contentType.includes('html') || contentType.includes('json') || contentType.includes('text')) {
+        throw new Error(`Invalid audio stream response (status ${status}, type ${contentType})`);
+      }
+
+      let actualTargetUri = localTargetUri;
       if (contentType.includes('webm') || contentType.includes('opus')) {
         const webmUri = localTargetUri.replace(/\.m4a$/, '.webm');
         await FileSystem.moveAsync({ from: localTargetUri, to: webmUri });
@@ -350,7 +372,8 @@ export async function downloadTrackToVault(
       }
 
       const stat = await FileSystem.getInfoAsync(actualTargetUri);
-      if (stat.exists && stat.size && stat.size > 1000) {
+      const fileSize = stat.exists && 'size' in stat ? (stat.size ?? 0) : 0;
+      if (isValidDownloadedAudio(fileSize, contentType, status)) {
         success = true;
         resolvedTargetUri = actualTargetUri;
         break;

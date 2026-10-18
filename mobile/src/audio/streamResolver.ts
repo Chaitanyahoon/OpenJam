@@ -69,7 +69,7 @@ export async function resolveAudioStream(
     const vaultTrack = await getVaultTrack(urlOrId);
     if (vaultTrack && vaultTrack.local_file_uri) {
       const fileInfo = await FileSystem.getInfoAsync(vaultTrack.local_file_uri);
-      if (fileInfo.exists && (fileInfo.size ?? 0) > 1000) {
+      if (fileInfo.exists && (fileInfo.size ?? 0) >= 32768) {
         void recordVaultTrackPlayed(urlOrId);
         return {
           type: 'local_vault',
