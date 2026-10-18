@@ -79,10 +79,10 @@ export class SyncEngine {
   }
 
   /**
-   * True once we have accumulated >= 3 valid measurements.
+   * True once we have accumulated >= 2 valid measurements.
    */
   get reliable(): boolean {
-    return this.samples.length >= 3;
+    return this.samples.length >= 2;
   }
 
   get sampleCount(): number {
@@ -108,7 +108,7 @@ export class SyncEngine {
    */
   targetPositionMs(payload: PlaybackSyncPayload, isHost: boolean): number {
     let pos = Math.max(0, payload.position_ms ?? 0);
-    if (!isHost && payload.server_timestamp) {
+    if (!isHost && payload.is_playing && payload.server_timestamp) {
       const latency = this.serverNow() - payload.server_timestamp;
       if (latency > 0 && latency < 5000) pos += latency;
     }

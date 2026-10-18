@@ -16,8 +16,9 @@ import { AppState } from 'react-native';
 import { router } from 'expo-router';
 import { useSocket } from './SocketContext';
 import { usePlayer } from '../audio/PlayerContext';
+import { preload } from 'expo-audio';
 import { streamUrl, getBackendUrl, getStoredSession, deleteRoom, updateRoom, type ApiUser } from '../api';
-import { parseYouTubeId } from '../audio/streamResolver';
+import { parseYouTubeId, resolveAudioStream } from '../audio/streamResolver';
 import { recordTrackPlayed, consumePendingSoloQueue } from '../storage/history';
 import {
   updateMediaNotification,
@@ -263,6 +264,22 @@ export function RoomProvider({
     }
   }, []);
 
+  const burstPing = useCallback(() => {
+    const s = socketRef.current;
+    if (!s?.connected) return;
+    s.emit(C2S.SYNC_PING, { t0: Date.now() });
+    setTimeout(() => {
+      if (socketRef.current?.connected) {
+        socketRef.current.emit(C2S.SYNC_PING, { t0: Date.now() });
+      }
+    }, 200);
+    setTimeout(() => {
+      if (socketRef.current?.connected) {
+        socketRef.current.emit(C2S.SYNC_PING, { t0: Date.now() });
+      }
+    }, 450);
+  }, []);
+
   /** Apply a playback_sync payload to the local player. */
   const applyPlaybackSync = useCallback(
     async (data: PlaybackSyncPayload, forceReload = false) => {
@@ -353,9 +370,9 @@ export function RoomProvider({
       avatar_url: session.user?.avatar_url || null,
       token: session.token || undefined,
     });
-    // kick off offset measurement immediately
-    s.emit(C2S.SYNC_PING, { t0: Date.now() });
-  }, [roomId, password, startJoinTimeout, isSolo]);
+    // kick off rapid 3-ping burst to prime clock sync in <600ms
+    burstPing();
+  }, [roomId, password, startJoinTimeout, isSolo, burstPing]);
 
   const retryJoin = useCallback(() => {
     if (isSolo) return;
@@ -380,6 +397,7 @@ export function RoomProvider({
     const onConnect = () => {
       void doJoin();
       socketRef.current?.emit('sync_request', {});
+      burstPing();
     };
     const onPong = (data: SyncPongPayload) => {
       if (engineRef.current.measure(data) !== null && engineRef.current.reliable) {
@@ -1044,10 +1062,21 @@ export function RoomProvider({
     if (!nowPlaying?.duration_ms || queue.length === 0) return;
     const durSec = nowPlaying.duration_ms / 1000;
     const posSec = player.positionMs() / 1000;
-    if (durSec > 20 && durSec - posSec <= 12 && isPlaying) {
+    if (durSec > 20 && durSec - posSec <= 35 && isPlaying) {
       const nextTrack = queue[0];
       if (nextTrack?.track_uri && prewarmedRoomTrackRef.current !== nextTrack.track_uri) {
         prewarmedRoomTrackRef.current = nextTrack.track_uri;
+        void resolveAudioStream(nextTrack.track_uri, {
+          title: nextTrack.track_name,
+          artist: nextTrack.artist,
+          artworkUrl: nextTrack.album_art_url,
+        }).then((resolved) => {
+          if (resolved?.uri) {
+            try {
+              preload(resolved.uri);
+            } catch {}
+          }
+        });
         const ytId = parseYouTubeId(nextTrack.track_uri);
         if (ytId) {
           const backendUrl = getBackendUrl();

@@ -97,9 +97,10 @@ async def add_to_queue(
 
     item = queue_manager.add_track(db, room_id, track_data, user_id, user_name)
 
-    # Pre-resolve stream URL in background so playback starts instantly
+    # Pre-resolve stream URL and download track in background so playback starts instantly
     if track_data.get("uri") and len(track_data.get("uri", "")) == 11:
         asyncio.create_task(pre_resolve_url(track_data["uri"]))
+        asyncio.create_task(download_and_cache_track(track_data["uri"]))
 
     return {"item": item.to_dict()}
 
@@ -290,6 +291,7 @@ async def add_multiple_tracks_to_queue(
             track_uri = next_item.get("track_uri", "")
             if track_uri and len(track_uri) == 11:
                 asyncio.create_task(pre_resolve_url(track_uri))
+                asyncio.create_task(download_and_cache_track(track_uri))
 
             room_manager.update_playback(
                 room_id=room_id,

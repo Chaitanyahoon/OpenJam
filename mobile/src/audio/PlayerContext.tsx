@@ -122,7 +122,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const player = useAudioPlayer(null, {
     updateInterval: 150,
     keepAudioSessionActive: true,
-    preferredForwardBufferDuration: 20,
+    preferredForwardBufferDuration: 180,
   });
   const status = useAudioPlayerStatus(player);
   const [volume, setVolumeState] = useState(1);

@@ -89,4 +89,32 @@ describe('Phase 4: 3-Tier Jam Sync & Equal-Power Crossfade Suite', () => {
     assert.ok(engine.minRtt > 0);
     assert.strictEqual(engine.boundedErrorMs, engine.minRtt / 2);
   });
+
+  it('becomes reliable with 2 samples and does not advance latency when paused', () => {
+    const engine = new SyncEngine();
+    const now = Date.now();
+    assert.strictEqual(engine.reliable, false);
+
+    // Sample 1
+    engine.measure({ t0: now - 50, t1: now - 30, t2: now - 25 });
+    assert.strictEqual(engine.reliable, false);
+
+    // Sample 2 (Fast 2-sample threshold)
+    engine.measure({ t0: now - 40, t1: now - 20, t2: now - 15 });
+    assert.strictEqual(engine.reliable, true);
+
+    // Latency when paused: should NOT advance position
+    const pausedTarget = engine.targetPositionMs(
+      { position_ms: 15000, is_playing: false, server_timestamp: now - 500 },
+      false,
+    );
+    assert.strictEqual(pausedTarget, 15000);
+
+    // Latency when playing: should advance position with transit latency
+    const playingTarget = engine.targetPositionMs(
+      { position_ms: 15000, is_playing: true, server_timestamp: now - 500 },
+      false,
+    );
+    assert.ok(playingTarget > 15000);
+  });
 });
