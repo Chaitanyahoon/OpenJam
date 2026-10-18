@@ -206,11 +206,14 @@ export default function UserProfileScreen() {
       if (res.type === 'success' && res.url) {
         let token = '';
         if (res.url.includes('token=')) {
-          const match = res.url.match(/[?&#]token=([a-zA-Z0-9_\-.]+)/);
-          if (match) token = match[1];
+          const match = res.url.match(/[?&#]token=([^&#]+)/);
+          if (match) token = decodeURIComponent(match[1]).replace(/\/+$/, '').trim();
         }
         if (token) {
-          await saveAuthToken(token);
+          const newUser = await saveAuthToken(token);
+          if (newUser) {
+            toast(`Signed in as @${newUser.discord_username || newUser.display_name}!`, 'success');
+          }
         }
       }
     } catch {

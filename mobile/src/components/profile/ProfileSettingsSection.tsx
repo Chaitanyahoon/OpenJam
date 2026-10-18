@@ -218,16 +218,32 @@ export function ProfileSettingsSection({
               Sign Out of Discord{usernameOrName ? ` (@${usernameOrName})` : ''}
             </Text>
           </Pressable>
-        ) : onDiscordLogin ? (
-          <Pressable
-            onPress={onDiscordLogin}
-            style={({ pressed }) => [styles.discordLoginBtn, pressed && styles.pressed]}
-            accessibilityLabel="Sign in with Discord"
-          >
-            <LogIn size={16} color="#ffffff" />
-            <Text style={styles.discordLoginText}>Sign in with Discord</Text>
-          </Pressable>
-        ) : null}
+        ) : (
+          <View style={{ gap: 10 }}>
+            {onDiscordLogin ? (
+              <Pressable
+                onPress={onDiscordLogin}
+                style={({ pressed }) => [styles.discordLoginBtn, pressed && styles.pressed]}
+                accessibilityLabel="Sign in with Discord"
+              >
+                <LogIn size={16} color="#ffffff" />
+                <Text style={styles.discordLoginText}>Sign in with Discord</Text>
+              </Pressable>
+            ) : null}
+            {onSignOut ? (
+              <Pressable
+                onPress={onSignOut}
+                style={({ pressed }) => [styles.signOutBtn, pressed && styles.pressed]}
+                accessibilityLabel="Sign out or switch identity"
+              >
+                <LogOut size={16} color={colors.red} />
+                <Text style={styles.signOutText}>
+                  Sign Out / Switch Identity{usernameOrName ? ` (${usernameOrName})` : ''}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        )}
       </View>
 
       {/* 4. Legal & Compliance */}
