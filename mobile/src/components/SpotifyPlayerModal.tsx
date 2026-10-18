@@ -22,6 +22,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -313,6 +314,19 @@ export function SpotifyPlayerModal() {
     const liked = await toggleLike();
     toast(liked ? 'Added to Liked Songs' : 'Removed from Liked Songs', 'info');
   }, [heartScale, toggleLike, toast]);
+
+  const handleShareTrack = useCallback(async () => {
+    if (!currentTrack) return;
+    try {
+      void hapticLight();
+      const trackTitle = currentTrack.track_name || 'Music';
+      const artist = currentTrack.artist ? ` by ${currentTrack.artist}` : '';
+      await Share.share({
+        message: `Listening to "${trackTitle}"${artist} on OpenJam 🎵\nhttps://www.openjam.fun`,
+        title: trackTitle,
+      });
+    } catch {}
+  }, [currentTrack]);
 
   const {
     artworkPanResponder,
@@ -736,6 +750,15 @@ export function SpotifyPlayerModal() {
                   ) : (
                     <DownloadCloud size={20} color="#9999aa" strokeWidth={2} />
                   )}
+                </Pressable>
+
+                <Pressable
+                  onPress={handleShareTrack}
+                  hitSlop={10}
+                  style={styles.actionIconBtn}
+                  accessibilityLabel="Share song"
+                >
+                  <Share2 size={20} color="#9999aa" strokeWidth={2} />
                 </Pressable>
 
                 <Pressable

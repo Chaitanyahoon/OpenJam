@@ -12,7 +12,7 @@ import * as Linking from 'expo-linking';
 
 import { useNetworkStatus, isDeviceOnline } from '../utils/network';
 import { colors, spacing } from '../theme';
-import { clearSession, fetchMe, getBackendUrl, getCachedRooms, getRooms, getStoredSession, joinAsGuest, saveAuthToken, type ApiUser, type RoomSummary } from '../api';
+import { clearSession, fetchMe, getBackendUrl, getCachedRooms, getRooms, getStoredSession, joinAsGuest, saveAuthToken, subscribeAuthChange, type ApiUser, type RoomSummary } from '../api';
 import { useAppHeartbeat } from '../utils/heartbeat';
 import { useSocket } from '../state/SocketContext';
 import { RoomCardSkeletonList } from '../components/RoomCardSkeleton';
@@ -236,6 +236,19 @@ export default function Landing() {
     });
     return () => { sub.remove(); };
   }, [processAuthUrl]);
+
+  useEffect(() => {
+    const unsub = subscribeAuthChange((newUser) => {
+      if (newUser) {
+        setUser(newUser);
+        setShowIdentity(false);
+        setAuthError(null);
+        authSuccessRef.current = true;
+        isAuthenticatingRef.current = false;
+      }
+    });
+    return unsub;
+  }, []);
 
   const handleDiscordLogin = async () => {
     try {

@@ -30,6 +30,7 @@ export default function PeopleTab() {
     listeners,
     me,
     isHost,
+    isSolo,
     guestControls,
     toggleGuestControls,
     closeRoom,
@@ -44,16 +45,24 @@ export default function PeopleTab() {
 
   const handleCopyCode = async () => {
     void hapticLight();
-    const ok = await copyToClipboard(roomId);
+    const textToCopy = isSolo ? 'https://www.openjam.fun' : roomId;
+    const ok = await copyToClipboard(textToCopy);
     if (ok) {
-      toast(`Room code "#${roomId}" copied! Share with friends.`, 'success');
+      toast(isSolo ? 'OpenJam link copied!' : `Room code "#${roomId}" copied! Share with friends.`, 'success');
     } else {
-      toast(`Room code is #${roomId}`, 'info');
+      toast(isSolo ? 'openjam.fun' : `Room code is #${roomId}`, 'info');
     }
   };
 
   const handleShare = async () => {
     try {
+      if (isSolo) {
+        await Share.share({
+          message: '🎧 Jamming to music on OpenJam! Stream millions of songs and listen together in real-time.\n\n🌐 https://www.openjam.fun',
+          title: 'OpenJam Music',
+        });
+        return;
+      }
       await Share.share({
         message: `🎵 Join my live room "${roomName || 'OpenJam Room'}" on OpenJam!\n\n📱 In App: openjam://room/${roomId}\n🌐 Web: https://www.openjam.fun/room/${roomId}\n\nRoom Code: #${roomId}`,
         title: `OpenJam – ${roomName || 'Live Room'}`,
@@ -137,32 +146,36 @@ export default function PeopleTab() {
             {/* Room Share / Invite Card */}
             <View style={styles.shareCard}>
               <View style={styles.shareMeta}>
-                <Text style={styles.shareTitle}>Invite Friends to Jam</Text>
+                <Text style={styles.shareTitle}>{isSolo ? 'Solo Jam Session' : 'Invite Friends to Jam'}</Text>
                 <Pressable
                   onPress={handleCopyCode}
                   style={({ pressed }) => [styles.shareCodePill, pressed && styles.pressed]}
                   hitSlop={6}
-                  accessibilityLabel={`Copy room code #${roomId}`}
+                  accessibilityLabel={isSolo ? 'Copy OpenJam link' : `Copy room code #${roomId}`}
                 >
                   <Copy size={11} color={colors.amber} />
-                  <Text style={styles.shareCodeText} numberOfLines={1} ellipsizeMode="middle">#{roomId}</Text>
+                  <Text style={styles.shareCodeText} numberOfLines={1} ellipsizeMode="middle">
+                    {isSolo ? 'openjam.fun' : `#${roomId}`}
+                  </Text>
                   <Text style={styles.shareCodeCopyHint}>Tap to copy</Text>
                 </Pressable>
               </View>
               <View style={styles.shareActionsRow}>
-                <Pressable
-                  onPress={() => setShowInviteModal(true)}
-                  style={({ pressed }) => [styles.qrBtn, pressed && styles.pressed]}
-                  hitSlop={8}
-                  accessibilityLabel="Show QR code invite"
-                >
-                  <QrCode size={16} color={colors.amber} />
-                </Pressable>
+                {!isSolo && (
+                  <Pressable
+                    onPress={() => setShowInviteModal(true)}
+                    style={({ pressed }) => [styles.qrBtn, pressed && styles.pressed]}
+                    hitSlop={8}
+                    accessibilityLabel="Show QR code invite"
+                  >
+                    <QrCode size={16} color={colors.amber} />
+                  </Pressable>
+                )}
                 <Pressable
                   onPress={handleShare}
                   style={({ pressed }) => [styles.shareBtn, pressed && styles.pressed]}
                   hitSlop={8}
-                  accessibilityLabel="Share room invite"
+                  accessibilityLabel={isSolo ? 'Share OpenJam' : 'Share room invite'}
                 >
                   <LinearGradient
                     colors={['#ffb03a', '#ff9f1c']}
@@ -178,7 +191,7 @@ export default function PeopleTab() {
             </View>
 
             {/* Host Moderation & Playback Controls Deck */}
-            {isHost ? (
+            {!isSolo && isHost ? (
               <View style={styles.hostCard}>
                 <View style={styles.hostCardHeader}>
                   <Text style={styles.hostCardBadge}>HOST CONTROLS</Text>
@@ -225,7 +238,7 @@ export default function PeopleTab() {
               <View style={styles.listHeaderLeft}>
                 <View style={styles.liveDot} />
                 <Text style={styles.listHeaderTitle}>
-                  LISTENERS IN ROOM ({listeners.length})
+                  {isSolo ? 'ACTIVE LISTENER (1)' : `LISTENERS IN ROOM (${listeners.length})`}
                 </Text>
               </View>
 
@@ -348,7 +361,7 @@ export default function PeopleTab() {
       />
 
       <RoomInviteModal
-        visible={showInviteModal}
+        visible={showInviteModal && !isSolo}
         roomId={roomId}
         roomName={roomName}
         onClose={() => setShowInviteModal(false)}

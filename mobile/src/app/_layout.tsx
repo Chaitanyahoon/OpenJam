@@ -22,10 +22,56 @@ import { AppLoadingScreen } from '../components/AppLoadingScreen';
 import { NetworkGuard } from '../components/NetworkGuard';
 import { SpotifyPlayerModal } from '../components/SpotifyPlayerModal';
 
+import { Linking } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import * as WebBrowser from 'expo-web-browser';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { saveAuthToken } from '../api';
+import { useToast } from '../components/ToastContext';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+function AuthBridge() {
+  const toast = useToast();
+
+  useEffect(() => {
+    const handleUrl = async (rawUrl: string) => {
+      if (!rawUrl || (!rawUrl.includes('token=') && !rawUrl.includes('error='))) return;
+      const match = rawUrl.match(/[?&#]token=([^&#]+)/);
+      if (match) {
+        const token = decodeURIComponent(match[1]).replace(/\/+$/, '').trim();
+        if (token) {
+          try {
+            await WebBrowser.dismissAuthSession();
+          } catch {}
+          const user = await saveAuthToken(token);
+          if (user) {
+            toast(`Signed in as ${user.display_name}`, 'success');
+          }
+        }
+      } else if (rawUrl.includes('error=')) {
+        try {
+          await WebBrowser.dismissAuthSession();
+        } catch {}
+        toast('Discord sign-in was interrupted', 'error');
+      }
+    };
+
+    void Linking.getInitialURL().then((url) => {
+      if (url) void handleUrl(url);
+    });
+
+    const sub = Linking.addEventListener('url', (e) => {
+      if (e.url) void handleUrl(e.url);
+    });
+
+    return () => {
+      sub.remove();
+    };
+  }, [toast]);
+
+  return null;
+}
 
 function NotificationBridge() {
   const { setPlayerModalOpen } = usePlayer();
@@ -104,6 +150,7 @@ export default function RootLayout() {
         <NotificationBridge />
         <SocketProvider>
           <ToastProvider>
+            <AuthBridge />
             <NetworkGuard>
               <StatusBar style="light" />
               <Stack

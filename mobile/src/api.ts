@@ -124,7 +124,26 @@ export async function joinAsGuest(
     [USER_KEY, JSON.stringify(data.user)],
     [NAME_KEY, data.user.display_name],
   ]);
+  notifyAuthChange(data.user);
   return data;
+}
+
+export type AuthChangeListener = (user: ApiUser | null) => void;
+const authChangeListeners = new Set<AuthChangeListener>();
+
+export function subscribeAuthChange(cb: AuthChangeListener): () => void {
+  authChangeListeners.add(cb);
+  return () => {
+    authChangeListeners.delete(cb);
+  };
+}
+
+export function notifyAuthChange(user: ApiUser | null): void {
+  authChangeListeners.forEach((cb) => {
+    try {
+      cb(user);
+    } catch {}
+  });
 }
 
 export async function fetchMe(): Promise<ApiUser | null> {
@@ -146,7 +165,9 @@ export async function fetchMe(): Promise<ApiUser | null> {
 export async function saveAuthToken(token: string): Promise<ApiUser | null> {
   memoryToken = token;
   await AsyncStorage.setItem(TOKEN_KEY, token);
-  return await fetchMe();
+  const user = await fetchMe();
+  notifyAuthChange(user);
+  return user;
 }
 
 export async function getStoredSession(): Promise<{
@@ -170,6 +191,7 @@ export async function getStoredSession(): Promise<{
 export async function clearSession(): Promise<void> {
   memoryToken = null;
   await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY, NAME_KEY]);
+  notifyAuthChange(null);
 }
 
 export const COMMUNITY_ROOMS: RoomSummary[] = [];

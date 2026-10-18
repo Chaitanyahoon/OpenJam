@@ -407,7 +407,12 @@ async def discord_callback(request: Request, code: str = "", state: str = ""):
         )
 
 
-        if clean_state and (clean_state.startswith("openjam:") or clean_state.startswith("exp:")):
+        if clean_state and (
+            clean_state.startswith("openjam:")
+            or clean_state.startswith("exp:")
+            or clean_state.startswith("https://openjam.fun")
+            or clean_state.startswith("https://www.openjam.fun")
+        ):
             delimiter = "&" if "?" in clean_state else "?"
             redirect_target = f"{clean_state}{delimiter}token={session_token}"
             response = RedirectResponse(url=redirect_target, status_code=302)

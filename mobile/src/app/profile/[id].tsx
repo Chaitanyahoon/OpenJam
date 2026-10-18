@@ -210,11 +210,7 @@ export default function UserProfileScreen() {
           if (match) token = match[1];
         }
         if (token) {
-          const me = await saveAuthToken(token);
-          if (me) {
-            await refresh();
-            toast(`Logged in as ${me.display_name}`, 'success');
-          }
+          await saveAuthToken(token);
         }
       }
     } catch {

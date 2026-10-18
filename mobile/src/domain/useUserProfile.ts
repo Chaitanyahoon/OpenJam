@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   getStoredSession,
+  subscribeAuthChange,
   getPublicProfile,
   fetchMe,
   getProfileSocial,
@@ -220,6 +221,9 @@ export function useUserProfile({
 
   useEffect(() => {
     void loadData();
+    return subscribeAuthChange(() => {
+      void loadData();
+    });
   }, [loadData]);
 
   // Derived Milestone Badges
