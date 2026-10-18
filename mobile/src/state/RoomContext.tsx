@@ -999,6 +999,15 @@ export function RoomProvider({
     const unregister = registerMediaActionListener((action) => {
       if (action === 'play_pause') {
         togglePlay();
+        if (nowPlaying?.track_name) {
+          void updateMediaNotification({
+            title: nowPlaying.track_name,
+            artist: nowPlaying.artist,
+            isPlaying: playingRef.current,
+            roomId,
+            artworkUrl: nowPlaying.album_art_url,
+          });
+        }
       } else if (action === 'next') {
         nextTrack();
       } else if (action === 'prev') {
@@ -1008,7 +1017,7 @@ export function RoomProvider({
     return () => {
       unregister();
     };
-  }, [togglePlay, nextTrack, previousTrack]);
+  }, [togglePlay, nextTrack, previousTrack, nowPlaying, roomId]);
 
   // Next-Track Audio Pre-Caching Seam for Collaborative Rooms
   const prewarmedRoomTrackRef = useRef<string | null>(null);

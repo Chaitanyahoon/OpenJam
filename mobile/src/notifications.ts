@@ -182,7 +182,7 @@ export async function updateMediaNotification(meta: MediaNotificationMeta): Prom
   }
 
   // Deduplicate identical successive notification calls
-  const stateKey = `${meta.title}::${meta.artist}::${meta.isPlaying}::${meta.roomId}`;
+  const stateKey = `${meta.title}::${meta.artist}::${meta.isPlaying}::${meta.roomId}::${meta.artworkUrl || ''}`;
   if (stateKey === lastNotificationState) return;
   lastNotificationState = stateKey;
 
@@ -203,9 +203,22 @@ export async function updateMediaNotification(meta: MediaNotificationMeta): Prom
         sticky: meta.isPlaying,
         autoDismiss: false,
         color: '#ff9f1c',
+        attachments: meta.artworkUrl
+          ? [
+              {
+                url: meta.artworkUrl,
+                identifier: 'artwork',
+                type: 'image/jpeg',
+              },
+            ]
+          : undefined,
         data: {
           action: 'open_room',
           roomId: meta.roomId || 'solo',
+          title: meta.title,
+          artist: meta.artist,
+          artworkUrl: meta.artworkUrl,
+          isPlaying: meta.isPlaying,
         },
       },
       trigger: { channelId: MEDIA_CHANNEL_ID },

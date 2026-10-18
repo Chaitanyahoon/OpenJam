@@ -119,7 +119,11 @@ const StatusCtx = createContext<PlayerStatus>({
 export { parseYouTubeId };
 
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
-  const player = useAudioPlayer(null, { updateInterval: 150 });
+  const player = useAudioPlayer(null, {
+    updateInterval: 150,
+    keepAudioSessionActive: true,
+    preferredForwardBufferDuration: 20,
+  });
   const status = useAudioPlayerStatus(player);
   const [volume, setVolumeState] = useState(1);
   const volumeRef = useRef(1);
@@ -252,13 +256,18 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
               setActiveForLockScreen: (
                 active: boolean,
                 meta: LockScreenMeta,
+                options?: { showSeekForward?: boolean; showSeekBackward?: boolean },
               ) => void;
             }
-          ).setActiveForLockScreen(true, {
-            title: stream.title || meta.title,
-            artist: stream.artist || meta.artist,
-            artworkUrl: stream.artworkUrl || meta.artworkUrl,
-          });
+          ).setActiveForLockScreen(
+            true,
+            {
+              title: stream.title || meta.title,
+              artist: stream.artist || meta.artist,
+              artworkUrl: stream.artworkUrl || meta.artworkUrl,
+            },
+            { showSeekForward: true, showSeekBackward: true },
+          );
         }
       } catch {}
     },
@@ -266,12 +275,32 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   );
 
   const play = useCallback(() => {
+    sampleRef.current.playing = true;
     player.play();
-  }, [player]);
+    if (sourceTitle !== 'room' && currentTrackRef.current?.track_name) {
+      void updateMediaNotification({
+        title: currentTrackRef.current.track_name,
+        artist: currentTrackRef.current.artist || 'Unknown Artist',
+        isPlaying: true,
+        roomId: 'solo',
+        artworkUrl: currentTrackRef.current.album_art_url,
+      });
+    }
+  }, [player, sourceTitle]);
 
   const pause = useCallback(() => {
+    sampleRef.current.playing = false;
     player.pause();
-  }, [player]);
+    if (sourceTitle !== 'room' && currentTrackRef.current?.track_name) {
+      void updateMediaNotification({
+        title: currentTrackRef.current.track_name,
+        artist: currentTrackRef.current.artist || 'Unknown Artist',
+        isPlaying: false,
+        roomId: 'solo',
+        artworkUrl: currentTrackRef.current.album_art_url,
+      });
+    }
+  }, [player, sourceTitle]);
 
   const seekToMs = useCallback(
     async (ms: number) => {
@@ -323,7 +352,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     (active: boolean, meta?: LockScreenMeta) => {
       try {
         if (typeof (player as any).setActiveForLockScreen === 'function') {
-          (player as any).setActiveForLockScreen(active, meta);
+          (player as any).setActiveForLockScreen(
+            active,
+            meta,
+            { showSeekForward: true, showSeekBackward: true },
+          );
         } else if (!active && typeof (player as any).clearLockScreenControls === 'function') {
           (player as any).clearLockScreenControls();
         }
@@ -822,10 +855,20 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (sourceTitle === 'room') return; // Managed by RoomContext
     const unregister = registerMediaActionListener((action) => {
       if (action === 'play_pause') {
-        if (isCurrentlyPlayingRef.current) {
-          pause();
-        } else {
+        const nextPlaying = !isCurrentlyPlayingRef.current;
+        if (nextPlaying) {
           play();
+        } else {
+          pause();
+        }
+        if (currentTrackRef.current?.track_name) {
+          void updateMediaNotification({
+            title: currentTrackRef.current.track_name,
+            artist: currentTrackRef.current.artist || 'Unknown Artist',
+            isPlaying: nextPlaying,
+            roomId: 'solo',
+            artworkUrl: currentTrackRef.current.album_art_url,
+          });
         }
       } else if (action === 'next') {
         void playNext();

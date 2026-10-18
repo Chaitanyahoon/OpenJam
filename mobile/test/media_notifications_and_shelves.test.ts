@@ -151,4 +151,52 @@ describe('Media Notifications & Home Music Shelves Suite', () => {
     assert.equal(resolveSubtitle(undefined), 'Solo Jam');
     assert.equal(resolveSubtitle('room_123'), 'Live Room');
   });
+
+  it('correctly packages notification artwork attachments and builds stateKey', () => {
+    const buildNotificationContent = (meta: {
+      title: string;
+      artist?: string;
+      isPlaying: boolean;
+      roomId?: string;
+      artworkUrl?: string;
+    }) => {
+      const stateKey = `${meta.title}::${meta.artist}::${meta.isPlaying}::${meta.roomId}::${meta.artworkUrl || ''}`;
+      const attachments = meta.artworkUrl
+        ? [
+            {
+              url: meta.artworkUrl,
+              identifier: 'artwork',
+              type: 'image/jpeg',
+            },
+          ]
+        : undefined;
+      return { stateKey, attachments };
+    };
+
+    const payloadWithoutArt = buildNotificationContent({
+      title: 'Starboy',
+      artist: 'The Weeknd',
+      isPlaying: true,
+      roomId: 'solo',
+    });
+    assert.equal(payloadWithoutArt.attachments, undefined);
+    assert.equal(payloadWithoutArt.stateKey, 'Starboy::The Weeknd::true::solo::');
+
+    const payloadWithArt = buildNotificationContent({
+      title: 'Starboy',
+      artist: 'The Weeknd',
+      isPlaying: true,
+      roomId: 'solo',
+      artworkUrl: 'https://i.ytimg.com/vi/34Na4j8AVgA/mqdefault.jpg',
+    });
+    assert.ok(payloadWithArt.attachments);
+    assert.equal(payloadWithArt.attachments[0].url, 'https://i.ytimg.com/vi/34Na4j8AVgA/mqdefault.jpg');
+    assert.equal(payloadWithArt.attachments[0].identifier, 'artwork');
+    assert.equal(
+      payloadWithArt.stateKey,
+      'Starboy::The Weeknd::true::solo::https://i.ytimg.com/vi/34Na4j8AVgA/mqdefault.jpg',
+    );
+    assert.notEqual(payloadWithoutArt.stateKey, payloadWithArt.stateKey);
+  });
 });
+
