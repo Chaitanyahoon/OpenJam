@@ -76,6 +76,22 @@ describe('Socket.IO Sync Protocol & Drift Calculation', () => {
     assert.strictEqual(reordered[2].track_name, 'Track B');
   });
 
+  it('correctly anchors playing track at index 0 during optimistic reorder', () => {
+    const queue = [
+      { id: 'item-playing', status: 'playing', track_name: 'Hero Track' },
+      { id: 'item-1', status: 'pending', track_name: 'Upcoming 1' },
+      { id: 'item-2', status: 'pending', track_name: 'Upcoming 2' },
+      { id: 'item-3', status: 'pending', track_name: 'Upcoming 3' },
+    ];
+    // Reorder upcoming: Upcoming 3 moved up before Upcoming 1
+    const reordered = applyOptimisticQueueReorderPure(queue, ['item-3', 'item-1', 'item-2']);
+    assert.strictEqual(reordered[0].id, 'item-playing');
+    assert.strictEqual(reordered[0].track_name, 'Hero Track');
+    assert.strictEqual(reordered[1].id, 'item-3');
+    assert.strictEqual(reordered[2].id, 'item-1');
+    assert.strictEqual(reordered[3].id, 'item-2');
+  });
+
   it('detects duplicate tracks by URI or exact title and artist case-insensitively', () => {
     const queue = [
       { track_uri: 'yt_123', track_name: 'Starboy', artist: 'The Weeknd' },
@@ -94,4 +110,25 @@ describe('Socket.IO Sync Protocol & Drift Calculation', () => {
     assert.strictEqual(isDuplicate('yt_789', 'Blinding Lights', 'The Weeknd'), false);
   });
 });
+
+export function applyOptimisticQueueReorderPure<T extends { id?: string; queue_item_id?: string; status?: string }>(
+  prev: T[],
+  orderedIds: string[],
+): T[] {
+  const playingItems = prev.filter((item) => item.status === 'playing');
+  const nonPlaying = prev.filter((item) => item.status !== 'playing');
+  const itemMap = new Map(nonPlaying.map((item) => [item.queue_item_id || item.id || '', item]));
+  const updated: T[] = [];
+  for (const id of orderedIds) {
+    const found = itemMap.get(id);
+    if (found) {
+      updated.push(found);
+      itemMap.delete(id);
+    }
+  }
+  for (const rem of itemMap.values()) {
+    updated.push(rem);
+  }
+  return [...playingItems, ...updated];
+}
 

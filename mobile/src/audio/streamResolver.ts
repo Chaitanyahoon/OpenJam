@@ -66,7 +66,7 @@ export async function resolveAudioStream(
 
   // 2. Check if track is pre-cached in sandboxed offline vault
   try {
-    const vaultTrack = await getVaultTrack(urlOrId);
+    const vaultTrack = await getVaultTrack(urlOrId, meta);
     if (vaultTrack && vaultTrack.local_file_uri) {
       const fileInfo = await FileSystem.getInfoAsync(vaultTrack.local_file_uri);
       if (fileInfo.exists && (fileInfo.size ?? 0) >= 32768) {

@@ -197,21 +197,8 @@ export async function getVaultTracks(): Promise<VaultTrack[]> {
   }
 }
 
-/** Retrieves a single vault track by URI if downloaded */
-export async function getVaultTrack(trackUri: string): Promise<VaultTrack | null> {
-  if (!trackUri) return null;
-  const tracks = await getVaultTracks();
-  return tracks.find((t) => t.track_uri === trackUri) || null;
-}
-
-/** Check if a track is downloaded and ready for offline play */
-export async function isTrackDownloaded(trackUri: string): Promise<boolean> {
-  const t = await getVaultTrack(trackUri);
-  return !!t && !!t.local_file_uri;
-}
-
 /** Parse or extract standard YouTube ID from track URI */
-function extractVideoId(uri: string): string | null {
+export function extractVideoId(uri: string): string | null {
   if (!uri) return null;
   const clean = uri.trim();
   if (/^[a-zA-Z0-9_-]{11}$/.test(clean)) return clean;
@@ -222,6 +209,53 @@ function extractVideoId(uri: string): string | null {
   const match = clean.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([^"&?\/\s]{11})/);
   if (match && match[1]) return match[1];
   return null;
+}
+
+/** Pure matcher for vault tracks supporting exact URI, YouTube ID, or title+artist */
+export function matchVaultTrackPure(
+  tracks: VaultTrack[],
+  trackUri: string,
+  meta?: { title?: string; artist?: string },
+): VaultTrack | null {
+  if (!trackUri && !meta?.title) return null;
+  if (!tracks || tracks.length === 0) return null;
+
+  const byUri = tracks.find((t) => t.track_uri === trackUri);
+  if (byUri) return byUri;
+
+  const targetId = extractVideoId(trackUri);
+  if (targetId) {
+    const byId = tracks.find((t) => extractVideoId(t.track_uri) === targetId);
+    if (byId) return byId;
+  }
+
+  if (meta?.title && meta?.artist) {
+    const cleanTitle = meta.title.trim().toLowerCase();
+    const cleanArtist = meta.artist.trim().toLowerCase();
+    const byMeta = tracks.find(
+      (t) =>
+        t.track_name.trim().toLowerCase() === cleanTitle &&
+        t.artist.trim().toLowerCase() === cleanArtist,
+    );
+    if (byMeta) return byMeta;
+  }
+
+  return null;
+}
+
+/** Retrieves a single vault track by URI or metadata if downloaded */
+export async function getVaultTrack(
+  trackUri: string,
+  meta?: { title?: string; artist?: string },
+): Promise<VaultTrack | null> {
+  const tracks = await getVaultTracks();
+  return matchVaultTrackPure(tracks, trackUri, meta);
+}
+
+/** Check if a track is downloaded and ready for offline play */
+export async function isTrackDownloaded(trackUri: string): Promise<boolean> {
+  const t = await getVaultTrack(trackUri);
+  return !!t && !!t.local_file_uri;
 }
 
 /**

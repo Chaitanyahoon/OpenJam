@@ -91,13 +91,20 @@ class AudioStreamEngine:
                 del self._url_cache[k]
 
     async def cleanup_old_cache(self, max_cache_size_mb: int = 100):
-        """Cleanup oldest cache files if total cache size exceeds max_cache_size_mb."""
+        """Cleanup oldest cache files if total cache size exceeds max_cache_size_mb, and prune orphaned tmp chunks."""
         try:
+            now = time.time()
             files = []
             for file in self.cache_dir.glob("*"):
-                if file.is_file() and not file.name.endswith(".tmp"):
+                if file.is_file():
                     try:
                         st = file.stat()
+                        # Prune orphaned temporary stream chunks older than 1 hour
+                        if file.name.endswith(".tmp") or ".tmp." in file.name:
+                            if now - st.st_mtime > 3600:
+                                os.remove(file)
+                                logger.info(f"Cleaned orphaned tmp stream chunk: {file.name}")
+                            continue
                         files.append((file, st.st_mtime, st.st_size))
                     except (FileNotFoundError, OSError):
                         pass

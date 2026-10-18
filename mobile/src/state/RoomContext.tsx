@@ -118,6 +118,24 @@ function normalizeQueueList(items?: any[]): QueueItem[] {
   }));
 }
 
+export function applyOptimisticQueueReorder(prev: QueueItem[], orderedIds: string[]): QueueItem[] {
+  const playingItems = prev.filter((item) => item.status === 'playing');
+  const nonPlaying = prev.filter((item) => item.status !== 'playing');
+  const itemMap = new Map(nonPlaying.map((item) => [item.queue_item_id || item.id || '', item]));
+  const updated: QueueItem[] = [];
+  for (const id of orderedIds) {
+    const found = itemMap.get(id);
+    if (found) {
+      updated.push(found);
+      itemMap.delete(id);
+    }
+  }
+  for (const rem of itemMap.values()) {
+    updated.push(rem);
+  }
+  return [...playingItems, ...updated];
+}
+
 function normalizeListeners(raw?: any[], hostId?: string | null): ListenerInfo[] {
   if (!Array.isArray(raw)) return [];
   return raw.map((l) => ({
@@ -1143,21 +1161,7 @@ export function RoomProvider({
           ordered_ids: orderedIds,
         });
       }
-      setQueue((prev) => {
-        const itemMap = new Map(prev.map((item) => [item.queue_item_id || item.id || '', item]));
-        const updated: QueueItem[] = [];
-        for (const id of orderedIds) {
-          const found = itemMap.get(id);
-          if (found) {
-            updated.push(found);
-            itemMap.delete(id);
-          }
-        }
-        for (const rem of itemMap.values()) {
-          updated.push(rem);
-        }
-        return updated;
-      });
+      setQueue((prev) => applyOptimisticQueueReorder(prev, orderedIds));
     },
     [canControl, roomId, isSolo],
   );

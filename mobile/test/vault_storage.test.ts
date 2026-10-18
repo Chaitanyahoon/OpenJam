@@ -285,5 +285,98 @@ describe('OpenJam Offline Audio Vault & Storage Engine', () => {
       assert.strictEqual(isValidDownloadedAudio(2500000, 'audio/mp4', 200), true);
     });
   });
+
+  describe('Collaborative Vault Track Matching', () => {
+    function extractVideoId(uri: string): string | null {
+      if (!uri) return null;
+      const clean = uri.trim();
+      if (/^[a-zA-Z0-9_-]{11}$/.test(clean)) return clean;
+      if (clean.startsWith('yt:')) {
+        const sub = clean.slice(3).trim();
+        if (/^[a-zA-Z0-9_-]{11}$/.test(sub)) return sub;
+      }
+      const match = clean.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([^"&?\/\s]{11})/);
+      if (match && match[1]) return match[1];
+      return null;
+    }
+
+    function matchVaultTrackPure(
+      tracks: VaultTrack[],
+      trackUri: string,
+      meta?: { title?: string; artist?: string },
+    ): VaultTrack | null {
+      if (!trackUri && !meta?.title) return null;
+      if (!tracks || tracks.length === 0) return null;
+
+      const byUri = tracks.find((t) => t.track_uri === trackUri);
+      if (byUri) return byUri;
+
+      const targetId = extractVideoId(trackUri);
+      if (targetId) {
+        const byId = tracks.find((t) => extractVideoId(t.track_uri) === targetId);
+        if (byId) return byId;
+      }
+
+      if (meta?.title && meta?.artist) {
+        const cleanTitle = meta.title.trim().toLowerCase();
+        const cleanArtist = meta.artist.trim().toLowerCase();
+        const byMeta = tracks.find(
+          (t) =>
+            t.track_name.trim().toLowerCase() === cleanTitle &&
+            t.artist.trim().toLowerCase() === cleanArtist,
+        );
+        if (byMeta) return byMeta;
+      }
+
+      return null;
+    }
+
+    const mockVault: VaultTrack[] = [
+      {
+        track_uri: 'yt:dQw4w9WgXcQ',
+        track_name: 'Never Gonna Give You Up',
+        artist: 'Rick Astley',
+        local_file_uri: 'file:///vault/rick.m4a',
+        downloaded_at: Date.now(),
+        file_size_bytes: 4000000,
+        is_liked: true,
+        last_played_at: Date.now(),
+      },
+      {
+        track_uri: 'spotify:track:4cOdK2wGLETKBW3PvgPWqT',
+        track_name: 'Starboy',
+        artist: 'The Weeknd',
+        local_file_uri: 'file:///vault/starboy.m4a',
+        downloaded_at: Date.now(),
+        file_size_bytes: 3500000,
+        is_liked: false,
+        last_played_at: Date.now(),
+      },
+    ];
+
+    it('matches track by exact URI', () => {
+      const match = matchVaultTrackPure(mockVault, 'yt:dQw4w9WgXcQ');
+      assert.strictEqual(match?.local_file_uri, 'file:///vault/rick.m4a');
+    });
+
+    it('matches track by cross-format YouTube URL and ID', () => {
+      const match = matchVaultTrackPure(mockVault, 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+      assert.strictEqual(match?.local_file_uri, 'file:///vault/rick.m4a');
+    });
+
+    it('matches collaborative room track by title and artist when URI differs', () => {
+      const match = matchVaultTrackPure(
+        mockVault,
+        'https://invidious.snopyta.org/watch?v=different_id',
+        { title: 'Starboy', artist: 'The Weeknd' },
+      );
+      assert.strictEqual(match?.local_file_uri, 'file:///vault/starboy.m4a');
+    });
+
+    it('returns null safely when track is not in vault', () => {
+      const match = matchVaultTrackPure(mockVault, 'yt:unknown12345', { title: 'Unknown', artist: 'Nobody' });
+      assert.strictEqual(match, null);
+    });
+  });
 });
 

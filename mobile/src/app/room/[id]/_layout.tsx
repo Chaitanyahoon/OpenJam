@@ -194,7 +194,7 @@ function RoomHeader() {
 }
 
 function RoomGuards({ children }: { children: React.ReactNode }) {
-  const { roomClosed, joinError, retryJoin, roomId, nowPlaying, queue } = useRoom();
+  const { roomClosed, joinError, retryJoin, roomId, nowPlaying, queue, connectionState } = useRoom();
   const player = usePlayer();
   const toast = useToast();
   const [showLeave, setShowLeave] = useState(false);
@@ -228,12 +228,16 @@ function RoomGuards({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (joinError) {
+      if (nowPlaying) {
+        // Suppress disruptive modal alert when playback is ongoing from forward buffer
+        return;
+      }
       Alert.alert('Could not join', joinError, [
         { text: 'Retry', onPress: () => retryJoin() },
         { text: 'Back', onPress: () => router.replace('/'), style: 'cancel' },
       ]);
     }
-  }, [joinError, retryJoin]);
+  }, [joinError, retryJoin, nowPlaying]);
 
   const handleContinueSolo = () => {
     setShowLeave(false);
@@ -260,6 +264,11 @@ function RoomGuards({ children }: { children: React.ReactNode }) {
   return (
     <LeaveCtx.Provider value={() => setShowLeave(true)}>
       <RoomHeader />
+      {connectionState === 'reconnecting' && (
+        <View style={styles.reconnectBanner}>
+          <Text style={styles.reconnectBannerText}>Reconnecting to room • audio playing</Text>
+        </View>
+      )}
       {children}
       <LeaveModal
         visible={showLeave}
@@ -427,5 +436,20 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.7,
+  },
+  reconnectBanner: {
+    backgroundColor: 'rgba(255, 159, 28, 0.14)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 159, 28, 0.28)',
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reconnectBannerText: {
+    fontFamily: fontFamily.bodyMedium,
+    fontSize: 11,
+    color: colors.amber,
+    letterSpacing: 0.2,
   },
 });
