@@ -96,8 +96,8 @@ function HeroSection({
     return () => observer.disconnect();
   }, []);
 
-  const reduceMotionHook = useReducedMotion();
-  const reduceMotion = Boolean(reduceMotionHook);
+  // const reduceMotionHook = useReducedMotion();
+  const reduceMotion = false; // Bypassed OS accessibility settings for preview testing
 
   useEffect(() => {
     if (reduceMotion) return;
@@ -159,7 +159,7 @@ function HeroSection({
       }}
     >
       {/* Background Dome Gallery (desktop only, pauses RAF loops when offscreen) */}
-      {mounted && !isMobile && !reduceMotion && (
+      {!isMobile && (
         <div
           className="hero-dome-bg"
           style={{
@@ -169,8 +169,6 @@ function HeroSection({
             height: '100%',
             zIndex: 1,
             pointerEvents: 'auto',
-            display: isHeroVisible ? 'block' : 'none',
-            visibility: isHeroVisible ? 'visible' : 'hidden',
           }}
         >
           <DomeGallery
@@ -179,7 +177,7 @@ function HeroSection({
             fitBasis="max"
             minRadius={500}
             maxRadius={1600}
-            segments={22}
+            segments={35}
             grayscale={false}
             openedImageWidth="180px"
             openedImageHeight="240px"
@@ -193,7 +191,7 @@ function HeroSection({
       )}
 
       {/* Floating Kinetic Music Notes in background space */}
-      {mounted && !reduceMotion && (
+      {mounted && (
         <div className="desktop-only" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1, overflow: 'hidden' }}>
           {[
             { symbol: '🎵', size: 24, left: '12%', delay: 0, duration: 16, top: '15%' },
