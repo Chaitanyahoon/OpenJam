@@ -1,4 +1,5 @@
 import { offlineDb } from './offlineDb';
+import { audioPrecache } from './audioPrecache';
 
 const SILENT_WAV_B64 = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQAAAAA=";
 const getBackendUrl = () => {
@@ -327,7 +328,7 @@ export default class YouTubePlayer {
         if (!this._isDestroyed && audioElement.readyState < 2 && !audioElement.paused) {
           this._handleAudioError('stalled_timeout', audioElement);
         }
-      }, 5000);
+      }, 8000);
       this._stallTimers.set(audioElement, timer);
     });
 
@@ -341,7 +342,7 @@ export default class YouTubePlayer {
         if (!this._isDestroyed && audioElement.readyState < 2 && !audioElement.paused) {
           this._handleAudioError('waiting_timeout', audioElement);
         }
-      }, 5000);
+      }, 8000);
       this._stallTimers.set(audioElement, timer);
     });
   }
@@ -355,6 +356,19 @@ export default class YouTubePlayer {
     this._hideLoadIndicator();
     if (this._loadTimeout) { clearTimeout(this._loadTimeout); this._loadTimeout = null; }
     this._streamFailCount++;
+
+    // 1. In-place stream recovery on native audio before ever falling back to heavy IFrame
+    if (this._streamFailCount <= 2 && this.currentVideoId && !audioElement.src.startsWith('blob:')) {
+      console.warn(`[YouTubePlayer] Audio hiccup (${source}), attempting in-place retry ${this._streamFailCount}/2`);
+      if (this.onStreamFailUpdate) this.onStreamFailUpdate("Reconnecting audio stream…");
+      try {
+        const resumePos = audioElement.currentTime || 0;
+        audioElement.src = `${BACKEND_URL}/stream/${this.currentVideoId}?nocache=true`;
+        if (resumePos > 0) audioElement.currentTime = resumePos;
+        audioElement.play().catch(() => {});
+        return;
+      } catch (e) {}
+    }
 
     if (!this._useIFrame) {
       if (this.onStreamFailUpdate) this.onStreamFailUpdate("Connecting YouTube player…");
@@ -870,19 +884,38 @@ export default class YouTubePlayer {
         if (this.onStreamFailUpdate) this.onStreamFailUpdate(null);
         if (this._loadTimeout) { clearTimeout(this._loadTimeout); this._loadTimeout = null; }
         
-        const localUrl = URL.createObjectURL(cachedTrack.blob);
-        this.player.src = localUrl;
+        if (this._currentBlobUrl) {
+          try { URL.revokeObjectURL(this._currentBlobUrl); } catch (e) {}
+        }
+        this._currentBlobUrl = URL.createObjectURL(cachedTrack.blob);
+        this.player.src = this._currentBlobUrl;
         
         cachedTrack.playCount = (cachedTrack.playCount || 0) + 1;
+        cachedTrack.lastAccessed = Date.now();
         offlineDb.saveTrack(cachedTrack).catch(() => {});
         this._startAudioPlayback(videoId, startSeconds);
       } else {
+        if (this._currentBlobUrl) {
+          try { URL.revokeObjectURL(this._currentBlobUrl); } catch (e) {}
+          this._currentBlobUrl = null;
+        }
         this.player.src = `${BACKEND_URL}/stream/${videoId}`;
         this._startAudioPlayback(videoId, startSeconds);
+        // Pre-cache full stream blob concurrently in background for instant seeks and offline survival
+        audioPrecache.precacheTrack({
+          id: videoId,
+          track_uri: videoId,
+          track_name: this.currentTrackName,
+          artist: this.currentArtistName
+        }).catch(() => {});
       }
     }).catch((err) => {
       if (this._isDestroyed || this.currentVideoId !== videoId) return;
       console.error('[Player] Error checking offline cache:', err);
+      if (this._currentBlobUrl) {
+        try { URL.revokeObjectURL(this._currentBlobUrl); } catch (e) {}
+        this._currentBlobUrl = null;
+      }
       this.player.src = `${BACKEND_URL}/stream/${videoId}`;
       this._startAudioPlayback(videoId, startSeconds);
     });
@@ -1061,26 +1094,26 @@ export default class YouTubePlayer {
           const drift = positionMs - actualMs; // positive: player is behind server; negative: player is ahead
           const driftAbs = Math.abs(drift);
 
-          // 1. Large drift (> 1200ms) or seek: perform instantaneous clean seek
-          if (driftAbs > 1200 && Date.now() - (this._lastSeekTime || 0) > 2500 && !this.player.seeking) {
+          // 1. Large drift (> 2500ms): perform instantaneous seek
+          if (driftAbs > 2500 && Date.now() - (this._lastSeekTime || 0) > 3500 && !this.player.seeking) {
             this._suppressStateChange = true;
             this.player.currentTime = Math.max(0, positionMs / 1000);
             this.player.playbackRate = 1.0;
             this._lastSeekTime = Date.now();
             setTimeout(() => { this._suppressStateChange = false; }, 400);
           }
-          // 2. Moderate drift (120ms to 1200ms): seamless micro-rate catchup (preservesPitch = true)
-          else if (driftAbs > 120 && driftAbs <= 1200 && !this.player.seeking) {
+          // 2. Moderate drift (150ms to 2500ms): seamless phase-locked micro-rate catchup (preservesPitch = true)
+          else if (driftAbs > 150 && driftAbs <= 2500 && !this.player.seeking) {
             this.player.preservesPitch = true;
             if (drift > 0) {
               // Player slightly behind room clock -> subtle inaudible speedup
-              this.player.playbackRate = 1.03;
+              this.player.playbackRate = driftAbs > 1200 ? 1.04 : 1.025;
             } else {
               // Player slightly ahead -> subtle inaudible slowdown
-              this.player.playbackRate = 0.97;
+              this.player.playbackRate = driftAbs > 1200 ? 0.96 : 0.975;
             }
           }
-          // 3. Sub-120ms tight lock: natural 1.0x playback
+          // 3. Sub-150ms tight lock: natural 1.0x playback
           else {
             if (this.player.playbackRate !== 1.0) {
               this.player.playbackRate = 1.0;
@@ -1153,7 +1186,7 @@ export default class YouTubePlayer {
 
       this.updateDisplay();
       this._updateMediaSessionPositionState();
-    }, 60);
+    }, 250);
   }
 
   stopProgressTimer() {
@@ -1219,6 +1252,10 @@ export default class YouTubePlayer {
     this._isDestroyed = true;
     this.stop();
     this.stopCrossfade();
+    if (this._currentBlobUrl) {
+      try { URL.revokeObjectURL(this._currentBlobUrl); } catch (e) {}
+      this._currentBlobUrl = null;
+    }
     try {
       this.player.pause();
       this.player.src = '';

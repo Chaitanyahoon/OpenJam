@@ -6014,7 +6014,7 @@ export default function RoomClient({ roomId }) {
                         background: '#ffffff',
                         borderRadius: '99px',
                         position: 'relative',
-                        transition: isDraggingStageSeekRef.current ? 'none' : 'width 0.1s linear',
+                        transition: isDraggingStageSeekRef.current ? 'none' : 'width 0.25s linear',
                         boxShadow: '0 0 10px rgba(255, 255, 255, 0.5)',
                       }}
                     >

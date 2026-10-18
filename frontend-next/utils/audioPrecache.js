@@ -76,10 +76,9 @@ class AudioPrecacheManager {
     try {
       this.inFlight.add(trackId);
 
-      // Check if already in IndexedDB
+      // Check if already in IndexedDB with valid audio blob
       const existing = await offlineDb.getTrack(trackId);
-      if (existing) {
-        // Touch lastAccessed
+      if (existing && existing.blob) {
         existing.lastAccessed = Date.now();
         await offlineDb.saveTrack(existing);
         return existing;
@@ -101,17 +100,23 @@ class AudioPrecacheManager {
         precached: true
       };
 
-      // Pre-warm the browser cache via fetch with Range header
+      // Download complete audio stream blob for zero-network playback resilience
       const streamUrl = track.audio_url || track.stream_url || (trackId && trackId.length === 11 ? `${BACKEND_URL}/stream/${trackId}` : null);
       if (streamUrl) {
         try {
-          fetch(streamUrl, {
-            headers: { Range: 'bytes=0-65535' },
+          const resp = await fetch(streamUrl, {
             mode: 'cors',
             credentials: 'omit'
-          }).catch(() => {});
-          record.audio_url = streamUrl;
-        } catch (e) {}
+          });
+          if (resp.ok) {
+            const blob = await resp.blob();
+            record.blob = blob;
+            record.audio_url = streamUrl;
+            console.log(`[audioPrecache] Buffered complete audio blob for ${trackId} (${Math.round(blob.size / 1024)} KB)`);
+          }
+        } catch (e) {
+          console.warn(`[audioPrecache] Blob pre-fetch failed for ${trackId}:`, e);
+        }
       }
 
       await offlineDb.saveTrack(record);
