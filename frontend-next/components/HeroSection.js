@@ -184,7 +184,6 @@ function HeroSection({
             imageBorderRadius="16px"
             openedImageBorderRadius="20px"
             overlayBlurColor="#08080a"
-            onItemClick={onPlayPreview}
             isPaused={!isHeroVisible}
           />
         </div>

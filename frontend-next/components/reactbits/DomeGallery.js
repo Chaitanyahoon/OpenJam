@@ -522,12 +522,10 @@ export default function DomeGallery({
     if (movedRef.current) return;
     if (performance.now() - lastDragEndAt.current < 80) return;
     if (openingRef.current) return;
-    if (onItemClickRef.current) {
+    if (typeof onItemClickRef.current === 'function') {
       onItemClickRef.current(it);
-    } else {
-      openItemFromElement(e.currentTarget);
     }
-  }, [openItemFromElement]);
+  }, []);
 
   const onTilePointerUp = useCallback((e, it) => {
     if (e.pointerType !== 'touch') return;
@@ -535,12 +533,10 @@ export default function DomeGallery({
     if (movedRef.current) return;
     if (performance.now() - lastDragEndAt.current < 80) return;
     if (openingRef.current) return;
-    if (onItemClickRef.current) {
+    if (typeof onItemClickRef.current === 'function') {
       onItemClickRef.current(it);
-    } else {
-      openItemFromElement(e.currentTarget);
     }
-  }, [openItemFromElement]);
+  }, []);
 
   // Ambient smooth Y-axis auto-rotation
   useEffect(() => {

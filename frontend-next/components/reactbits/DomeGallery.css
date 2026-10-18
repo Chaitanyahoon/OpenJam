@@ -31,6 +31,11 @@ main.sphere-main {
   user-select: none;
   -webkit-user-select: none;
   background: transparent;
+  cursor: grab;
+}
+
+main.sphere-main:active {
+  cursor: grabbing;
 }
 
 .stage {
@@ -93,10 +98,9 @@ main.sphere-main {
   overflow: hidden;
   backface-visibility: hidden;
   transition: transform 300ms;
-  cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
-  pointer-events: auto;
+  pointer-events: none;
   -webkit-transform: translateZ(0);
   transform: translateZ(0);
 }
