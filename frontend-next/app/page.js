@@ -46,6 +46,33 @@ export const metadata = {
   }
 };
 
-export default function Page() {
-  return <HomeClient />;
+const getBackendUrl = () => {
+  if (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_BACKEND_URL) {
+    const url = process.env.NEXT_PUBLIC_BACKEND_URL;
+    if (url !== 'undefined' && url !== 'null' && url.trim() !== '') {
+      return url.replace(/\/$/, '');
+    }
+  }
+  return 'https://api.openjam.fun';
+};
+
+async function getInitialRooms() {
+  try {
+    const backendUrl = getBackendUrl();
+    const res = await fetch(`${backendUrl}/rooms`, {
+      next: { revalidate: 15 },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data.rooms || [];
+    }
+  } catch (err) {
+    console.warn('[Page] Server-side room prefetch fallback:', err?.message || err);
+  }
+  return [];
+}
+
+export default async function Page() {
+  const initialRooms = await getInitialRooms();
+  return <HomeClient initialRooms={initialRooms} />;
 }

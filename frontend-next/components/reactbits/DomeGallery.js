@@ -544,19 +544,22 @@ export default function DomeGallery({
 
   // Ambient smooth Y-axis auto-rotation
   useEffect(() => {
+    if (isPaused) return;
     let rafId;
     const tick = () => {
-      if (!draggingRef.current && !inertiaRAF.current && !focusedElRef.current) {
+      if (!isPaused && !draggingRef.current && !inertiaRAF.current && !focusedElRef.current) {
         rotationRef.current.y = wrapAngleSigned(rotationRef.current.y + 0.05); // slow, smooth ambient spin
         applyTransform(rotationRef.current.x, rotationRef.current.y);
       }
-      rafId = requestAnimationFrame(tick);
+      if (!isPaused) {
+        rafId = requestAnimationFrame(tick);
+      }
     };
     rafId = requestAnimationFrame(tick);
     return () => {
-      cancelAnimationFrame(rafId);
+      if (rafId) cancelAnimationFrame(rafId);
     };
-  }, []);
+  }, [isPaused]);
 
   useEffect(() => {
     return () => {

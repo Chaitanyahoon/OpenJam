@@ -96,8 +96,8 @@ function HeroSection({
     return () => observer.disconnect();
   }, []);
 
-  // const reduceMotionHook = useReducedMotion();
-  const reduceMotion = false; // Bypassed OS accessibility settings for preview testing
+  const reduceMotionHook = useReducedMotion();
+  const reduceMotion = Boolean(reduceMotionHook);
 
   useEffect(() => {
     if (reduceMotion) return;
@@ -159,7 +159,7 @@ function HeroSection({
       }}
     >
       {/* Background Dome Gallery (desktop only, pauses RAF loops when offscreen) */}
-      {!isMobile && (
+      {mounted && !isMobile && !reduceMotion && (
         <div
           className="hero-dome-bg"
           style={{
@@ -179,6 +179,7 @@ function HeroSection({
             fitBasis="max"
             minRadius={500}
             maxRadius={1600}
+            segments={22}
             grayscale={false}
             openedImageWidth="180px"
             openedImageHeight="240px"

@@ -62,9 +62,8 @@ main.sphere-main {
 }
 
 .overlay--blur {
-  -webkit-mask-image: radial-gradient(rgba(235, 235, 235, 0) 70%, var(--overlay-blur-color, #08080a) 90%);
-  mask-image: radial-gradient(rgba(235, 235, 235, 0) 70%, var(--overlay-blur-color, #08080a) 90%);
-  backdrop-filter: blur(3px);
+  background: radial-gradient(circle at center, transparent 65%, var(--overlay-blur-color, #08080a) 95%);
+  pointer-events: none;
 }
 
 .item {

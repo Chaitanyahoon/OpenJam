@@ -24,13 +24,27 @@ const MusicPill = dynamic(() => import('@/components/MusicPill'), { ssr: false }
 
 
 
-export default function HomePage() {
+export default function HomePage({ initialRooms = [] }) {
   const { isConnected, reconnect } = useSocket();
   const router = useRouter();
 
   // Authentication & User States
   const [me, setMe] = useState(null);
-  const [rooms, setRooms] = useState([]);
+  const [rooms, setRooms] = useState(() => {
+    if (Array.isArray(initialRooms) && initialRooms.length > 0) {
+      return initialRooms;
+    }
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('openjam_cached_rooms_v1');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
   const [isServerWarming, setIsServerWarming] = useState(false);
   const [showInstallBtn, setShowInstallBtn] = useState(false);
 
