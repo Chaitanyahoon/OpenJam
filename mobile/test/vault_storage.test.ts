@@ -93,6 +93,15 @@ export function filterSessionTracksToDownloadPure(
   return result;
 }
 
+export function isDirectAudioUrlPure(url?: string | null): boolean {
+  if (!url) return false;
+  const clean = url.trim().toLowerCase();
+  return (
+    clean.includes('/stream/') ||
+    /\.(m4a|mp3|webm|opus|aac|ogg|wav)(\?.*)?$/i.test(clean)
+  );
+}
+
 describe('OpenJam Offline Audio Vault & Storage Engine', () => {
   it('formats byte sizes cleanly for UI gauges', () => {
     assert.strictEqual(formatBytesPure(0), '0.0 MB');
@@ -408,6 +417,27 @@ describe('OpenJam Offline Audio Vault & Storage Engine', () => {
       const vaultUris = new Set(['yt:1']);
       const onlinePlayable = filterOfflinePlayableTracksPure(allTracks, vaultUris, true);
       assert.strictEqual(onlinePlayable.length, 2);
+    });
+  });
+
+  describe('Direct Audio Stream Classification Seam', () => {
+    it('identifies valid audio extensions and stream proxy endpoints', () => {
+      assert.strictEqual(isDirectAudioUrlPure('https://example.com/audio/song.m4a'), true);
+      assert.strictEqual(isDirectAudioUrlPure('https://example.com/audio/song.mp3?token=abc'), true);
+      assert.strictEqual(isDirectAudioUrlPure('https://example.com/audio/song.webm'), true);
+      assert.strictEqual(isDirectAudioUrlPure('https://example.com/audio/song.opus'), true);
+      assert.strictEqual(isDirectAudioUrlPure('https://openjam.fun/stream/dQw4w9WgXcQ'), true);
+      assert.strictEqual(isDirectAudioUrlPure('https://openjam.fun/stream/dQw4w9WgXcQ?nocache=true'), true);
+    });
+
+    it('rejects web pages, Spotify track links, and raw YouTube URLs', () => {
+      assert.strictEqual(isDirectAudioUrlPure('https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT'), false);
+      assert.strictEqual(isDirectAudioUrlPure('spotify:track:4cOdK2wGLETKBW3PvgPWqT'), false);
+      assert.strictEqual(isDirectAudioUrlPure('https://www.youtube.com/watch?v=dQw4w9WgXcQ'), false);
+      assert.strictEqual(isDirectAudioUrlPure('https://youtu.be/dQw4w9WgXcQ'), false);
+      assert.strictEqual(isDirectAudioUrlPure('https://example.com/page.html'), false);
+      assert.strictEqual(isDirectAudioUrlPure(''), false);
+      assert.strictEqual(isDirectAudioUrlPure(null), false);
     });
   });
 });
