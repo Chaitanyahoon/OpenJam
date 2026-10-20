@@ -148,9 +148,11 @@ export default function RoomClient({ roomId }) {
     }
   }, []);
 
-  // Refs for scrolling and canvas
+  // Refs for scrolling, focus and volume
   const chatEndRef = useRef(null);
   const isUserScrolledUpRef = useRef(false);
+  const searchInputRef = useRef(null);
+  const lastNonZeroVolumeRef = useRef(80);
   const stageLyricsScrollRef = useRef(null);
   const stageLyricsActiveRef = useRef(null);
   const audioContextRef = useRef(null);
@@ -800,18 +802,53 @@ export default function RoomClient({ roomId }) {
     };
   }, [socket, isConnected]);
 
-  // Global Desktop Media Keyboard Shortcuts
+  // Global Desktop Media & Navigation Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
       const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
       const isInputFocused = activeTag === 'input' || activeTag === 'textarea' || document.activeElement?.isContentEditable;
-      
-      if (isInputFocused || showPassword || showNicknamePrompt || showSettings || showInvite || showClose || showBulkAdd) {
-        return;
+
+      // 1. Universal Escape Key: Dismiss open dialogs, search or stage mode
+      if (e.key === 'Escape') {
+        let dismissed = false;
+        if (showSettings) { setShowSettings(false); dismissed = true; }
+        if (showRoomInfo) { setShowRoomInfo(false); dismissed = true; }
+        if (showInvite) { setShowInvite(false); dismissed = true; }
+        if (showBulkAdd) { setShowBulkAdd(false); dismissed = true; }
+        if (showClose) { setShowClose(false); dismissed = true; }
+        if (showJamCardModal) { setShowJamCardModal(false); dismissed = true; }
+        if (showGifPicker) { setShowGifPicker(false); dismissed = true; }
+        if (showChatEmojiPicker) { setShowChatEmojiPicker(false); dismissed = true; }
+        if (showReactionEmojiPicker) { setShowReactionEmojiPicker(false); dismissed = true; }
+        if (showKeyboardHUD) { setShowKeyboardHUD(false); dismissed = true; }
+        if (isStageMode) { setIsStageMode(false); dismissed = true; }
+        if (searchFocused || searchQuery) {
+          setSearchQuery('');
+          setSearchFocused(false);
+          searchInputRef.current?.blur();
+          dismissed = true;
+        }
+        if (isInputFocused) {
+          document.activeElement?.blur();
+          dismissed = true;
+        }
+        if (dismissed) {
+          e.preventDefault();
+          return;
+        }
       }
 
-      if (e.key === 'Escape' && isStageMode) {
-        setIsStageMode(false);
+      // 2. Global Search Focus: Pressing '/' or 'Ctrl+K' / 'Cmd+K'
+      if (e.key === '/' || ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K'))) {
+        if (!isInputFocused || (e.ctrlKey || e.metaKey)) {
+          e.preventDefault();
+          searchInputRef.current?.focus();
+          setSearchFocused(true);
+          return;
+        }
+      }
+
+      if (isInputFocused || showPassword || showNicknamePrompt || showSettings || showInvite || showClose || showBulkAdd || showJamCardModal || showRoomInfo) {
         return;
       }
 
@@ -832,7 +869,11 @@ export default function RoomClient({ roomId }) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showPassword, showNicknamePrompt, showSettings, showInvite, showClose, showBulkAdd, isHost, playbackState.isPlaying]);
+  }, [
+    showPassword, showNicknamePrompt, showSettings, showRoomInfo, showInvite, showClose, 
+    showBulkAdd, showJamCardModal, showGifPicker, showChatEmojiPicker, showReactionEmojiPicker, 
+    showKeyboardHUD, isStageMode, searchFocused, searchQuery, isHost, playbackState.isPlaying
+  ]);
 
   // 2. WebSocket Listeners Setup
   useEffect(() => {
@@ -3494,12 +3535,21 @@ export default function RoomClient({ roomId }) {
             disableKeyboardShortcuts={isStageMode}
             onVolumeChange={(newVolume) => {
               setVolume(newVolume);
-              if (newVolume > 0 && isMuted) {
-                setIsMuted(false);
+              if (newVolume > 0) {
+                lastNonZeroVolumeRef.current = newVolume;
+                if (isMuted) setIsMuted(false);
               }
             }}
             onMuteToggle={() => {
-              setIsMuted(!isMuted);
+              setIsMuted(prev => {
+                const nextMuted = !prev;
+                if (!nextMuted && volume === 0) {
+                  setVolume(lastNonZeroVolumeRef.current || 80);
+                } else if (nextMuted && volume > 0) {
+                  lastNonZeroVolumeRef.current = volume;
+                }
+                return nextMuted;
+              });
             }}
             lyricsVisible={lyricsVisible}
             lyricsText={lyricsText}
@@ -3571,6 +3621,7 @@ export default function RoomClient({ roomId }) {
                   <div className="input-with-icon" style={{ display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}>
                     <div style={{ position: 'relative', flex: 1 }}>
                       <input 
+                        ref={searchInputRef}
                         type="text" 
                         className="input-field" 
                         value={searchQuery}
@@ -4326,12 +4377,69 @@ export default function RoomClient({ roomId }) {
                         ))}
                       </Reorder.Group>
                     ) : (
-                      <div className="empty">
-                        <div className="empty-illustration">
-                          <Music className="h-12 w-12" style={{ opacity: 0.2 }} />
+                      <div className="empty" style={{ padding: '24px 16px', textAlign: 'center' }}>
+                        <div className="empty-illustration" style={{ marginBottom: '8px' }}>
+                          <Music className="h-10 w-10" style={{ opacity: 0.25, margin: '0 auto' }} />
                         </div>
-                        <div className="empty-title">Queue is empty</div>
-                        <div className="empty-sub">Search above to add tracks</div>
+                        <div className="empty-title" style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-1)' }}>Queue is empty</div>
+                        <div className="empty-sub" style={{ fontSize: '12px', color: 'var(--text-3)', marginBottom: recommendations.length > 0 ? '16px' : '8px' }}>
+                          Search above (press <kbd style={{ padding: '2px 5px', borderRadius: '4px', background: 'rgba(255,255,255,0.08)', fontSize: '10px' }}>/</kbd>) or pick a vibe to start:
+                        </div>
+                        {recommendations.length > 0 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '380px', margin: '0 auto', width: '100%' }}>
+                            {recommendations.slice(0, 3).map((rec, rIdx) => (
+                              <div
+                                key={rec.uri || rIdx}
+                                onClick={() => handleAddTrack(rec)}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '10px',
+                                  padding: '8px 12px',
+                                  background: 'rgba(255, 255, 255, 0.03)',
+                                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                                  borderRadius: '10px',
+                                  cursor: 'pointer',
+                                  textAlign: 'left',
+                                  transition: 'all 0.2s ease'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.background = 'rgba(255, 159, 28, 0.08)';
+                                  e.currentTarget.style.borderColor = 'rgba(255, 159, 28, 0.3)';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
+                                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                                }}
+                                title="Click to add track to queue"
+                              >
+                                {rec.album_art_url ? (
+                                  <img
+                                    src={rec.album_art_url}
+                                    alt=""
+                                    style={{ width: '36px', height: '36px', borderRadius: '6px', objectFit: 'cover', flexShrink: 0 }}
+                                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                  />
+                                ) : (
+                                  <div style={{ width: '36px', height: '36px', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                    <Music size={16} style={{ opacity: 0.4 }} />
+                                  </div>
+                                )}
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: '12px', fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {rec.name}
+                                  </div>
+                                  <div style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.45)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {rec.artist || 'Unknown Artist'}
+                                  </div>
+                                </div>
+                                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--theme-accent, #ff9f1c)', background: 'rgba(255, 159, 28, 0.12)', padding: '4px 8px', borderRadius: '6px', flexShrink: 0 }}>
+                                  + Add
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )
                   ) : activeQueueTab === 'history' ? (
@@ -6448,11 +6556,34 @@ export default function RoomClient({ roomId }) {
                     />
                   </motion.button>
 
-                  {/* Horizontal Volume Bar with Exponential Loudness */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, maxWidth: '140px', margin: '0 4px' }}>
+                  {/* Horizontal Volume Bar with Exponential Loudness & Wheel Scroll */}
+                  <div 
+                    onWheel={(e) => {
+                      e.preventDefault();
+                      const delta = e.deltaY < 0 ? 5 : -5;
+                      setVolume(prev => {
+                        const current = prev !== undefined ? prev : 80;
+                        const nextVol = Math.min(100, Math.max(0, current + delta));
+                        if (nextVol > 0 && isMuted) setIsMuted(false);
+                        if (nextVol > 0) lastNonZeroVolumeRef.current = nextVol;
+                        return nextVol;
+                      });
+                    }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, maxWidth: '140px', margin: '0 4px' }}
+                  >
                     <button
                       type="button"
-                      onClick={() => setIsMuted(prev => !prev)}
+                      onClick={() => {
+                        setIsMuted(prev => {
+                          const nextMuted = !prev;
+                          if (!nextMuted && volume === 0) {
+                            setVolume(lastNonZeroVolumeRef.current || 80);
+                          } else if (nextMuted && volume > 0) {
+                            lastNonZeroVolumeRef.current = volume;
+                          }
+                          return nextMuted;
+                        });
+                      }}
                       style={{ background: 'none', border: 'none', color: 'rgba(255, 255, 255, 0.85)', cursor: 'pointer', padding: 0, display: 'flex' }}
                       title={isMuted ? "Unmute" : "Mute (M)"}
                     >
@@ -6467,7 +6598,10 @@ export default function RoomClient({ roomId }) {
                       onChange={(e) => {
                         const newVol = parseInt(e.target.value);
                         setVolume(newVol);
-                        if (newVol > 0 && isMuted) setIsMuted(false);
+                        if (newVol > 0) {
+                          lastNonZeroVolumeRef.current = newVol;
+                          if (isMuted) setIsMuted(false);
+                        }
                       }}
                       style={{
                         background: `linear-gradient(to right, #ffffff ${isMuted ? 0 : volume}%, rgba(255, 255, 255, 0.18) ${isMuted ? 0 : volume}%)`,

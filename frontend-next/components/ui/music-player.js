@@ -651,7 +651,7 @@ export const MusicPlayer = ({
                 <Heart className="h-4 w-4" fill={liked ? 'currentColor' : 'none'} />
               </button>
 
-              <div className="mp-util-volume-box">
+              <div className="mp-util-volume-box" onWheel={handleExpVolumeScroll}>
                 <span className="mp-util-volume-icon" onClick={() => setIsMuted(!isMuted)} title={isMuted ? "Unmute" : "Mute"}>
                   {isMuted || volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                 </span>

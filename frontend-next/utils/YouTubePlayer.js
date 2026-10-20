@@ -632,34 +632,60 @@ export default class YouTubePlayer {
       overlay = document.createElement('div');
       overlay.id = 'play-unlock-overlay';
       overlay.style.cssText = `
-        position:fixed; inset:0; z-index:9990;
-        display:flex; flex-direction:column; align-items:center; justify-content:center;
-        background:rgba(10,9,8,0.85); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
-        cursor:pointer; user-select:none;
-        animation: fadeInOverlay 0.3s ease;
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 9990;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 10px 18px 10px 14px;
+        background: rgba(18, 18, 26, 0.94);
+        border: 1px solid rgba(255, 159, 28, 0.45);
+        border-radius: 9999px;
+        box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7), 0 0 20px rgba(255, 159, 28, 0.25);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        cursor: pointer;
+        user-select: none;
+        animation: slideUpFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+        max-width: 90vw;
       `;
       overlay.innerHTML = `
         <style>
-          @keyframes fadeInOverlay { from { opacity:0; } to { opacity:1; } }
-          @keyframes pulseRing {
-            0%   { transform: scale(0.92); box-shadow: 0 0 0 0 rgba(245,158,11,0.6); }
-            70%  { transform: scale(1.04); box-shadow: 0 0 0 26px rgba(245,158,11,0); }
-            100% { transform: scale(0.92); box-shadow: 0 0 0 0 rgba(245,158,11,0); }
+          @keyframes slideUpFadeIn {
+            from { opacity: 0; transform: translate(-50%, 16px); }
+            to { opacity: 1; transform: translate(-50%, 0); }
+          }
+          @keyframes pulseRingMini {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 159, 28, 0.7); }
+            70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(255, 159, 28, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 159, 28, 0); }
           }
         </style>
         <div style="
-          width:92px; height:92px; border-radius:50%;
-          background:linear-gradient(135deg, #f59e0b, #d97706); display:flex; align-items:center; justify-content:center;
-          box-shadow: 0 0 45px rgba(245,158,11,0.45);
-          animation: pulseRing 1.8s ease infinite; margin-bottom:24px;
+          width: 34px; height: 34px; border-radius: 50%;
+          background: linear-gradient(135deg, #ff9f1c, #f59e0b);
+          display: flex; align-items: center; justify-content: center;
+          animation: pulseRingMini 1.8s ease infinite; flex-shrink: 0;
         ">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="#000" style="margin-left:4px;"><path d="M8 5v14l11-7z"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="#000" style="margin-left: 2px;"><path d="M8 5v14l11-7z"/></svg>
         </div>
-        <div style="font-family:var(--font-display), -apple-system, sans-serif; font-size:22px; font-weight:800; color:#f5f0eb; margin-bottom:8px; letter-spacing:-0.02em;">
-          Tap to Join Live Audio
+        <div style="display: flex; flex-direction: column; text-align: left;">
+          <span style="font-family: var(--font-display), -apple-system, sans-serif; font-size: 13px; font-weight: 700; color: #fff; line-height: 1.2;">
+            Live music is playing
+          </span>
+          <span style="font-family: var(--font-ui), -apple-system, sans-serif; font-size: 11px; color: rgba(255, 255, 255, 0.65); line-height: 1.2;">
+            Click anywhere or tap here to tune in
+          </span>
         </div>
-        <div style="font-family:var(--font-ui), -apple-system, sans-serif; font-size:14px; color:#a8a29e; max-width:280px; text-align:center; line-height:1.5;">
-          Tap anywhere to unlock real-time synchronized music with your friends
+        <div style="
+          background: rgba(255, 159, 28, 0.2); border: 1px solid rgba(255, 159, 28, 0.4);
+          color: #ff9f1c; font-size: 11px; font-weight: 700; padding: 5px 12px; border-radius: 9999px;
+          margin-left: 4px; white-space: nowrap; flex-shrink: 0;
+        ">
+          Tune In ▶
         </div>`;
       document.body.appendChild(overlay);
       
