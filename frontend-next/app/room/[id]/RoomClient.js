@@ -5865,7 +5865,7 @@ export default function RoomClient({ roomId }) {
                     </div>
                   </div>
                   <a
-                    href={process.env.NEXT_PUBLIC_SUPPORT_URL || 'https://ko-fi.com'}
+                    href={process.env.NEXT_PUBLIC_SUPPORT_URL || 'https://www.chaitanyapatil.online/support/'}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="btn btn-primary"

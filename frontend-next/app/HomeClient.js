@@ -449,7 +449,7 @@ export default function HomePage({ initialRooms = [] }) {
       { label: 'FAQ', href: '#faq' },
       {
         label: '☕ Tip Jar',
-        href: process.env.NEXT_PUBLIC_SUPPORT_URL || 'https://ko-fi.com',
+        href: process.env.NEXT_PUBLIC_SUPPORT_URL || 'https://www.chaitanyapatil.online/support/',
         isExternal: true
       }
     ];
