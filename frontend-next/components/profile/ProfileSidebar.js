@@ -244,6 +244,27 @@ export default function ProfileSidebar({
           </div>
         </div>
       )}
+      {/* Support OpenJam in Profile Sidebar */}
+      <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', textAlign: 'center' }}>
+        <a
+          href="/#tip-jar"
+          style={{
+            fontSize: '11.5px',
+            color: 'var(--amber, #ff9f1c)',
+            textDecoration: 'none',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontWeight: 600,
+            padding: '6px 12px',
+            borderRadius: '10px',
+            background: 'rgba(255, 159, 28, 0.06)',
+            border: '1px solid rgba(255, 159, 28, 0.15)'
+          }}
+        >
+          <span>☕ Support OpenJam</span>
+        </a>
+      </div>
     </div>
   );
 }

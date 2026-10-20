@@ -752,6 +752,24 @@ export default function RoomClient({ roomId }) {
     };
   }, [socket, isConnected]);
 
+  // Listen for #tip-jar hash or global open-support-modal events
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const checkHash = () => {
+      if (window.location.hash === '#tip-jar') {
+        setShowSupportModal(true);
+      }
+    };
+    checkHash();
+    window.addEventListener('hashchange', checkHash);
+    const handleOpenSupport = () => setShowSupportModal(true);
+    window.addEventListener('open-support-modal', handleOpenSupport);
+    return () => {
+      window.removeEventListener('hashchange', checkHash);
+      window.removeEventListener('open-support-modal', handleOpenSupport);
+    };
+  }, []);
+
   // Global Desktop Media & Navigation Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -2667,7 +2685,17 @@ export default function RoomClient({ roomId }) {
 
   const handleSendChat = (e) => {
     if (e) e.preventDefault();
-    if (!chatInput.trim() || !socket) return;
+    const trimmed = chatInput.trim();
+    if (!trimmed) return;
+
+    if (trimmed.toLowerCase() === '/tip' || trimmed.toLowerCase() === '/support') {
+      setChatInput('');
+      handleStopTyping();
+      setShowSupportModal(true);
+      return;
+    }
+
+    if (!socket) return;
     
     isUserScrolledUpRef.current = false;
     scrollToChatBottom(true);
@@ -4893,12 +4921,36 @@ export default function RoomClient({ roomId }) {
                 style={{ height: '100%', position: 'relative' }}
               >
                 <div className="chat-header">
-                  <div className="chat-header-content">
-                    <span>Room Chat</span>
-                    <div className="chat-status">
-                      <div className="chat-status-dot"></div>
-                      <span>{listeners.length}</span> online
+                  <div className="chat-header-content" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span>Room Chat</span>
+                      <div className="chat-status">
+                        <div className="chat-status-dot"></div>
+                        <span>{listeners.length}</span> online
+                      </div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowSupportModal(true)}
+                      className="btn btn-ghost"
+                      style={{
+                        padding: '3px 8px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        color: 'var(--amber, #ff9f1c)',
+                        background: 'rgba(255, 159, 28, 0.08)',
+                        borderRadius: '6px',
+                        border: '1px solid rgba(255, 159, 28, 0.2)',
+                        cursor: 'pointer'
+                      }}
+                      title="Support OpenJam • Tip Jar"
+                    >
+                      <Coffee size={12} />
+                      <span>Tip Jar</span>
+                    </button>
                   </div>
                 </div>
 
@@ -5779,6 +5831,28 @@ export default function RoomClient({ roomId }) {
                     </label>
                   </div>
                 )}
+
+                {/* Support OpenJam Callout in Settings */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '14px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-1)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Coffee size={15} style={{ color: 'var(--amber, #ff9f1c)' }} />
+                      <span>Support OpenJam</span>
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-3)', marginTop: '2px' }}>Keep streaming servers & audio sync 100% ad-free</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSettings(false);
+                      setShowSupportModal(true);
+                    }}
+                    className="btn btn-secondary"
+                    style={{ padding: '6px 12px', fontSize: '11px', fontWeight: 700, borderRadius: '8px', cursor: 'pointer' }}
+                  >
+                    Tip Jar
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>

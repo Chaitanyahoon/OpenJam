@@ -10,6 +10,10 @@ const FAQS = [
     a: "Yes! OpenJam is 100% free with zero monthly subscription fees, paywalls, or hidden charges."
   },
   {
+    q: "How is OpenJam funded and how can I support it?",
+    a: "OpenJam is completely ad-free and independently developed. Streaming servers, Redis caching, and real-time WebSocket sync are supported through voluntary contributions via the ☕ Tip Jar (direct UPI with zero platform fees, or web support)."
+  },
+  {
     q: "Can I use OpenJam as a free Watch2Gether or Spotify Jam alternative?",
     a: "Yes! OpenJam is the ideal free alternative to Watch2Gether, JQBX, and Spotify Jam. Unlike Spotify Jam which requires Spotify Premium subscriptions for all participants, OpenJam allows anyone to stream and sync YouTube music together for free with no subscriptions required."
   },

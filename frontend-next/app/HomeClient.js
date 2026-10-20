@@ -171,6 +171,19 @@ export default function HomePage({ initialRooms = [] }) {
     setCurrentYear(new Date().getFullYear());
     if (typeof window !== 'undefined') {
       localStorage.removeItem('activeRoomPath');
+      const checkHash = () => {
+        if (window.location.hash === '#tip-jar') {
+          setShowSupportModal(true);
+        }
+      };
+      checkHash();
+      window.addEventListener('hashchange', checkHash);
+      const handleOpenSupport = () => setShowSupportModal(true);
+      window.addEventListener('open-support-modal', handleOpenSupport);
+      return () => {
+        window.removeEventListener('hashchange', checkHash);
+        window.removeEventListener('open-support-modal', handleOpenSupport);
+      };
     }
   }, []);
 
@@ -1844,10 +1857,30 @@ export default function HomePage({ initialRooms = [] }) {
 
       {/* FOOTER */}
       <footer className="footer footer-landing">
-        <div className="footer-links-row">
+        <div className="footer-links-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <Link href="/privacy" className="footer-link">Privacy Policy</Link>
           <span className="footer-sep" aria-hidden="true">&middot;</span>
           <Link href="/terms" className="footer-link">Terms of Service</Link>
+          <span className="footer-sep" aria-hidden="true">&middot;</span>
+          <button
+            type="button"
+            onClick={() => setShowSupportModal(true)}
+            className="footer-link"
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+              font: 'inherit',
+              color: 'var(--theme-accent, #ff9f1c)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontWeight: 600
+            }}
+          >
+            ☕ Support OpenJam
+          </button>
         </div>
         <p className="footer-copy">
           &copy; {currentYear} OpenJam. Created by <a href="https://discord.com/users/964173378896400425" target="_blank" rel="noopener noreferrer" style={{ color: '#fff', fontWeight: 600, textDecoration: 'none', transition: 'color 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.color = 'var(--theme-accent, #ff9f1c)'} onMouseLeave={(e) => e.currentTarget.style.color = '#fff'}>Chaitanya</a>. All rights reserved.
