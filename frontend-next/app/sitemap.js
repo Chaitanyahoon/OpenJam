@@ -32,7 +32,7 @@ export default async function sitemap() {
     if (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_BACKEND_URL) {
       const url = process.env.NEXT_PUBLIC_BACKEND_URL;
       if (url !== 'undefined' && url !== 'null' && url.trim() !== '') {
-        return url.replace(/\/$/, '');
+        return url.replace(/\/$/, '').replace(/\/health\/?$/, '');
       }
     }
     return 'https://openjam.onrender.com';
