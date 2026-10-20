@@ -27,6 +27,7 @@ import * as Notifications from 'expo-notifications';
 import * as WebBrowser from 'expo-web-browser';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { saveAuthToken } from '../api';
+import { useAppHeartbeat } from '../utils/heartbeat';
 import { useToast } from '../components/ToastContext';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -133,6 +134,7 @@ export default function RootLayout() {
     Poppins_600SemiBold,
   });
 
+  useAppHeartbeat();
   const [splashGone, setSplashGone] = useState(false);
 
   useEffect(() => {

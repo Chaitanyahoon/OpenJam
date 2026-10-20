@@ -13,7 +13,6 @@ import * as Linking from 'expo-linking';
 import { useNetworkStatus, isDeviceOnline } from '../utils/network';
 import { colors, spacing } from '../theme';
 import { clearSession, fetchMe, getBackendUrl, getCachedRooms, getRooms, getStoredSession, joinAsGuest, saveAuthToken, subscribeAuthChange, type ApiUser, type RoomSummary } from '../api';
-import { useAppHeartbeat } from '../utils/heartbeat';
 import { useSocket } from '../state/SocketContext';
 import { RoomCardSkeletonList } from '../components/RoomCardSkeleton';
 import { CreateRoomModal, IdentityModal, JoinWithCodeModal, RoomPasswordModal } from '../components/Modals';
@@ -124,7 +123,6 @@ export default function Landing() {
     prevOnlineRef.current = isOnline;
   }, [isOnline, loadRooms, connect]);
 
-  useAppHeartbeat();
 
   useFocusEffect(
     useCallback(() => {
