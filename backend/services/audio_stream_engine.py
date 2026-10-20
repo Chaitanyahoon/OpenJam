@@ -213,7 +213,7 @@ class AudioStreamEngine:
                 return url
             del self._url_cache[cache_key]
 
-        if self.redis_store.client:
+        if self.redis_store.is_available:
             try:
                 cached_url = self.redis_store.client.get(f"openjam:url:{cache_key}")
                 if cached_url:
@@ -232,7 +232,7 @@ class AudioStreamEngine:
                     return url
                 del self._url_cache[cache_key]
 
-            if self.redis_store.client:
+            if self.redis_store.is_available:
                 try:
                     cached_url = self.redis_store.client.get(f"openjam:url:{cache_key}")
                     if cached_url:
@@ -321,7 +321,7 @@ class AudioStreamEngine:
             if url:
                 self.prune_url_cache()
                 self._url_cache[cache_key] = (url, time.time() + _URL_CACHE_TTL)
-                if self.redis_store.client:
+                if self.redis_store.is_available:
                     try:
                         self.redis_store.client.set(f"openjam:url:{cache_key}", url, ex=_URL_CACHE_TTL)
                         logger.info(f"Successfully cached stream URL for {cache_key} in Redis")
@@ -337,7 +337,7 @@ class AudioStreamEngine:
         is_resolved = False
         if video_id in self._url_cache:
             is_resolved = True
-        elif self.redis_store.client:
+        elif self.redis_store.is_available:
             try:
                 if self.redis_store.client.exists(f"openjam:url:{video_id}"):
                     is_resolved = True
@@ -397,7 +397,7 @@ class AudioStreamEngine:
                     logger.info(f"Invalidated stream local cache for {cache_key} due to nocache=true")
                 except KeyError:
                     pass
-            if self.redis_store.client:
+            if self.redis_store.is_available:
                 try:
                     self.redis_store.client.delete(f"openjam:url:{cache_key}")
                     logger.info(f"Invalidated stream Redis cache for {cache_key} due to nocache=true")
@@ -454,7 +454,7 @@ class AudioStreamEngine:
                         failure_reporter(url)
                     if cache_key in self._url_cache:
                         del self._url_cache[cache_key]
-                    if self.redis_store.client:
+                    if self.redis_store.is_available:
                         try:
                             self.redis_store.client.delete(f"openjam:url:{cache_key}")
                             logger.info(f"Evicted invalid stream URL for {cache_key} from Redis")
@@ -564,7 +564,7 @@ class AudioStreamEngine:
                     failure_reporter(url)
                 if cache_key in self._url_cache:
                     del self._url_cache[cache_key]
-                if self.redis_store.client:
+                if self.redis_store.is_available:
                     try:
                         self.redis_store.client.delete(f"openjam:url:{cache_key}")
                     except Exception:

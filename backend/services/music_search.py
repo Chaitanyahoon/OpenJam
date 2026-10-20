@@ -61,7 +61,7 @@ class MusicSearchService:
         try:
             from backend.services.redis_store import RedisStore
             redis_store = RedisStore()
-            if redis_store.client:
+            if getattr(redis_store, "is_available", False):
                 cached_data = redis_store.client.get(f"openjam:search:{cache_key}")
                 if cached_data:
                     tracks = json.loads(cached_data)
@@ -222,7 +222,7 @@ class MusicSearchService:
             try:
                 from backend.services.redis_store import RedisStore
                 redis_store = RedisStore()
-                if redis_store.client:
+                if getattr(redis_store, "is_available", False):
                     redis_store.client.setex(f"openjam:search:{cache_key}", 86400, json.dumps(final_tracks))
             except Exception as e:
                 logger.warning(f"Failed to save search results to Redis: {e}")

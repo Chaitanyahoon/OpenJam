@@ -58,7 +58,7 @@ _stream_origin_instances: dict[str, str] = {}
 
 def load_health_from_redis():
     global _instance_health, _piped_health, _last_health_check
-    if redis_store.client:
+    if getattr(redis_store, "is_available", False):
         try:
             import json
             inv_data = redis_store.client.get("openjam:invidious:health")
@@ -283,7 +283,7 @@ async def _health_check_instances_bg():
     healthy = sum(1 for r in results if r is True)
     logger.info(f"Health check background task complete: {healthy}/{len(INV_INSTANCES) + len(PIPED_INSTANCES)} instances healthy")
 
-    if redis_store.client:
+    if getattr(redis_store, "is_available", False):
         try:
             import json
             redis_store.client.set("openjam:invidious:health", json.dumps(_instance_health), ex=86400)
@@ -360,7 +360,7 @@ def report_stream_failure(stream_url: str):
                 health["score"] = max(0, health["score"] - 30)
                 logger.info(f"Penalized Piped instance {origin} (score={health['score']}) due to stream proxy failure")
 
-            if redis_store.client:
+            if getattr(redis_store, "is_available", False):
                 try:
                     import json
                     redis_store.client.set("openjam:invidious:health", json.dumps(_instance_health), ex=86400)
