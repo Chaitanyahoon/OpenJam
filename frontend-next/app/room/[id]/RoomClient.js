@@ -166,6 +166,7 @@ export default function RoomClient({ roomId }) {
   // Refs for scrolling, focus and volume
   const chatEndRef = useRef(null);
   const isUserScrolledUpRef = useRef(false);
+  const [hasNewMessagesBelow, setHasNewMessagesBelow] = useState(false);
   const searchInputRef = useRef(null);
   const lastNonZeroVolumeRef = useRef(80);
   const stageLyricsScrollRef = useRef(null);
@@ -493,13 +494,20 @@ export default function RoomClient({ roomId }) {
     const el = e.currentTarget;
     if (!el) return;
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    isUserScrolledUpRef.current = distanceFromBottom > 120;
+    const isScrolledUp = distanceFromBottom > 90;
+    isUserScrolledUpRef.current = isScrolledUp;
+    if (!isScrolledUp) {
+      setHasNewMessagesBelow(false);
+    }
   }, []);
 
   const scrollToChatBottom = useCallback((force = false) => {
     if (!force && isUserScrolledUpRef.current) {
+      setHasNewMessagesBelow(true);
       return;
     }
+    setHasNewMessagesBelow(false);
+    isUserScrolledUpRef.current = false;
     setTimeout(() => {
       chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, 40);
@@ -2878,8 +2886,9 @@ export default function RoomClient({ roomId }) {
     const roomTitle = room?.name || 'OpenJam Room';
     const trackInfo = nowPlaying?.track_name ? ` • Listening to ${nowPlaying.track_name}` : '';
 
-    // 1. Native OS Web Share API
-    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+    // 1. Native OS Web Share API on mobile devices
+    const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+    if (isMobile && typeof navigator.share === 'function') {
       try {
         await navigator.share({
           title: `${roomTitle} | OpenJam`,
@@ -3625,7 +3634,7 @@ export default function RoomClient({ roomId }) {
                         <Search className="h-4 w-4" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
                       )}
                       {searchQuery && (
-                        <button type="button" className="clear-btn" onClick={() => setSearchQuery('')} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer' }}>
+                        <button type="button" className="clear-btn" onClick={() => { setSearchQuery(''); searchInputRef.current?.focus(); }} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer' }}>
                           <X className="h-4 w-4" />
                         </button>
                       )}
@@ -4862,7 +4871,7 @@ export default function RoomClient({ roomId }) {
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.15, ease: 'easeOut' }}
                 className="chat-panel"
-                style={{ height: '100%' }}
+                style={{ height: '100%', position: 'relative' }}
               >
                 <div className="chat-header">
                   <div className="chat-header-content">
@@ -4939,6 +4948,38 @@ export default function RoomClient({ roomId }) {
                   )}
                   <div ref={chatEndRef} />
                 </div>
+
+                {hasNewMessagesBelow && (
+                  <button
+                    type="button"
+                    onClick={() => scrollToChatBottom(true)}
+                    style={{
+                      position: 'absolute',
+                      bottom: '122px',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      zIndex: 20,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      padding: '5px 13px',
+                      borderRadius: '16px',
+                      background: 'var(--amber, #ff9f1c)',
+                      color: '#000',
+                      fontWeight: 700,
+                      fontSize: '11px',
+                      letterSpacing: '0.2px',
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.45)',
+                      cursor: 'pointer',
+                      border: 'none',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title="Jump to new messages"
+                  >
+                    <ChevronDown size={13} strokeWidth={2.5} />
+                    <span>New messages</span>
+                  </button>
+                )}
 
                 {/* Reactions floating dock */}
                 <div className="reactions-bar" style={{ position: 'relative' }}>
