@@ -214,7 +214,18 @@ async def _playlist_auto_sync_loop():
         try:
             # Check every 1 hour (3600 seconds)
             await asyncio.sleep(3600)
-            logger.info("Starting background playlist auto-sync check...")
+            logger.info("Starting background playlist auto-sync and database retention...")
+            
+            # Prune ephemeral chat, visits, and old history to protect Supabase free-tier storage
+            try:
+                from backend.services.retention import run_database_retention
+                db_ret = SessionLocal()
+                try:
+                    run_database_retention(db_ret)
+                finally:
+                    db_ret.close()
+            except Exception as ret_err:
+                logger.warning(f"Periodic retention cleanup warning: {ret_err}")
             
             db = SessionLocal()
             try:
@@ -330,6 +341,17 @@ async def lifespan(app):
     except Exception as e:
         logger.error(f"Failed to seed 24/7 Lounge room on startup: {e}")
     
+    # Run startup database retention check
+    try:
+        from backend.services.retention import run_database_retention
+        db_ret_start = SessionLocal()
+        try:
+            run_database_retention(db_ret_start)
+        finally:
+            db_ret_start.close()
+    except Exception as ret_start_err:
+        logger.warning(f"Startup database retention warning: {ret_start_err}")
+
     # Start background tasks
     import asyncio
     cleanup_task = asyncio.create_task(_room_cleanup_loop())

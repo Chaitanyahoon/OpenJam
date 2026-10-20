@@ -170,7 +170,7 @@ export function ProfileSettingsSection({
         <View style={styles.cardInfo}>
           <Text style={styles.cardTitle}>System App Settings</Text>
           <Text style={styles.cardSub}>
-            Manage OS permissions, clear system caches, and audio output.
+            Set Battery to 'Unrestricted' so Android never pauses audio when locked.
           </Text>
         </View>
         <Pressable
