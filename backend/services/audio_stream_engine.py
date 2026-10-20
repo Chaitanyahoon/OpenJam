@@ -378,6 +378,7 @@ class AudioStreamEngine:
         request: Request,
         low: bool = False,
         nocache: bool = False,
+        redirect: bool = False,
         resolve_fn: Any = None,
         client_getter: Any = None,
         failure_reporter: Any = None,
@@ -444,6 +445,11 @@ class AudioStreamEngine:
                     logger.warning(f"Stream resolution returned None for {video_id} on attempt {attempt}, retrying...")
                     continue
                 raise HTTPException(status_code=404, detail="Could not extract stream")
+
+            if redirect and url and url.startswith("http"):
+                logger.info(f"Offloading stream {video_id} via 307 redirect to {url[:60]}...")
+                from fastapi.responses import RedirectResponse
+                return RedirectResponse(url=url, status_code=307)
 
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -598,6 +604,7 @@ async def get_stream_response(
     request: Request,
     low: bool = False,
     nocache: bool = False,
+    redirect: bool = False,
     resolve_fn: Any = None,
     client_getter: Any = None,
     failure_reporter: Any = None,
@@ -607,6 +614,7 @@ async def get_stream_response(
         request,
         low=low,
         nocache=nocache,
+        redirect=redirect,
         resolve_fn=resolve_fn,
         client_getter=client_getter,
         failure_reporter=failure_reporter,

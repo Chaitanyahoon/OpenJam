@@ -224,13 +224,20 @@ async def get_recommendations():
 
 
 @router.get("/stream/{video_id}")
-async def stream_audio(video_id: str, request: Request, low: bool = False, nocache: bool = False):
-    """Proxy audio stream via AudioStreamEngine."""
+async def stream_audio(
+    video_id: str,
+    request: Request,
+    low: bool = False,
+    nocache: bool = False,
+    redirect: bool = False,
+):
+    """Proxy audio stream via AudioStreamEngine, or 307 redirect if requested."""
     return await get_stream_response(
         video_id,
         request,
         low=low,
         nocache=nocache,
+        redirect=redirect,
         resolve_fn=_resolve_audio_url,
         client_getter=_get_stream_client,
         failure_reporter=report_stream_failure,
