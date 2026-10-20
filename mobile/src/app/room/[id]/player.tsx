@@ -23,6 +23,7 @@ import {
   Text,
   View,
   useWindowDimensions,
+  Share,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -35,6 +36,7 @@ import Animated, {
   withRepeat,
   withSequence,
   withTiming,
+  withSpring,
 } from 'react-native-reanimated';
 import {
   Music,
@@ -56,6 +58,8 @@ import {
   CheckCircle2,
   HardDrive,
   ListMusic,
+  ListPlus,
+  Share2,
   Headphones,
   AlertCircle,
 } from 'lucide-react-native';
@@ -66,6 +70,10 @@ import { usePlayer, usePlayerStatus } from '../../../audio/PlayerContext';
 import { PrecisionScrubber } from '../../../components/player/PrecisionScrubber';
 import { useLyricsController } from '../../../components/player/useLyricsController';
 import { useToast } from '../../../components/ToastContext';
+import { getAmbientPalette } from '../../../utils/palette';
+import { useArtworkGestures } from '../../../components/player/useArtworkGestures';
+import { AddToPlaylistModal } from '../../../components/AddToPlaylistModal';
+import { ImportPlaylistModal } from '../../../components/ImportPlaylistModal';
 import {
   downloadTrackToVault,
   getVaultTracks,
@@ -188,13 +196,60 @@ export default function PlayerTab() {
     };
   }, [nowPlaying?.track_uri]);
 
+  const [showAddToPlaylist, setShowAddToPlaylist] = useState(false);
+  const [showImportPlaylist, setShowImportPlaylist] = useState(false);
+
+  const palette = useMemo(
+    () => getAmbientPalette(nowPlaying?.track_name, nowPlaying?.artist, nowPlaying?.album_art_url),
+    [nowPlaying?.track_name, nowPlaying?.artist, nowPlaying?.album_art_url],
+  );
+
+  const heartScale = useSharedValue(1);
+  const animatedHeartStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: heartScale.value }],
+  }));
+
   const handleToggleLike = useCallback(async () => {
     if (!nowPlaying) return;
     void hapticMedium();
+    heartScale.value = withSequence(
+      withTiming(0.8, { duration: 100 }),
+      withSpring(1.3, { damping: 8, stiffness: 200 }),
+      withSpring(1.0, { damping: 10, stiffness: 180 }),
+    );
     const next = await toggleFavoriteTrack(nowPlaying);
     setIsLiked(next);
     toast(next ? 'Added to Liked Songs' : 'Removed from Liked Songs', 'info');
-  }, [nowPlaying, toast]);
+  }, [nowPlaying, toast, heartScale]);
+
+  const { artworkPanResponder, animatedArtworkStyle, animatedBurstHeartStyle } = useArtworkGestures({
+    onSwipeNext: () => {
+      if (canControl) {
+        nextTrack();
+        void hapticMedium();
+      }
+    },
+    onSwipePrev: () => {
+      if (canControl) {
+        previousTrack();
+        void hapticMedium();
+      }
+    },
+    onDoubleTapLike: handleToggleLike,
+  });
+
+  const handleShareTrack = useCallback(async () => {
+    if (!nowPlaying) return;
+    try {
+      void hapticLight();
+      const ytId = nowPlaying.track_uri.replace(/^yt:/, '');
+      const trackUrl = ytId.length === 11 ? `https://youtu.be/${ytId}` : 'https://www.openjam.fun';
+      await Share.share({
+        message: `Listening to "${nowPlaying.track_name}" by ${nowPlaying.artist || 'Unknown Artist'} on OpenJam 🎵\n${trackUrl}`,
+        title: nowPlaying.track_name,
+      });
+    } catch {}
+  }, [nowPlaying]);
 
   // Current Track Download Progress & Vault Status
   const [currentDownload, setCurrentDownload] = useState<TrackDownloadProgress | null>(null);
@@ -358,13 +413,12 @@ export default function PlayerTab() {
 
   return (
     <View style={styles.safe}>
-      {/* Ambient background bloom gradient derived from album art */}
-      <View style={styles.ambientBloom} pointerEvents="none">
-        <LinearGradient
-          colors={['rgba(255, 159, 28, 0.20)', 'rgba(255, 159, 28, 0.04)', 'transparent']}
-          style={StyleSheet.absoluteFill}
-        />
-      </View>
+      {/* Ambient background bloom gradient derived from album art palette */}
+      <LinearGradient
+        colors={[palette.top, palette.mid, palette.bottom]}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
 
       <ScrollView
         style={styles.scroll}
@@ -392,21 +446,36 @@ export default function PlayerTab() {
             </LinearGradient>
           </View>
         ) : (
-          /* Prominent Modern Artwork Hero Card */
-          <View style={[styles.artworkContainer, { width: artworkSize, height: artworkSize }]}>
-            <View style={styles.artworkAura} pointerEvents="none" />
-            <View style={[styles.artworkCard, { width: artworkSize, height: artworkSize }]}>
+          /* Artwork Hero Stage with Horizontal Swipe to Skip & Double-Tap Heart */
+          <View style={styles.artworkStage} {...artworkPanResponder.panHandlers}>
+            <View
+              style={[
+                styles.artworkGlow,
+                {
+                  width: artworkSize,
+                  height: artworkSize,
+                  backgroundColor: palette.glow,
+                },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.artworkContainer,
+                { width: artworkSize, height: artworkSize },
+                animatedArtworkStyle,
+              ]}
+            >
               {art ? (
                 <Image
                   source={{ uri: art }}
-                  style={styles.art}
+                  style={[styles.artwork, { width: artworkSize, height: artworkSize }]}
                   contentFit="cover"
-                  transition={300}
+                  transition={200}
                 />
               ) : (
                 <LinearGradient
                   colors={['#242436', '#141420', '#0a0a10']}
-                  style={[styles.art, styles.artFallback]}
+                  style={[styles.artwork, styles.artFallback, { width: artworkSize, height: artworkSize }]}
                 >
                   <View style={styles.artFallbackIconWrap}>
                     <Music size={38} color={colors.amber} />
@@ -417,13 +486,17 @@ export default function PlayerTab() {
                   <Text style={styles.artFallbackSub}>OPENJAM SESSION</Text>
                 </LinearGradient>
               )}
-            </View>
+              {/* Double-tap Burst Heart */}
+              <Animated.View style={[styles.burstHeartWrap, animatedBurstHeartStyle]} pointerEvents="none">
+                <Heart size={Math.min(84, Math.floor(artworkSize * 0.35))} color="#ffffff" fill="#ef4444" strokeWidth={1.5} />
+              </Animated.View>
+            </Animated.View>
           </View>
         )}
 
         {nowPlaying ? (
           <>
-            {/* Spotify-style Track Info Row with Vault & Heart on Right */}
+            {/* Spotify-style Track Info Row with Actions on Right */}
             <View style={styles.trackInfoRow}>
               <View style={styles.trackMetaCol}>
                 <Text style={styles.trackName} numberOfLines={1}>
@@ -435,35 +508,60 @@ export default function PlayerTab() {
               </View>
 
               <View style={styles.trackActionsRow}>
-                {/* Save to Downloads */}
+                {/* Add to Playlist */}
+                <Pressable
+                  onPress={() => {
+                    void hapticLight();
+                    setShowAddToPlaylist(true);
+                  }}
+                  hitSlop={10}
+                  style={({ pressed }) => [styles.actionIconBtn, pressed && styles.pressed]}
+                  accessibilityLabel="Add song to playlist"
+                >
+                  <ListPlus size={20} color="#9999aa" strokeWidth={2} />
+                </Pressable>
+
+                {/* Save to Downloads / Vault */}
                 <Pressable
                   onPress={handleDownloadCurrentTrack}
                   disabled={currentDownload?.state === 'downloading'}
-                  style={({ pressed }) => [styles.actionIconBtn, pressed && styles.pressed]}
                   hitSlop={10}
-                  accessibilityLabel="Download song"
+                  style={({ pressed }) => [styles.actionIconBtn, pressed && styles.pressed]}
+                  accessibilityLabel="Download song for offline listening"
                 >
                   {currentDownload?.state === 'downloading' ? (
                     <ActivityIndicator size="small" color={colors.amber} />
                   ) : isTrackDownloaded ? (
-                    <CheckCircle2 size={20} color="#10b981" />
+                    <CheckCircle2 size={20} color="#10b981" strokeWidth={2.2} />
                   ) : (
-                    <DownloadCloud size={20} color={colors.text3} />
+                    <DownloadCloud size={20} color="#9999aa" strokeWidth={2} />
                   )}
                 </Pressable>
 
-                {/* Like / Heart */}
+                {/* Share Track */}
+                <Pressable
+                  onPress={handleShareTrack}
+                  hitSlop={10}
+                  style={({ pressed }) => [styles.actionIconBtn, pressed && styles.pressed]}
+                  accessibilityLabel="Share song"
+                >
+                  <Share2 size={20} color="#9999aa" strokeWidth={2} />
+                </Pressable>
+
+                {/* Like / Heart with spring bounce */}
                 <Pressable
                   onPress={handleToggleLike}
+                  hitSlop={10}
                   style={({ pressed }) => [styles.heartBtn, pressed && styles.pressed]}
-                  hitSlop={12}
-                  accessibilityLabel={isLiked ? 'Unlike track' : 'Like track'}
+                  accessibilityLabel={isLiked ? 'Unlike song' : 'Like song'}
                 >
-                  <Heart
-                    size={20}
-                    color={isLiked ? '#ef4444' : colors.text3}
-                    fill={isLiked ? '#ef4444' : 'transparent'}
-                  />
+                  <Animated.View style={animatedHeartStyle}>
+                    <Heart
+                      size={21}
+                      color={isLiked ? (palette.accent || '#ef4444') : '#9999aa'}
+                      fill={isLiked ? (palette.accent || '#ef4444') : 'transparent'}
+                    />
+                  </Animated.View>
                 </Pressable>
               </View>
             </View>
@@ -496,13 +594,13 @@ export default function PlayerTab() {
               durationMs={duration}
               positionMs={player ? () => player.positionMs() : () => 0}
               seekToMs={seekToMs}
-              accentColor={colors.amber}
+              accentColor={palette.accent || colors.amber}
               isPlayerModalOpen={true}
               onPositionChange={lyricsOpen ? setLyricsPosMs : undefined}
             />
 
             {/* Spotify-Inspired Tactile Transport Controls Deck */}
-            <View style={styles.controls}>
+            <View style={styles.controlsRow}>
               {/* Shuffle button */}
               <Pressable
                 onPress={() => {
@@ -511,14 +609,14 @@ export default function PlayerTab() {
                 }}
                 disabled={!isHost}
                 style={({ pressed }) => [
-                  styles.sideBtn,
+                  styles.sideControlBtn,
                   !isHost && styles.disabled,
                   pressed && styles.pressed,
                 ]}
-                hitSlop={10}
+                hitSlop={12}
                 accessibilityLabel="Shuffle queue"
               >
-                <Shuffle size={18} color={colors.text3} strokeWidth={2} />
+                <Shuffle size={18} color={isHost ? colors.text2 : colors.text3} strokeWidth={2} />
               </Pressable>
 
               {/* Previous button */}
@@ -529,17 +627,17 @@ export default function PlayerTab() {
                 }}
                 disabled={!canControl}
                 style={({ pressed }) => [
-                  styles.ctlBtn,
+                  styles.stepBtn,
                   !canControl && styles.disabled,
                   pressed && styles.pressed,
                 ]}
                 hitSlop={12}
                 accessibilityLabel="Previous track"
               >
-                <SkipBack size={22} color={colors.text1} fill={colors.text1} />
+                <SkipBack size={24} color="#ffffff" fill="#ffffff" />
               </Pressable>
 
-              {/* Center Play / Pause Button with Warm Amber Halo */}
+              {/* Center Play / Pause Button */}
               <Pressable
                 onPress={() => {
                   togglePlay();
@@ -547,24 +645,17 @@ export default function PlayerTab() {
                 }}
                 disabled={!canControl}
                 style={({ pressed }) => [
-                  styles.playBtnWrap,
+                  styles.playPauseBtn,
                   !canControl && styles.disabled,
-                  pressed && styles.pressed,
+                  pressed && styles.playPauseBtnPressed,
                 ]}
                 accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
               >
-                <LinearGradient
-                  colors={['#ffb03a', '#ff9f1c']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.playBtn}
-                >
-                  {isPlaying ? (
-                    <Pause size={24} color="#08080a" fill="#08080a" />
-                  ) : (
-                    <Play size={24} color="#08080a" fill="#08080a" style={{ marginLeft: 2 }} />
-                  )}
-                </LinearGradient>
+                {isPlaying ? (
+                  <Pause size={26} color="#08080a" fill="#08080a" />
+                ) : (
+                  <Play size={26} color="#08080a" fill="#08080a" style={{ marginLeft: 2 }} />
+                )}
               </Pressable>
 
               {/* Next button */}
@@ -575,14 +666,14 @@ export default function PlayerTab() {
                 }}
                 disabled={!canControl}
                 style={({ pressed }) => [
-                  styles.ctlBtn,
+                  styles.stepBtn,
                   !canControl && styles.disabled,
                   pressed && styles.pressed,
                 ]}
                 hitSlop={12}
                 accessibilityLabel="Next track"
               >
-                <SkipForward size={22} color={colors.text1} fill={colors.text1} />
+                <SkipForward size={24} color="#ffffff" fill="#ffffff" />
               </Pressable>
 
               {/* Repeat button */}
@@ -593,15 +684,15 @@ export default function PlayerTab() {
                 }}
                 disabled={!canControl}
                 style={({ pressed }) => [
-                  styles.sideBtn,
+                  styles.sideControlBtn,
                   !canControl && styles.disabled,
                   pressed && styles.pressed,
                 ]}
-                hitSlop={10}
+                hitSlop={12}
                 accessibilityLabel="Toggle repeat"
               >
-                <Repeat size={18} color={loop ? colors.amber : colors.text3} strokeWidth={2} />
-                {loop ? <View style={styles.loopDot} /> : null}
+                <Repeat size={18} color={loop ? (palette.accent || colors.amber) : colors.text3} strokeWidth={2} />
+                {loop ? <View style={styles.activeDot} /> : null}
               </Pressable>
             </View>
 
@@ -794,6 +885,22 @@ export default function PlayerTab() {
           </View>
         )}
       </ScrollView>
+
+      {showAddToPlaylist && nowPlaying && (
+        <AddToPlaylistModal
+          visible={showAddToPlaylist}
+          onClose={() => setShowAddToPlaylist(false)}
+          track={nowPlaying}
+        />
+      )}
+      {showImportPlaylist && (
+        <ImportPlaylistModal
+          visible={showImportPlaylist}
+          mode="queue"
+          onClose={() => setShowImportPlaylist(false)}
+          onAddToQueue={(tracks) => tracks.forEach(addTrack)}
+        />
+      )}
     </View>
   );
 }
@@ -823,12 +930,37 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   // Modern Hero Artwork Card Styles
+  artworkStage: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: spacing.xs,
+  },
+  artworkGlow: {
+    position: 'absolute',
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+    transform: [{ scale: 1.05 }],
+  },
   artworkContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
-    marginTop: spacing.xs,
-    marginBottom: spacing.xs,
+  },
+  artwork: {
+    borderRadius: 16,
+    backgroundColor: '#181822',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  burstHeartWrap: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+    shadowColor: '#ef4444',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.6,
+    shadowRadius: 16,
+    elevation: 8,
   },
   artworkAura: {
     position: 'absolute',
@@ -1118,65 +1250,50 @@ const styles = StyleSheet.create({
   },
   // Full-width Scrubber Deck
   // Spotify Transport Controls Deck
-  controls: {
+  controlsRow: {
     width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.xs,
+    paddingHorizontal: spacing.sm,
     marginVertical: spacing.xs,
   },
-  sideBtn: {
+  sideControlBtn: {
     width: 44,
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
   },
-  sideGlyph: {
-    fontSize: 22,
-    color: colors.text3,
-  },
-  activeGlyph: {
-    color: colors.amber,
-  },
-  loopDot: {
+  activeDot: {
     position: 'absolute',
-    bottom: 6,
+    bottom: 4,
     width: 4,
     height: 4,
     borderRadius: 2,
     backgroundColor: colors.amber,
   },
-  ctlBtn: {
-    width: 44,
-    height: 44,
+  stepBtn: {
+    padding: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  ctlGlyph: {
-    fontSize: 22,
-    color: colors.text1,
-  },
-  playBtnWrap: {
-    borderRadius: 30,
+  playPauseBtn: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.amber,
+    alignItems: 'center',
+    justifyContent: 'center',
     shadowColor: colors.amber,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
-    shadowRadius: 16,
+    shadowRadius: 12,
     elevation: 8,
   },
-  playBtn: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  playGlyph: {
-    fontSize: 28,
-    color: '#08080a',
-    marginLeft: 2,
+  playPauseBtnPressed: {
+    transform: [{ scale: 0.94 }],
+    opacity: 0.9,
   },
 
   // Synced Karaoke Lyrics Card

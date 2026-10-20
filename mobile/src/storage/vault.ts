@@ -13,6 +13,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import type { TrackInfo } from '../sync/protocol';
 import { getBackendUrl } from '../config';
+import { parseYouTubeId } from '../audio/streamResolver';
 
 const VAULT_INDEX_KEY = 'openjam_offline_vault_v1';
 export const DEFAULT_STORAGE_BUDGET_BYTES = 1024 * 1024 * 1024; // 1 GB default
@@ -200,6 +201,8 @@ export async function getVaultTracks(): Promise<VaultTrack[]> {
 /** Parse or extract standard YouTube ID from track URI */
 export function extractVideoId(uri: string): string | null {
   if (!uri) return null;
+  const parsed = parseYouTubeId(uri);
+  if (parsed) return parsed;
   const clean = uri.trim();
   if (/^[a-zA-Z0-9_-]{11}$/.test(clean)) return clean;
   if (clean.startsWith('yt:')) {
@@ -329,7 +332,7 @@ export async function downloadTrackToVault(
     const query = `${track.track_name} ${track.artist || ''}`.trim();
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 6000);
+      const timeout = setTimeout(() => controller.abort(), 12000);
       const resp = await fetch(`${backendUrl}/search/resolve?q=${encodeURIComponent(query)}`, {
         signal: controller.signal,
       });
@@ -342,6 +345,23 @@ export async function downloadTrackToVault(
       }
     } catch (resolveErr) {
       console.warn('[Vault] Track resolution warning:', resolveErr);
+    }
+    if (!videoId) {
+      try {
+        const ctrl = new AbortController();
+        const tId = setTimeout(() => ctrl.abort(), 10000);
+        const tracksResp = await fetch(`${backendUrl}/search/tracks?q=${encodeURIComponent(query)}`, {
+          signal: ctrl.signal,
+        });
+        clearTimeout(tId);
+        if (tracksResp.ok) {
+          const tData = await tracksResp.json();
+          const list = Array.isArray(tData) ? tData : tData?.tracks;
+          if (Array.isArray(list) && list.length > 0 && list[0]?.uri) {
+            videoId = extractVideoId(list[0].uri) || list[0].uri;
+          }
+        }
+      } catch {}
     }
 
   }
@@ -424,6 +444,74 @@ export async function downloadTrackToVault(
         await new Promise((r) => setTimeout(r, 600));
       }
     }
+  }
+
+  // Fallback to alternate video ID if primary streams failed
+  if (!success && videoId) {
+    const query = `${track.track_name} ${track.artist || ''}`.trim();
+    try {
+      const ctrl = new AbortController();
+      const timeout = setTimeout(() => ctrl.abort(), 8000);
+      const altResp = await fetch(
+        `${backendUrl}/search/alternate?q=${encodeURIComponent(query)}&exclude=${encodeURIComponent(videoId)}`,
+        { signal: ctrl.signal },
+      );
+      clearTimeout(timeout);
+      if (altResp.ok) {
+        const altData = await altResp.json();
+        const altVideoId = altData?.video_id;
+        if (altVideoId && altVideoId !== videoId) {
+          const altUrls = await resolveDirectAudioStreamUrls(altVideoId);
+          for (const altUrl of altUrls) {
+            try {
+              const downloadResumable = FileSystem.createDownloadResumable(
+                altUrl,
+                localTargetUri,
+                {},
+                (downloadProgress) => {
+                  const total = downloadProgress.totalBytesExpectedToWrite;
+                  const current = downloadProgress.totalBytesWritten;
+                  const pct = total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 30;
+                  updateProgress(track.track_uri, { state: 'downloading', percent: Math.max(5, pct) });
+                  onProgress?.(current, total, pct);
+                },
+              );
+              const downloadResult = await downloadResumable.downloadAsync();
+              const status = downloadResult?.status ?? 200;
+              const headers = downloadResult?.headers || {};
+              const ctKey = Object.keys(headers).find((k) => k.toLowerCase() === 'content-type');
+              const contentType = (ctKey ? String(headers[ctKey]) : '').toLowerCase();
+
+              if (status < 400 && !contentType.includes('html') && !contentType.includes('json') && !contentType.includes('text')) {
+                let actualTargetUri = localTargetUri;
+                if (contentType.includes('webm') || contentType.includes('opus')) {
+                  const webmUri = localTargetUri.replace(/\.m4a$/, '.webm');
+                  await FileSystem.moveAsync({ from: localTargetUri, to: webmUri });
+                  actualTargetUri = webmUri;
+                } else if (contentType.includes('mp3') || contentType.includes('mpeg')) {
+                  const mp3Uri = localTargetUri.replace(/\.m4a$/, '.mp3');
+                  await FileSystem.moveAsync({ from: localTargetUri, to: mp3Uri });
+                  actualTargetUri = mp3Uri;
+                }
+
+                const stat = await FileSystem.getInfoAsync(actualTargetUri);
+                const fileSize = stat.exists && 'size' in stat ? (stat.size ?? 0) : 0;
+                if (isValidDownloadedAudio(fileSize, contentType, status)) {
+                  success = true;
+                  resolvedTargetUri = actualTargetUri;
+                  break;
+                }
+              }
+            } catch (altErr) {
+              lastError = altErr;
+              try {
+                await FileSystem.deleteAsync(localTargetUri, { idempotent: true });
+              } catch {}
+            }
+          }
+        }
+      }
+    } catch {}
   }
 
   if (!success) {
