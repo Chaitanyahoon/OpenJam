@@ -278,6 +278,8 @@ const PillNav = ({
                   <a
                     role="menuitem"
                     href={item.href}
+                    target={item.target || (item.isExternal ? '_blank' : undefined)}
+                    rel={item.target === '_blank' || item.isExternal ? 'noopener noreferrer' : undefined}
                     className={`pill${activeHref === item.href ? ' is-active' : ''}`}
                     aria-label={item.ariaLabel || (typeof item.label === 'string' ? item.label : '')}
                     onMouseEnter={() => handleEnter(i)}
@@ -373,6 +375,8 @@ const PillNav = ({
               ) : (
                 <a
                   href={item.href}
+                  target={item.target || (item.isExternal ? '_blank' : undefined)}
+                  rel={item.target === '_blank' || item.isExternal ? 'noopener noreferrer' : undefined}
                   className={`mobile-menu-link${activeHref === item.href ? ' is-active' : ''}`}
                   onClick={(e) => {
                     setIsMobileMenuOpen(false);

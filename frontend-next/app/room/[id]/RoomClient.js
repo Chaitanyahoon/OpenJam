@@ -5834,6 +5834,26 @@ export default function RoomClient({ roomId }) {
                     </button>
                   </div>
                 </div>
+
+                {/* Supporter / Tip Jar Callout */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255, 159, 28, 0.06)', border: '1px solid rgba(255, 159, 28, 0.2)', borderRadius: '14px', padding: '12px 14px', marginTop: '2px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '18px' }}>☕</span>
+                    <div>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#ffffff' }}>Keep OpenJam Ad-Free</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-3)' }}>Support streaming servers and audio sync costs.</div>
+                    </div>
+                  </div>
+                  <a
+                    href={process.env.NEXT_PUBLIC_SUPPORT_URL || 'https://ko-fi.com'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-primary"
+                    style={{ padding: '6px 14px', fontSize: '11px', fontWeight: 700, borderRadius: '8px', textDecoration: 'none', whiteSpace: 'nowrap' }}
+                  >
+                    Tip Jar
+                  </a>
+                </div>
               </div>
             </motion.div>
           </div>

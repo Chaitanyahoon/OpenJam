@@ -446,7 +446,12 @@ export default function HomePage({ initialRooms = [] }) {
     const list = [
       { label: 'Home', href: '/' },
       { label: 'Rooms', href: '#active-rooms' },
-      { label: 'FAQ', href: '#faq' }
+      { label: 'FAQ', href: '#faq' },
+      {
+        label: '☕ Tip Jar',
+        href: process.env.NEXT_PUBLIC_SUPPORT_URL || 'https://ko-fi.com',
+        isExternal: true
+      }
     ];
 
     if (showInstallBtn) {
