@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, spacing } from '../../theme';
 import { fontFamily } from '../../fonts';
 
@@ -7,13 +7,33 @@ export interface HomeFooterProps {
   bottomInset?: number;
   onPressPrivacy: () => void;
   onPressTerms: () => void;
+  onPressSupport?: () => void;
 }
 
 export const HomeFooter: React.FC<HomeFooterProps> = ({
   bottomInset = 0,
   onPressPrivacy,
   onPressTerms,
+  onPressSupport,
 }) => {
+  const handleSupport = async () => {
+    if (onPressSupport) {
+      onPressSupport();
+      return;
+    }
+    const upiUrl = 'upi://pay?pa=chaitanyapatil700-1@oksbi&pn=OpenJam&cu=INR&tn=Support%20OpenJam';
+    try {
+      const canOpen = await Linking.canOpenURL(upiUrl);
+      if (canOpen) {
+        await Linking.openURL(upiUrl);
+        return;
+      }
+    } catch {
+      // Fall through to web
+    }
+    await Linking.openURL('https://openjam.online/#tip-jar').catch(() => {});
+  };
+
   return (
     <View style={[styles.footerSection, { paddingBottom: Math.max(bottomInset, 16) + 12 }]}>
       <View style={styles.footerLinksRow}>
@@ -35,6 +55,16 @@ export const HomeFooter: React.FC<HomeFooterProps> = ({
           accessibilityLabel="Terms of service"
         >
           <Text style={styles.footerLinkText}>Terms</Text>
+        </Pressable>
+        <Text style={styles.footerDot}>•</Text>
+        <Pressable
+          onPress={() => { void handleSupport(); }}
+          hitSlop={8}
+          style={({ pressed }) => [styles.footerLink, pressed && styles.pressed]}
+          accessibilityRole="button"
+          accessibilityLabel="Support OpenJam Tip Jar"
+        >
+          <Text style={[styles.footerLinkText, { color: colors.amber }]}>☕ Tip Jar</Text>
         </Pressable>
       </View>
       <Text style={styles.footerCopy}>OpenJam • Free & Open-Source Audio Sync</Text>
