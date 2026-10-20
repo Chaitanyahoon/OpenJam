@@ -114,7 +114,7 @@ export async function resolveAudioStream(
     const backendUrl = getBackendUrl();
     return {
       type: 'direct_stream',
-      uri: `${backendUrl}/stream/${ytId}`,
+      uri: `${backendUrl}/stream/${ytId}?redirect=true`,
       youtubeId: ytId,
       title: meta?.title,
       artist: meta?.artist,

@@ -294,6 +294,7 @@ export function isDirectAudioUrl(url?: string | null): boolean {
 export async function resolveDirectAudioStreamUrls(videoId: string): Promise<string[]> {
   const backendUrl = getBackendUrl();
   return [
+    `${backendUrl}/stream/${videoId}?redirect=true`,
     `${backendUrl}/stream/${videoId}`,
     `${backendUrl}/stream/${videoId}?nocache=true`,
     `${backendUrl}/stream/${videoId}?low=true`,
