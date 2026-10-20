@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useSocket } from '@/contexts/SocketContext';
 import { useRouter } from 'next/navigation';
@@ -40,6 +40,23 @@ export default function RoomClient({ roomId }) {
   const [playlists, setPlaylists] = useState([]);
   const [nowPlaying, setNowPlaying] = useState(null);
   const [playbackState, setPlaybackState] = useState({ positionMs: 0, durationMs: 0, isPlaying: false });
+
+  // Live queue duration and runtime stats
+  const queueStats = useMemo(() => {
+    if (!queue || queue.length === 0) return null;
+    const pendingItems = queue.filter(item => item.status === 'pending');
+    const pendingMs = pendingItems.reduce((acc, t) => acc + (t.duration_ms || 210000), 0);
+    const nowPlayingRemainingMs = nowPlaying && playbackState.durationMs
+      ? Math.max(0, playbackState.durationMs - playbackState.positionMs)
+      : 0;
+    const totalRemainingMs = pendingMs + nowPlayingRemainingMs;
+    const totalMinutes = Math.round(totalRemainingMs / 60000);
+    const count = queue.length;
+    return {
+      countText: `${count} track${count === 1 ? '' : 's'}`,
+      durationText: totalMinutes > 0 ? `${totalMinutes} min` : '< 1 min'
+    };
+  }, [queue, nowPlaying, playbackState.durationMs, playbackState.positionMs]);
 
   const nowPlayingRef = useRef(null);
   const playbackStateRef = useRef({ positionMs: 0, durationMs: 0, isPlaying: false });
@@ -2697,14 +2714,24 @@ export default function RoomClient({ roomId }) {
           const reg = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
           const m = lineClean.match(reg);
           if (m) track_uri = m[1];
+        } else if (/^[a-zA-Z0-9_-]{11}$/.test(lineClean)) {
+          track_uri = lineClean;
         }
         
         if (track_uri) {
           tracksToAdd.push({
             track_uri: track_uri,
-            track_name: 'YouTube Video',
+            track_name: 'YouTube Track',
             artist: 'YouTube',
             album_art_url: `https://i.ytimg.com/vi/${track_uri}/mqdefault.jpg`,
+            duration_ms: 0
+          });
+        } else if (lineClean.includes('spotify.com/track/') || lineClean.includes('spotify:track:')) {
+          tracksToAdd.push({
+            track_uri: lineClean,
+            track_name: 'Spotify Track',
+            artist: 'Spotify',
+            album_art_url: '/placeholder.svg',
             duration_ms: 0
           });
         } else {
@@ -4016,7 +4043,7 @@ export default function RoomClient({ roomId }) {
                   }}
                 >
                   <div className="queue-header-top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <div className="queue-tabs" style={{ display: 'flex', gap: '8px' }}>
+                    <div className="queue-tabs" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                       <button 
                         className={`queue-tab ${activeQueueTab === 'queue' ? 'active' : ''}`}
                         onClick={() => setActiveQueueTab('queue')}
@@ -4039,6 +4066,11 @@ export default function RoomClient({ roomId }) {
                         >
                           Playlists
                         </button>
+                      )}
+                      {activeQueueTab === 'queue' && queueStats && (
+                        <span style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.45)', marginLeft: '4px', fontWeight: 500 }}>
+                          • {queueStats.countText} ({queueStats.durationText})
+                        </span>
                       )}
                     </div>
                     {activeQueueTab === 'queue' && queue.length > 0 && me && me.is_registered && (

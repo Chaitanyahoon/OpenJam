@@ -31,6 +31,7 @@ function PixelTransition({
   }, []);
 
   useEffect(() => {
+    if (!secondContent || isTouchDevice) return;
     const pixelGridEl = pixelGridRef.current;
     if (!pixelGridEl) return;
 
@@ -107,6 +108,17 @@ function PixelTransition({
     if (!isActive) animatePixels(true);
     else if (isActive && !once) animatePixels(false);
   };
+
+  if (!secondContent) {
+    return (
+      <div className={`pixelated-image-card ${className}`} style={style}>
+        <div style={{ paddingTop: aspectRatio }} />
+        <div className="pixelated-image-card__default">
+          {firstContent}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
