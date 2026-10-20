@@ -1090,7 +1090,7 @@ export function RoomProvider({
         const ytId = parseYouTubeId(nextTrack.track_uri);
         if (ytId) {
           const backendUrl = getBackendUrl();
-          fetch(`${backendUrl}/stream/${ytId}`, {
+          fetch(`${backendUrl}/stream/${ytId}?redirect=true`, {
             headers: { Range: 'bytes=0-65536' },
           }).catch(() => {});
         }

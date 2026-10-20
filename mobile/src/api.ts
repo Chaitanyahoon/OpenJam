@@ -402,7 +402,7 @@ export async function searchHybridTracks(
  * expo-audio follows redirects. Re-request on 403/expiry (stall recovery).
  */
 export function streamUrl(videoId: string): string {
-  return `${getBackendUrl()}/stream/${encodeURIComponent(videoId)}`;
+  return `${getBackendUrl()}/stream/${encodeURIComponent(videoId)}?redirect=true`;
 }
 
 export interface ApiPlaylistTrack {

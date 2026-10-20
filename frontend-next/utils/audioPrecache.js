@@ -101,7 +101,7 @@ class AudioPrecacheManager {
       };
 
       // Download complete audio stream blob for zero-network playback resilience
-      const streamUrl = track.audio_url || track.stream_url || (trackId && trackId.length === 11 ? `${BACKEND_URL}/stream/${trackId}` : null);
+      const streamUrl = track.audio_url || track.stream_url || (trackId && trackId.length === 11 ? `${BACKEND_URL}/stream/${trackId}?redirect=true` : null);
       if (streamUrl) {
         try {
           const resp = await fetch(streamUrl, {

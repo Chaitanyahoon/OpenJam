@@ -213,13 +213,13 @@ export default class YouTubePlayer {
       if (cached && cached.blob) {
         this._prebufferPlayer.src = URL.createObjectURL(cached.blob);
       } else {
-        this._prebufferPlayer.src = `${BACKEND_URL}/stream/${nextVideoId}`;
+        this._prebufferPlayer.src = `${BACKEND_URL}/stream/${nextVideoId}?redirect=true`;
       }
       this._prebufferPlayer.load();
       console.log(`[Player] 0ms pre-buffering next track: ${nextVideoId}`);
     }).catch(() => {
       if (this._prebufferedVideoId !== nextVideoId || !this._prebufferPlayer) return;
-      this._prebufferPlayer.src = `${BACKEND_URL}/stream/${nextVideoId}`;
+      this._prebufferPlayer.src = `${BACKEND_URL}/stream/${nextVideoId}?redirect=true`;
       this._prebufferPlayer.load();
     });
   }
@@ -363,7 +363,7 @@ export default class YouTubePlayer {
       if (this.onStreamFailUpdate) this.onStreamFailUpdate("Reconnecting audio stream…");
       try {
         const resumePos = audioElement.currentTime || 0;
-        audioElement.src = `${BACKEND_URL}/stream/${this.currentVideoId}?nocache=true`;
+        audioElement.src = `${BACKEND_URL}/stream/${this.currentVideoId}?redirect=true&nocache=true`;
         if (resumePos > 0) audioElement.currentTime = resumePos;
         audioElement.play().catch(() => {});
         return;
@@ -925,7 +925,7 @@ export default class YouTubePlayer {
           try { URL.revokeObjectURL(this._currentBlobUrl); } catch (e) {}
           this._currentBlobUrl = null;
         }
-        this.player.src = `${BACKEND_URL}/stream/${videoId}`;
+        this.player.src = `${BACKEND_URL}/stream/${videoId}?redirect=true`;
         this._startAudioPlayback(videoId, startSeconds);
         // Pre-cache full stream blob concurrently in background for instant seeks and offline survival
         audioPrecache.precacheTrack({
@@ -942,7 +942,7 @@ export default class YouTubePlayer {
         try { URL.revokeObjectURL(this._currentBlobUrl); } catch (e) {}
         this._currentBlobUrl = null;
       }
-      this.player.src = `${BACKEND_URL}/stream/${videoId}`;
+      this.player.src = `${BACKEND_URL}/stream/${videoId}?redirect=true`;
       this._startAudioPlayback(videoId, startSeconds);
     });
   }
