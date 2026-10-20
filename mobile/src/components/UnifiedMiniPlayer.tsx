@@ -14,6 +14,7 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { Image } from 'expo-image';
 import Animated, {
   runOnJS,
@@ -28,6 +29,7 @@ import { fontFamily } from '../fonts';
 import { usePlayer, usePlayerStatus } from '../audio/PlayerContext';
 import { useOptionalRoom } from '../state/RoomContext';
 import { hapticLight, hapticMedium } from '../utils/haptics';
+import { isFavoriteTrack, toggleFavoriteTrack, subscribeFavoriteTracks } from '../storage/history';
 
 const SWIPE_THRESHOLD = 65;
 
@@ -88,6 +90,28 @@ export function UnifiedMiniPlayer({
       }
     : null;
 
+  // Track favorites for Room tracks
+  const [isRoomTrackLiked, setIsRoomTrackLiked] = useState(false);
+  useEffect(() => {
+    if (!room?.nowPlaying?.track_uri) {
+      setIsRoomTrackLiked(false);
+      return;
+    }
+    let active = true;
+    void isFavoriteTrack(room.nowPlaying.track_uri).then((fav) => {
+      if (active) setIsRoomTrackLiked(fav);
+    });
+    const unsub = subscribeFavoriteTracks((favs) => {
+      if (active && room?.nowPlaying?.track_uri) {
+        setIsRoomTrackLiked(favs.some((f) => f.track_uri === room.nowPlaying?.track_uri));
+      }
+    });
+    return () => {
+      active = false;
+      unsub();
+    };
+  }, [room?.nowPlaying?.track_uri]);
+
   // Reanimated Physics Values
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
@@ -96,6 +120,11 @@ export function UnifiedMiniPlayer({
     void hapticLight();
     if (onExpand) {
       onExpand();
+    } else if (activeTrack?.isRoom && room?.roomId) {
+      router.push({
+        pathname: '/room/[id]/player',
+        params: { id: room.roomId },
+      });
     } else {
       player.setPlayerModalOpen(true);
     }
@@ -132,7 +161,11 @@ export function UnifiedMiniPlayer({
   const handlePrev = () => {
     void hapticMedium();
     if (!activeTrack) return;
-    if (!activeTrack.isRoom) {
+    if (activeTrack.isRoom && room) {
+      if (room.isHost || room.canControl) {
+        room.previousTrack();
+      }
+    } else {
       void player.playPrev();
     }
   };
@@ -247,24 +280,27 @@ export function UnifiedMiniPlayer({
                   )}
                 </Pressable>
 
-                {!activeTrack.isRoom && (
-                  <Pressable
-                    onPress={(e) => {
-                      e?.stopPropagation?.();
-                      void hapticMedium();
+                <Pressable
+                  onPress={async (e) => {
+                    e?.stopPropagation?.();
+                    void hapticMedium();
+                    if (activeTrack.isRoom && room?.nowPlaying) {
+                      const next = await toggleFavoriteTrack(room.nowPlaying);
+                      setIsRoomTrackLiked(next);
+                    } else {
                       void player.toggleLike();
-                    }}
-                    hitSlop={10}
-                    style={styles.actionBtn}
-                    accessibilityLabel={player.isLiked ? 'Unlike song' : 'Like song'}
-                  >
-                    <Heart
-                      size={18}
-                      color={player.isLiked ? colors.amber : '#9999aa'}
-                      fill={player.isLiked ? colors.amber : 'transparent'}
-                    />
-                  </Pressable>
-                )}
+                    }
+                  }}
+                  hitSlop={10}
+                  style={styles.actionBtn}
+                  accessibilityLabel={(activeTrack.isRoom ? isRoomTrackLiked : player.isLiked) ? 'Unlike song' : 'Like song'}
+                >
+                  <Heart
+                    size={18}
+                    color={(activeTrack.isRoom ? isRoomTrackLiked : player.isLiked) ? colors.amber : '#9999aa'}
+                    fill={(activeTrack.isRoom ? isRoomTrackLiked : player.isLiked) ? colors.amber : 'transparent'}
+                  />
+                </Pressable>
 
                 <Pressable
                   onPress={(e) => {
