@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Linking } from 'react-native';
 import type { Socket } from 'socket.io-client';
 import type { ApiUser } from '../api';
 import { C2S, type ChatMessage } from '../sync/protocol';
@@ -208,7 +209,22 @@ export function useRoomChat({ roomId, socketRef, meRef }: UseRoomChatOptions): R
   const sendChat = useCallback(
     (content: string) => {
       const text = content.trim();
-      if (!text || !socketRef.current) return;
+      if (!text) return;
+
+      if (text.toLowerCase() === '/tip' || text.toLowerCase() === '/support') {
+        const upiUrl = 'upi://pay?pa=chaitanyapatil700-1@oksbi&pn=OpenJam&cu=INR&tn=Support%20OpenJam';
+        void Linking.canOpenURL(upiUrl)
+          .then((can) => {
+            if (can) void Linking.openURL(upiUrl);
+            else void Linking.openURL('https://openjam.online/#tip-jar');
+          })
+          .catch(() => {
+            void Linking.openURL('https://openjam.online/#tip-jar');
+          });
+        return;
+      }
+
+      if (!socketRef.current) return;
       const tempId = `temp_${Math.random().toString(36).slice(2, 10)}`;
       seenMsgIds.current.add(tempId);
       const optimistic: ChatMessage = {
