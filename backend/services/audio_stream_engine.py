@@ -242,18 +242,7 @@ class AudioStreamEngine:
                 except Exception:
                     pass
 
-            logger.info(f"Racing Cobalt, Invidious, and yt-dlp stream resolvers in parallel for {video_id}")
-
-            async def _try_cobalt():
-                try:
-                    from backend.services.cobalt import get_cobalt_stream_url
-                    res = await asyncio.wait_for(get_cobalt_stream_url(video_id), timeout=4.5)
-                    if res and (res.startswith("http://") or res.startswith("https://")):
-                        logger.info(f"[Resolver Race] Cobalt won for {video_id}")
-                        return res
-                except Exception as e:
-                    logger.debug(f"Cobalt parallel resolver failed for {video_id}: {e}")
-                return None
+            logger.info(f"Racing Invidious and yt-dlp stream resolvers in parallel for {video_id}")
 
             async def _try_invidious():
                 try:
@@ -299,7 +288,6 @@ class AudioStreamEngine:
                 return None
 
             tasks = [
-                asyncio.create_task(_try_cobalt()),
                 asyncio.create_task(_try_invidious()),
                 asyncio.create_task(_try_ytdlp()),
             ]

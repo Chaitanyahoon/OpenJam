@@ -59,18 +59,13 @@ async def test_resolve_stream_url_redis_cache():
 async def test_resolve_stream_url_race_fastest_wins():
     engine = AudioStreamEngine()
 
-    async def mock_cobalt(vid):
-        await asyncio.sleep(0.01)
-        return "https://cobalt.stream/audio"
-
     async def mock_invidious(vid):
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.01)
         return "https://invidious.stream/audio"
 
-    with patch("backend.services.cobalt.get_cobalt_stream_url", side_effect=mock_cobalt), \
-         patch("backend.services.invidious.get_stream_url", side_effect=mock_invidious):
+    with patch("backend.services.invidious.get_stream_url", side_effect=mock_invidious):
         url = await engine.resolve_stream_url("dQw4w9WgXcQ")
-        assert url == "https://cobalt.stream/audio"
+        assert url == "https://invidious.stream/audio"
 
 
 @pytest.mark.asyncio

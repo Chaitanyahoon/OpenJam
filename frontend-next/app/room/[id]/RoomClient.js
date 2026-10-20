@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import YouTubePlayer from '@/utils/YouTubePlayer';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { MusicPlayer } from '@/components/ui/music-player';
-import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart, CheckCircle, AlertCircle, AlertTriangle, Info, Download, Check, Flame, Smile, Save, RefreshCw, ListPlus, Maximize2, Minimize2, SkipForward, SkipBack, Shuffle, Repeat, List, Disc, Clock, Sliders, GripVertical, HelpCircle, Bookmark, Crown, Trophy, Share2 } from 'lucide-react';
+import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart, CheckCircle, AlertCircle, AlertTriangle, Info, Download, Check, Flame, Smile, Save, RefreshCw, ListPlus, Maximize2, Minimize2, SkipForward, SkipBack, Shuffle, Repeat, List, Disc, Clock, Sliders, GripVertical, HelpCircle, Bookmark, Crown, Trophy, Share2, ChevronUp, ChevronDown } from 'lucide-react';
 import { offlineDb } from '@/utils/offlineDb';
 import { extractColors } from '@/utils/colorExtractor';
 import SyncPrecisionBadge from '@/components/ui/SyncPrecisionBadge';
@@ -15,7 +15,6 @@ import { audioPrecache } from '@/utils/audioPrecache';
 import DiscordRPC from '@/utils/DiscordRPC';
 
 // Dynamically code-split secondary modals and pickers for fast initial room load
-const JamCardModal = dynamic(() => import('@/components/modals/JamCardModal'), { ssr: false });
 const EmojiPicker = dynamic(() => import('@/components/EmojiPicker'), { ssr: false });
 const MentionPopover = dynamic(() => import('@/components/chat/MentionPopover'), { ssr: false });
 const TenorGifPicker = dynamic(() => import('@/components/chat/TenorGifPicker'), { ssr: false });
@@ -55,8 +54,7 @@ export default function RoomClient({ roomId }) {
   const [activeRoomPlaylist, setActiveRoomPlaylist] = useState(null);
   const [isLoadingPlaylist, setIsLoadingPlaylist] = useState(false);
 
-  // Jam Card & Room Info Modal States
-  const [showJamCardModal, setShowJamCardModal] = useState(false);
+  // Room Info Modal State
   const [showRoomInfo, setShowRoomInfo] = useState(false);
 
   // Rich Chat & Mention Suite States
@@ -437,86 +435,11 @@ export default function RoomClient({ roomId }) {
   };
 
   const playAlertSound = (type) => {
-    try {
-      const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtxClass) return;
-      if (!audioContextRef.current) {
-        audioContextRef.current = new AudioCtxClass();
-      }
-      const ctx = audioContextRef.current;
-      if (ctx.state === 'suspended') {
-        ctx.resume();
-      }
-      const now = ctx.currentTime;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-
-      osc.type = 'sine';
-      if (type === 'error') {
-        osc.frequency.setValueAtTime(260, now);
-        osc.frequency.exponentialRampToValueAtTime(120, now + 0.08);
-        gain.gain.setValueAtTime(0.04, now);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
-      } else {
-        osc.frequency.setValueAtTime(440, now);
-        osc.frequency.exponentialRampToValueAtTime(660, now + 0.06);
-        gain.gain.setValueAtTime(0.025, now);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
-      }
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.085);
-    } catch (e) {}
+    // Purposely silenced to preserve pure music listening without artificial beeps
   };
 
   const playReactionSound = (emoji) => {
-    if (!settingsSound) return;
-    try {
-      const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtxClass) return;
-      if (!audioContextRef.current) {
-        audioContextRef.current = new AudioCtxClass();
-      }
-      const ctx = audioContextRef.current;
-      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-
-      const now = ctx.currentTime;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-
-      if (emoji === '🔥') {
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(160, now);
-        osc.frequency.exponentialRampToValueAtTime(45, now + 0.12);
-        gain.gain.setValueAtTime(0.06, now);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(now);
-        osc.stop(now + 0.13);
-      } else if (emoji === '👏') {
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(750, now);
-        osc.frequency.exponentialRampToValueAtTime(220, now + 0.08);
-        gain.gain.setValueAtTime(0.035, now);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(now);
-        osc.stop(now + 0.09);
-      } else if (emoji === '🎵' || emoji === '❤️' || emoji === '⚡') {
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(587.33, now);
-        osc.frequency.exponentialRampToValueAtTime(880, now + 0.14);
-        gain.gain.setValueAtTime(0.04, now);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(now);
-        osc.stop(now + 0.15);
-      }
-    } catch (e) {}
+    // Purposely silenced to preserve pure music listening without artificial beeps
   };
 
   // Helper functions
@@ -816,7 +739,6 @@ export default function RoomClient({ roomId }) {
         if (showInvite) { setShowInvite(false); dismissed = true; }
         if (showBulkAdd) { setShowBulkAdd(false); dismissed = true; }
         if (showClose) { setShowClose(false); dismissed = true; }
-        if (showJamCardModal) { setShowJamCardModal(false); dismissed = true; }
         if (showGifPicker) { setShowGifPicker(false); dismissed = true; }
         if (showChatEmojiPicker) { setShowChatEmojiPicker(false); dismissed = true; }
         if (showReactionEmojiPicker) { setShowReactionEmojiPicker(false); dismissed = true; }
@@ -848,7 +770,7 @@ export default function RoomClient({ roomId }) {
         }
       }
 
-      if (isInputFocused || showPassword || showNicknamePrompt || showSettings || showInvite || showClose || showBulkAdd || showJamCardModal || showRoomInfo) {
+      if (isInputFocused || showPassword || showNicknamePrompt || showSettings || showInvite || showClose || showBulkAdd || showRoomInfo) {
         return;
       }
 
@@ -871,7 +793,7 @@ export default function RoomClient({ roomId }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     showPassword, showNicknamePrompt, showSettings, showRoomInfo, showInvite, showClose, 
-    showBulkAdd, showJamCardModal, showGifPicker, showChatEmojiPicker, showReactionEmojiPicker, 
+    showBulkAdd, showGifPicker, showChatEmojiPicker, showReactionEmojiPicker, 
     showKeyboardHUD, isStageMode, searchFocused, searchQuery, isHost, playbackState.isPlaying
   ]);
 
@@ -2535,7 +2457,7 @@ export default function RoomClient({ roomId }) {
     socket.emit('remove_from_queue', { room_id: roomId, queue_item_id: itemId });
   };
 
-  const handleAddTrack = (track) => {
+  const handleAddTrack = (track, playNext = false) => {
     if (!socket) {
       console.error('[handleAddTrack] No socket available!');
       triggerToast('Connection lost. Please refresh.', 'error');
@@ -2547,12 +2469,13 @@ export default function RoomClient({ roomId }) {
       track_name: track.track_name || track.name,
       artist: track.artist,
       album_art_url: track.album_art_url,
-      duration_ms: track.duration_ms
+      duration_ms: track.duration_ms,
+      play_next: Boolean(playNext)
     };
     socket.emit('add_to_queue', payload);
     setSearchQuery('');
     setSearchResults([]);
-    triggerToast(`Adding "${payload.track_name}"…`, 'info');
+    triggerToast(playNext ? `Playing "${payload.track_name}" next!` : `Adding "${payload.track_name}"…`, 'info');
   };
 
   const handleSendReaction = (emoji) => {
@@ -2921,11 +2844,28 @@ export default function RoomClient({ roomId }) {
     }
   };
 
-  const handleCopyInvite = () => {
+  const handleCopyInvite = async () => {
     if (typeof window === 'undefined') return;
     const roomSlugOrId = room?.slug || roomId;
     const inviteUrl = `${window.location.origin}/room/${roomSlugOrId}`;
+    const roomTitle = room?.name || 'OpenJam Room';
+    const trackInfo = nowPlaying?.track_name ? ` • Listening to ${nowPlaying.track_name}` : '';
+
+    // 1. Native OS Web Share API
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        await navigator.share({
+          title: `${roomTitle} | OpenJam`,
+          text: `Vibe with us on OpenJam${trackInfo}:`,
+          url: inviteUrl,
+        });
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') return; // User dismissed share sheet
+      }
+    }
     
+    // 2. Clipboard fallback
     const fallbackCopy = (text) => {
       try {
         const textarea = document.createElement('textarea');
@@ -3215,8 +3155,8 @@ export default function RoomClient({ roomId }) {
             </button>
             <button 
               className="btn btn-secondary room-bar-icon-btn" 
-              onClick={() => setShowJamCardModal(true)} 
-              title="Export Shareable Jam Card"
+              onClick={handleCopyInvite} 
+              title="Share OpenJam Room"
             >
               <Share2 size={16} />
             </button>
@@ -3770,6 +3710,39 @@ export default function RoomClient({ roomId }) {
                                   <Play size={11} fill="currentColor" /> Play
                                 </button>
                               )}
+                              {isHost && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAddTrack(track, true);
+                                  }}
+                                  title="Queue to play next"
+                                  style={{
+                                    background: 'rgba(255, 255, 255, 0.06)',
+                                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                                    color: '#fff',
+                                    padding: '5px 8px',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    fontSize: '11px',
+                                    fontWeight: '600',
+                                    transition: 'all 0.2s',
+                                    whiteSpace: 'nowrap'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+                                  }}
+                                >
+                                  <SkipForward size={11} /> Next
+                                </button>
+                              )}
                               {me && me.is_registered && playlists.length > 0 && (
                                 <div 
                                   style={{ position: 'relative', display: 'flex', alignItems: 'center' }}
@@ -4120,10 +4093,59 @@ export default function RoomClient({ roomId }) {
                               position: 'relative'
                             }}
                           >
-                            {/* Reorder drag handle indicator for host on pending tracks */}
+                            {/* Reorder drag handle & mobile chevrons for host on pending tracks */}
                             {isHost && item.status !== 'playing' && (
-                              <div style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.3)', paddingRight: '2px', cursor: 'grab' }} title="Drag to reorder">
-                                <GripVertical size={15} />
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '2px', marginRight: '4px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.3)', cursor: 'grab' }} title="Drag to reorder">
+                                  <GripVertical size={14} />
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                                  <button
+                                    type="button"
+                                    disabled={idx <= (queue[0]?.status === 'playing' ? 1 : 0)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const minIdx = queue[0]?.status === 'playing' ? 1 : 0;
+                                      if (idx > minIdx) {
+                                        const nextQ = [...queue];
+                                        const [moved] = nextQ.splice(idx, 1);
+                                        nextQ.splice(idx - 1, 0, moved);
+                                        handleReorderQueue(nextQ);
+                                      }
+                                    }}
+                                    style={{
+                                      background: 'none', border: 'none',
+                                      color: idx <= (queue[0]?.status === 'playing' ? 1 : 0) ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.5)',
+                                      cursor: idx <= (queue[0]?.status === 'playing' ? 1 : 0) ? 'default' : 'pointer',
+                                      padding: '1px', lineHeight: 1
+                                    }}
+                                    title="Move track up in queue"
+                                  >
+                                    <ChevronUp size={12} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={idx >= queue.length - 1}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (idx < queue.length - 1) {
+                                        const nextQ = [...queue];
+                                        const [moved] = nextQ.splice(idx, 1);
+                                        nextQ.splice(idx + 1, 0, moved);
+                                        handleReorderQueue(nextQ);
+                                      }
+                                    }}
+                                    style={{
+                                      background: 'none', border: 'none',
+                                      color: idx >= queue.length - 1 ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.5)',
+                                      cursor: idx >= queue.length - 1 ? 'default' : 'pointer',
+                                      padding: '1px', lineHeight: 1
+                                    }}
+                                    title="Move track down in queue"
+                                  >
+                                    <ChevronDown size={12} />
+                                  </button>
+                                </div>
                               </div>
                             )}
 
@@ -7261,18 +7283,6 @@ export default function RoomClient({ roomId }) {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* ══ SHAREABLE JAM CARD MODAL ═════════════════════════════ */}
-      {showJamCardModal && (
-        <JamCardModal
-          isOpen={showJamCardModal}
-          onClose={() => setShowJamCardModal(false)}
-          room={room}
-          nowPlaying={nowPlaying}
-          listenerCount={listeners.length || (room?.listener_count || 1)}
-          triggerToast={triggerToast}
-        />
-      )}
 
       <PwaInstallPrompt />
     </div>

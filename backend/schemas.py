@@ -70,6 +70,7 @@ class QueueTrackRequest(BaseModel):
     artist: str = Field(..., min_length=1, max_length=255)
     album_art_url: Optional[str] = None
     duration_ms: int = Field(0, ge=0)
+    play_next: Optional[bool] = False
 
 
 

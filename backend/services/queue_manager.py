@@ -7,11 +7,21 @@ from backend.models.vote import Vote
 
 
 class QueueManager:
-    def add_track(self, db: Session, room_id: str, track_data: dict, user_id: str, user_name: str) -> QueueItem:
-        max_pos = db.query(QueueItem).filter(
-            QueueItem.room_id == room_id,
-            QueueItem.status != "played",
-        ).count()
+    def add_track(self, db: Session, room_id: str, track_data: dict, user_id: str, user_name: str, play_next: bool = False) -> QueueItem:
+        if play_next:
+            # Shift all existing pending items down by 1 so this track is immediately next in queue
+            db.query(QueueItem).filter(
+                QueueItem.room_id == room_id,
+                QueueItem.status == "pending",
+            ).update({QueueItem.position: QueueItem.position + 1}, synchronize_session=False)
+            new_pos = 1
+        else:
+            max_pos = db.query(QueueItem).filter(
+                QueueItem.room_id == room_id,
+                QueueItem.status != "played",
+            ).count()
+            new_pos = max_pos
+
         item = QueueItem(
             room_id=room_id,
             track_uri=track_data["uri"],
@@ -22,7 +32,7 @@ class QueueManager:
             added_by_user_id=user_id,
             added_by_name=user_name,
             votes=0,
-            position=max_pos,
+            position=new_pos,
             status="pending",
         )
         db.add(item)
@@ -41,6 +51,7 @@ class QueueManager:
         duration_ms: int = 0,
         user_id: str = "",
         display_name: str = "",
+        play_next: bool = False,
     ) -> QueueItem:
         """Adapter matching socket caller signatures."""
         track_data = {
@@ -50,7 +61,7 @@ class QueueManager:
             "album_art_url": album_art_url,
             "duration_ms": duration_ms,
         }
-        return self.add_track(db, room_id, track_data, user_id, display_name)
+        return self.add_track(db, room_id, track_data, user_id, display_name, play_next=play_next)
 
     def vote_track(self, db: Session, queue_item_id: str, user_id: str) -> bool:
         item = db.query(QueueItem).filter(QueueItem.id == queue_item_id).first()

@@ -325,3 +325,30 @@ def test_add_multiple_tracks_endpoint(client, test_room, auth_headers, db_sessio
     assert response.status_code == 200
     data = response.json()
     assert data["added_count"] == 2
+
+
+def test_add_to_queue_play_next(client, test_room, auth_headers):
+    # Add regular track 1
+    resp1 = client.post(
+        f"/rooms/{test_room.id}/queue",
+        json={"uri": "track_11111", "name": "First Track", "artist": "Artist A", "duration_ms": 100000},
+        headers=auth_headers,
+    )
+    assert resp1.status_code == 200
+
+    # Add regular track 2
+    resp2 = client.post(
+        f"/rooms/{test_room.id}/queue",
+        json={"uri": "track_22222", "name": "Second Track", "artist": "Artist B", "duration_ms": 100000},
+        headers=auth_headers,
+    )
+    assert resp2.status_code == 200
+
+    # Add track 3 with play_next=True
+    resp3 = client.post(
+        f"/rooms/{test_room.id}/queue",
+        json={"uri": "track_33333", "name": "Priority Track", "artist": "Artist C", "duration_ms": 100000, "play_next": True},
+        headers=auth_headers,
+    )
+    assert resp3.status_code == 200
+    assert resp3.json()["item"]["position"] == 1

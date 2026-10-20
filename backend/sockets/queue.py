@@ -10,7 +10,7 @@ from backend.services.queue_manager import queue_manager
 logger = get_logger(__name__)
 
 
-def _db_add_and_get_queue(room_id: str, track_data: dict, user_id: str, display_name: str):
+def _db_add_and_get_queue(room_id: str, track_data: dict, user_id: str, display_name: str, play_next: bool = False):
     """Add a track and get current queue — runs in thread pool."""
     from backend.models.room import Room
     from backend.models.user import User
@@ -52,7 +52,7 @@ def _db_add_and_get_queue(room_id: str, track_data: dict, user_id: str, display_
             if duplicate:
                 raise ValueError("This track is already in the queue")
 
-        queue_manager.add_track(db, room_id, track_data, user_id, display_name)
+        queue_manager.add_track(db, room_id, track_data, user_id, display_name, play_next=play_next)
         # Cross-check DB status with live memory to prevent accidental autoplay interrupts
         live_playback = room_manager.get_playback(room_id)
         is_playing_live = live_playback and live_playback.get("is_playing", False)
@@ -354,8 +354,9 @@ def register_queue_handlers(sio: socketio.AsyncServer):
                         track_data["artist"] = metadata["author"]
                         track_data["album_art_url"] = metadata["thumbnail"]
 
+            play_next = bool(data.get("play_next", False))
             queue, next_item = await asyncio.to_thread(
-                _db_add_and_get_queue, room_id, track_data, user_id, display_name
+                _db_add_and_get_queue, room_id, track_data, user_id, display_name, play_next
             )
             logger.info(f"add_to_queue called for room={room_id} user={user_id} track={(track_data.get('name') or '')[:120]} uri={track_data.get('uri')}")
         except ValueError as ve:

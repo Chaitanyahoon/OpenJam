@@ -96,7 +96,8 @@ async def add_to_queue(
         if duplicate:
             raise HTTPException(status_code=409, detail="This track is already in the queue")
 
-    item = queue_manager.add_track(db, canonical_room_id, track_data, user_id, user_name)
+    play_next = bool(track_data.get("play_next", False))
+    item = queue_manager.add_track(db, canonical_room_id, track_data, user_id, user_name, play_next=play_next)
 
     # Pre-resolve stream URL and download track in background so playback starts instantly
     if track_data.get("uri") and len(track_data.get("uri", "")) == 11:
@@ -360,17 +361,6 @@ async def stream_health():
         }
     except Exception as e:
         results["invidious_piped"] = {"status": "error", "error": str(e)[:200]}
-
-    # Test Cobalt
-    try:
-        from backend.services.cobalt import get_cobalt_stream_url
-        url = await get_cobalt_stream_url(test_id)
-        results["cobalt"] = {
-            "status": "ok" if url else "no_url_or_not_configured",
-            "url_preview": (url[:80] + "...") if url else None,
-        }
-    except Exception as e:
-        results["cobalt"] = {"status": "error", "error": str(e)[:200]}
 
     # Summary
     working = [k for k, v in results.items() if v.get("status") == "ok"]
