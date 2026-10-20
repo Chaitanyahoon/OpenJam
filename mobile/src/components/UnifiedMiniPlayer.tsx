@@ -438,3 +438,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.amber,
   },
 });
+
+export { UnifiedMiniPlayer as MiniPlayer };
+

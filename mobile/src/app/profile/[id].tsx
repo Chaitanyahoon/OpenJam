@@ -60,7 +60,7 @@ import {
   type ProfileStatsData,
 } from '../../api';
 import { usePlayer } from '../../audio/PlayerContext';
-import { MiniPlayer } from '../../components/MiniPlayer';
+import { MiniPlayer } from '../../components/UnifiedMiniPlayer';
 import { useUserProfile } from '../../domain/useUserProfile';
 import {
   type OfflinePlaylist,

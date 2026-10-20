@@ -44,7 +44,7 @@ import {
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../../theme';
 import { fontFamily } from '../../fonts';
-import { MiniPlayer } from '../../components/MiniPlayer';
+import { MiniPlayer } from '../../components/UnifiedMiniPlayer';
 import {
   getPlaylist,
   createRoom,
@@ -63,13 +63,14 @@ import {
   deleteOfflinePlaylist,
   removeTrackFromOfflinePlaylist,
   addTracksBulkToOfflinePlaylist,
+  addTrackToOfflinePlaylist,
   shuffleTracks,
   type OfflinePlaylist,
 } from '../../storage/history';
 import { usePlayer } from '../../audio/PlayerContext';
 import { useToast } from '../../components/ToastContext';
 import { hapticLight, hapticMedium } from '../../utils/haptics';
-import { AddSongsModal } from '../../components/AddSongsModal';
+import { SoloSearchModal } from '../../components/SoloSearchModal';
 import { ImportPlaylistModal } from '../../components/ImportPlaylistModal';
 import type { TrackInfo } from '../../sync/protocol';
 
@@ -677,14 +678,16 @@ export default function PlaylistDetailScreen() {
 
       {isLocal && (
         <>
-          <AddSongsModal
+          <SoloSearchModal
             visible={showAddSongsModal}
-            playlistId={playlistId}
+            mode="playlist"
             playlistName={title}
             existingTrackUris={new Set(tracks.map((t) => t.track_uri))}
             onClose={() => setShowAddSongsModal(false)}
-            onTrackAdded={handleTrackAdded}
-            onTracksBulkAdded={handleTracksBulkAdded}
+            onTrackSelect={(track) => {
+              void addTrackToOfflinePlaylist(playlistId, track);
+              handleTrackAdded(track);
+            }}
           />
           <ImportPlaylistModal
             visible={showImportModal}

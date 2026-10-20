@@ -47,7 +47,7 @@ export function parseYouTubeId(input: string): string | null {
  * 1. Sandboxed local file (0ms latency, offline)
  * 2. Sandboxed Vault track cached on disk (0ms latency, offline)
  * 3. Range-probed native high-fidelity audio stream (native expo-audio background playback)
- * 4. Headless WebView YouTube Audio Bridge (restricted/fail-safe fallback)
+ * 4. Backend /stream/:id proxy (fail-safe fallback)
  */
 export async function resolveAudioStream(
   urlOrId: string,

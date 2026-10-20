@@ -67,7 +67,7 @@ import { subscribeNetworkState, isDeviceOnline } from '../../utils/network';
 import { hapticLight, hapticMedium } from '../../utils/haptics';
 import { createRoom, addMultipleTracksToQueue } from '../../api';
 import type { TrackInfo } from '../../sync/protocol';
-import { MiniPlayer } from '../../components/MiniPlayer';
+import { MiniPlayer } from '../../components/UnifiedMiniPlayer';
 
 export default function OfflineVaultScreen() {
   const { width: winWidth, height: winHeight } = useWindowDimensions();

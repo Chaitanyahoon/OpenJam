@@ -25,7 +25,7 @@ import { registerPushToken } from '../notifications';
 import { requestFirstLaunchPermissions } from '../permissions';
 import { usePlayer, usePlayerStatus } from '../audio/PlayerContext';
 import { SoloSearchModal } from '../components/SoloSearchModal';
-import { MiniPlayer } from '../components/MiniPlayer';
+import { MiniPlayer } from '../components/UnifiedMiniPlayer';
 
 import {
   HomeTopNav,

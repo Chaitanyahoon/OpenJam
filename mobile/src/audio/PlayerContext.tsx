@@ -4,7 +4,7 @@
  * Capabilities:
  * - Direct streams & local files: played via native `expo-audio`.
  * - YouTube tracks: multi-tier resolution (Cobalt/Piped/Invidious direct stream)
- *   with graceful headless WebView YouTube Audio Bridge fallback.
+ *   with local Vault caching and backend stream proxy failover.
  * - Global Solo Player queue state (Up Next, Shuffle, Repeat, Like, Radio recommendations).
  * - Full Android media notification & lock-screen sync with remote control handlers.
  */
