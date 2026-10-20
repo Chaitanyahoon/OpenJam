@@ -73,6 +73,30 @@ def _prune_chat_times():
         _last_chat_time.clear()
 
 
+_room_slug_cache: dict[str, str] = {}
+
+
+def _is_valid_room_target(canonical_room_id: str, target_room_id: str | None) -> bool:
+    if not target_room_id or target_room_id == canonical_room_id:
+        return True
+    cached_slug = _room_slug_cache.get(canonical_room_id)
+    if cached_slug is not None:
+        return cached_slug == target_room_id
+    db = SessionLocal()
+    try:
+        from backend.models.room import Room
+        room = db.query(Room).filter(Room.id == canonical_room_id).first()
+        slug = room.slug if room else ""
+        if len(_room_slug_cache) > 2000:
+            _room_slug_cache.clear()
+        _room_slug_cache[canonical_room_id] = slug
+        return slug == target_room_id
+    except Exception:
+        return False
+    finally:
+        db.close()
+
+
 def register_chat_handlers(sio: socketio.AsyncServer):
 
     @sio.event
@@ -88,16 +112,14 @@ def register_chat_handlers(sio: socketio.AsyncServer):
         if not content or len(content) > 500:
             return
 
-        room_id = data.get("room_id")
-        if not room_id:
-            info = room_manager.get_user_by_sid(sid)
-            if not info:
-                return
-            room_id = info["room_id"]
-
-        # Verify active room membership
+        # Verify active room membership (supports canonical UUID and room slug)
         user_info = room_manager.get_user_by_sid(sid)
-        if not user_info or user_info["room_id"] != room_id:
+        if not user_info:
+            return
+        canonical_room_id = user_info["room_id"]
+
+        target_room_id = data.get("room_id")
+        if target_room_id and not _is_valid_room_target(canonical_room_id, target_room_id):
             return
 
         user_id = session.get("user_id") or f"guest_{sid}"
@@ -113,15 +135,15 @@ def register_chat_handlers(sio: socketio.AsyncServer):
         avatar_url = session.get("avatar_url")
 
         msg_dict = await asyncio.to_thread(
-            _db_save_message, room_id, user_id, display_name, avatar_url, content
+            _db_save_message, canonical_room_id, user_id, display_name, avatar_url, content
         )
 
         temp_id = data.get("temp_id")
         if temp_id:
             msg_dict["temp_id"] = temp_id
 
-        # Broadcast to the room
-        await sio.emit("chat_message", msg_dict, room=room_id)
+        # Broadcast to the room using canonical room ID
+        await sio.emit("chat_message", msg_dict, room=canonical_room_id)
 
         # Send delivery ACK back to sender with the message ID
         ack = {"id": msg_dict["id"]}
@@ -142,14 +164,18 @@ def register_chat_handlers(sio: socketio.AsyncServer):
         if not session:
             return
 
-        room_id = data.get("room_id")
         emoji = data.get("emoji")
-        if not room_id or not emoji or len(str(emoji)) > 12:
+        if not emoji or len(str(emoji)) > 12:
             return
 
-        # Verify active room membership
+        # Verify active room membership (supports canonical UUID and room slug)
         user_info = room_manager.get_user_by_sid(sid)
-        if not user_info or user_info["room_id"] != room_id:
+        if not user_info:
+            return
+        canonical_room_id = user_info["room_id"]
+
+        target_room_id = data.get("room_id")
+        if target_room_id and not _is_valid_room_target(canonical_room_id, target_room_id):
             return
 
         user_id = session.get("user_id") or f"guest_{sid}"
@@ -168,26 +194,34 @@ def register_chat_handlers(sio: socketio.AsyncServer):
             "display_name": display_name,
             "avatar_url": session.get("avatar_url"),
             "emoji": emoji
-        }, room=room_id)
+        }, room=canonical_room_id)
 
     @sio.event
     async def typing(sid, data):
-        room_id = data.get("room_id")
         session = await sio.get_session(sid)
-        if room_id and session:
-            user_info = room_manager.get_user_by_sid(sid)
-            if not user_info or user_info["room_id"] != room_id:
-                return
-            name = session.get("display_name") or "Someone"
-            await sio.emit("user_typing", {"display_name": name}, room=room_id, skip_sid=sid)
+        if not session:
+            return
+        user_info = room_manager.get_user_by_sid(sid)
+        if not user_info:
+            return
+        canonical_room_id = user_info["room_id"]
+        target_room_id = data.get("room_id")
+        if target_room_id and not _is_valid_room_target(canonical_room_id, target_room_id):
+            return
+        name = session.get("display_name") or "Someone"
+        await sio.emit("user_typing", {"display_name": name}, room=canonical_room_id, skip_sid=sid)
 
     @sio.event
     async def stop_typing(sid, data):
-        room_id = data.get("room_id")
         session = await sio.get_session(sid)
-        if room_id and session:
-            user_info = room_manager.get_user_by_sid(sid)
-            if not user_info or user_info["room_id"] != room_id:
-                return
-            name = session.get("display_name") or "Someone"
-            await sio.emit("user_stop_typing", {"display_name": name}, room=room_id, skip_sid=sid)
+        if not session:
+            return
+        user_info = room_manager.get_user_by_sid(sid)
+        if not user_info:
+            return
+        canonical_room_id = user_info["room_id"]
+        target_room_id = data.get("room_id")
+        if target_room_id and not _is_valid_room_target(canonical_room_id, target_room_id):
+            return
+        name = session.get("display_name") or "Someone"
+        await sio.emit("user_stop_typing", {"display_name": name}, room=canonical_room_id, skip_sid=sid)

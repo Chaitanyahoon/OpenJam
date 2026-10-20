@@ -229,6 +229,57 @@ def init_db():
         except Exception as e:
             print(f"Failed to auto-migrate rooms.allow_guest_controls: {e}")
 
+    # Auto-migration: Check if 'slug' column exists in 'rooms' table, and add it if missing
+    slug_exists = True
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("SELECT slug FROM rooms LIMIT 1"))
+        except Exception:
+            slug_exists = False
+
+    if not slug_exists:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE rooms ADD COLUMN slug VARCHAR NULL"))
+            print("Successfully added slug column to rooms table.")
+        except Exception as e:
+            print(f"Failed to auto-migrate rooms.slug: {e}")
+
+    # Backfill existing rooms missing slugs
+    db = SessionLocal()
+    try:
+        from backend.models.room import Room, generate_room_slug
+        rooms = db.query(Room).all()
+        existing_slugs = {r.slug for r in rooms if r.slug}
+        backfilled_count = 0
+        for r in rooms:
+            if not r.slug:
+                if r.id == "openjam-lounge":
+                    r.slug = "openjam-lounge"
+                else:
+                    new_slug = generate_room_slug(r.name)
+                    while new_slug in existing_slugs:
+                        new_slug = generate_room_slug(r.name)
+                    r.slug = new_slug
+                existing_slugs.add(r.slug)
+                backfilled_count += 1
+        if backfilled_count > 0:
+            db.commit()
+            print(f"Successfully backfilled slugs for {backfilled_count} rooms.")
+    except Exception as e:
+        print(f"Failed to backfill room slugs: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+    # Create unique index for rooms.slug
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS idx_rooms_slug ON rooms (slug)"))
+        print("Successfully ensured unique index for rooms.slug.")
+    except Exception as e:
+        print(f"Failed to create unique index for rooms.slug: {e}")
+
     # Auto-migration: Discord OAuth2 columns in 'users' table
     discord_id_exists = True
     discord_username_exists = True

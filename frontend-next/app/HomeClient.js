@@ -846,8 +846,9 @@ export default function HomePage({ initialRooms = [] }) {
           } catch (e) {}
         }
         triggerToast('Jam Room created! Entering room...', 'success');
+        const roomIdentifier = data.room.slug || data.room.id;
         setTimeout(() => {
-          router.push(`/room/${data.room.id}?created=true`);
+          router.push(`/room/${roomIdentifier}?created=true`);
         }, 150);
       } else {
         const err = await r.json().catch(() => ({}));
@@ -945,7 +946,8 @@ export default function HomePage({ initialRooms = [] }) {
       if (r.ok) {
         const data = await r.json();
         const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.openjam.fun';
-        const inviteUrl = `${origin}/room/${data.room.id}`;
+        const roomIdentifier = data.room.slug || data.room.id;
+        const inviteUrl = `${origin}/room/${roomIdentifier}`;
         
         try {
           if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -955,7 +957,7 @@ export default function HomePage({ initialRooms = [] }) {
 
         triggerToast('⚡ Jam room ready! Invite link copied to clipboard.', 'success');
         setTimeout(() => {
-          router.push(`/room/${data.room.id}?created=true`);
+          router.push(`/room/${roomIdentifier}?created=true`);
         }, 200);
       } else {
         triggerToast('Failed to create instant jam room', 'error');
@@ -1750,7 +1752,7 @@ export default function HomePage({ initialRooms = [] }) {
                   room={r}
                   nameColor={nameColor}
                   getInitials={getInitials}
-                  href={`/room/${r.id}`}
+                  href={`/room/${r.slug || r.id}`}
                 />
               ))}
             </motion.div>

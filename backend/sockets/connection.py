@@ -9,6 +9,7 @@ from backend.models.chat_message import ChatMessage
 from backend.services.room_manager import room_manager
 from backend.services.queue_manager import queue_manager
 from backend.services.room_closer import schedule_room_close, cancel_room_close
+from backend.sockets.chat import _room_slug_cache
 
 logger = get_logger(__name__)
 
@@ -109,6 +110,28 @@ def register_connection_handlers(sio: socketio.AsyncServer):
         })
         logger.info(f"Connected {sid} as '{display_name}'")
 
+    async def _leave_room_channels(socket_sid: str, target_room_id: str):
+        """Ensure socket leaves both the canonical UUID channel and its slug channel."""
+        await sio.leave_room(socket_sid, target_room_id)
+        slug = _room_slug_cache.get(target_room_id)
+        if not slug:
+            def _get_slug(rid):
+                db = SessionLocal()
+                try:
+                    from backend.models.room import Room
+                    r = db.query(Room).filter(Room.id == rid).first()
+                    return r.slug if r else None
+                finally:
+                    db.close()
+            slug = await asyncio.to_thread(_get_slug, target_room_id)
+            if slug:
+                _room_slug_cache[target_room_id] = slug
+        if slug and slug != target_room_id:
+            try:
+                await sio.leave_room(socket_sid, slug)
+            except Exception:
+                pass
+
     async def _handle_user_departure(room_id: str, user_id: str, display_name: str, was_host: bool):
         # Emit user_left
         await sio.emit("user_left", {
@@ -198,8 +221,8 @@ def register_connection_handlers(sio: socketio.AsyncServer):
         session = await sio.get_session(sid)
         if not session:
             return
-        room_id = data.get("room_id")
-        if not room_id:
+        raw_room_id = data.get("room_id")
+        if not raw_room_id:
             return
 
         user_id = session.get("user_id")
@@ -254,29 +277,31 @@ def register_connection_handlers(sio: socketio.AsyncServer):
             except Exception:
                 pass
 
-        # Check private room password
+        # Check private room password & resolve canonical room ID (supports dual UUID / slug resolution)
         is_admin = session.get("is_admin", False)
 
-        def _check_room_password(room_id, user_id, password_input, is_admin=False):
-            if is_admin:
-                return None
+        def _resolve_and_check_room_password(target_id, user_id, password_input, is_admin=False):
             import bcrypt
             import hashlib
             db = SessionLocal()
             try:
                 from backend.models.room import Room
-                room = db.query(Room).filter(Room.id == room_id).first()
+                room = db.query(Room).filter((Room.id == target_id) | (Room.slug == target_id)).first()
                 if not room:
-                    return "Room not found"
+                    return target_id, "Room not found", None
+                canonical_id = room.id
+                slug = room.slug
+                if is_admin:
+                    return canonical_id, None, slug
                 if room.is_private:
                     # Host doesn't need to enter the password
                     if room.host_user_id == user_id:
-                        return None
+                        return canonical_id, None, slug
                     # If room has no password_hash, it's link-only / unlisted: no password needed
                     if not room.password_hash:
-                        return None
+                        return canonical_id, None, slug
                     if not password_input:
-                        return "password_required"
+                        return canonical_id, "password_required", slug
                     
                     pw_hash = room.password_hash
                     if pw_hash and (pw_hash.startswith("$2b$") or pw_hash.startswith("$2a$")):
@@ -289,14 +314,15 @@ def register_connection_handlers(sio: socketio.AsyncServer):
                         matched = (hashed_input == pw_hash)
 
                     if not matched:
-                        return "invalid_password"
-                return None
+                        return canonical_id, "invalid_password", slug
+                return canonical_id, None, slug
             finally:
                 db.close()
 
-
         password_input = data.get("password")
-        password_err = await asyncio.to_thread(_check_room_password, room_id, user_id, password_input, is_admin)
+        canonical_room_id, password_err, resolved_slug = await asyncio.to_thread(_resolve_and_check_room_password, raw_room_id, user_id, password_input, is_admin)
+        if resolved_slug:
+            _room_slug_cache[canonical_room_id] = resolved_slug
         if password_err:
             if password_err == "password_required":
                 await sio.emit("join_error", {"message": "This room is private. Password required.", "reason": "password_required"}, to=sid)
@@ -306,6 +332,8 @@ def register_connection_handlers(sio: socketio.AsyncServer):
                 await sio.emit("join_error", {"message": password_err}, to=sid)
             return
 
+        room_id = canonical_room_id
+
         if data.get("avatar_url"):
             session["avatar_url"] = data.get("avatar_url")
             await sio.save_session(sid, session)
@@ -313,7 +341,7 @@ def register_connection_handlers(sio: socketio.AsyncServer):
         old_info = room_manager.get_user_by_sid(sid)
         if old_info:
             room_manager.leave_room(sid)
-            await sio.leave_room(sid, old_info["room_id"])
+            await _leave_room_channels(sid, old_info["room_id"])
 
         # Check premium and registration status
         def _get_user_status(user_id):
@@ -383,6 +411,8 @@ def register_connection_handlers(sio: socketio.AsyncServer):
         room_meta = await asyncio.to_thread(_check_host_and_get_room, room_id, user_id)
 
         await sio.enter_room(sid, room_id)
+        if raw_room_id != room_id:
+            await sio.enter_room(sid, raw_room_id)
         cancel_room_close(room_id)
 
         # Offload blocking DB read to a thread pool — event loop stays free
@@ -503,7 +533,7 @@ def register_connection_handlers(sio: socketio.AsyncServer):
             display_name = session.get("display_name", "Jammer") if session else "Jammer"
             
             room_manager.leave_room(sid)
-            await sio.leave_room(sid, room_id)
+            await _leave_room_channels(sid, room_id)
             await _handle_user_departure(room_id, user_id, display_name, was_host)
 
     @sio.event
@@ -679,6 +709,6 @@ def register_connection_handlers(sio: socketio.AsyncServer):
                 "message": "You were removed from the room by the host.",
             }, to=target_sid)
             await _handle_user_departure(room_id, target_user_id, target_name, False)
-            await sio.leave_room(target_sid, room_id)
+            await _leave_room_channels(target_sid, room_id)
             logger.info(f"User {target_name} ({target_user_id}) kicked from room {room_id} by host {caller_id}")
 

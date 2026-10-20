@@ -35,6 +35,7 @@ class UpdateRoomRequest(BaseModel):
 # ---- Room Models ----
 class RoomResponse(BaseModel):
     id: str
+    slug: Optional[str] = None
     name: str
     description: str
     host_name: str

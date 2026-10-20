@@ -57,7 +57,7 @@ export default async function sitemap() {
       const publicRooms = rooms.filter((r) => r && r.id && !r.is_private);
 
       roomEntries = publicRooms.map((room) => ({
-        url: `${baseUrl}/room/${room.id}`,
+        url: `${baseUrl}/room/${room.slug || room.id}`,
         lastModified: room.created_at ? new Date(room.created_at) : new Date(),
         changeFrequency: 'hourly',
         priority: 0.8,

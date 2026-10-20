@@ -321,6 +321,7 @@ async def lifespan(app):
             if not lounge_room:
                 lounge_room = Room(
                     id=LOUNGE_ROOM_ID,
+                    slug=LOUNGE_ROOM_ID,
                     name="☕ 24/7 Lofi & Chill Lounge",
                     description="OpenJam Official Community Lounge — synchronized chill beats 24/7.",
                     host_user_id=SYSTEM_BOT_USER_ID,
@@ -333,9 +334,15 @@ async def lifespan(app):
                 db_startup.commit()
                 logger.info(f"Seeded 24/7 Lounge room: {LOUNGE_ROOM_ID}")
             else:
+                updated = False
                 if not lounge_room.is_active or lounge_room.host_user_id != SYSTEM_BOT_USER_ID:
                     lounge_room.is_active = True
                     lounge_room.host_user_id = SYSTEM_BOT_USER_ID
+                    updated = True
+                if not lounge_room.slug:
+                    lounge_room.slug = LOUNGE_ROOM_ID
+                    updated = True
+                if updated:
                     db_startup.commit()
         finally:
             db_startup.close()
@@ -447,7 +454,8 @@ async def get_og_image(
     db: Session = Depends(get_db)
 ):
     from backend.models.room import Room
-    room = db.query(Room).filter(Room.id == room_id).first()
+    room = db.query(Room).filter((Room.id == room_id) | (Room.slug == room_id)).first()
+    canonical_room_id = room.id if room else room_id
     room_name = room.name if room else "OpenJam Room"
     
     # 1. Resolve host / inviter name
@@ -461,7 +469,7 @@ async def get_og_image(
     effective_cover_art = cover_art_url
 
     if not effective_track and room:
-        now_playing = queue_manager.get_now_playing(db, room_id)
+        now_playing = queue_manager.get_now_playing(db, canonical_room_id)
         if now_playing:
             effective_track = now_playing.get("track_name")
             effective_artist = now_playing.get("artist")
@@ -471,7 +479,7 @@ async def get_og_image(
     # 3. Resolve listener count if not explicitly passed
     effective_listeners = listener_count
     if effective_listeners is None and room:
-        effective_listeners = room_manager.get_listener_count(room_id)
+        effective_listeners = room_manager.get_listener_count(canonical_room_id)
 
     # 4. Generate OG image PNG
     image_bytes = await generate_og_image(

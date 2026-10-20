@@ -182,9 +182,10 @@ async def force_delete_room(
     admin_id: str = Depends(require_admin)
 ):
     """Force close a room, remove it from the database, and kick everyone."""
-    room = db.query(Room).filter(Room.id == room_id).first()
+    room = db.query(Room).filter((Room.id == room_id) | (Room.slug == room_id)).first()
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
+    canonical_id = room.id
         
     room.is_active = False
     db.commit()
@@ -192,19 +193,24 @@ async def force_delete_room(
     sio = getattr(request.app.state, "sio", None)
     if sio:
         await sio.emit("room_closed", {
-            "room_id": room_id,
+            "room_id": canonical_id,
             "reason": "Room has been closed by administration",
-        }, room=room_id)
+        }, room=canonical_id)
+        if room_id != canonical_id:
+            await sio.emit("room_closed", {
+                "room_id": canonical_id,
+                "reason": "Room has been closed by administration",
+            }, room=room_id)
 
     from backend.sockets.playback import stop_sync_loop
     from backend.services.room_closer import cancel_room_close
-    stop_sync_loop(room_id)
-    cancel_room_close(room_id)
-    room_manager.force_close_room(room_id)
+    stop_sync_loop(canonical_id)
+    cancel_room_close(canonical_id)
+    room_manager.force_close_room(canonical_id)
     
-    logger.info(f"Admin '{admin_id}' force-closed room '{room_id}'.")
-    log_auth_event(f"Admin '{admin_id}' force-closed room '{room_id}'.")
-    return {"success": True, "message": f"Room {room_id} has been force-closed and deleted."}
+    logger.info(f"Admin '{admin_id}' force-closed room '{canonical_id}'.")
+    log_auth_event(f"Admin '{admin_id}' force-closed room '{canonical_id}'.")
+    return {"success": True, "message": f"Room {canonical_id} has been force-closed and deleted."}
 
 
 @router.delete("/rooms/{room_id}/chat")
@@ -215,16 +221,21 @@ async def purge_room_chat(
     admin_id: str = Depends(require_admin)
 ):
     """Purge all chat messages for a specific room."""
-    db.query(ChatMessage).filter(ChatMessage.room_id == room_id).delete()
+    room = db.query(Room).filter((Room.id == room_id) | (Room.slug == room_id)).first()
+    canonical_id = room.id if room else room_id
+
+    db.query(ChatMessage).filter(ChatMessage.room_id == canonical_id).delete()
     db.commit()
 
     sio = getattr(request.app.state, "sio", None)
     if sio:
-        await sio.emit("chat_history", {"messages": []}, room=room_id)
+        await sio.emit("chat_history", {"messages": []}, room=canonical_id)
+        if room_id != canonical_id:
+            await sio.emit("chat_history", {"messages": []}, room=room_id)
 
-    logger.info(f"Admin '{admin_id}' purged chat for room '{room_id}'.")
-    log_auth_event(f"Admin '{admin_id}' purged chat for room '{room_id}'.")
-    return {"success": True, "message": f"Chat history for room {room_id} purged."}
+    logger.info(f"Admin '{admin_id}' purged chat for room '{canonical_id}'.")
+    log_auth_event(f"Admin '{admin_id}' purged chat for room '{canonical_id}'.")
+    return {"success": True, "message": f"Chat history for room {canonical_id} purged."}
 
 
 @router.post("/rooms/{room_id}/skip")
@@ -235,15 +246,18 @@ async def skip_room_track(
     admin_id: str = Depends(require_admin)
 ):
     """Admin skips current track in a room and advances the queue."""
+    room = db.query(Room).filter((Room.id == room_id) | (Room.slug == room_id)).first()
+    canonical_id = room.id if room else room_id
+
     sio = getattr(request.app.state, "sio", None)
     if not sio:
         raise HTTPException(status_code=500, detail="Socket server not initialized")
     from backend.sockets.playback import _get_advance_lock, _do_advance
-    lock = _get_advance_lock(room_id)
+    lock = _get_advance_lock(canonical_id)
     async with lock:
-        await _do_advance(room_id, sio, db=db)
-    logger.info(f"Admin '{admin_id}' skipped track for room '{room_id}'.")
-    return {"success": True, "message": f"Track skipped for room {room_id}."}
+        await _do_advance(canonical_id, sio, db=db)
+    logger.info(f"Admin '{admin_id}' skipped track for room '{canonical_id}'.")
+    return {"success": True, "message": f"Track skipped for room {canonical_id}."}
 
 
 @router.delete("/cache")

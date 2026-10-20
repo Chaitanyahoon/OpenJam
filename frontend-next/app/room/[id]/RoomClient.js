@@ -55,8 +55,9 @@ export default function RoomClient({ roomId }) {
   const [activeRoomPlaylist, setActiveRoomPlaylist] = useState(null);
   const [isLoadingPlaylist, setIsLoadingPlaylist] = useState(false);
 
-  // Jam Card State
+  // Jam Card & Room Info Modal States
   const [showJamCardModal, setShowJamCardModal] = useState(false);
+  const [showRoomInfo, setShowRoomInfo] = useState(false);
 
   // Rich Chat & Mention Suite States
   const [unreadChatCount, setUnreadChatCount] = useState(0);
@@ -280,6 +281,38 @@ export default function RoomClient({ roomId }) {
 
   const handleTogglePlayRef = useRef(null);
   const handleNextTrackRef = useRef(null);
+  const lastTrackChangeRef = useRef({ uri: null, time: 0 });
+  const roomClosedRef = useRef(false);
+
+  const updateDocumentTitle = (track, isPlaying, roomName) => {
+    if (typeof document === 'undefined') return;
+    const currentTrack = track !== undefined ? track : (nowPlayingRef.current || nowPlaying);
+    const trackName = currentTrack?.track_name || currentTrack?.name || currentTrack?.title;
+    const artist = currentTrack?.artist || currentTrack?.artist_name || currentTrack?.channel;
+    if (trackName) {
+      const artistStr = artist || 'OpenJam';
+      const prefix = isPlaying ? '▶' : '❚❚';
+      document.title = `${prefix} ${trackName} • ${artistStr} | OpenJam`;
+    } else {
+      const name = roomName || roomRef.current?.name || room?.name || 'Live Room';
+      document.title = `${name} • OpenJam`;
+    }
+  };
+
+  // Restore default site title when leaving the room
+  useEffect(() => {
+    const defaultSiteTitle = 'OpenJam — Listen to Music with Friends Online Free | Virtual Music Room';
+    return () => {
+      if (typeof document !== 'undefined') {
+        document.title = defaultSiteTitle;
+      }
+    };
+  }, []);
+
+  // Sync document title on state changes
+  useEffect(() => {
+    updateDocumentTitle(nowPlaying, playbackState.isPlaying, room?.name);
+  }, [nowPlaying, playbackState.isPlaying, room?.name]);
 
   useEffect(() => {
     if (typeof document !== 'undefined') {
@@ -852,6 +885,8 @@ export default function RoomClient({ roomId }) {
         nowPlayingRef.current = data.now_playing;
         setNowPlaying(data.now_playing);
       }
+      const initialPlaying = Boolean(data.playback?.isPlaying ?? data.playback?.is_playing ?? false);
+      updateDocumentTitle(data.now_playing || null, initialPlaying, data.room?.name);
       setShowPassword(false);
       setAllowGuestControls(data.allow_guest_controls || false);
 
@@ -1088,6 +1123,9 @@ export default function RoomClient({ roomId }) {
       setPlaybackState(newPlayback);
       setNowPlaying(newNowPlaying);
 
+      // Synchronously update browser tab title on playback_sync
+      updateDocumentTitle(newNowPlaying, newPlayback.isPlaying, roomRef.current?.name);
+
       const isHostUser = meRef.current && roomRef.current && roomRef.current.host_user_id === meRef.current.id;
 
       if (playerRef.current) {
@@ -1125,19 +1163,32 @@ export default function RoomClient({ roomId }) {
       streamErrorMsgRef.current = null;
       setStreamErrorMsg(null);
       if (data) {
+        const now = Date.now();
+        const lastChange = lastTrackChangeRef.current;
+        const uri = data.track_uri || data.id;
+        const isDuplicate = Boolean(lastChange && lastChange.uri && lastChange.uri === uri && (now - lastChange.time < 1200));
+        lastTrackChangeRef.current = { uri, time: now };
+
         nowPlayingRef.current = data;
         playbackStateRef.current = { positionMs: 0, durationMs: data.duration_ms || 0, isPlaying: true, loop: data.loop || false };
         setNowPlaying(data);
         setPlaybackState({ positionMs: 0, durationMs: data.duration_ms || 0, isPlaying: true, loop: data.loop || false });
-        if (playerRef.current) {
-          playerRef.current.setTrack(data);
+        // Synchronously update browser tab title on track_changed
+        updateDocumentTitle(data, true, roomRef.current?.name);
+        if (!isDuplicate) {
+          if (playerRef.current) {
+            playerRef.current.setTrack(data);
+          }
+          fetchLyrics(data.artist, data.track_name);
         }
-        fetchLyrics(data.artist, data.track_name);
       } else {
+        lastTrackChangeRef.current = { uri: null, time: Date.now() };
         nowPlayingRef.current = null;
         playbackStateRef.current = { positionMs: 0, durationMs: 0, isPlaying: false, loop: false };
         setNowPlaying(null);
         setPlaybackState({ positionMs: 0, durationMs: 0, isPlaying: false, loop: false });
+        // Synchronously update browser tab title when idle/empty
+        updateDocumentTitle(null, false, roomRef.current?.name);
         if (playerRef.current) {
           playerRef.current.stop();
         }
@@ -1164,6 +1215,8 @@ export default function RoomClient({ roomId }) {
     });
 
     socket.on('room_closed', () => {
+      if (roomClosedRef.current) return;
+      roomClosedRef.current = true;
       triggerToast('This room has been closed by the host.', 'warning');
       setTimeout(() => {
         router.push('/');
@@ -1172,6 +1225,15 @@ export default function RoomClient({ roomId }) {
 
     socket.on('guest_controls_updated', (data) => {
       setAllowGuestControls(data.allow_guest_controls || false);
+    });
+
+    socket.on('room_updated', (data) => {
+      if (data) {
+        setRoom((prev) => ({ ...prev, ...data }));
+        if (data.name) {
+          updateDocumentTitle(nowPlayingRef.current, playbackStateRef.current?.isPlaying, data.name);
+        }
+      }
     });
 
     socket.on('system_announcement', (data) => {
@@ -1201,6 +1263,7 @@ export default function RoomClient({ roomId }) {
       socket.off('user_stop_typing');
       socket.off('room_closed');
       socket.off('guest_controls_updated');
+      socket.off('room_updated');
       socket.off('system_announcement');
       socket.emit('leave_room', { room_id: roomId });
     };
@@ -2804,7 +2867,8 @@ export default function RoomClient({ roomId }) {
 
   const handleCopyInvite = () => {
     if (typeof window === 'undefined') return;
-    const inviteUrl = `${window.location.origin}/room/${roomId}`;
+    const roomSlugOrId = room?.slug || roomId;
+    const inviteUrl = `${window.location.origin}/room/${roomSlugOrId}`;
     
     const fallbackCopy = (text) => {
       try {
@@ -2815,7 +2879,7 @@ export default function RoomClient({ roomId }) {
         textarea.select();
         document.execCommand('copy');
         document.body.removeChild(textarea);
-        triggerToast('Invite link copied!', 'success');
+        triggerToast('OpenJam room invite copied!', 'success');
       } catch (e) {
         triggerToast('Failed to copy link', 'error');
       }
@@ -2823,7 +2887,7 @@ export default function RoomClient({ roomId }) {
 
     if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
       navigator.clipboard.writeText(inviteUrl)
-        .then(() => triggerToast('Invite link copied!', 'success'))
+        .then(() => triggerToast('OpenJam room invite copied!', 'success'))
         .catch(() => fallbackCopy(inviteUrl));
     } else {
       fallbackCopy(inviteUrl);
@@ -2972,7 +3036,7 @@ export default function RoomClient({ roomId }) {
             </span>
           </div>
           <a
-            href={`openjam://room/${roomId}`}
+            href={`openjam://room/${room?.slug || roomId}`}
             style={{
               background: '#08080a',
               color: '#ffffff',
@@ -3011,6 +3075,30 @@ export default function RoomClient({ roomId }) {
               <h1 className="room-bar-name" title={room ? room.name : 'Loading...'}>
                 {room ? room.name : 'Loading…'}
               </h1>
+              {room?.slug && (
+                <button
+                  type="button"
+                  className="room-slug-badge"
+                  onClick={handleCopyInvite}
+                  title="Click to copy room share link"
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '8px',
+                    padding: '2px 8px',
+                    fontSize: '11px',
+                    fontFamily: 'var(--font-mono-next, monospace)',
+                    color: 'var(--text-3)',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <span>/{room.slug}</span>
+                </button>
+              )}
             </div>
             
             <div className="room-sub-meta">
@@ -3075,6 +3163,13 @@ export default function RoomClient({ roomId }) {
               title="Export Shareable Jam Card"
             >
               <Share2 size={16} />
+            </button>
+            <button 
+              className="btn btn-secondary room-bar-icon-btn" 
+              onClick={() => setShowRoomInfo(true)} 
+              title="About this OpenJam Room & Session"
+            >
+              <Info size={16} />
             </button>
             <button className="btn btn-secondary room-bar-icon-btn" onClick={() => setShowSettings(true)} title="Room Settings">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
@@ -5442,6 +5537,91 @@ export default function RoomClient({ roomId }) {
         )}
       </AnimatePresence>
 
+      {/* ══ ROOM INFO & CONTINUATION MODAL ══════════════════════════ */}
+      <AnimatePresence>
+        {showRoomInfo && (
+          <div className="modal-bg open" style={{ display: 'flex', zIndex: 1200 }} onClick={() => setShowRoomInfo(false)}>
+            <motion.div 
+              className="modal-box"
+              onClick={(e) => e.stopPropagation()}
+              initial={{ scale: 0.85, y: 30, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.85, y: 30, opacity: 0 }}
+              style={{ maxWidth: '440px', width: '90%', padding: '24px' }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+                <div className="modal-title" style={{ fontSize: '18px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Info className="h-5 w-5" style={{ color: 'var(--theme-accent, #ff9f1c)' }} />
+                  <span>About OpenJam Session</span>
+                </div>
+                <motion.button 
+                  className="btn btn-ghost" 
+                  onClick={() => setShowRoomInfo(false)} 
+                  style={{ fontSize: '16px', padding: '4px 8px' }}
+                  whileHover={{ rotate: 90, scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                >
+                  ✕
+                </motion.button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '16px', padding: '16px' }}>
+                  <div style={{ fontSize: '16px', fontWeight: 800, color: '#ffffff', marginBottom: '4px' }}>
+                    {room?.name || 'Live Jam Room'}
+                  </div>
+                  <p style={{ fontSize: '12.5px', color: 'var(--text-2)', lineHeight: 1.5, margin: '0 0 12px 0' }}>
+                    {room?.description || 'Continuous real-time synced listening room on OpenJam. Queue music, vote on next tracks, and enjoy uninterrupted sound together.'}
+                  </p>
+
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    <span style={{ fontSize: '11px', background: 'rgba(255,159,28,0.15)', color: 'var(--theme-accent, #ff9f1c)', padding: '3px 8px', borderRadius: '6px', fontWeight: 700 }}>
+                      OpenJam Verified
+                    </span>
+                    <span style={{ fontSize: '11px', background: 'rgba(255,255,255,0.06)', color: 'var(--text-2)', padding: '3px 8px', borderRadius: '6px' }}>
+                      {room?.queue_mode === 'curated' ? 'DJ Curated' : 'Open Queue'}
+                    </span>
+                    {room?.is_private && (
+                      <span style={{ fontSize: '11px', background: 'rgba(239,68,68,0.15)', color: '#ef4444', padding: '3px 8px', borderRadius: '6px' }}>
+                        Private Room
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', background: 'rgba(255, 159, 28, 0.05)', border: '1px solid rgba(255, 159, 28, 0.15)', borderRadius: '14px', padding: '12px 14px' }}>
+                  <Disc className="h-5 w-5" style={{ color: 'var(--theme-accent, #ff9f1c)', flexShrink: 0, marginTop: '2px' }} />
+                  <div>
+                    <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--text-1)' }}>Continuous Synchronized Playback</div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-3)', lineHeight: 1.45, marginTop: '2px' }}>
+                      OpenJam maintains sub-50ms NTP audio sync across all listeners with automated failover and queue continuity. Keep this tab open to stream together seamlessly.
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="modal-label" style={{ display: 'block', marginBottom: '6px', fontSize: '11px', fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                    Room Link
+                  </label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input 
+                      type="text"
+                      className="input-field"
+                      readOnly
+                      value={typeof window !== 'undefined' ? `${window.location.origin}/room/${room?.slug || roomId}` : ''}
+                      style={{ flex: 1, fontSize: '12px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255, 255, 255, 0.08)', padding: '8px 12px', borderRadius: '10px', color: 'var(--text-1)' }}
+                    />
+                    <button className="btn btn-primary" onClick={handleCopyInvite} style={{ padding: '0 16px', fontSize: '12px', borderRadius: '10px', fontWeight: 600 }}>
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* ══ INVITE FRIEND MODAL ══════════════════════════════════ */}
       <AnimatePresence>
         {showInvite && (
@@ -5457,7 +5637,7 @@ export default function RoomClient({ roomId }) {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <div className="modal-title" style={{ fontSize: '18px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Users className="h-5 w-5" style={{ color: 'var(--theme-accent, #ff9f1c)' }} />
-                  <span>Invite Friends</span>
+                  <span>Invite to OpenJam Jam Session</span>
                 </div>
                 <motion.button 
                   className="btn btn-ghost" 
@@ -5483,24 +5663,24 @@ export default function RoomClient({ roomId }) {
                   justifyContent: 'center'
                 }}>
                   <img decoding="async" loading="lazy" 
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/room/${roomId}` : '')}`}
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/room/${room?.slug || roomId}` : '')}`}
                     alt="Room QR Code" 
                     style={{ width: '140px', height: '140px', display: 'block', borderRadius: '8px' }}
                   />
                 </div>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-2)' }}>Scan to Join Instantly</span>
-                <span style={{ fontSize: '11px', color: 'var(--text-3)', marginTop: '4px' }}>Share your screen or scan with a phone camera</span>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-2)' }}>Scan to Join OpenJam Instantly</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-3)', marginTop: '4px' }}>Listen together in real time on OpenJam — zero drift, shared queues, pure sound.</span>
               </div>
 
               {/* Link Copier */}
               <div style={{ marginBottom: '8px' }}>
-                <label className="modal-label" style={{ display: 'block', marginBottom: '8px', fontSize: '11px', fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '1px' }}>Room URL Link</label>
+                <label className="modal-label" style={{ display: 'block', marginBottom: '8px', fontSize: '11px', fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '1px' }}>OpenJam Room URL</label>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <input
                     type="text"
                     className="input-field"
                     readOnly
-                    value={typeof window !== 'undefined' ? `${window.location.origin}/room/${roomId}` : ''}
+                    value={typeof window !== 'undefined' ? `${window.location.origin}/room/${room?.slug || roomId}` : ''}
                     style={{ flex: 1, fontSize: '13px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255, 255, 255, 0.08)', padding: '10px 14px', borderRadius: '10px', color: 'var(--text-1)' }}
                   />
                   <button className="btn btn-primary" onClick={handleCopyInvite} style={{ padding: '0 20px', fontSize: '13px', borderRadius: '10px', fontWeight: 600 }}>Copy Link</button>

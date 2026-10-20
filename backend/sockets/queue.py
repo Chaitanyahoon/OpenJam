@@ -18,9 +18,10 @@ def _db_add_and_get_queue(room_id: str, track_data: dict, user_id: str, display_
     db = SessionLocal()
     try:
         # Check queue mode permissions
-        room = db.query(Room).filter(Room.id == room_id).first()
+        room = db.query(Room).filter((Room.id == room_id) | (Room.slug == room_id)).first()
         if not room:
             raise ValueError("Room not found")
+        room_id = room.id
         if room.queue_mode == "curated" and room.host_user_id != user_id:
             raise ValueError("Queue is locked by host")
 
@@ -92,9 +93,10 @@ def _db_add_multiple_to_queue(room_id: str, track_list: list[dict], user_id: str
     from backend.models.queue_item import QueueItem
     db = SessionLocal()
     try:
-        room = db.query(Room).filter(Room.id == room_id).first()
+        room = db.query(Room).filter((Room.id == room_id) | (Room.slug == room_id)).first()
         if not room:
             raise ValueError("Room not found")
+        room_id = room.id
         if room.queue_mode == "curated" and room.host_user_id != user_id:
             raise ValueError("Queue is locked by host")
 
@@ -236,9 +238,10 @@ def _db_play_now(room_id: str, track_data: dict, user_id: str, display_name: str
     from backend.models.queue_item import QueueItem
     db = SessionLocal()
     try:
-        room = db.query(Room).filter(Room.id == room_id).first()
+        room = db.query(Room).filter((Room.id == room_id) | (Room.slug == room_id)).first()
         if not room:
             raise ValueError("Room not found")
+        room_id = room.id
             
         user = db.query(User).filter(User.id == user_id).first()
         if not user:

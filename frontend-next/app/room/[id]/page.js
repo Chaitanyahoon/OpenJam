@@ -78,6 +78,8 @@ export async function generateMetadata({ params }) {
 
         const ogImage = currentTrack?.album_art_url || staticFallbackImage;
 
+        const roomSlug = room.slug || id;
+
         return {
           title,
           description,
@@ -85,12 +87,12 @@ export async function generateMetadata({ params }) {
           robots: !room.is_private
             ? { index: true, follow: true }
             : { index: false, follow: false },
-          alternates: { canonical: `https://www.openjam.fun/room/${id}` },
+          alternates: { canonical: `https://www.openjam.fun/room/${roomSlug}` },
           openGraph: {
             title,
             description,
             type: 'music.playlist',
-            url: `https://www.openjam.fun/room/${id}`,
+            url: `https://www.openjam.fun/room/${roomSlug}`,
             siteName: 'OpenJam',
             locale: 'en_US',
             images: [
@@ -106,12 +108,12 @@ export async function generateMetadata({ params }) {
             android: {
               package: 'fun.openjam.app',
               app_name: 'OpenJam',
-              url: `openjam://room/${id}`,
+              url: `openjam://room/${roomSlug}`,
             },
             ios: {
               app_store_id: '0000000000',
               app_name: 'OpenJam',
-              url: `openjam://room/${id}`,
+              url: `openjam://room/${roomSlug}`,
             },
           },
           twitter: {

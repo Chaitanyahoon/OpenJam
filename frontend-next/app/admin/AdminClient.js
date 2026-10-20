@@ -751,7 +751,7 @@ export default function AdminPage() {
                                     <td style={{ padding: '14px 8px' }}>
                                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                         <Link 
-                                          href={`/room/${room.id}`} 
+                                          href={`/room/${room.slug || room.id}`} 
                                           target="_blank"
                                           style={{ border: '1px solid rgba(255,255,255,0.12)', color: '#fff', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', textDecoration: 'none', background: 'rgba(255,255,255,0.04)' }}
                                         >

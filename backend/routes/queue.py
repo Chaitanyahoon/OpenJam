@@ -7,7 +7,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from backend.database import get_db
+from backend.database import SessionLocal, get_db
 from backend.middleware.auth import get_current_user_id
 from backend.models.queue_item import QueueItem
 from backend.models.room import Room
@@ -47,9 +47,10 @@ async def add_to_queue(
     user_data = get_current_user_id(request, include_name=True)
     if not user_data:
         raise HTTPException(status_code=401, detail="Authentication required")
-    room = db.query(Room).filter(Room.id == room_id, Room.is_active == True).first()
+    room = db.query(Room).filter((Room.id == room_id) | (Room.slug == room_id), Room.is_active == True).first()
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
+    canonical_room_id = room.id
     user_id = user_data["id"]
     is_admin = bool(user_data.get("is_admin"))
     if not check_room_access(room, user_id, is_admin=is_admin):
@@ -88,14 +89,14 @@ async def add_to_queue(
     # Prevent duplicate additions
     if uri:
         duplicate = db.query(QueueItem).filter(
-            QueueItem.room_id == room_id,
+            QueueItem.room_id == canonical_room_id,
             QueueItem.track_uri == uri,
             QueueItem.status.in_(["pending", "playing"]),
         ).first()
         if duplicate:
             raise HTTPException(status_code=409, detail="This track is already in the queue")
 
-    item = queue_manager.add_track(db, room_id, track_data, user_id, user_name)
+    item = queue_manager.add_track(db, canonical_room_id, track_data, user_id, user_name)
 
     # Pre-resolve stream URL and download track in background so playback starts instantly
     if track_data.get("uri") and len(track_data.get("uri", "")) == 11:
@@ -110,16 +111,17 @@ async def vote_track(room_id: str, item_id: str, request: Request, db: Session =
     user_data = get_current_user_id(request, include_name=True)
     if not user_data:
         raise HTTPException(status_code=401, detail="Authentication required")
-    room = db.query(Room).filter(Room.id == room_id).first()
+    room = db.query(Room).filter((Room.id == room_id) | (Room.slug == room_id)).first()
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
+    canonical_room_id = room.id
     is_admin = bool(user_data.get("is_admin"))
     if not check_room_access(room, user_data["id"], is_admin=is_admin):
         raise HTTPException(status_code=403, detail="Room access denied. Password verification required.")
 
     item = db.query(QueueItem).filter(
         QueueItem.id == item_id,
-        QueueItem.room_id == room_id,
+        QueueItem.room_id == canonical_room_id,
         QueueItem.status != "played",
     ).first()
     if not item:
@@ -127,7 +129,7 @@ async def vote_track(room_id: str, item_id: str, request: Request, db: Session =
     success = queue_manager.vote_track(db, item_id, user_data["id"])
     if not success:
         raise HTTPException(status_code=409, detail="Already voted")
-    queue = queue_manager.get_queue(db, room_id)
+    queue = queue_manager.get_queue(db, canonical_room_id)
 
     # Pre-resolve the new next track in queue in background
     if queue:
@@ -168,30 +170,32 @@ async def search_tracks(q: str = ""):
 @router.get("/queue/{room_id}")
 async def get_queue(room_id: str, request: Request, db: Session = Depends(get_db)):
     """Lightweight queue fetch — used by the frontend 3s poll fallback."""
-    room = db.query(Room).filter(Room.id == room_id).first()
+    room = db.query(Room).filter((Room.id == room_id) | (Room.slug == room_id)).first()
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
+    canonical_room_id = room.id
     user_data = get_current_user_id(request, include_name=True)
     user_id = user_data["id"] if user_data else None
     is_admin = bool(user_data and user_data.get("is_admin"))
     if not check_room_access(room, user_id, is_admin=is_admin):
         raise HTTPException(status_code=403, detail="Room access denied. Password verification required.")
-    queue = queue_manager.get_queue(db, room_id, user_id)
+    queue = queue_manager.get_queue(db, canonical_room_id, user_id)
     return {"queue": queue}
 
 
 @router.get("/rooms/{room_id}/history")
 async def get_history(room_id: str, request: Request, db: Session = Depends(get_db)):
     """Fetch recently played tracks for the room."""
-    room = db.query(Room).filter(Room.id == room_id).first()
+    room = db.query(Room).filter((Room.id == room_id) | (Room.slug == room_id)).first()
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
+    canonical_room_id = room.id
     user_data = get_current_user_id(request, include_name=True)
     user_id = user_data["id"] if user_data else None
     is_admin = bool(user_data and user_data.get("is_admin"))
     if not check_room_access(room, user_id, is_admin=is_admin):
         raise HTTPException(status_code=403, detail="Room access denied. Password verification required.")
-    history = queue_manager.get_history(db, room_id)
+    history = queue_manager.get_history(db, canonical_room_id)
     return {"history": history}
 
 
@@ -256,8 +260,14 @@ async def add_multiple_tracks_to_queue(
     room_id: str,
     tracks: list[PlaylistTrackRequest],
     request: Request,
+    db: Session = Depends(get_db),
 ):
     """Add multiple tracks to a room's queue. Emits socket updates to the room."""
+    room = db.query(Room).filter((Room.id == room_id) | (Room.slug == room_id), Room.is_active == True).first()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    canonical_room_id = room.id
+
     user_data = get_current_user_id(request, include_name=True)
     user_id = user_data["id"] if user_data else str(uuid.uuid4())
     display_name = user_data["display_name"] if user_data else f"Jammer-{uuid.uuid4().hex[:4].upper()}"
@@ -276,7 +286,7 @@ async def add_multiple_tracks_to_queue(
     try:
         queue, next_item = await asyncio.to_thread(
             _db_add_multiple_to_queue,
-            room_id,
+            canonical_room_id,
             track_list,
             user_id,
             display_name,
@@ -294,14 +304,14 @@ async def add_multiple_tracks_to_queue(
     sio = getattr(request.app.state, "sio", None)
     if sio:
         if next_item:
-            logger.info(f"Auto-playing next_item for room={room_id}: {next_item.get('track_name')} ({next_item.get('track_uri')})")
+            logger.info(f"Auto-playing next_item for room={canonical_room_id}: {next_item.get('track_name')} ({next_item.get('track_uri')})")
             track_uri = next_item.get("track_uri", "")
             if track_uri and len(track_uri) == 11:
                 asyncio.create_task(pre_resolve_url(track_uri))
                 asyncio.create_task(download_and_cache_track(track_uri))
 
             room_manager.update_playback(
-                room_id=room_id,
+                room_id=canonical_room_id,
                 track_uri=next_item["track_uri"],
                 track_name=next_item["track_name"],
                 artist=next_item["artist"],
@@ -311,21 +321,25 @@ async def add_multiple_tracks_to_queue(
                 is_playing=True,
             )
             from backend.sockets.playback import ensure_sync_loop
-            ensure_sync_loop(room_id, sio)
-            await sio.emit("track_changed", next_item, room=room_id)
+            ensure_sync_loop(canonical_room_id, sio)
+            await sio.emit("track_changed", next_item, room=canonical_room_id)
+            if room_id != canonical_room_id:
+                await sio.emit("track_changed", next_item, room=room_id)
 
             from backend.sockets.queue import _db_get_queue_after_next
             try:
-                queue = await asyncio.to_thread(_db_get_queue_after_next, room_id)
+                queue = await asyncio.to_thread(_db_get_queue_after_next, canonical_room_id)
             except Exception:
                 pass
 
-        await sio.emit("queue_updated", {"queue": queue}, room=room_id)
+        await sio.emit("queue_updated", {"queue": queue}, room=canonical_room_id)
+        if room_id != canonical_room_id:
+            await sio.emit("queue_updated", {"queue": queue}, room=room_id)
 
         from backend.sockets.playback import pre_resolve_next_track_background
-        asyncio.create_task(pre_resolve_next_track_background(room_id, queue, sio))
+        asyncio.create_task(pre_resolve_next_track_background(canonical_room_id, queue, sio))
         from backend.sockets.queue import resolve_room_queue_background
-        asyncio.create_task(resolve_room_queue_background(room_id, sio))
+        asyncio.create_task(resolve_room_queue_background(canonical_room_id, sio))
 
     return {"message": f"Successfully queued {len(track_list)} tracks", "added_count": len(track_list)}
 

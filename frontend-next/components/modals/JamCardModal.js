@@ -70,7 +70,7 @@ export default function JamCardModal({
   const albumArtUrl = nowPlaying?.album_art_url || nowPlaying?.cover || nowPlaying?.thumbnail || '';
   const currentListeners = listenerCount || room?.listener_count || 1;
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.openjam.fun';
-  const inviteUrl = `${origin}/room/${roomId}`;
+  const inviteUrl = `${origin}/room/${room?.slug || roomId}`;
 
   // Render the high-fidelity Jam Card canvas
   useEffect(() => {

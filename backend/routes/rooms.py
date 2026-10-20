@@ -134,9 +134,31 @@ async def create_room(request: Request, create_room_req: CreateRoomRequest, db: 
             is_private=is_private,
             allow_guest_controls=create_room_req.allow_guest_controls,
         )
-        db.add(room)
-        db.commit()
-        db.refresh(room)
+        import time
+        from sqlalchemy.exc import IntegrityError
+        from backend.models.room import generate_room_slug
+
+        committed = False
+        for attempt in range(5):
+            while db.query(Room).filter(Room.slug == room.slug).first():
+                room.slug = generate_room_slug(create_room_req.name)
+            try:
+                db.add(room)
+                db.commit()
+                db.refresh(room)
+                committed = True
+                break
+            except IntegrityError:
+                db.rollback()
+                room.slug = generate_room_slug(create_room_req.name)
+
+        if not committed:
+            ts_hex = hex(int(time.time() * 1000))[2:][-6:]
+            room.slug = f"{generate_room_slug(create_room_req.name)}-{ts_hex}"
+            db.add(room)
+            db.commit()
+            db.refresh(room)
+
         return room.to_dict(host_name=display_name, host_avatar_url=user_data.get("avatar_url"))
 
     room_dict = await asyncio.to_thread(_db_create_room)
@@ -195,7 +217,7 @@ def check_room_access(room: Room, user_id: str | None, is_admin: bool = False) -
 
 @router.get("/{room_id}")
 async def get_room(room_id: str, request: Request, db: Session = Depends(get_db)):
-    room = db.query(Room).options(selectinload(Room.host)).filter(Room.id == room_id).first()
+    room = db.query(Room).options(selectinload(Room.host)).filter((Room.id == room_id) | (Room.slug == room_id)).first()
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
     host_name = room.host.display_name if room.host else "Unknown"
@@ -207,10 +229,12 @@ async def get_room(room_id: str, request: Request, db: Session = Depends(get_db)
         if db_u and db_u.is_admin:
             is_admin = True
 
+    canonical_id = room.id
     if room.is_private and room.password_hash and not check_room_access(room, current_user_id, is_admin=is_admin):
         return {
             "room": {
                 "id": room.id,
+                "slug": room.slug or room.id,
                 "name": room.name,
                 "is_private": True,
                 "host_name": host_name,
@@ -221,12 +245,12 @@ async def get_room(room_id: str, request: Request, db: Session = Depends(get_db)
             "password_required": True,
         }
 
-    now_playing = queue_manager.get_now_playing(db, room.id)
-    queue = queue_manager.get_queue(db, room.id, current_user_id)
-    listeners = room_manager.get_listeners(room_id)
+    now_playing = queue_manager.get_now_playing(db, canonical_id)
+    queue = queue_manager.get_queue(db, canonical_id, current_user_id)
+    listeners = room_manager.get_listeners(canonical_id)
     return {
         "room": room.to_dict(
-            listener_count=room_manager.get_listener_count(room_id),
+            listener_count=room_manager.get_listener_count(canonical_id),
             current_track=now_playing,
             host_name=host_name,
         ),
@@ -241,11 +265,12 @@ async def close_room(room_id: str, request: Request, db: Session = Depends(get_d
     user_data = get_current_user_id(request, include_name=True)
     if not user_data:
         raise HTTPException(status_code=401, detail="Authentication required")
-    room = db.query(Room).filter(Room.id == room_id).first()
+    room = db.query(Room).filter((Room.id == room_id) | (Room.slug == room_id)).first()
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
-    if room.host_user_id != user_data["id"]:
+    if room.host_user_id != user_data["id"] and not user_data.get("is_admin"):
         raise HTTPException(status_code=403, detail="Only the host can close the room")
+    canonical_id = room.id
     room.is_active = False
     db.commit()
 
@@ -253,16 +278,21 @@ async def close_room(room_id: str, request: Request, db: Session = Depends(get_d
     sio = getattr(request.app.state, "sio", None)
     if sio:
         await sio.emit("room_closed", {
-            "room_id": room_id,
+            "room_id": canonical_id,
             "reason": "Host closed the room",
-        }, room=room_id)
+        }, room=canonical_id)
+        if room.slug and room.slug != canonical_id:
+            await sio.emit("room_closed", {
+                "room_id": canonical_id,
+                "reason": "Host closed the room",
+            }, room=room.slug)
 
     # Force-clean in-memory room state to prevent orphaned sync loops and stale data
     from backend.sockets.playback import stop_sync_loop
     from backend.services.room_closer import cancel_room_close
-    stop_sync_loop(room_id)
-    cancel_room_close(room_id)
-    room_manager.force_close_room(room_id)
+    stop_sync_loop(canonical_id)
+    cancel_room_close(canonical_id)
+    room_manager.force_close_room(canonical_id)
 
     return {"message": "Room closed"}
 
@@ -273,9 +303,10 @@ async def update_room(room_id: str, request: Request, db: Session = Depends(get_
     user_data = get_current_user_id(request, include_name=True)
     if not user_data:
         raise HTTPException(status_code=401, detail="Authentication required")
-    room = db.query(Room).filter(Room.id == room_id, Room.is_active == True).first()
+    room = db.query(Room).filter((Room.id == room_id) | (Room.slug == room_id), Room.is_active == True).first()
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
+    canonical_id = room.id
     if room.host_user_id != user_data["id"]:
         raise HTTPException(status_code=403, detail="Only the host can edit room settings")
 
@@ -299,20 +330,24 @@ async def update_room(room_id: str, request: Request, db: Session = Depends(get_
     if "allow_guest_controls" in body:
         allow = bool(body["allow_guest_controls"])
         room.allow_guest_controls = allow
-        room_manager.set_guest_controls(room_id, allow)
+        room_manager.set_guest_controls(canonical_id, allow)
 
     db.commit()
     db.refresh(room)
 
     updated_dict = room.to_dict(
-        listener_count=room_manager.get_listener_count(room_id),
+        listener_count=room_manager.get_listener_count(canonical_id),
         host_name=user_data["display_name"],
     )
 
     sio = getattr(request.app.state, "sio", None)
     if sio:
-        await sio.emit("room_updated", updated_dict, room=room_id)
+        await sio.emit("room_updated", updated_dict, room=canonical_id)
+        if room.slug and room.slug != canonical_id:
+            await sio.emit("room_updated", updated_dict, room=room.slug)
         if "allow_guest_controls" in body:
-            await sio.emit("guest_controls_updated", {"allow_guest_controls": room.allow_guest_controls}, room=room_id)
+            await sio.emit("guest_controls_updated", {"allow_guest_controls": room.allow_guest_controls}, room=canonical_id)
+            if room.slug and room.slug != canonical_id:
+                await sio.emit("guest_controls_updated", {"allow_guest_controls": room.allow_guest_controls}, room=room.slug)
 
     return {"room": updated_dict}
