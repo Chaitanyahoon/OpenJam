@@ -29,6 +29,7 @@ class Settings:
 
     # Redis state store
     REDIS_URL: str = os.getenv("REDIS_URL")
+    SOCKETIO_REDIS_ENABLED: bool = os.getenv("SOCKETIO_REDIS_ENABLED", "false").lower() in ("1", "true", "yes")
 
     # Security
     SECRET_KEY: str = os.getenv("SECRET_KEY", "change-me-in-production")

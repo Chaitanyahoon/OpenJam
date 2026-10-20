@@ -22,6 +22,7 @@ class RedisStore:
         self._sid_expiries = {}
         self._recently_left = {}
         self._all_rooms_expiry = 0
+        self._disabled_until = 0
 
         if self.redis_url:
             try:
@@ -40,12 +41,24 @@ class RedisStore:
                 logger.error(f"Failed to connect to Redis, falling back to in-memory: {e}")
                 self.client = None
 
+    @property
+    def is_available(self) -> bool:
+        return bool(self.client and time.time() > self._disabled_until)
+
+    def _handle_error(self, operation: str, error: Exception):
+        err_str = str(error).lower()
+        if "limit exceeded" in err_str or "quota" in err_str or "max requests" in err_str:
+            self._disabled_until = time.time() + 300  # 5 min backoff
+            logger.warning(f"Redis request limit exceeded ({operation}). Cooling down for 5 minutes: {error}")
+        else:
+            logger.warning(f"Redis {operation} failed: {error}")
+
     def get_room(self, room_id: str) -> dict | None:
         now = time.time()
         if room_id in self._rooms and now < self._room_expiries.get(room_id, 0):
             return self._rooms[room_id]
 
-        if self.client:
+        if self.is_available:
             try:
                 data = self.client.get(f"openjam:room:{room_id}")
                 if data:
@@ -64,7 +77,7 @@ class RedisStore:
                 self._room_expiries.pop(room_id, None)
                 return None
             except Exception as e:
-                logger.warning(f"Redis get_room failed for {room_id}, falling back to memory: {e}")
+                self._handle_error("get_room", e)
                 return self._rooms.get(room_id)
         return self._rooms.get(room_id)
 
@@ -72,7 +85,7 @@ class RedisStore:
         self._rooms[room_id] = data
         self._room_expiries[room_id] = time.time() + 2.5
         self._all_rooms_expiry = 0
-        if self.client:
+        if self.is_available:
             try:
                 # Convert set to list for JSON serialization
                 serialized = data.copy()
@@ -88,17 +101,17 @@ class RedisStore:
                         )
                 self.client.set(f"openjam:room:{room_id}", json.dumps(serialized), ex=86400)
             except Exception as e:
-                logger.warning(f"Redis set_room failed for {room_id}: {e}")
+                self._handle_error("set_room", e)
 
     def del_room(self, room_id: str):
         self._rooms.pop(room_id, None)
         self._room_expiries.pop(room_id, None)
         self._all_rooms_expiry = 0
-        if self.client:
+        if self.is_available:
             try:
                 self.client.delete(f"openjam:room:{room_id}")
             except Exception as e:
-                logger.warning(f"Redis del_room failed for {room_id}: {e}")
+                self._handle_error("del_room", e)
 
     delete_room = del_room
 
@@ -107,7 +120,7 @@ class RedisStore:
         if sid in self._sid_map and now < self._sid_expiries.get(sid, 0):
             return self._sid_map[sid]
 
-        if self.client:
+        if self.is_available:
             try:
                 data = self.client.get(f"openjam:sid:{sid}")
                 if data:
@@ -119,30 +132,30 @@ class RedisStore:
                 self._sid_expiries.pop(sid, None)
                 return None
             except Exception as e:
-                logger.warning(f"Redis get_sid failed for {sid}: {e}")
+                self._handle_error("get_sid", e)
                 return self._sid_map.get(sid)
         return self._sid_map.get(sid)
 
     def set_sid(self, sid: str, data: dict):
         self._sid_map[sid] = data
         self._sid_expiries[sid] = time.time() + 5.0
-        if self.client:
+        if self.is_available:
             try:
                 self.client.set(f"openjam:sid:{sid}", json.dumps(data), ex=86400)
             except Exception as e:
-                logger.warning(f"Redis set_sid failed for {sid}: {e}")
+                self._handle_error("set_sid", e)
 
     def del_sid(self, sid: str):
         self._sid_map.pop(sid, None)
         self._sid_expiries.pop(sid, None)
-        if self.client:
+        if self.is_available:
             try:
                 self.client.delete(f"openjam:sid:{sid}")
             except Exception as e:
-                logger.warning(f"Redis del_sid failed for {sid}: {e}")
+                self._handle_error("del_sid", e)
 
     def get_recently_left(self) -> dict:
-        if self.client:
+        if self.is_available:
             try:
                 data = self.client.get("openjam:recently_left")
                 if data:
@@ -151,48 +164,48 @@ class RedisStore:
                     return parsed
                 return self._recently_left
             except Exception as e:
-                logger.warning(f"Redis get_recently_left failed: {e}")
+                self._handle_error("get_recently_left", e)
                 return self._recently_left
         return self._recently_left
 
     def set_recently_left(self, data: dict):
         self._recently_left = data
-        if self.client:
+        if self.is_available:
             try:
                 self.client.set("openjam:recently_left", json.dumps(data), ex=300)
             except Exception as e:
-                logger.warning(f"Redis set_recently_left failed: {e}")
+                self._handle_error("set_recently_left", e)
 
     def is_token_revoked(self, token: str) -> bool:
-        if self.client:
+        if self.is_available:
             try:
                 return bool(self.client.exists(f"openjam:revoked:{token}"))
             except Exception as e:
-                logger.warning(f"Redis is_token_revoked failed: {e}")
+                self._handle_error("is_token_revoked", e)
                 return token in settings.REVOKED_TOKENS
         return token in settings.REVOKED_TOKENS
 
     def revoke_token(self, token: str) -> None:
         settings.REVOKED_TOKENS.add(token)
-        if self.client:
+        if self.is_available:
             try:
                 self.client.set(f"openjam:revoked:{token}", "1", ex=86400 * 30)
             except Exception as e:
-                logger.warning(f"Redis revoke_token failed: {e}")
+                self._handle_error("revoke_token", e)
 
     def get_active_room_ids(self) -> list:
-        if self.client:
+        if self.is_available:
             try:
                 keys = list(self.client.scan_iter("openjam:room:*"))
                 return [k.replace("openjam:room:", "", 1) for k in keys]
             except Exception as e:
-                logger.warning(f"Redis get_active_room_ids failed: {e}")
+                self._handle_error("get_active_room_ids", e)
                 return list(self._rooms.keys())
         return list(self._rooms.keys())
 
     def get_sid_map_items(self) -> list:
         """Returns list of (sid, info) pairs."""
-        if self.client:
+        if self.is_available:
             try:
                 keys = list(self.client.scan_iter("openjam:sid:*"))
                 if not keys:
@@ -206,7 +219,7 @@ class RedisStore:
                         items.append((sid, json.loads(val)))
                 return items
             except Exception as e:
-                logger.warning(f"Redis get_sid_map_items failed: {e}")
+                self._handle_error("get_sid_map_items", e)
                 return list(self._sid_map.items())
         return list(self._sid_map.items())
 
@@ -216,7 +229,7 @@ class RedisStore:
         if now < self._all_rooms_expiry and self._rooms:
             return self._rooms
 
-        if self.client:
+        if self.is_available:
             try:
                 keys = list(self.client.scan_iter("openjam:room:*"))
                 if not keys:
@@ -241,6 +254,6 @@ class RedisStore:
                 self._all_rooms_expiry = now + 5.0
                 return rooms
             except Exception as e:
-                logger.warning(f"Redis get_all_rooms failed: {e}")
+                self._handle_error("get_all_rooms", e)
                 return self._rooms
         return self._rooms

@@ -51,12 +51,13 @@ if sentry_dsn:
     except ImportError:
         logger.warning("sentry-sdk not installed, error tracking disabled")
 
-# Setup Socket.io manager for scaling if Redis is configured (free-tier safe fallback)
+# Setup Socket.io manager for multi-instance scaling if explicitly enabled
+# Default: in-memory manager (sub-millisecond latency, zero Redis PubSub quota consumption)
 sio_mgr = None
-if settings.REDIS_URL:
+if getattr(settings, "SOCKETIO_REDIS_ENABLED", False) and settings.REDIS_URL:
     try:
         sio_mgr = socketio.AsyncRedisManager(settings.REDIS_URL)
-        logger.info("Socket.io initialized with AsyncRedisManager for scaling")
+        logger.info("Socket.io initialized with AsyncRedisManager for multi-instance scaling")
     except Exception as e:
         logger.error(f"Failed to initialize Socket.io Redis manager: {e}")
 
