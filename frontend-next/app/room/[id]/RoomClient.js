@@ -150,6 +150,7 @@ export default function RoomClient({ roomId }) {
 
   // Refs for scrolling and canvas
   const chatEndRef = useRef(null);
+  const isUserScrolledUpRef = useRef(false);
   const stageLyricsScrollRef = useRef(null);
   const stageLyricsActiveRef = useRef(null);
   const audioContextRef = useRef(null);
@@ -546,11 +547,21 @@ export default function RoomClient({ roomId }) {
     ? { backgroundImage: `url(${nowPlaying.album_art_url})`, filter: 'blur(100px) saturate(2) brightness(0.35)' }
     : {};
 
-  const scrollToChatBottom = () => {
+  const handleChatScroll = useCallback((e) => {
+    const el = e.currentTarget;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    isUserScrolledUpRef.current = distanceFromBottom > 120;
+  }, []);
+
+  const scrollToChatBottom = useCallback((force = false) => {
+    if (!force && isUserScrolledUpRef.current) {
+      return;
+    }
     setTimeout(() => {
       chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
-  };
+    }, 40);
+  }, []);
 
   // 1. Initial Load & Auth
   useEffect(() => {
@@ -987,12 +998,13 @@ export default function RoomClient({ roomId }) {
 
     socket.on('chat_history', (data) => {
       setChatMsgs(data.messages || []);
-      scrollToChatBottom();
+      isUserScrolledUpRef.current = false;
+      scrollToChatBottom(true);
     });
 
     socket.on('chat_message', (msg) => {
       setChatMsgs((prev) => [...prev, msg].slice(-150));
-      scrollToChatBottom();
+      scrollToChatBottom(false);
 
       const isSelf = meRef.current && msg.user_id === meRef.current.id;
       if (!isSelf && msg.type !== 'system') {
@@ -1760,10 +1772,10 @@ export default function RoomClient({ roomId }) {
     };
   }, []);
 
-  // Chat Auto-Scroll on Messages
+  // Chat Auto-Scroll on Messages (sticky: pauses if user scrolled up)
   useEffect(() => {
-    scrollToChatBottom();
-  }, [chatMsgs]);
+    scrollToChatBottom(false);
+  }, [chatMsgs, scrollToChatBottom]);
 
   // 7. Ambient Canvas Visualizer
   const animationFrameIdRef = useRef(null);
@@ -2655,6 +2667,9 @@ export default function RoomClient({ roomId }) {
   const handleSendChat = (e) => {
     if (e) e.preventDefault();
     if (!chatInput.trim() || !socket) return;
+    
+    isUserScrolledUpRef.current = false;
+    scrollToChatBottom(true);
     
     const tempId = Math.random().toString(36).slice(2, 10);
     socket.emit('send_chat', {
@@ -3582,7 +3597,7 @@ export default function RoomClient({ roomId }) {
                             }
                           }, 200);
                         }}
-                        placeholder="Search for any track…" 
+                        placeholder="Search songs or paste YouTube / Spotify links…" 
                         autoComplete="off" 
                         style={{ width: '100%', paddingLeft: '36px', boxSizing: 'border-box' }}
                       />
@@ -4697,7 +4712,7 @@ export default function RoomClient({ roomId }) {
                   </div>
                 </div>
 
-                <div className="chat-messages" id="chat-msgs">
+                <div className="chat-messages" id="chat-msgs" onScroll={handleChatScroll}>
                   {chatMsgs.length > 0 ? (
                     chatMsgs.map((msg) => {
                       if (msg.type === 'reaction') {

@@ -71,6 +71,43 @@ class MusicSearchService:
         except Exception as e:
             logger.warning(f"Failed to check Redis search cache: {e}")
 
+        # Fast-path: Direct YouTube URL, bare 11-char ID, or Spotify track URL
+        q_raw = query.strip()
+        direct_vid = None
+        if re.match(r"^[a-zA-Z0-9_-]{11}$", q_raw):
+            direct_vid = q_raw
+        elif "youtube.com" in q_raw or "youtu.be" in q_raw or "music.youtube" in q_raw:
+            m = re.search(r"(?:v=|\/vi\/|youtu\.be\/|\/embed\/|\/shorts\/|\/watch\?v=|&v=)([a-zA-Z0-9_-]{11})", q_raw)
+            if m:
+                direct_vid = m.group(1)
+
+        if direct_vid:
+            meta = await self.resolve_youtube_metadata(direct_vid)
+            if meta:
+                direct_res = [{
+                    "uri": direct_vid,
+                    "name": meta["title"],
+                    "artist": meta["author"],
+                    "album_art_url": meta["thumbnail"],
+                    "duration_ms": 210000,
+                }]
+                self._search_cache[cache_key] = direct_res
+                return direct_res
+
+        if "spotify.com/track/" in q_raw or "spotify:track:" in q_raw:
+            resolved_vid = await self.resolve_youtube(q_raw)
+            if resolved_vid:
+                meta = await self.resolve_youtube_metadata(resolved_vid)
+                direct_res = [{
+                    "uri": resolved_vid,
+                    "name": meta["title"] if meta else "Spotify Track",
+                    "artist": meta["author"] if meta else "Spotify",
+                    "album_art_url": meta["thumbnail"] if meta else f"https://i.ytimg.com/vi/{resolved_vid}/mqdefault.jpg",
+                    "duration_ms": 210000,
+                }]
+                self._search_cache[cache_key] = direct_res
+                return direct_res
+
         import html as html_lib
 
         async def _search_itunes():
