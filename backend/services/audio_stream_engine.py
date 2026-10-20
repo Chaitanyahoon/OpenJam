@@ -367,11 +367,6 @@ class AudioStreamEngine:
             finally:
                 self._resolving.discard(video_id)
 
-        try:
-            asyncio.create_task(self.download_and_cache_track(video_id))
-        except Exception as e:
-            logger.warning(f"Failed to trigger background pre-download for {video_id}: {e}")
-
     async def get_stream_response(
         self,
         video_id: str,

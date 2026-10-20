@@ -212,8 +212,8 @@ export default function PlaylistClient() {
       }
     }
 
-    // Stream URL from our backend stream proxy
-    const streamUrl = `/stream/${videoId}`;
+    // Stream URL with direct CDN redirect to minimize server bandwidth
+    const streamUrl = `/stream/${videoId}?redirect=true`;
 
     if (audioRef.current) {
       audioRef.current.src = streamUrl;

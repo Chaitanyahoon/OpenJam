@@ -96,7 +96,15 @@ export const SocketProvider = ({ children }) => {
 
     setSocket(socketInstance);
 
+    // Keep Render container warm while tab is active
+    const heartbeatTimer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetch(`${backendUrl}/ping`).catch(() => {});
+      }
+    }, 10 * 60 * 1000);
+
     return () => {
+      clearInterval(heartbeatTimer);
       socketInstance.disconnect();
     };
   }, []);
