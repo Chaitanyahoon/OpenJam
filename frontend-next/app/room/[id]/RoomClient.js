@@ -1069,18 +1069,24 @@ export default function RoomClient({ roomId }) {
     });
 
     socket.on('user_joined', (user) => {
+      const uid = user.user_id || user.id;
+      const myId = meRef.current?.id;
       setListeners((prev) => {
-        const uid = user.user_id || user.id;
         if (prev.some(u => (u.user_id || u.id) === uid)) return prev;
         return [...prev, user];
       });
-      triggerToast(`@${user.display_name} joined the room`, 'info');
+      if (!myId || uid !== myId) {
+        triggerToast(`@${user.display_name} joined the room`, 'info');
+      }
     });
 
     socket.on('user_left', (user) => {
       const uid = user.user_id || user.id;
+      const myId = meRef.current?.id;
       setListeners((prev) => prev.filter(u => (u.user_id || u.id) !== uid));
-      triggerToast(`@${user.display_name} left the room`, 'info');
+      if (!myId || uid !== myId) {
+        triggerToast(`@${user.display_name} left the room`, 'info');
+      }
     });
 
     socket.on('listener_count', (data) => {
@@ -1201,15 +1207,18 @@ export default function RoomClient({ roomId }) {
     });
 
     socket.on('user_typing', (data) => {
-      if (me && data.user_id !== me.id) {
-        setTypingUsers((prev) => ({ ...prev, [data.user_id]: data.display_name }));
-      }
+      const uid = data.user_id;
+      const myId = meRef.current?.id;
+      if (!uid || (myId && uid === myId)) return;
+      setTypingUsers((prev) => ({ ...prev, [uid]: data.display_name || 'Someone' }));
     });
 
     socket.on('user_stop_typing', (data) => {
+      const uid = data.user_id;
+      if (!uid) return;
       setTypingUsers((prev) => {
         const copy = { ...prev };
-        delete copy[data.user_id];
+        delete copy[uid];
         return copy;
       });
     });
@@ -5094,6 +5103,17 @@ export default function RoomClient({ roomId }) {
                       onSelectGif={handleSelectGif}
                       onClose={() => setShowGifPicker(false)}
                     />
+                  )}
+
+                  {Object.keys(typingUsers).length > 0 && (
+                    <div style={{ fontSize: '11px', color: 'var(--amber, #ff9f1c)', padding: '2px 8px 4px', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ display: 'inline-block', width: '5px', height: '5px', borderRadius: '50%', background: 'currentColor' }} />
+                      <span>
+                        {Object.values(typingUsers).slice(0, 2).join(', ')}
+                        {Object.keys(typingUsers).length > 2 ? ` and ${Object.keys(typingUsers).length - 2} others` : ''}
+                        {Object.keys(typingUsers).length === 1 ? ' is typing…' : ' are typing…'}
+                      </span>
+                    </div>
                   )}
 
                   <div className="chat-input-main">

@@ -208,8 +208,9 @@ def register_chat_handlers(sio: socketio.AsyncServer):
         target_room_id = data.get("room_id")
         if target_room_id and not _is_valid_room_target(canonical_room_id, target_room_id):
             return
+        user_id = user_info.get("user_id") or session.get("user_id") or sid
         name = session.get("display_name") or "Someone"
-        await sio.emit("user_typing", {"display_name": name}, room=canonical_room_id, skip_sid=sid)
+        await sio.emit("user_typing", {"user_id": user_id, "display_name": name}, room=canonical_room_id, skip_sid=sid)
 
     @sio.event
     async def stop_typing(sid, data):
@@ -223,5 +224,6 @@ def register_chat_handlers(sio: socketio.AsyncServer):
         target_room_id = data.get("room_id")
         if target_room_id and not _is_valid_room_target(canonical_room_id, target_room_id):
             return
+        user_id = user_info.get("user_id") or session.get("user_id") or sid
         name = session.get("display_name") or "Someone"
-        await sio.emit("user_stop_typing", {"display_name": name}, room=canonical_room_id, skip_sid=sid)
+        await sio.emit("user_stop_typing", {"user_id": user_id, "display_name": name}, room=canonical_room_id, skip_sid=sid)
