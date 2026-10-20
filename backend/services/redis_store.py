@@ -26,7 +26,13 @@ class RedisStore:
         if self.redis_url:
             try:
                 import redis
-                self.client = redis.Redis.from_url(self.redis_url, decode_responses=True)
+                self.client = redis.Redis.from_url(
+                    self.redis_url,
+                    decode_responses=True,
+                    socket_timeout=2.0,
+                    socket_connect_timeout=2.0,
+                    retry_on_timeout=False,
+                )
                 # Ping to check connectivity
                 self.client.ping()
                 logger.info("Connected to Redis successfully.")
