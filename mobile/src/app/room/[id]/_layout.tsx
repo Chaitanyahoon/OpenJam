@@ -33,7 +33,7 @@ export function useLeave() {
 const InitialNameCtx = createContext<string>('');
 
 function RoomHeader() {
-  const { roomName, roomId, listeners, syncReady, connectionState } = useRoom();
+  const { roomName, roomId, roomSlug, listeners, syncReady, connectionState } = useRoom();
   const initialName = useContext(InitialNameCtx);
   const triggerLeave = useLeave();
   const toast = useToast();
@@ -74,16 +74,17 @@ function RoomHeader() {
 
   const shareRoom = useCallback(async () => {
     try {
+      const slugOrId = roomSlug || roomId;
       await Share.share({
         message: isSolo
           ? 'Jamming on OpenJam! Check it out: https://www.openjam.fun'
-          : `🎵 Join my live room "${displayName}" on OpenJam!\n\n📱 In App: openjam://room/${roomId}\n🌐 Web: https://www.openjam.fun/room/${roomId}\n\nRoom Code: #${roomId}`,
+          : `🎵 Join my live room "${displayName}" on OpenJam!\n\n📱 In App: openjam://room/${slugOrId}\n🌐 Web: https://www.openjam.fun/room/${slugOrId}\n\nRoom Code: #${roomId.slice(0, 8)}`,
         title: `OpenJam – ${displayName}`,
       });
     } catch {
       // user cancelled
     }
-  }, [roomId, displayName, isSolo]);
+  }, [roomId, roomSlug, displayName, isSolo]);
   const host = listeners.find((l) => l.is_host);
   const hostName = isSolo ? 'You' : host?.user_name || 'Host';
 

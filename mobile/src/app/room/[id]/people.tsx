@@ -26,6 +26,7 @@ export default function PeopleTab() {
   const insets = useSafeAreaInsets();
   const {
     roomId,
+    roomSlug,
     roomName,
     listeners,
     me,
@@ -63,8 +64,9 @@ export default function PeopleTab() {
         });
         return;
       }
+      const slugOrId = roomSlug || roomId;
       await Share.share({
-        message: `🎵 Join my live room "${roomName || 'OpenJam Room'}" on OpenJam!\n\n📱 In App: openjam://room/${roomId}\n🌐 Web: https://www.openjam.fun/room/${roomId}\n\nRoom Code: #${roomId}`,
+        message: `🎵 Join my live room "${roomName || 'OpenJam Room'}" on OpenJam!\n\n📱 In App: openjam://room/${slugOrId}\n🌐 Web: https://www.openjam.fun/room/${slugOrId}\n\nRoom Code: #${roomId.slice(0, 8)}`,
         title: `OpenJam – ${roomName || 'Live Room'}`,
       });
     } catch {

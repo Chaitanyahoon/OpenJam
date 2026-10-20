@@ -126,6 +126,7 @@ export interface JoinSuccessPayload {
   host_user_id?: string;
   room?: {
     id: string;
+    slug?: string;
     name: string;
     host_user_id: string;
     host_name?: string;

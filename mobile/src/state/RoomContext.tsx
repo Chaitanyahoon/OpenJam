@@ -80,6 +80,7 @@ export interface RoomQueueApi {
 
 export interface RoomSessionApi {
   roomId: string;
+  roomSlug: string | null;
   isSolo: boolean;
   roomName: string;
   isHost: boolean;
@@ -170,6 +171,7 @@ export function RoomProvider({
   const isSolo = roomId === 'solo' || roomId.startsWith('solo');
 
   const [roomName, setRoomName] = useState(isSolo ? 'Solo Jam' : '');
+  const [roomSlug, setRoomSlug] = useState<string | null>(null);
   const [isHost, setIsHost] = useState(isSolo);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [nowPlaying, setNowPlaying] = useState<TrackInfo | null>(null);
@@ -417,6 +419,7 @@ export function RoomProvider({
       setConnectionState('connected');
       setJoinError(null);
       setRoomName(data.room?.name ?? '');
+      setRoomSlug(data.room?.slug ?? null);
       const hostId = data.host_user_id || data.room?.host_user_id || null;
       hostIdRef.current = hostId;
       const isHostUser =
@@ -1371,6 +1374,7 @@ export function RoomProvider({
   const sessionValue = useMemo<RoomSessionApi>(
     () => ({
       roomId,
+      roomSlug,
       isSolo,
       roomName,
       isHost,
@@ -1390,6 +1394,7 @@ export function RoomProvider({
     }),
     [
       roomId,
+      roomSlug,
       isSolo,
       roomName,
       isHost,
