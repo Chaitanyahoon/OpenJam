@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import YouTubePlayer from '@/utils/YouTubePlayer';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { MusicPlayer } from '@/components/ui/music-player';
-import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart, CheckCircle, AlertCircle, AlertTriangle, Info, Download, Check, Flame, Smile, Save, RefreshCw, ListPlus, Maximize2, Minimize2, SkipForward, SkipBack, Shuffle, Repeat, List, Disc, Clock, Sliders, GripVertical, HelpCircle, Bookmark, Crown, Trophy, Share2, ChevronUp, ChevronDown } from 'lucide-react';
+import { Search, Plus, X, Music, Settings, Users, Send, Volume2, VolumeX, Play, Pause, Heart, Coffee, CheckCircle, AlertCircle, AlertTriangle, Info, Download, Check, Flame, Smile, Save, RefreshCw, ListPlus, Maximize2, Minimize2, SkipForward, SkipBack, Shuffle, Repeat, List, Disc, Clock, Sliders, GripVertical, HelpCircle, Bookmark, Crown, Trophy, Share2, ChevronUp, ChevronDown } from 'lucide-react';
 import { offlineDb } from '@/utils/offlineDb';
 import { extractColors } from '@/utils/colorExtractor';
 import SyncPrecisionBadge from '@/components/ui/SyncPrecisionBadge';
@@ -18,6 +18,7 @@ import DiscordRPC from '@/utils/DiscordRPC';
 const EmojiPicker = dynamic(() => import('@/components/EmojiPicker'), { ssr: false });
 const MentionPopover = dynamic(() => import('@/components/chat/MentionPopover'), { ssr: false });
 const TenorGifPicker = dynamic(() => import('@/components/chat/TenorGifPicker'), { ssr: false });
+const SupportModal = dynamic(() => import('@/components/modals/SupportModal'), { ssr: false });
 const PwaInstallPrompt = dynamic(() => import('@/components/PwaInstallPrompt'), { ssr: false });
 
 export default function RoomClient({ roomId }) {
@@ -71,8 +72,9 @@ export default function RoomClient({ roomId }) {
   const [activeRoomPlaylist, setActiveRoomPlaylist] = useState(null);
   const [isLoadingPlaylist, setIsLoadingPlaylist] = useState(false);
 
-  // Room Info Modal State
+  // Room Info & Support Modal State
   const [showRoomInfo, setShowRoomInfo] = useState(false);
+  const [showSupportModal, setShowSupportModal] = useState(false);
 
   // Rich Chat & Mention Suite States
   const [unreadChatCount, setUnreadChatCount] = useState(0);
@@ -761,6 +763,7 @@ export default function RoomClient({ roomId }) {
         let dismissed = false;
         if (showSettings) { setShowSettings(false); dismissed = true; }
         if (showRoomInfo) { setShowRoomInfo(false); dismissed = true; }
+        if (showSupportModal) { setShowSupportModal(false); dismissed = true; }
         if (showInvite) { setShowInvite(false); dismissed = true; }
         if (showBulkAdd) { setShowBulkAdd(false); dismissed = true; }
         if (showClose) { setShowClose(false); dismissed = true; }
@@ -3204,6 +3207,13 @@ export default function RoomClient({ roomId }) {
               title="Share OpenJam Room"
             >
               <Share2 size={16} />
+            </button>
+            <button 
+              className="btn btn-secondary room-bar-icon-btn" 
+              onClick={() => setShowSupportModal(true)} 
+              title="Support OpenJam • Tip Jar"
+            >
+              <Coffee size={16} />
             </button>
             <button 
               className="btn btn-secondary room-bar-icon-btn" 
@@ -5864,15 +5874,17 @@ export default function RoomClient({ roomId }) {
                       <div style={{ fontSize: '11px', color: 'var(--text-3)' }}>Support streaming servers and audio sync costs.</div>
                     </div>
                   </div>
-                  <a
-                    href={process.env.NEXT_PUBLIC_SUPPORT_URL || 'https://www.chaitanyapatil.online/support/'}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowRoomInfo(false);
+                      setShowSupportModal(true);
+                    }}
                     className="btn btn-primary"
-                    style={{ padding: '6px 14px', fontSize: '11px', fontWeight: 700, borderRadius: '8px', textDecoration: 'none', whiteSpace: 'nowrap' }}
+                    style={{ padding: '6px 14px', fontSize: '11px', fontWeight: 700, borderRadius: '8px', cursor: 'pointer', whiteSpace: 'nowrap' }}
                   >
                     Tip Jar
-                  </a>
+                  </button>
                 </div>
               </div>
             </motion.div>
@@ -7396,6 +7408,12 @@ export default function RoomClient({ roomId }) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <SupportModal
+        show={showSupportModal}
+        onClose={() => setShowSupportModal(false)}
+        triggerToast={triggerToast}
+      />
 
       <PwaInstallPrompt />
     </div>

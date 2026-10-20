@@ -20,6 +20,7 @@ import FaqSection from '@/components/FaqSection';
 const JoinModal = dynamic(() => import('@/components/modals/JoinModal'), { ssr: false });
 const CreateRoomModal = dynamic(() => import('@/components/modals/CreateRoomModal'), { ssr: false });
 const LeaveModal = dynamic(() => import('@/components/modals/LeaveModal'), { ssr: false });
+const SupportModal = dynamic(() => import('@/components/modals/SupportModal'), { ssr: false });
 const MusicPill = dynamic(() => import('@/components/MusicPill'), { ssr: false });
 
 
@@ -137,6 +138,7 @@ export default function HomePage({ initialRooms = [] }) {
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [showSupportModal, setShowSupportModal] = useState(false);
   const [openCreateAfterJoin, setOpenCreateAfterJoin] = useState(false);
 
   // Form Inputs
@@ -449,8 +451,11 @@ export default function HomePage({ initialRooms = [] }) {
       { label: 'FAQ', href: '#faq' },
       {
         label: '☕ Tip Jar',
-        href: process.env.NEXT_PUBLIC_SUPPORT_URL || 'https://www.chaitanyapatil.online/support/',
-        isExternal: true
+        href: '#tip-jar',
+        onClick: (e) => {
+          e.preventDefault();
+          setShowSupportModal(true);
+        }
       }
     ];
 
@@ -1861,7 +1866,7 @@ export default function HomePage({ initialRooms = [] }) {
               position: 'fixed',
               bottom: '24px',
               left: '50%',
-              zIndex: (showJoinModal || showCreateModal || showLeaveModal) ? 800 : 999,
+              zIndex: (showJoinModal || showCreateModal || showLeaveModal || showSupportModal) ? 800 : 999,
               width: 'calc(100% - 32px)',
               maxWidth: '440px'
             }}
@@ -1915,6 +1920,12 @@ export default function HomePage({ initialRooms = [] }) {
         show={showLeaveModal}
         onClose={() => setShowLeaveModal(false)}
         onConfirm={handleLogout}
+      />
+
+      <SupportModal
+        show={showSupportModal}
+        onClose={() => setShowSupportModal(false)}
+        triggerToast={triggerToast}
       />
 
       {showCreatePlaylistModal && (
