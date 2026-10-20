@@ -247,6 +247,10 @@ export function SoloSearchModal({
       album_art_url: item.album_art_url,
       duration_ms: item.duration_ms,
     };
+    if (onTrackSelect) {
+      onTrackSelect(trackInfo);
+      return;
+    }
     addToQueue(trackInfo);
     toast(`Added "${item.name}" to queue`, 'success');
   };
@@ -278,6 +282,10 @@ export function SoloSearchModal({
         album_art_url: track.album_art_url,
         duration_ms: track.duration_ms,
       };
+      if (onTrackSelect) {
+        onTrackSelect(trackInfo);
+        return;
+      }
       addToQueue(trackInfo);
       toast(`Added "${track.track_name}" to queue`, 'success');
       return;

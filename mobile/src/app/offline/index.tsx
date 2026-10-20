@@ -65,7 +65,7 @@ import {
 } from '../../storage/history';
 import { subscribeNetworkState, isDeviceOnline } from '../../utils/network';
 import { hapticLight, hapticMedium } from '../../utils/haptics';
-import { createRoom } from '../../api';
+import { createRoom, addMultipleTracksToQueue } from '../../api';
 import type { TrackInfo } from '../../sync/protocol';
 import { MiniPlayer } from '../../components/MiniPlayer';
 
@@ -279,6 +279,16 @@ export default function OfflineVaultScreen() {
         name: roomName || 'My Offline Jam',
         is_private: false,
       });
+      await addMultipleTracksToQueue(
+        newRoom.id,
+        playlistTracks.map((t) => ({
+          track_uri: t.track_uri,
+          track_name: t.track_name,
+          artist: t.artist,
+          album_art_url: t.album_art_url,
+          duration_ms: t.duration_ms,
+        })),
+      );
       toast(`Room "${newRoom.name}" created! Broadcasting...`, 'success');
       router.push({
         pathname: '/room/[id]',

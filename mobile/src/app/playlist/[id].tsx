@@ -39,6 +39,8 @@ import {
   Shuffle,
   Sparkles,
   ListPlus,
+  DownloadCloud,
+  CheckCircle2,
 } from 'lucide-react-native';
 import { colors, radius, spacing } from '../../theme';
 import { fontFamily } from '../../fonts';
@@ -46,11 +48,16 @@ import { MiniPlayer } from '../../components/MiniPlayer';
 import {
   getPlaylist,
   createRoom,
+  addMultipleTracksToQueue,
   getRooms,
   type ApiPlaylist,
   type ApiPlaylistTrack,
   type RoomSummary,
 } from '../../api';
+import {
+  downloadTrackToVault,
+  getVaultTracks,
+} from '../../storage/vault';
 import {
   getOfflinePlaylists,
   deleteOfflinePlaylist,
@@ -88,6 +95,25 @@ export default function PlaylistDetailScreen() {
   const [tracks, setTracks] = useState<UnifiedTrack[]>([]);
   const [showAddSongsModal, setShowAddSongsModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [isDownloadingAll, setIsDownloadingAll] = useState(false);
+  const [allDownloaded, setAllDownloaded] = useState(false);
+
+  useEffect(() => {
+    if (tracks.length === 0) {
+      setAllDownloaded(false);
+      return;
+    }
+    let active = true;
+    void getVaultTracks().then((vault) => {
+      if (active) {
+        const vaultUris = new Set(vault.map((v) => v.track_uri));
+        setAllDownloaded(tracks.every((t) => vaultUris.has(t.track_uri)));
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [tracks]);
 
   const loadData = useCallback(async () => {
     if (!playlistId) return;
@@ -254,6 +280,47 @@ export default function PlaylistDetailScreen() {
     handleTrackPress(track);
   };
 
+  const handleDownloadAll = async () => {
+    if (tracks.length === 0 || isDownloadingAll) return;
+    try {
+      setIsDownloadingAll(true);
+      void hapticMedium();
+      const vault = await getVaultTracks();
+      const vaultUris = new Set(vault.map((v) => v.track_uri));
+      const unDownloaded = tracks.filter((t) => !vaultUris.has(t.track_uri));
+
+      if (unDownloaded.length === 0) {
+        setAllDownloaded(true);
+        toast('All tracks already downloaded!', 'info');
+        return;
+      }
+
+      toast(`Downloading ${unDownloaded.length} tracks…`, 'info');
+      let count = 0;
+      for (const t of unDownloaded) {
+        try {
+          await downloadTrackToVault(
+            {
+              track_uri: t.track_uri,
+              track_name: t.track_name,
+              artist: t.artist,
+              album_art_url: t.album_art_url,
+              duration_ms: t.duration_ms,
+            },
+            false,
+          );
+          count++;
+        } catch {}
+      }
+      setAllDownloaded(true);
+      toast(`Downloaded ${count} track${count > 1 ? 's' : ''}! Ready offline.`, 'success');
+    } catch {
+      toast('Failed downloading playlist', 'error');
+    } finally {
+      setIsDownloadingAll(false);
+    }
+  };
+
   const handleQueueAllInRoom = async () => {
     if (tracks.length === 0) {
       toast('Playlist has no tracks to play', 'info');
@@ -277,7 +344,17 @@ export default function PlaylistDetailScreen() {
                 genre_tags: ['playlist', 'jam'],
                 allow_guest_controls: true,
               });
-              toast(`Room "${newRoom.name}" created!`, 'success');
+              await addMultipleTracksToQueue(
+                newRoom.id,
+                tracks.map((t) => ({
+                  track_uri: t.track_uri,
+                  track_name: t.track_name,
+                  artist: t.artist,
+                  album_art_url: t.album_art_url,
+                  duration_ms: t.duration_ms,
+                })),
+              );
+              toast(`Room "${newRoom.name}" started with ${tracks.length} tracks!`, 'success');
               router.push({
                 pathname: '/room/[id]/player',
                 params: { id: newRoom.id, name: newRoom.name },
@@ -449,6 +526,22 @@ export default function PlaylistDetailScreen() {
                   <Plus size={18} color={colors.amber} strokeWidth={2.4} />
                 </Pressable>
               )}
+
+              <Pressable
+                onPress={handleDownloadAll}
+                disabled={isDownloadingAll || tracks.length === 0}
+                style={({ pressed }) => [styles.downloadPlaylistIconBtn, pressed && styles.pressed]}
+                accessibilityLabel="Download all tracks in playlist"
+                hitSlop={8}
+              >
+                {isDownloadingAll ? (
+                  <ActivityIndicator size="small" color={colors.amber} />
+                ) : allDownloaded ? (
+                  <CheckCircle2 size={16} color="#10b981" />
+                ) : (
+                  <DownloadCloud size={16} color={colors.amber} />
+                )}
+              </Pressable>
 
               <Pressable
                 onPress={handleQueueAllInRoom}
@@ -801,6 +894,16 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontFamily: fontFamily.displayBold,
     fontSize: 13,
+  },
+  downloadPlaylistIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 159, 28, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 28, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   jamRoomIconBtn: {
     width: 40,

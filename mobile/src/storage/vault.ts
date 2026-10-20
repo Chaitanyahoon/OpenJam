@@ -281,10 +281,21 @@ export function isValidDownloadedAudio(
   return Number.isFinite(sizeBytes) && sizeBytes >= 32768; // Minimum 32 KB for valid audio
 }
 
+/** Determine if URI is already an audio stream URL rather than a webpage or metadata URI */
+export function isDirectAudioUrl(url?: string | null): boolean {
+  if (!url) return false;
+  const clean = url.trim().toLowerCase();
+  return (
+    clean.includes('/stream/') ||
+    /\.(m4a|mp3|webm|opus|aac|ogg|wav)(\?.*)?$/i.test(clean)
+  );
+}
+
 export async function resolveDirectAudioStreamUrls(videoId: string): Promise<string[]> {
   const backendUrl = getBackendUrl();
   return [
     `${backendUrl}/stream/${videoId}`,
+    `${backendUrl}/stream/${videoId}?nocache=true`,
     `${backendUrl}/stream/${videoId}?low=true`,
   ];
 }
@@ -327,8 +338,8 @@ export async function downloadTrackToVault(
   const backendUrl = getBackendUrl();
   let videoId = extractVideoId(track.track_uri);
 
-  // If not a direct video ID, resolve via backend search or client search fallback
-  if (!videoId && !track.track_uri.startsWith('http')) {
+  // If not a direct video ID and not already an audio stream URL, resolve via backend search
+  if (!videoId && !isDirectAudioUrl(track.track_uri)) {
     const query = `${track.track_name} ${track.artist || ''}`.trim();
     try {
       const controller = new AbortController();
@@ -371,7 +382,7 @@ export async function downloadTrackToVault(
   if (videoId) {
     const resolved = await resolveDirectAudioStreamUrls(videoId);
     candidateUrls.push(...resolved);
-  } else if (track.track_uri.startsWith('http')) {
+  } else if (isDirectAudioUrl(track.track_uri)) {
     candidateUrls.push(track.track_uri);
   }
 

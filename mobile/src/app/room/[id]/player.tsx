@@ -74,6 +74,7 @@ import { getAmbientPalette } from '../../../utils/palette';
 import { useArtworkGestures } from '../../../components/player/useArtworkGestures';
 import { AddToPlaylistModal } from '../../../components/AddToPlaylistModal';
 import { ImportPlaylistModal } from '../../../components/ImportPlaylistModal';
+import { SoloSearchModal } from '../../../components/SoloSearchModal';
 import {
   downloadTrackToVault,
   getVaultTracks,
@@ -198,6 +199,7 @@ export default function PlayerTab() {
 
   const [showAddToPlaylist, setShowAddToPlaylist] = useState(false);
   const [showImportPlaylist, setShowImportPlaylist] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
 
   const palette = useMemo(
     () => getAmbientPalette(nowPlaying?.track_name, nowPlaying?.artist, nowPlaying?.album_art_url),
@@ -696,7 +698,7 @@ export default function PlayerTab() {
               </Pressable>
             </View>
 
-            {/* Minimal Utility Row: Live Session Route & Lyrics Toggle */}
+            {/* Minimal Utility Row: Live Session Route, Add Songs & Lyrics Toggle */}
             <View style={styles.minimalUtilityRow}>
               <View style={styles.deckRouteBadge}>
                 <Radio size={13} color={syncReady ? '#10b981' : colors.amber} />
@@ -705,24 +707,41 @@ export default function PlayerTab() {
                 </Text>
               </View>
 
-              <Pressable
-                onPress={() => setLyricsOpen((v) => !v)}
-                style={({ pressed }) => [
-                  styles.lyricsPillBtn,
-                  lyricsOpen && styles.lyricsPillBtnActive,
-                  pressed && styles.pressed,
-                ]}
-                hitSlop={8}
-                accessibilityLabel="Toggle Lyrics"
-              >
-                <MessageSquareQuote
-                  size={15}
-                  color={lyricsOpen ? colors.amber : colors.text2}
-                />
-                <Text style={[styles.lyricsPillText, lyricsOpen && styles.lyricsPillTextActive]}>
-                  Lyrics
-                </Text>
-              </Pressable>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Pressable
+                  onPress={() => {
+                    void hapticLight();
+                    setShowSearchModal(true);
+                  }}
+                  style={({ pressed }) => [styles.lyricsPillBtn, pressed && styles.pressed]}
+                  hitSlop={8}
+                  accessibilityLabel="Add Songs to Room"
+                >
+                  <Plus size={14} color={palette.accent || colors.amber} strokeWidth={2.4} />
+                  <Text style={[styles.lyricsPillText, { color: palette.accent || colors.amber }]}>
+                    Add
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => setLyricsOpen((v) => !v)}
+                  style={({ pressed }) => [
+                    styles.lyricsPillBtn,
+                    lyricsOpen && styles.lyricsPillBtnActive,
+                    pressed && styles.pressed,
+                  ]}
+                  hitSlop={8}
+                  accessibilityLabel="Toggle Lyrics"
+                >
+                  <MessageSquareQuote
+                    size={15}
+                    color={lyricsOpen ? (palette.accent || colors.amber) : colors.text2}
+                  />
+                  <Text style={[styles.lyricsPillText, lyricsOpen && styles.lyricsPillTextActive]}>
+                    Lyrics
+                  </Text>
+                </Pressable>
+              </View>
             </View>
 
             {/* Synced Karaoke Lyrics Panel */}
@@ -802,7 +821,10 @@ export default function PlayerTab() {
           <View style={styles.emptyContainer}>
             {/* Spotify-style Direct Quick Search Bar */}
             <Pressable
-              onPress={goQueue}
+              onPress={() => {
+                void hapticLight();
+                setShowSearchModal(true);
+              }}
               style={({ pressed }) => [styles.emptySearchCard, pressed && styles.pressed]}
               accessibilityLabel="Search tracks to add"
             >
@@ -901,6 +923,22 @@ export default function PlayerTab() {
           onAddToQueue={(tracks) => tracks.forEach(addTrack)}
         />
       )}
+      <SoloSearchModal
+        visible={showSearchModal}
+        mode="queue"
+        onClose={() => setShowSearchModal(false)}
+        onTrackSelect={(track) => {
+          setShowSearchModal(false);
+          if (canControl && !nowPlaying) {
+            playNow(track);
+            toast(`Playing "${track.track_name}"`);
+          } else {
+            addTrack(track);
+            toast(`Added "${track.track_name}" to queue`);
+          }
+          void hapticMedium();
+        }}
+      />
     </View>
   );
 }
