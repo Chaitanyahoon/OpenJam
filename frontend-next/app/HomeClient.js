@@ -166,6 +166,7 @@ export default function HomePage({ initialRooms = [] }) {
   const [isShuffling, setIsShuffling] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toasts, setToasts] = useState([]);
+  const [lastRoom, setLastRoom] = useState(null);
 
   const [currentYear, setCurrentYear] = useState(2026);
   useEffect(() => {
@@ -814,25 +815,27 @@ export default function HomePage({ initialRooms = [] }) {
     try {
       let currentUser = me;
       if (!currentUser) {
-        const randomName = generateRandomName();
+        const storedName = (typeof window !== 'undefined' ? localStorage.getItem('openjam_display_name') : null) || '';
+        const storedAvatar = (typeof window !== 'undefined' ? localStorage.getItem('openjam_avatar_url') : null) || null;
+        const nameToUse = storedName.trim() || generateRandomName();
         try {
           const joinRes = await fetch('/auth/join', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ display_name: randomName }),
+            body: JSON.stringify({ display_name: nameToUse, avatar_url: storedAvatar }),
             credentials: 'include'
           });
           if (joinRes.ok) {
             const joinData = await joinRes.json();
             currentUser = joinData.user;
             setMe(joinData.user);
-            localStorage.setItem('openjam_display_name', randomName);
+            localStorage.setItem('openjam_display_name', nameToUse);
             if (joinData.token) {
               localStorage.setItem('openjam_token', joinData.token);
               const maxAge = 86400 * 30;
               const isSecure = window.location.protocol === 'https:';
               document.cookie = `session_token=${joinData.token}; max-age=${maxAge}; path=/; samesite=lax${isSecure ? '; secure' : ''}`;
-              if (reconnect) reconnect(joinData.token, randomName);
+              if (reconnect) reconnect(joinData.token, nameToUse);
             }
           }
         } catch (authErr) {
@@ -912,26 +915,28 @@ export default function HomePage({ initialRooms = [] }) {
   const handleInstantJam = async () => {
     let currentUser = me;
     if (!currentUser) {
-      const randomName = generateRandomName();
-      triggerToast(`⚡ Instant Jam: Setting up as ${randomName}...`, 'info');
+      const storedName = (typeof window !== 'undefined' ? localStorage.getItem('openjam_display_name') : null) || '';
+      const storedAvatar = (typeof window !== 'undefined' ? localStorage.getItem('openjam_avatar_url') : null) || null;
+      const nameToUse = storedName.trim() || generateRandomName();
+      triggerToast(`⚡ Instant Jam: Setting up as ${nameToUse}...`, 'info');
       try {
         const r = await fetch('/auth/join', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ display_name: randomName }),
+          body: JSON.stringify({ display_name: nameToUse, avatar_url: storedAvatar }),
           credentials: 'include'
         });
         if (r.ok) {
           const data = await r.json();
           currentUser = data.user;
           setMe(data.user);
-          localStorage.setItem('openjam_display_name', randomName);
+          localStorage.setItem('openjam_display_name', nameToUse);
           if (data.token) {
             localStorage.setItem('openjam_token', data.token);
             const maxAge = 86400 * 30;
             const isSecure = window.location.protocol === 'https:';
             document.cookie = `session_token=${data.token}; max-age=${maxAge}; path=/; samesite=lax${isSecure ? '; secure' : ''}`;
-            if (reconnect) reconnect(data.token, randomName);
+            if (reconnect) reconnect(data.token, nameToUse);
           }
         } else {
           triggerToast('Failed to join guest session', 'error');

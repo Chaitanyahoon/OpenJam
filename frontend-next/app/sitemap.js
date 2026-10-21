@@ -1,4 +1,4 @@
-import { getBackendUrl } from '@/utils/config';
+import { getBackendUrl } from '../utils/config.js';
 
 export default async function sitemap() {
   const baseUrl = "https://www.openjam.fun";

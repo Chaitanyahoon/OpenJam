@@ -10,7 +10,7 @@ export function getBackendUrl(): string {
   if (env && env.trim() !== '' && env !== 'undefined' && env !== 'null') {
     return env.replace(/\/$/, '');
   }
-  return 'https://openjam.onrender.com';
+  return 'https://openjam-backend.onrender.com';
 }
 
 /** Deep-link scheme for room invites: openjam://room/<id> */

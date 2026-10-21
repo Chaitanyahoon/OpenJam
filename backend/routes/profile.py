@@ -1,11 +1,12 @@
 import re
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from backend.config import settings
 from sqlalchemy.orm import Session, selectinload
 from backend.database import get_db
 from backend.models.user import User
 from backend.models.playlist import Playlist, PlaylistLike
 from backend.models.like import UserLike
-from backend.middleware.auth import require_registered_user, get_current_user_id
+from backend.middleware.auth import require_registered_user, get_current_user_id, create_session_token
 from pydantic import BaseModel, Field
 from typing import Optional
 
@@ -88,6 +89,7 @@ async def get_my_profile(db: Session = Depends(get_db), user_id: str = Depends(r
 @router.put("/me")
 async def update_my_profile(
     request: Request,
+    response: Response,
     update_req: UpdateProfileRequest,
     db: Session = Depends(get_db),
     user_id: str = Depends(require_registered_user)
@@ -164,7 +166,23 @@ async def update_my_profile(
     except Exception:
         pass
     
-    return {"message": "Profile updated successfully", "user": user.to_dict()}
+    token = create_session_token(
+        user.id,
+        display_name=user.display_name,
+        is_admin=bool(user.is_admin),
+        avatar_url=user.avatar_url,
+    )
+    is_prod = settings.ENVIRONMENT == "production"
+    response.set_cookie(
+        key="session_token",
+        value=token,
+        httponly=False,
+        samesite="lax",
+        secure=is_prod,
+        max_age=86400 * 30,
+        path="/",
+    )
+    return {"message": "Profile updated successfully", "user": user.to_dict(), "token": token}
 
 
 @router.get("/search")

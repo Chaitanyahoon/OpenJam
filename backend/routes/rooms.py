@@ -120,8 +120,10 @@ async def create_room(request: Request, create_room_req: CreateRoomRequest, db: 
             db.commit()
             db.refresh(user)
         else:
-            user.display_name = display_name
-            if user_data.get("avatar_url"):
+            # Preserve user's customized profile: do not overwrite with stale session token
+            if not user.display_name:
+                user.display_name = display_name
+            if not user.avatar_url and user_data.get("avatar_url"):
                 user.avatar_url = user_data.get("avatar_url")
             db.commit()
             db.refresh(user)
@@ -161,7 +163,7 @@ async def create_room(request: Request, create_room_req: CreateRoomRequest, db: 
             db.commit()
             db.refresh(room)
 
-        return room.to_dict(host_name=display_name, host_avatar_url=user_data.get("avatar_url"))
+        return room.to_dict(host_name=user.display_name, host_avatar_url=user.avatar_url)
 
     room_dict = await asyncio.to_thread(_db_create_room)
     

@@ -258,6 +258,9 @@ export default class YouTubePlayer {
     audioElement.addEventListener('playing', () => {
       if (this._isDestroyed || audioElement !== this.activePlayer) return;
       this._hideLoadIndicator();
+      this._emitControlEvent('playing', {
+        position_ms: Math.round((audioElement.currentTime || 0) * 1000)
+      });
     });
 
     audioElement.addEventListener('timeupdate', () => {
@@ -1102,6 +1105,7 @@ export default class YouTubePlayer {
           const drift = positionMs - actualMs; // positive: player is behind server; negative: player is ahead
           const driftAbs = Math.abs(drift);
 
+          const deadband = this._isMobile ? 500 : 350;
           // 1. Large drift (> 2500ms): perform instantaneous seek
           if (driftAbs > 2500 && Date.now() - (this._lastSeekTime || 0) > 3500 && !this.player.seeking) {
             this._suppressStateChange = true;
@@ -1110,18 +1114,18 @@ export default class YouTubePlayer {
             this._lastSeekTime = Date.now();
             setTimeout(() => { this._suppressStateChange = false; }, 400);
           }
-          // 2. Moderate drift (150ms to 2500ms): seamless phase-locked micro-rate catchup (preservesPitch = true)
-          else if (driftAbs > 150 && driftAbs <= 2500 && !this.player.seeking) {
+          // 2. Moderate drift: seamless phase-locked micro-rate catchup (preservesPitch = true)
+          else if (driftAbs > deadband && driftAbs <= 2500 && !this.player.seeking) {
             this.player.preservesPitch = true;
             if (drift > 0) {
               // Player slightly behind room clock -> subtle inaudible speedup
-              this.player.playbackRate = driftAbs > 1200 ? 1.04 : 1.025;
+              this.player.playbackRate = driftAbs > 1200 ? 1.03 : 1.015;
             } else {
               // Player slightly ahead -> subtle inaudible slowdown
-              this.player.playbackRate = driftAbs > 1200 ? 0.96 : 0.975;
+              this.player.playbackRate = driftAbs > 1200 ? 0.97 : 0.985;
             }
           }
-          // 3. Sub-150ms tight lock: natural 1.0x playback
+          // 3. Within deadband: natural 1.0x playback
           else {
             if (this.player.playbackRate !== 1.0) {
               this.player.playbackRate = 1.0;
@@ -1264,13 +1268,31 @@ export default class YouTubePlayer {
       try { URL.revokeObjectURL(this._currentBlobUrl); } catch (e) {}
       this._currentBlobUrl = null;
     }
-    try {
-      this.player.pause();
-      this.player.src = '';
-    } catch (e) {}
-    if (this._useIFrame && this.ytPlayer) {
-      try { this.ytPlayer.destroy(); } catch(e) {}
+    if (this.player) {
+      try {
+        this.player.pause();
+        this.player.removeAttribute('src');
+        this.player.load();
+      } catch (e) {}
+    }
+    if (this._prebufferPlayer) {
+      try {
+        this._prebufferPlayer.pause();
+        this._prebufferPlayer.removeAttribute('src');
+        this._prebufferPlayer.load();
+      } catch (e) {}
+    }
+    if (this.ytPlayer) {
+      try { this.ytPlayer.destroy(); } catch (e) {}
       this.ytPlayer = null;
+    }
+    if (this._audioCtx && this._audioCtx.state !== 'closed') {
+      try { this._audioCtx.close(); } catch (e) {}
+      this._audioCtx = null;
+    }
+    if (this._keepAliveCtx && this._keepAliveCtx.state !== 'closed') {
+      try { this._keepAliveCtx.close(); } catch (e) {}
+      this._keepAliveCtx = null;
     }
     const wrapper = document.getElementById('yt-fallback-wrapper');
     if (wrapper) {

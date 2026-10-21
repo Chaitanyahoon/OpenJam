@@ -53,6 +53,7 @@ async def join(request: Request):
         body = {}
 
     display_name = _sanitize_name(body.get("display_name") or "")
+    avatar_url = (body.get("avatar_url") or "").strip() or None
     if not display_name:
         display_name = f"Jammer-{uuid.uuid4().hex[:4].upper()}"
     if len(display_name) > 30:
@@ -60,10 +61,10 @@ async def join(request: Request):
 
     # Generate a stable user_id for this session (not persisted to DB)
     user_id = str(uuid.uuid4())
-    token = create_session_token(user_id, display_name=display_name)
+    token = create_session_token(user_id, display_name=display_name, avatar_url=avatar_url)
 
     response = JSONResponse(content={
-        "user": {"id": user_id, "display_name": display_name, "avatar_url": None},
+        "user": {"id": user_id, "display_name": display_name, "avatar_url": avatar_url},
         "token": token,
     })
     is_prod = settings.ENVIRONMENT == "production"
@@ -336,7 +337,8 @@ async def discord_callback(request: Request, code: str = "", state: str = ""):
                 # Update existing user's profile with fresh Discord details
                 user.discord_id = discord_id
                 user.discord_username = raw_discord_handle
-                user.avatar_url = avatar_url  # Always sync latest Discord avatar
+                if not user.avatar_url or "cdn.discordapp.com" in user.avatar_url:
+                    user.avatar_url = avatar_url  # Preserve custom OpenJam avatars, sync Discord if default
                 
                 # Always upgrade display name to Discord name when authenticating via Discord
                 user.display_name = discord_display_name

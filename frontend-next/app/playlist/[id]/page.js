@@ -9,7 +9,7 @@ function getBackendUrl() {
       return url.replace(/\/$/, '');
     }
   }
-  return 'https://openjam.onrender.com';
+  return 'https://openjam-backend.onrender.com';
 }
 
 export function generateStaticParams() {

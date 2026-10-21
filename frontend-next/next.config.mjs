@@ -7,8 +7,8 @@ const __dirname = path.dirname(__filename);
 /** @type {import('next').NextConfig} */
 const isDev = process.env.NODE_ENV === 'development';
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL && process.env.NEXT_PUBLIC_BACKEND_URL !== 'undefined' && process.env.NEXT_PUBLIC_BACKEND_URL !== 'null')
-  ? process.env.NEXT_PUBLIC_BACKEND_URL.replace(/\/$/, '')
-  : (isDev ? 'http://localhost:8000' : 'https://openjam.onrender.com');
+  ? process.env.NEXT_PUBLIC_BACKEND_URL.replace(/\/$/, '').replace(/\/health\/?$/, '')
+  : (isDev ? 'http://localhost:8000' : 'https://openjam-backend.onrender.com');
 
 const nextConfig = {
   outputFileTracingRoot: path.join(__dirname, '../'),

@@ -247,6 +247,9 @@ export default function ProfileClient() {
         if (data.user?.avatar_url) {
           localStorage.setItem('openjam_avatar_url', data.user.avatar_url);
         }
+        if (data.token) {
+          localStorage.setItem('openjam_token', data.token);
+        }
         addToast('Profile updated successfully!', 'success');
         return data.user;
       } else {

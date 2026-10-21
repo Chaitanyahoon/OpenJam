@@ -674,6 +674,15 @@ export default function RoomClient({ roomId }) {
         if (rRoom.ok) {
           const data = await rRoom.json();
           setRoom(data.room);
+          if (data.room && typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('openjam_last_room', JSON.stringify({
+                id: data.room.slug || data.room.id,
+                name: data.room.name,
+                timestamp: Date.now(),
+              }));
+            } catch (e) {}
+          }
           setQueue(data.queue || []);
           setListeners(data.listeners || []);
           
@@ -915,7 +924,18 @@ export default function RoomClient({ roomId }) {
     });
 
     socket.on('join_success', (data) => {
-      if (data.room) setRoom(data.room);
+      if (data.room) {
+        setRoom(data.room);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('openjam_last_room', JSON.stringify({
+              id: data.room.slug || data.room.id,
+              name: data.room.name,
+              timestamp: Date.now(),
+            }));
+          } catch (e) {}
+        }
+      }
       if (data.queue) setQueue(data.queue);
       if (data.listeners) setListeners(data.listeners);
       if (data.playback) {
@@ -1146,7 +1166,12 @@ export default function RoomClient({ roomId }) {
     });
 
     socket.on('queue_error', (data) => {
-      triggerToast(data.message || 'Queue error', 'error');
+      const msg = data?.message || 'Queue error';
+      if (msg.toLowerCase().includes('membership required') || msg.toLowerCase().includes('access denied')) {
+        console.warn('[Room] Membership required error received. Self-healing socket session...');
+        joinRoom();
+      }
+      triggerToast(msg, 'error');
     });
 
     socket.on('playback_sync', (data) => {
@@ -1324,6 +1349,13 @@ export default function RoomClient({ roomId }) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    if (playerRef.current) {
+      try {
+        playerRef.current.destroy();
+      } catch (e) {}
+      playerRef.current = null;
+    }
+
     const player = new YouTubePlayer({
       toast: (msg, type) => triggerToast(msg, type),
       onProgressUpdate: (pos, dur, playing) => {
@@ -1405,7 +1437,10 @@ export default function RoomClient({ roomId }) {
     }
 
     return () => {
-      player.destroy();
+      try {
+        player.destroy();
+      } catch (e) {}
+      playerRef.current = null;
     };
   }, []);
 
@@ -1489,6 +1524,24 @@ export default function RoomClient({ roomId }) {
             position_ms: extra.position_ms,
             duration_ms: currentPlayback.durationMs,
             is_playing: false,
+            loop: false,
+            is_buffering: false
+          });
+        }
+      } else if (action === 'playing') {
+        if (canControl && socket && extra?.position_ms !== undefined) {
+          const currentTrack = nowPlayingRef.current;
+          const currentPlayback = playbackStateRef.current;
+          // Calibrate room clock once host hardware starts producing sound
+          socket.emit('playback_update', {
+            room_id: roomId,
+            track_uri: currentTrack?.track_uri,
+            track_name: currentTrack?.track_name,
+            artist: currentTrack?.artist,
+            album_art_url: currentTrack?.album_art_url,
+            position_ms: extra.position_ms,
+            duration_ms: currentPlayback.durationMs,
+            is_playing: true,
             loop: false,
             is_buffering: false
           });

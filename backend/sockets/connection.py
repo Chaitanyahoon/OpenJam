@@ -232,6 +232,8 @@ def register_connection_handlers(sio: socketio.AsyncServer):
         # If client passes token in join payload, verify and upgrade socket session
         join_token = data.get("token")
         if join_token:
+            if isinstance(join_token, str):
+                join_token = join_token.strip('"').strip("'")
             from itsdangerous import URLSafeTimedSerializer
             from backend.config import settings
             try:

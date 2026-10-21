@@ -51,7 +51,7 @@ export async function generateMetadata({ params }) {
           return url.replace(/\/$/, '');
         }
       }
-      return 'https://openjam.onrender.com';
+      return 'https://openjam-backend.onrender.com';
     };
 
     const backendUrl = getBackendUrl();
