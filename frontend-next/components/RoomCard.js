@@ -8,6 +8,16 @@ import PixelTransition from './PixelTransition';
 const getDefaultBanner = () => '/placeholder.svg';
 
 function RoomCard({ room, nameColor, getInitials, href }) {
+  const isCurated = Boolean(room.id && (room.id.startsWith('openjam-') || room.id === 'openjam-lounge'));
+  const getBadgeLabel = () => {
+    if (room.id === 'openjam-lounge') return '☕ 24/7 Lounge';
+    if (room.id === 'openjam-desi') return '🔥 24/7 Bollywood';
+    if (room.id === 'openjam-hits') return '⚡ 24/7 Top Hits';
+    if (room.id === 'openjam-synth') return '🌙 24/7 Synth';
+    if (room.is_private) return 'Private';
+    return 'Live';
+  };
+
   const t = room.current_track;
   const isPlaying = !!(t && t.track_name);
   const coverUrl = isPlaying ? (t.album_art_url || '/placeholder.svg') : null;
@@ -56,8 +66,8 @@ function RoomCard({ room, nameColor, getInitials, href }) {
                   </div>
                 )}
                 <div className="room-card-cover-overlay" style={{ opacity: 1 }}>
-                  <div className={`room-card-badge ${room.id === 'openjam-lounge' ? 'lounge' : (room.is_private ? 'private' : 'live')}`}>
-                    {room.id === 'openjam-lounge' ? '☕ 24/7 Lounge' : (room.is_private ? 'Private' : 'Live')}
+                  <div className={`room-card-badge ${isCurated ? 'lounge' : (room.is_private ? 'private' : 'live')}`}>
+                    {getBadgeLabel()}
                   </div>
                   <div className="room-card-listeners">
                     <div className="listeners-dot" aria-hidden="true" />

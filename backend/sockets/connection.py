@@ -425,10 +425,11 @@ def register_connection_handlers(sio: socketio.AsyncServer):
             await sio.emit("queue_updated", {"queue": queue}, to=sid)
     
             playback = room_manager.get_playback(room_id)
-            if room_id == "openjam-lounge" and (not playback or not playback.get("track_uri") or not playback.get("is_playing")):
+            from backend.constants import is_curated_room, get_curated_tracks
+            if is_curated_room(room_id) and (not playback or not playback.get("track_uri") or not playback.get("is_playing")):
                 from backend.constants import LOUNGE_DISCOVERY_TRACKS, SYSTEM_BOT_USER_ID, SYSTEM_BOT_NAME
                 import random
-                first_track = random.choice(LOUNGE_DISCOVERY_TRACKS)
+                first_track = random.choice(get_curated_tracks(room_id))
                 def _seed_initial_lounge():
                     db = SessionLocal()
                     try:

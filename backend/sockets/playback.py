@@ -142,11 +142,12 @@ async def _do_advance(room_id: str, sio: socketio.AsyncServer, db=None):
 
         next_item, queue = await asyncio.to_thread(_advance, room_id)
 
-    if not next_item and room_id == "openjam-lounge":
+    from backend.constants import is_curated_room, get_curated_tracks
+    if not next_item and is_curated_room(room_id):
         try:
             from backend.constants import LOUNGE_DISCOVERY_TRACKS, SYSTEM_BOT_USER_ID, SYSTEM_BOT_NAME
             import random
-            disc_track = random.choice(LOUNGE_DISCOVERY_TRACKS)
+            disc_track = random.choice(get_curated_tracks(room_id))
             def _seed_lounge_track():
                 db = SessionLocal()
                 try:

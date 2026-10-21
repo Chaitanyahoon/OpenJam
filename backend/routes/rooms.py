@@ -15,6 +15,8 @@ from backend.services.queue_manager import queue_manager
 from backend.schemas import CreateRoomRequest, RoomListResponse
 from backend.limiter import limiter
 
+from backend.constants import is_curated_room
+
 router = APIRouter(prefix="/rooms", tags=["rooms"])
 
 
@@ -58,7 +60,7 @@ async def list_rooms(
                 except Exception:
                     pass
             is_my_room = current_user_id and room.host_user_id == current_user_id
-            is_lounge = (room.id == "openjam-lounge")
+            is_lounge = is_curated_room(room.id)
             if count == 0 and age_seconds > 30 and not is_my_room and not is_lounge:
                 continue
                 
@@ -70,7 +72,7 @@ async def list_rooms(
                 host_name=host_name,
             ))
         # Pin openjam-lounge at the top, then sort by listener_count desc
-        visible_rooms.sort(key=lambda r: (1 if r["id"] == "openjam-lounge" else 0, r["listener_count"]), reverse=True)
+        visible_rooms.sort(key=lambda r: (1 if is_curated_room(r["id"]) else 0, r["listener_count"]), reverse=True)
         total = len(visible_rooms)
         return {"rooms": visible_rooms[skip:skip + limit], "total": total}
 
@@ -104,7 +106,7 @@ async def create_room(request: Request, create_room_req: CreateRoomRequest, db: 
         listener_counts = room_manager.get_listener_counts()
         user_rooms = db.query(Room).filter(Room.host_user_id == user_id, Room.is_active == True).all()
         for r in user_rooms:
-            if r.id == "openjam-lounge":
+            if is_curated_room(r.id):
                 continue
             count = listener_counts.get(r.id, 0)
             if count == 0:

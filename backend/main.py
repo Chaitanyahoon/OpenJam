@@ -318,33 +318,35 @@ async def lifespan(app):
                 db_startup.commit()
                 logger.info(f"Seeded system bot user: {SYSTEM_BOT_USER_ID}")
 
-            lounge_room = db_startup.query(Room).filter(Room.id == LOUNGE_ROOM_ID).first()
-            if not lounge_room:
-                lounge_room = Room(
-                    id=LOUNGE_ROOM_ID,
-                    slug=LOUNGE_ROOM_ID,
-                    name="☕ 24/7 Lofi & Chill Lounge",
-                    description="OpenJam Official Community Lounge — synchronized chill beats 24/7.",
-                    host_user_id=SYSTEM_BOT_USER_ID,
-                    genre_tags=json.dumps(["lofi", "chill", "ambient"]),
-                    queue_mode="open",
-                    is_active=True,
-                    allow_guest_controls=False,
-                )
-                db_startup.add(lounge_room)
-                db_startup.commit()
-                logger.info(f"Seeded 24/7 Lounge room: {LOUNGE_ROOM_ID}")
-            else:
-                updated = False
-                if not lounge_room.is_active or lounge_room.host_user_id != SYSTEM_BOT_USER_ID:
-                    lounge_room.is_active = True
-                    lounge_room.host_user_id = SYSTEM_BOT_USER_ID
-                    updated = True
-                if not lounge_room.slug:
-                    lounge_room.slug = LOUNGE_ROOM_ID
-                    updated = True
-                if updated:
+            from backend.constants import CURATED_ROOMS
+            for c_id, info in CURATED_ROOMS.items():
+                cur_room = db_startup.query(Room).filter(Room.id == c_id).first()
+                if not cur_room:
+                    cur_room = Room(
+                        id=c_id,
+                        slug=info["slug"],
+                        name=info["name"],
+                        description=info["description"],
+                        host_user_id=SYSTEM_BOT_USER_ID,
+                        genre_tags=json.dumps(info["genre_tags"]),
+                        queue_mode="open",
+                        is_active=True,
+                        allow_guest_controls=False,
+                    )
+                    db_startup.add(cur_room)
                     db_startup.commit()
+                    logger.info(f"Seeded 24/7 Curated Station: {c_id}")
+                else:
+                    updated = False
+                    if not cur_room.is_active or cur_room.host_user_id != SYSTEM_BOT_USER_ID:
+                        cur_room.is_active = True
+                        cur_room.host_user_id = SYSTEM_BOT_USER_ID
+                        updated = True
+                    if not cur_room.slug:
+                        cur_room.slug = info["slug"]
+                        updated = True
+                    if updated:
+                        db_startup.commit()
         finally:
             db_startup.close()
     except Exception as e:

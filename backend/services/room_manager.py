@@ -48,7 +48,8 @@ class RoomManager:
             del recently_left[user_id]
         self.store.set_recently_left(recently_left)
 
-        limit = 999 if (is_premium or room_id == "openjam-lounge") else FREE_ROOM_LIMIT
+        from backend.constants import is_curated_room
+        limit = 999 if (is_premium or is_curated_room(room_id)) else FREE_ROOM_LIMIT
         if not is_in_room and len(room["users"]) >= limit:
             return f"Room is full ({limit} listeners max). Try again later.", False
 

@@ -44,8 +44,9 @@ class Room(Base):
     def __init__(self, **kwargs):
         if "slug" not in kwargs or not kwargs["slug"]:
             rid = kwargs.get("id")
-            if rid == "openjam-lounge":
-                kwargs["slug"] = "openjam-lounge"
+            from backend.constants import is_curated_room
+            if is_curated_room(rid):
+                kwargs["slug"] = rid
             else:
                 name = kwargs.get("name", "")
                 kwargs["slug"] = generate_room_slug(name)

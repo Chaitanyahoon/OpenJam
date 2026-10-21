@@ -1,5 +1,6 @@
 import React from 'react';
 import HomeClient from './HomeClient';
+import { getBackendUrl } from '@/utils/config';
 
 export const metadata = {
   title: "Listen to Music with Friends Online Free | Virtual Music Room — OpenJam",
@@ -44,16 +45,6 @@ export const metadata = {
     description: "Join a shared music listening room on OpenJam to sync YouTube music with friends. Experience millisecond-accurate synced music playback and listen to music with friends online free.",
     images: ["https://www.openjam.fun/static/img/og-image.png"],
   }
-};
-
-const getBackendUrl = () => {
-  if (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_BACKEND_URL) {
-    const url = process.env.NEXT_PUBLIC_BACKEND_URL;
-    if (url !== 'undefined' && url !== 'null' && url.trim() !== '') {
-      return url.replace(/\/$/, '').replace(/\/health\/?$/, '');
-    }
-  }
-  return 'https://api.openjam.fun';
 };
 
 async function getInitialRooms() {

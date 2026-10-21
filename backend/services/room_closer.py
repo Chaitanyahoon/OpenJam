@@ -2,6 +2,7 @@
 
 import asyncio
 from datetime import datetime, timezone
+from backend.constants import is_curated_room
 
 # {room_id: asyncio.Task}
 _pending_close: dict = {}
@@ -9,7 +10,7 @@ _pending_close: dict = {}
 
 async def _close_room_after_delay(room_id: str, delay: int, sio, db_factory):
     """Wait `delay` seconds then mark room inactive and notify clients."""
-    if room_id == "openjam-lounge":
+    if is_curated_room(room_id):
         return
 
     await asyncio.sleep(delay)
@@ -47,7 +48,7 @@ async def _close_room_after_delay(room_id: str, delay: int, sio, db_factory):
 
 def schedule_room_close(room_id: str, sio, db_factory, delay: int = 300):
     """Schedule auto-close. Cancels any existing timer for the same room."""
-    if room_id == "openjam-lounge":
+    if is_curated_room(room_id):
         return
     cancel_room_close(room_id)
     task = asyncio.create_task(

@@ -1,3 +1,5 @@
+import { getBackendUrl } from '@/utils/config';
+
 export default async function sitemap() {
   const baseUrl = "https://www.openjam.fun";
 
@@ -27,16 +29,6 @@ export default async function sitemap() {
       priority: 0.4,
     },
   ];
-
-  const getBackendUrl = () => {
-    if (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_BACKEND_URL) {
-      const url = process.env.NEXT_PUBLIC_BACKEND_URL;
-      if (url !== 'undefined' && url !== 'null' && url.trim() !== '') {
-        return url.replace(/\/$/, '').replace(/\/health\/?$/, '');
-      }
-    }
-    return 'https://openjam.onrender.com';
-  };
 
   const backendUrl = getBackendUrl();
   let roomEntries = [];

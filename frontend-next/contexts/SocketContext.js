@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { io } from 'socket.io-client';
+import { getBackendUrl } from '@/utils/config';
 
 const SocketContext = createContext(null);
 
@@ -29,30 +30,6 @@ export const SocketProvider = ({ children }) => {
     const token = getCookie('session_token') || localStorage.getItem('openjam_token');
     const guestName = localStorage.getItem('openjam_display_name') || '';
 
-    const getBackendUrl = () => {
-      if (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_BACKEND_URL) {
-        const url = process.env.NEXT_PUBLIC_BACKEND_URL;
-        if (url !== 'undefined' && url !== 'null' && url.trim() !== '') {
-          return url.replace(/\/$/, '').replace(/\/health\/?$/, '');
-        }
-      }
-      if (typeof window !== 'undefined') {
-        const hostname = window.location.hostname;
-        const isLocal = hostname === 'localhost' ||
-                        hostname === '127.0.0.1' ||
-                        hostname.startsWith('192.168.') ||
-                        hostname.startsWith('10.') ||
-                        /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname);
-        if (isLocal) {
-          return `http://${hostname}:8000`;
-        }
-        if (hostname.includes('openjam.fun')) {
-          return 'https://api.openjam.fun';
-        }
-        return 'https://openjam.onrender.com';
-      }
-      return 'http://localhost:8000';
-    };
     const backendUrl = getBackendUrl();
     const socketInstance = io(backendUrl, {
       path: '/socket.io',
