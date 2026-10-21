@@ -8,6 +8,7 @@ from backend.models.playlist import Playlist, PlaylistTrack, PlaylistLike
 from backend.models.follow import Follow
 from backend.models.listening_history import UserListeningHistory
 from backend.models.room_visit import UserRoomVisit
+from backend.models.analytics import AnalyticsEvent, Feedback
 
 __all__ = [
     "User",
@@ -22,5 +23,6 @@ __all__ = [
     "Follow",
     "UserListeningHistory",
     "UserRoomVisit",
+    "AnalyticsEvent",
+    "Feedback",
 ]
-

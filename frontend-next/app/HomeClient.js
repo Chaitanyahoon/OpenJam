@@ -15,6 +15,7 @@ import { FALLBACK_DISCOVERY_TRACKS } from '@/constants/tracks';
 import { CheckCircle, AlertCircle, AlertTriangle, Info, Play, Pause, Trash2, Plus, Music, FolderHeart, ListMusic } from 'lucide-react';
 import { offlineDb } from '@/utils/offlineDb';
 import FaqSection from '@/components/FaqSection';
+import { trackEvent } from '@/utils/analytics';
 
 
 const JoinModal = dynamic(() => import('@/components/modals/JoinModal'), { ssr: false });
@@ -169,6 +170,7 @@ export default function HomePage({ initialRooms = [] }) {
   const [currentYear, setCurrentYear] = useState(2026);
   useEffect(() => {
     setCurrentYear(new Date().getFullYear());
+    trackEvent('page_view', { path: '/' });
     if (typeof window !== 'undefined') {
       localStorage.removeItem('activeRoomPath');
       const checkHash = () => {
@@ -861,6 +863,7 @@ export default function HomePage({ initialRooms = [] }) {
       });
       if (r.ok) {
         const data = await r.json();
+        trackEvent('room_created', { room_id: data.room.id, name: data.room.name });
         setShowCreateModal(false);
         resetCreateForm();
         if (activePreview) {

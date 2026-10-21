@@ -61,7 +61,8 @@ def init_db():
     from backend.models import (  # noqa: F401
         User, Room, QueueItem, ChatMessage, Vote, UserLike,
         Playlist, PlaylistTrack, PlaylistLike, Follow,
-        UserListeningHistory, UserRoomVisit
+        UserListeningHistory, UserRoomVisit,
+        AnalyticsEvent, Feedback
     )
     Base.metadata.create_all(bind=engine)
     

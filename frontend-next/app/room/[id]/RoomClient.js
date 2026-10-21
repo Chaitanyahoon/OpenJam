@@ -13,6 +13,7 @@ import { extractColors } from '@/utils/colorExtractor';
 import SyncPrecisionBadge from '@/components/ui/SyncPrecisionBadge';
 import { audioPrecache } from '@/utils/audioPrecache';
 import DiscordRPC from '@/utils/DiscordRPC';
+import { trackEvent } from '@/utils/analytics';
 
 // Dynamically code-split secondary modals and pickers for fast initial room load
 const EmojiPicker = dynamic(() => import('@/components/EmojiPicker'), { ssr: false });
@@ -20,6 +21,7 @@ const MentionPopover = dynamic(() => import('@/components/chat/MentionPopover'),
 const TenorGifPicker = dynamic(() => import('@/components/chat/TenorGifPicker'), { ssr: false });
 const SupportModal = dynamic(() => import('@/components/modals/SupportModal'), { ssr: false });
 const PwaInstallPrompt = dynamic(() => import('@/components/PwaInstallPrompt'), { ssr: false });
+const SessionFeedbackToast = dynamic(() => import('@/components/feedback/SessionFeedbackToast'), { ssr: false });
 
 export default function RoomClient({ roomId }) {
   const { socket, isConnected, isReconnecting, isConnectionFailed, reconnect } = useSocket();
@@ -152,6 +154,24 @@ export default function RoomClient({ roomId }) {
   const [isReady, setIsReady] = useState(false);
   const [isShuffled, setIsShuffled] = useState(false);
   const [showAppBanner, setShowAppBanner] = useState(false);
+
+  useEffect(() => {
+    const enterTime = Date.now();
+    trackEvent('room_view', { room_id: roomId });
+
+    const handleUnload = () => {
+      const durationSec = Math.round((Date.now() - enterTime) / 1000);
+      if (durationSec >= 2) {
+        trackEvent('session_duration', { room_id: roomId, duration_seconds: durationSec });
+      }
+    };
+
+    window.addEventListener('beforeunload', handleUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleUnload);
+      handleUnload();
+    };
+  }, [roomId]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
@@ -854,6 +874,7 @@ export default function RoomClient({ roomId }) {
       const avatarUrl = localStorage.getItem('openjam_avatar_url');
       const token = (typeof localStorage !== 'undefined' ? localStorage.getItem('openjam_token') : null) || '';
       socket.emit('join_room', { room_id: roomId, password, avatar_url: avatarUrl, token });
+      trackEvent('room_joined', { room_id: roomId });
       syncClock();
     };
 
@@ -2528,6 +2549,7 @@ export default function RoomClient({ roomId }) {
       play_next: Boolean(playNext)
     };
     socket.emit('add_to_queue', payload);
+    trackEvent('track_queued', { room_id: roomId, title: payload.track_name });
     setSearchQuery('');
     setSearchResults([]);
     triggerToast(playNext ? `Playing "${payload.track_name}" next!` : `Adding "${payload.track_name}"…`, 'info');
@@ -2925,6 +2947,8 @@ export default function RoomClient({ roomId }) {
     const inviteUrl = `${window.location.origin}/room/${roomSlugOrId}`;
     const roomTitle = room?.name || 'OpenJam Room';
     const trackInfo = nowPlaying?.track_name ? ` • Listening to ${nowPlaying.track_name}` : '';
+
+    trackEvent('invite_copied', { room_id: roomId });
 
     // 1. Native OS Web Share API on mobile devices
     const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
@@ -7490,6 +7514,7 @@ export default function RoomClient({ roomId }) {
       />
 
       <PwaInstallPrompt />
+      <SessionFeedbackToast roomId={roomId} />
     </div>
   );
 }
