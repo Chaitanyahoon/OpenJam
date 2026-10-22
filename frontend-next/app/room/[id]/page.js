@@ -2,6 +2,16 @@ import React, { Suspense } from 'react';
 import RoomPageClient from './RoomPageClient';
 import { RoomSkeleton } from '@/components/SkeletonLoaders';
 
+function getBackendUrl() {
+  if (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_BACKEND_URL) {
+    const url = process.env.NEXT_PUBLIC_BACKEND_URL;
+    if (url && url !== 'undefined' && url !== 'null' && url.trim() !== '') {
+      return url.replace(/\/$/, '').replace(/\/health\/?$/, '');
+    }
+  }
+  return 'https://openjam-backend.onrender.com';
+}
+
 export function generateStaticParams() {
   return [{ id: 'loading' }];
 }
@@ -44,16 +54,6 @@ export async function generateMetadata({ params }) {
   }
 
   try {
-    const getBackendUrl = () => {
-      if (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_BACKEND_URL) {
-        const url = process.env.NEXT_PUBLIC_BACKEND_URL;
-        if (url !== 'undefined' && url !== 'null' && url.trim() !== '') {
-          return url.replace(/\/$/, '');
-        }
-      }
-      return 'https://openjam-backend.onrender.com';
-    };
-
     const backendUrl = getBackendUrl();
     const response = await fetch(`${backendUrl}/rooms/${id}`, { next: { revalidate: 30 } });
     

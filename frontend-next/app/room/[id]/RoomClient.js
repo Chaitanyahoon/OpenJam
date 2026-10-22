@@ -987,6 +987,13 @@ export default function RoomClient({ roomId }) {
         const isCreated = urlParams.get('created') === 'true';
         if (isCreated) {
           triggerToast('Jam room created successfully!', 'success');
+          setShowInvite(true);
+          try {
+            const cleanUrl = window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
+          } catch (e) {
+            // Ignore replaceState errors
+          }
         } else {
           triggerToast('Connected to room!', 'success');
         }
