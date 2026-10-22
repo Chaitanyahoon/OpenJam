@@ -79,7 +79,7 @@ describe('Audio Stream Resolver Seam Suite', () => {
     });
 
     it('extracts YouTube ID from /stream/ proxy endpoint', () => {
-      const res = classifyStreamInput('https://api.openjam.fun/stream/dQw4w9WgXcQ?bitrate=192');
+      const res = classifyStreamInput('https://openjam-backend.onrender.com/stream/dQw4w9WgXcQ?bitrate=192');
       assert.equal(res.parsedYouTubeId, 'dQw4w9WgXcQ');
     });
 

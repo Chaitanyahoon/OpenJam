@@ -11,7 +11,7 @@ OpenJam uses a hybrid communications architecture:
 1. **REST API (FastAPI / HTTP)** for room creation, user authentication, track search, playlist management, stream proxying, and Open Graph previews.
 2. **Real-Time Protocol (Socket.IO / WebSockets)** for millisecond-synchronized music playback, queue updates, chat, listener counts, typing indicators, and floating emoji reactions.
 
-**Base Production URL**: `https://openjam.onrender.com`  
+**Base Production URL**: `https://openjam-backend.onrender.com`  
 **Frontend Origin**: `https://www.openjam.fun`
 
 ---

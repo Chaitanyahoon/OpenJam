@@ -65,7 +65,7 @@ describe('Microsecond Performance Budget Enforcement Suite', () => {
       'dQw4w9WgXcQ',
       'https://youtu.be/dQw4w9WgXcQ?si=test',
       'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42s',
-      'https://api.openjam.fun/stream/dQw4w9WgXcQ',
+      'https://openjam-backend.onrender.com/stream/dQw4w9WgXcQ',
       'not_a_valid_id_song_title',
     ];
 
