@@ -174,6 +174,15 @@ export default function HomePage({ initialRooms = [] }) {
     trackEvent('page_view', { path: '/' });
     if (typeof window !== 'undefined') {
       localStorage.removeItem('activeRoomPath');
+      try {
+        const stored = localStorage.getItem('openjam_last_room');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed?.id && parsed?.name && (Date.now() - (parsed.timestamp || 0) < 7 * 86400 * 1000)) {
+            setLastRoom(parsed);
+          }
+        }
+      } catch (e) {}
       const checkHash = () => {
         if (window.location.hash === '#tip-jar') {
           setShowSupportModal(true);
@@ -1654,6 +1663,66 @@ export default function HomePage({ initialRooms = [] }) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.3 }}
         >
+        {lastRoom && (
+          <div className="continue-listening-banner" style={{
+            margin: '0 0 24px 0',
+            padding: '12px 18px',
+            background: 'linear-gradient(90deg, rgba(255, 159, 28, 0.12) 0%, rgba(20, 20, 25, 0.8) 100%)',
+            border: '1px solid rgba(255, 159, 28, 0.3)',
+            borderRadius: '14px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '18px' }}>🎧</span>
+              <div>
+                <span style={{ fontSize: '13px', color: '#aaa', fontWeight: 500 }}>Welcome back! Continue listening in </span>
+                <strong style={{ fontSize: '14px', color: '#fff', fontWeight: 700 }}>{lastRoom.name}</strong>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                onClick={() => router.push(`/room/${lastRoom.id}`)}
+                style={{
+                  background: 'var(--amber, #ff9f1c)',
+                  color: '#000',
+                  border: 'none',
+                  padding: '6px 14px',
+                  borderRadius: '8px',
+                  fontWeight: 700,
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                Rejoin Room →
+              </button>
+              <button
+                onClick={() => {
+                  setLastRoom(null);
+                  try { localStorage.removeItem('openjam_last_room'); } catch (e) {}
+                }}
+                aria-label="Dismiss"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#777',
+                  cursor: 'pointer',
+                  padding: '4px 8px',
+                  fontSize: '16px',
+                  lineHeight: 1
+                }}
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        )}
         <div className="rooms-section-header">
           <div className="rooms-section-heading-group">
             <h2 className="rooms-section-title">
