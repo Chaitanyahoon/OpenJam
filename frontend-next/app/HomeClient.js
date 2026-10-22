@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -12,7 +12,7 @@ import dynamic from 'next/dynamic';
 import PillNav from '@/components/PillNav';
 import VolumeIcon from '@/components/VolumeIcon';
 import { FALLBACK_DISCOVERY_TRACKS } from '@/constants/tracks';
-import { CheckCircle, AlertCircle, AlertTriangle, Info, Play, Pause, Trash2, Plus, Music, FolderHeart, ListMusic } from 'lucide-react';
+import { CheckCircle, AlertCircle, AlertTriangle, Info, Play, Pause, Trash2, Plus, Music, FolderHeart, ListMusic, Bookmark } from 'lucide-react';
 import { offlineDb } from '@/utils/offlineDb';
 import FaqSection from '@/components/FaqSection';
 import { trackEvent } from '@/utils/analytics';
@@ -167,6 +167,29 @@ export default function HomePage({ initialRooms = [] }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toasts, setToasts] = useState([]);
   const [lastRoom, setLastRoom] = useState(null);
+  const [savedRoomIds, setSavedRoomIds] = useState([]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = JSON.parse(localStorage.getItem('openjam_saved_rooms') || '[]');
+        setSavedRoomIds(Array.isArray(saved) ? saved : []);
+      } catch (e) {}
+    }
+  }, []);
+
+  const handleToggleSaveRoom = useCallback((roomIdentifier) => {
+    if (typeof window === 'undefined') return;
+    setSavedRoomIds((prev) => {
+      const exists = prev.includes(roomIdentifier);
+      const next = exists ? prev.filter((id) => id !== roomIdentifier) : [...prev, roomIdentifier];
+      try {
+        localStorage.setItem('openjam_saved_rooms', JSON.stringify(next));
+      } catch (e) {}
+      triggerToast(exists ? 'Room removed from saved rooms' : 'Room saved to your favorites!', exists ? 'info' : 'success');
+      return next;
+    });
+  }, []);
 
   const [currentYear, setCurrentYear] = useState(2026);
   useEffect(() => {
@@ -427,10 +450,16 @@ export default function HomePage({ initialRooms = [] }) {
         !q ||
         r.name.toLowerCase().includes(q) ||
         (r.genre_tags || []).some((t) => t.toLowerCase().includes(q));
+
+      if (activeGenreFilter === '__saved__') {
+        const isSaved = savedRoomIds.includes(r.id) || (r.slug && savedRoomIds.includes(r.slug));
+        return matchQuery && isSaved;
+      }
+
       const matchGenre = !activeGenreFilter || (r.genre_tags || []).includes(activeGenreFilter);
       return matchQuery && matchGenre;
     });
-  }, [rooms, searchQuery, activeGenreFilter]);
+  }, [rooms, searchQuery, activeGenreFilter, savedRoomIds]);
 
   const dynamicFilterGenres = useMemo(() => Array.from(
     new Set(rooms.reduce((acc, curr) => acc.concat(curr.genre_tags || []), []))
@@ -1783,7 +1812,7 @@ export default function HomePage({ initialRooms = [] }) {
         </div>
 
         {/* Genre filter chips */}
-        {dynamicFilterGenres.length > 0 && (
+        {(dynamicFilterGenres.length > 0 || savedRoomIds.length > 0) && (
           <div className="genre-filters">
             <motion.button
               className={`genre-chip ${!activeGenreFilter ? 'active' : ''}`}
@@ -1793,6 +1822,18 @@ export default function HomePage({ initialRooms = [] }) {
             >
               All
             </motion.button>
+            {savedRoomIds.length > 0 && (
+              <motion.button
+                className={`genre-chip ${activeGenreFilter === '__saved__' ? 'active' : ''}`}
+                onClick={() => setActiveGenreFilter(activeGenreFilter === '__saved__' ? null : '__saved__')}
+                whileHover={{ scale: 1.08 }}
+                whileTap={{ scale: 0.92 }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+              >
+                <Bookmark size={12} fill={activeGenreFilter === '__saved__' ? 'currentColor' : 'none'} style={{ color: 'var(--amber, #ff9f1c)' }} />
+                <span>Saved ({savedRoomIds.length})</span>
+              </motion.button>
+            )}
             {dynamicFilterGenres.map((genre) => (
               <motion.button
                 key={genre}
@@ -1853,6 +1894,8 @@ export default function HomePage({ initialRooms = [] }) {
                   nameColor={nameColor}
                   getInitials={getInitials}
                   href={`/room/${r.slug || r.id}`}
+                  isSaved={savedRoomIds.includes(r.id) || (r.slug && savedRoomIds.includes(r.slug))}
+                  onToggleSave={handleToggleSaveRoom}
                 />
               ))}
             </motion.div>

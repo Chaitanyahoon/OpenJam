@@ -154,6 +154,39 @@ export default function RoomClient({ roomId }) {
   const [isReady, setIsReady] = useState(false);
   const [isShuffled, setIsShuffled] = useState(false);
   const [showAppBanner, setShowAppBanner] = useState(false);
+  const [isSavedRoom, setIsSavedRoom] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = JSON.parse(localStorage.getItem('openjam_saved_rooms') || '[]');
+        if (saved.includes(roomId) || (room?.slug && saved.includes(room.slug))) {
+          setIsSavedRoom(true);
+        } else {
+          setIsSavedRoom(false);
+        }
+      } catch (e) {}
+    }
+  }, [roomId, room?.slug]);
+
+  const handleToggleSaveRoom = () => {
+    if (typeof window === 'undefined') return;
+    try {
+      const saved = JSON.parse(localStorage.getItem('openjam_saved_rooms') || '[]');
+      const identifier = room?.slug || roomId;
+      let next;
+      if (saved.includes(identifier) || saved.includes(roomId)) {
+        next = saved.filter((id) => id !== identifier && id !== roomId);
+        setIsSavedRoom(false);
+        triggerToast('Room removed from saved rooms', 'info');
+      } else {
+        next = [...saved, identifier];
+        setIsSavedRoom(true);
+        triggerToast('Room saved to your favorites!', 'success');
+      }
+      localStorage.setItem('openjam_saved_rooms', JSON.stringify(next));
+    } catch (e) {}
+  };
 
   useEffect(() => {
     const enterTime = Date.now();
@@ -3333,6 +3366,14 @@ export default function RoomClient({ roomId }) {
               title="About this OpenJam Room & Session"
             >
               <Info size={16} />
+            </button>
+            <button 
+              className={`btn btn-secondary room-bar-icon-btn ${isSavedRoom ? 'active' : ''}`}
+              onClick={handleToggleSaveRoom} 
+              title={isSavedRoom ? "Remove from Saved Rooms" : "Save this Room"}
+              style={isSavedRoom ? { color: 'var(--amber, #ff9f1c)' } : {}}
+            >
+              <Bookmark size={16} fill={isSavedRoom ? 'currentColor' : 'none'} />
             </button>
             <button className="btn btn-secondary room-bar-icon-btn" onClick={() => setShowSettings(true)} title="Room Settings">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>

@@ -7,7 +7,7 @@ import PixelTransition from './PixelTransition';
 
 const getDefaultBanner = () => '/placeholder.svg';
 
-function RoomCard({ room, nameColor, getInitials, href }) {
+function RoomCard({ room, nameColor, getInitials, href, isSaved = false, onToggleSave = null }) {
   const isCurated = Boolean(room.id && (room.id.startsWith('openjam-') || room.id === 'openjam-lounge'));
   const getBadgeLabel = () => {
     if (room.id === 'openjam-lounge') return '☕ 24/7 Lounge';
@@ -123,10 +123,40 @@ function RoomCard({ room, nameColor, getInitials, href }) {
         </div>
 
         <div className="room-card-details">
-          <div className="room-card-tags">
-            {(room.genre_tags || []).slice(0, 3).map((tag) => (
-              <span key={tag} className="tag-chip">{tag}</span>
-            ))}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '4px' }}>
+            <div className="room-card-tags" style={{ margin: 0 }}>
+              {(room.genre_tags || []).slice(0, 3).map((tag) => (
+                <span key={tag} className="tag-chip">{tag}</span>
+              ))}
+            </div>
+            {onToggleSave && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onToggleSave(room.slug || room.id);
+                }}
+                aria-label={isSaved ? 'Remove from saved rooms' : 'Save room'}
+                title={isSaved ? 'Remove from saved rooms' : 'Save room'}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: isSaved ? 'var(--amber, #ff9f1c)' : '#777',
+                  cursor: 'pointer',
+                  padding: '2px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'color 0.2s',
+                  flexShrink: 0
+                }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill={isSaved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>
+                </svg>
+              </button>
+            )}
           </div>
           <h3 className="room-card-title">{room.name}</h3>
           <div className="room-card-host">
