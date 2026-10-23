@@ -249,12 +249,12 @@ async def stream_health(video_id: str = "dQw4w9WgXcQ"):
     try:
         import yt_dlp
         ydl_opts = {
-            "format": "bestaudio/best",
+            "format": "ba/b/bestaudio/best",
             "quiet": True,
             "no_warnings": True,
             "skip_download": True,
             "noplaylist": True,
-            "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
+            "extractor_args": {"youtube": {"player_client": ["android_creator", "tv_embedded", "android", "web"]}},
             "socket_timeout": 8.0,
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:

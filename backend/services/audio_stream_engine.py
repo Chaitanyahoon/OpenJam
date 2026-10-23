@@ -262,7 +262,7 @@ class AudioStreamEngine:
 
                     def extract():
                         ydl_opts = {
-                            "format": "ba[abr<=128]/ba/b[height<=480]" if low else "bestaudio/best",
+                            "format": "ba[abr<=128]/ba/b[height<=480]/b" if low else "ba/b/bestaudio/best",
                             "quiet": True,
                             "no_warnings": True,
                             "nocheckcertificate": True,
@@ -272,7 +272,7 @@ class AudioStreamEngine:
                             "youtube_include_dash_manifest": False,
                             "youtube_include_hls_manifest": False,
                             "check_formats": False,
-                            "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
+                            "extractor_args": {"youtube": {"player_client": ["android_creator", "tv_embedded", "android", "web"]}},
                             "socket_timeout": 8.0,
                         }
                         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
