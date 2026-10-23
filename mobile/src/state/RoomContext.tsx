@@ -240,7 +240,7 @@ export function RoomProvider({
         }
         return curr;
       });
-    }, 12_000);
+    }, 25_000);
   }, [resetJoinTimeout]);
 
   const tokenRef = useRef<string | null>(null);
