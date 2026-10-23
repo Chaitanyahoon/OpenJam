@@ -229,9 +229,9 @@ async def get_recommendations():
 
 
 @router.get("/stream/health")
-async def stream_health():
+async def stream_health(video_id: str = "dQw4w9WgXcQ"):
     """Diagnostic: test stream extraction methods against a known video."""
-    test_id = "dQw4w9WgXcQ"  # Rick Astley — always available on YouTube
+    test_id = video_id
     results = {}
 
     # Test Invidious/Piped
@@ -244,6 +244,28 @@ async def stream_health():
         }
     except Exception as e:
         results["invidious_piped"] = {"status": "error", "error": str(e)[:200]}
+
+    # Test Direct yt-dlp diagnostic with android client
+    try:
+        import yt_dlp
+        ydl_opts = {
+            "format": "bestaudio/best",
+            "quiet": True,
+            "no_warnings": True,
+            "skip_download": True,
+            "noplaylist": True,
+            "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
+            "socket_timeout": 8.0,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            raw_info = ydl.extract_info(f"https://www.youtube.com/watch?v={test_id}", download=False)
+            results["ytdlp_direct"] = {
+                "status": "ok" if raw_info and raw_info.get("url") else "no_url",
+                "title": raw_info.get("title") if raw_info else None,
+                "has_url": bool(raw_info.get("url")) if raw_info else False,
+            }
+    except Exception as e:
+        results["ytdlp_direct"] = {"status": "error", "error": f"{type(e).__name__}: {e}"}
 
     # Test AudioStreamEngine (yt-dlp with android client fallback)
     try:
