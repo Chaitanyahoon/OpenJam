@@ -34,7 +34,10 @@ async def list_rooms(
     current_user_id = current_user["id"] if current_user else None
 
     def _db_list_rooms():
-        query = db.query(Room).options(selectinload(Room.host)).filter(Room.is_active == True)
+        from backend.constants import CURATED_ROOM_IDS
+        query = db.query(Room).options(selectinload(Room.host)).filter(
+            (Room.is_active == True) | (Room.id.in_(CURATED_ROOM_IDS))
+        )
         if search:
             escaped_search = search.strip().lower().replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
             query = query.filter(Room.name.ilike(f"%{escaped_search}%", escape='\\'))
@@ -275,6 +278,8 @@ async def close_room(room_id: str, request: Request, db: Session = Depends(get_d
     if room.host_user_id != user_data["id"] and not user_data.get("is_admin"):
         raise HTTPException(status_code=403, detail="Only the host can close the room")
     canonical_id = room.id
+    if is_curated_room(canonical_id):
+        raise HTTPException(status_code=400, detail="Curated 24/7 stations cannot be closed")
     room.is_active = False
     db.commit()
 

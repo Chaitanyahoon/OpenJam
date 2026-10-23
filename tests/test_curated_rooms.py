@@ -70,3 +70,34 @@ def test_curated_rooms_listed_in_api(client, db_session):
     assert DESI_ROOM_ID in room_ids
     assert HITS_ROOM_ID in room_ids
     assert SYNTH_ROOM_ID in room_ids
+
+def test_curated_rooms_cannot_be_closed(client, db_session):
+    from backend.middleware.auth import create_session_token
+    from backend.constants import SYSTEM_BOT_USER_ID
+    room = db_session.query(Room).filter(Room.id == DESI_ROOM_ID).first()
+    if not room:
+        room = Room(id=DESI_ROOM_ID, slug=DESI_ROOM_ID, name="Bollywood Chill", host_user_id=SYSTEM_BOT_USER_ID, is_active=True)
+        db_session.add(room)
+        db_session.commit()
+
+    token = create_session_token("admin-1", display_name="Admin", is_admin=True)
+    resp = client.delete(f"/rooms/{DESI_ROOM_ID}", headers={"Cookie": f"session_token={token}"})
+    assert resp.status_code == 400
+    assert "Curated" in resp.json()["detail"]
+
+
+def test_curated_rooms_always_visible_even_if_inactive_flag(client, db_session):
+    from backend.constants import SYSTEM_BOT_USER_ID
+    room = db_session.query(Room).filter(Room.id == DESI_ROOM_ID).first()
+    if not room:
+        room = Room(id=DESI_ROOM_ID, slug=DESI_ROOM_ID, name="Bollywood Chill", host_user_id=SYSTEM_BOT_USER_ID, is_active=False)
+        db_session.add(room)
+    else:
+        room.is_active = False
+    db_session.commit()
+
+    resp = client.get("/rooms")
+    assert resp.status_code == 200
+    room_ids = [r["id"] for r in resp.json()["rooms"]]
+    assert DESI_ROOM_ID in room_ids
+
