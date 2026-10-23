@@ -199,18 +199,69 @@ export async function clearSession(): Promise<void> {
   notifyAuthChange(null);
 }
 
-export const COMMUNITY_ROOMS: RoomSummary[] = [];
+export const COMMUNITY_ROOMS: RoomSummary[] = [
+  {
+    id: 'openjam-lounge',
+    name: '☕ 24/7 Lofi & Chill Lounge',
+    description: 'OpenJam Official Community Lounge — synchronized chill beats 24/7.',
+    host_name: 'OpenJam Bot',
+    host_avatar_url: null,
+    listener_count: 0,
+    is_private: false,
+    genre_tags: ['lofi', 'chill', 'ambient'],
+    current_track: null,
+    now_playing: null,
+  },
+  {
+    id: 'openjam-desi',
+    name: '🔥 24/7 Bollywood & Desi Chill',
+    description: 'Acoustic, indie, and chill Bollywood favorites streaming 24/7 in sync.',
+    host_name: 'OpenJam Bot',
+    host_avatar_url: null,
+    listener_count: 0,
+    is_private: false,
+    genre_tags: ['bollywood', 'indie', 'desi', 'acoustic'],
+    current_track: null,
+    now_playing: null,
+  },
+  {
+    id: 'openjam-hits',
+    name: '⚡ 24/7 Global Top Hits',
+    description: 'Top charting pop, dance, and global radio anthems with friends.',
+    host_name: 'OpenJam Bot',
+    host_avatar_url: null,
+    listener_count: 0,
+    is_private: false,
+    genre_tags: ['pop', 'hits', 'dance'],
+    current_track: null,
+    now_playing: null,
+  },
+  {
+    id: 'openjam-synth',
+    name: '🌙 24/7 Synthwave & Cyberpunk',
+    description: 'Retro synthwave, outrun, and neon electronic vibes for deep focus.',
+    host_name: 'OpenJam Bot',
+    host_avatar_url: null,
+    listener_count: 0,
+    is_private: false,
+    genre_tags: ['synthwave', 'cyberpunk', 'electronic', 'night'],
+    current_track: null,
+    now_playing: null,
+  },
+];
 
 /**
  * Retrieve cached rooms snapshot from AsyncStorage (0ms instant access).
+ * Falls back to 24/7 curated community stations on first launch.
  */
 export async function getCachedRooms(): Promise<RoomSummary[]> {
   try {
     const raw = await AsyncStorage.getItem(ROOMS_CACHE_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw) as RoomSummary[];
+    if (!raw) return COMMUNITY_ROOMS;
+    const parsed = JSON.parse(raw) as RoomSummary[];
+    return parsed && parsed.length > 0 ? parsed : COMMUNITY_ROOMS;
   } catch {
-    return [];
+    return COMMUNITY_ROOMS;
   }
 }
 
