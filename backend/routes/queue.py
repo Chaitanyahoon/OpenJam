@@ -254,7 +254,7 @@ async def stream_health(video_id: str = "dQw4w9WgXcQ"):
             "no_warnings": True,
             "skip_download": True,
             "noplaylist": True,
-            "extractor_args": {"youtube": {"player_client": ["android_creator", "tv_embedded", "android", "web"]}},
+            "extractor_args": {"youtube": {"player_client": ["tv_embedded", "android_creator"]}},
             "socket_timeout": 8.0,
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
