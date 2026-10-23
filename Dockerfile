@@ -11,14 +11,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Runtime stage
 FROM python:3.11-slim
 
-# Create non-root user 1000 (Required for Hugging Face Spaces & security)
+# Create non-root user 1000 for container security
 RUN useradd -m -u 1000 user
 
 WORKDIR /app
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PORT=7860 \
+    PORT=10000 \
     HOME=/home/user
 
 # Copy venv from builder
@@ -38,8 +38,8 @@ RUN mkdir -p /app/logs /app/data /app/cache && chown -R user:user /app
 
 USER user
 
-# Expose port (7860 for Hugging Face Spaces; overridable via $PORT on Render/Koyeb)
-EXPOSE 7860
+# Expose port (10000 default; overridable via $PORT on Render)
+EXPOSE 10000
 
 # Run application
 CMD ["python", "run.py"]

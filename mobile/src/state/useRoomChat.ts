@@ -216,10 +216,10 @@ export function useRoomChat({ roomId, socketRef, meRef }: UseRoomChatOptions): R
         void Linking.canOpenURL(upiUrl)
           .then((can) => {
             if (can) void Linking.openURL(upiUrl);
-            else void Linking.openURL('https://openjam.online/#tip-jar');
+            else void Linking.openURL('https://www.openjam.fun');
           })
           .catch(() => {
-            void Linking.openURL('https://openjam.online/#tip-jar');
+            void Linking.openURL('https://www.openjam.fun');
           });
         return;
       }

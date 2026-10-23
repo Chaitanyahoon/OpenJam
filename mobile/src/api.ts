@@ -17,7 +17,7 @@ const TOKEN_KEY = 'openjam_token';
 const USER_KEY = 'openjam_user';
 const NAME_KEY = 'openjam_display_name';
 export const ROOMS_CACHE_KEY = 'openjam_cached_rooms_v2';
-const DEFAULT_TIMEOUT_MS = 12000;
+const DEFAULT_TIMEOUT_MS = 20000;
 
 export interface ApiUser {
   id: string;
@@ -69,10 +69,6 @@ async function authHeaders(): Promise<Record<string, string>> {
 }
 
 async function request<T>(path: string, init?: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
-  if (!isDeviceOnline()) {
-    throw new Error(`Device is offline: ${path}`);
-  }
-
   const controller = new AbortController();
   const timeoutId = setTimeout(() => {
     controller.abort();
@@ -117,15 +113,24 @@ export async function joinAsGuest(
     body: JSON.stringify({ display_name: displayName }),
   });
   if (!res.ok) throw new Error('Could not create guest session');
-  const data = (await res.json()) as { user: ApiUser; token: string };
+  const data = (await res.json()) as { user: Partial<ApiUser>; token: string };
+  const user: ApiUser = {
+    id: data.user.id || '',
+    display_name: data.user.display_name || displayName,
+    avatar_url: data.user.avatar_url || null,
+    is_registered: Boolean(data.user.is_registered),
+    discord_id: data.user.discord_id || null,
+    discord_username: data.user.discord_username || null,
+  };
   memoryToken = data.token;
   await AsyncStorage.multiSet([
     [TOKEN_KEY, data.token],
-    [USER_KEY, JSON.stringify(data.user)],
-    [NAME_KEY, data.user.display_name],
+    [USER_KEY, JSON.stringify(user)],
+    [NAME_KEY, user.display_name],
   ]);
-  notifyAuthChange(data.user);
-  return data;
+  notifyNetworkSuccess();
+  notifyAuthChange(user);
+  return { user, token: data.token };
 }
 
 export type AuthChangeListener = (user: ApiUser | null) => void;
@@ -210,9 +215,6 @@ export async function getCachedRooms(): Promise<RoomSummary[]> {
 }
 
 export async function getRooms(): Promise<RoomSummary[]> {
-  if (!isDeviceOnline()) {
-    return await getCachedRooms();
-  }
   try {
     const data = await request<{ rooms: any[] }>('/rooms');
     const liveRooms = (data.rooms ?? [])

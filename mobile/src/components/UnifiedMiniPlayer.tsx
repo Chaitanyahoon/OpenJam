@@ -72,7 +72,7 @@ export function UnifiedMiniPlayer({
     ? {
         title: room.nowPlaying.track_name,
         artist: room.nowPlaying.artist || 'Live Room Session',
-        artworkUrl: room.nowPlaying.album_art_url || 'https://openjam.fun/default_art.png',
+        artworkUrl: room.nowPlaying.album_art_url || 'https://www.openjam.fun/static/img/default_art.png',
         isPlaying: room.isPlaying,
         isRoom: true,
         roomName: room.roomName || 'OpenJam Room',
@@ -83,7 +83,7 @@ export function UnifiedMiniPlayer({
     ? {
         title: player.currentTrack.track_name,
         artist: player.currentTrack.artist || 'Unknown Artist',
-        artworkUrl: player.currentTrack.album_art_url || 'https://openjam.fun/default_art.png',
+        artworkUrl: player.currentTrack.album_art_url || 'https://www.openjam.fun/static/img/default_art.png',
         isPlaying: playerStatus.playing,
         isRoom: false,
         roomName: '',

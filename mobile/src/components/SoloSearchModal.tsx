@@ -446,7 +446,7 @@ export function SoloSearchModal({
                 style={({ pressed }) => [styles.trackRow, pressed && styles.trackRowPressed]}
               >
                 <Image
-                  source={{ uri: item.album_art_url || 'https://openjam.fun/default_art.png' }}
+                  source={{ uri: item.album_art_url || 'https://www.openjam.fun/static/img/default_art.png' }}
                   style={styles.trackArt}
                   contentFit="cover"
                 />
@@ -561,7 +561,7 @@ export function SoloSearchModal({
                     style={styles.recentRow}
                   >
                     <Image
-                      source={{ uri: item.album_art_url || 'https://openjam.fun/default_art.png' }}
+                      source={{ uri: item.album_art_url || 'https://www.openjam.fun/static/img/default_art.png' }}
                       style={styles.recentArt}
                       contentFit="cover"
                     />
@@ -645,7 +645,7 @@ export function SoloSearchModal({
                     style={styles.recentRow}
                   >
                     <Image
-                      source={{ uri: item.album_art_url || 'https://openjam.fun/default_art.png' }}
+                      source={{ uri: item.album_art_url || 'https://www.openjam.fun/static/img/default_art.png' }}
                       style={styles.recentArt}
                       contentFit="cover"
                     />

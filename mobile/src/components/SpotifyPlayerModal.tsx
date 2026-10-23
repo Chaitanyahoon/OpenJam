@@ -493,7 +493,7 @@ export function SpotifyPlayerModal() {
                     return (
                       <View key={item.uri} style={styles.queueItem}>
                         <Image
-                          source={{ uri: item.album_art_url || 'https://openjam.fun/default_art.png' }}
+                          source={{ uri: item.album_art_url || 'https://www.openjam.fun/static/img/default_art.png' }}
                           style={styles.queueItemArt}
                           contentFit="cover"
                         />
@@ -535,7 +535,7 @@ export function SpotifyPlayerModal() {
                   <Text style={styles.queueSectionTitle}>NOW PLAYING</Text>
                   <View style={[styles.queueItem, styles.queueItemActive]}>
                     <Image
-                      source={{ uri: currentTrack.album_art_url || 'https://openjam.fun/default_art.png' }}
+                      source={{ uri: currentTrack.album_art_url || 'https://www.openjam.fun/static/img/default_art.png' }}
                       style={styles.queueItemArt}
                       contentFit="cover"
                     />
@@ -582,7 +582,7 @@ export function SpotifyPlayerModal() {
                         style={styles.queueItem}
                       >
                         <Image
-                          source={{ uri: track.album_art_url || 'https://openjam.fun/default_art.png' }}
+                          source={{ uri: track.album_art_url || 'https://www.openjam.fun/static/img/default_art.png' }}
                           style={styles.queueItemArt}
                           contentFit="cover"
                         />
@@ -635,7 +635,7 @@ export function SpotifyPlayerModal() {
                     return (
                       <View key={recTrack.track_uri} style={styles.queueItem}>
                         <Image
-                          source={{ uri: recTrack.album_art_url || 'https://openjam.fun/default_art.png' }}
+                          source={{ uri: recTrack.album_art_url || 'https://www.openjam.fun/static/img/default_art.png' }}
                           style={styles.queueItemArt}
                           contentFit="cover"
                         />
@@ -697,7 +697,7 @@ export function SpotifyPlayerModal() {
               >
                 <Image
                   source={{
-                    uri: currentTrack.album_art_url || 'https://openjam.fun/default_art.png',
+                    uri: currentTrack.album_art_url || 'https://www.openjam.fun/static/img/default_art.png',
                   }}
                   style={[
                     styles.artwork,

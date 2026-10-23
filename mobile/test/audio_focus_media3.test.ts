@@ -61,7 +61,7 @@ describe('AndroidX Media3 & Audio Focus Engine Suite', () => {
         title: rawTitle?.trim() || 'OpenJam Track',
         artist: rawArtist?.trim() || 'OpenJam Artist',
         albumTitle: 'OpenJam Audio Session',
-        artworkUrl: rawArt || 'https://openjam.fun/default_art.png',
+        artworkUrl: rawArt || 'https://www.openjam.fun/static/img/default_art.png',
       };
     }
 
@@ -75,6 +75,6 @@ describe('AndroidX Media3 & Audio Focus Engine Suite', () => {
     const fallback = formatMedia3Metadata('', '', '');
     assert.equal(fallback.title, 'OpenJam Track');
     assert.equal(fallback.artist, 'OpenJam Artist');
-    assert.equal(fallback.artworkUrl, 'https://openjam.fun/default_art.png');
+    assert.equal(fallback.artworkUrl, 'https://www.openjam.fun/static/img/default_art.png');
   });
 });

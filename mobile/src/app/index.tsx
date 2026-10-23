@@ -155,17 +155,13 @@ export default function Landing() {
         }
       }
 
-      if (!isDeviceOnline()) {
+      const syncTimer = setTimeout(() => { if (isMounted) setIsSyncingCloud(true); }, 2200);
+      try {
+        const liveRooms = await getRooms();
+        if (isMounted) setRooms(liveRooms);
+      } catch {} finally {
+        clearTimeout(syncTimer);
         if (isMounted) setIsSyncingCloud(false);
-      } else {
-        const syncTimer = setTimeout(() => { if (isMounted) setIsSyncingCloud(true); }, 2200);
-        try {
-          const liveRooms = await getRooms();
-          if (isMounted) setRooms(liveRooms);
-        } catch {} finally {
-          clearTimeout(syncTimer);
-          if (isMounted) setIsSyncingCloud(false);
-        }
       }
     })();
     return () => { isMounted = false; };

@@ -31,7 +31,7 @@ export const HomeFooter: React.FC<HomeFooterProps> = ({
     } catch {
       // Fall through to web
     }
-    await Linking.openURL('https://openjam.online/#tip-jar').catch(() => {});
+    await Linking.openURL('https://www.openjam.fun').catch(() => {});
   };
 
   return (

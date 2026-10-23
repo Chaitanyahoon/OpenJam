@@ -32,8 +32,9 @@ function restartMonitor() {
     clearInterval(monitorInterval);
     monitorInterval = null;
   }
-  if (listeners.size > 0) {
-    const delay = isOnlineState ? 10000 : 2500;
+  // Keep pinging while listeners are active OR while offline (to detect recovery)
+  if (listeners.size > 0 || !isOnlineState) {
+    const delay = isOnlineState ? 10000 : 3000;
     monitorInterval = setInterval(() => {
       void pingConnection();
     }, delay);
@@ -70,7 +71,7 @@ export async function pingConnection(): Promise<boolean> {
   // 1. Check ultra-fast Google captive portal 204 — universal standard for Android connectivity
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 1800);
+    const timeout = setTimeout(() => controller.abort(), 3000);
     const res = await fetch('https://clients3.google.com/generate_204', {
       method: 'GET',
       signal: controller.signal,
@@ -85,7 +86,7 @@ export async function pingConnection(): Promise<boolean> {
   // 2. Secondary fallback: Cloudflare global trace
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 1800);
+    const timeout = setTimeout(() => controller.abort(), 3000);
     const res = await fetch('https://1.1.1.1/cdn-cgi/trace', {
       method: 'GET',
       signal: controller.signal,
@@ -100,7 +101,7 @@ export async function pingConnection(): Promise<boolean> {
   // 3. Tertiary fallback: Backend /health check
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2500);
+    const timeout = setTimeout(() => controller.abort(), 5000);
     const res = await fetch(`${getBackendUrl()}/health`, {
       method: 'GET',
       signal: controller.signal,
@@ -125,7 +126,7 @@ export function subscribeNetworkState(listener: NetworkListener): () => void {
 
   return () => {
     listeners.delete(listener);
-    if (listeners.size === 0 && monitorInterval) {
+    if (listeners.size === 0 && isOnlineState && monitorInterval) {
       clearInterval(monitorInterval);
       monitorInterval = null;
     }
