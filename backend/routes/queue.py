@@ -245,6 +245,16 @@ async def stream_health():
     except Exception as e:
         results["invidious_piped"] = {"status": "error", "error": str(e)[:200]}
 
+    # Test AudioStreamEngine (yt-dlp with android client fallback)
+    try:
+        engine_url = await audio_stream_engine.resolve_stream_url(test_id)
+        results["stream_engine"] = {
+            "status": "ok" if engine_url else "no_url",
+            "url_preview": (engine_url[:80] + "...") if engine_url else None,
+        }
+    except Exception as e:
+        results["stream_engine"] = {"status": "error", "error": str(e)[:200]}
+
     # Summary
     working = [k for k, v in results.items() if v.get("status") == "ok"]
     results["summary"] = {

@@ -272,6 +272,7 @@ class AudioStreamEngine:
                             "youtube_include_dash_manifest": False,
                             "youtube_include_hls_manifest": False,
                             "check_formats": False,
+                            "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
                             "socket_timeout": 8.0,
                         }
                         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
