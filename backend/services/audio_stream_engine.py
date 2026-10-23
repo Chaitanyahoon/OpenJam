@@ -275,6 +275,18 @@ class AudioStreamEngine:
                             "extractor_args": {"youtube": {"player_client": ["tv_embedded", "android_creator"]}},
                             "socket_timeout": 8.0,
                         }
+                        cookie_data = os.getenv("YTDLP_COOKIES") or os.getenv("YOUTUBE_COOKIES")
+                        if cookie_data:
+                            cookie_file = self.cache_dir / "yt_cookies.txt"
+                            try:
+                                if not cookie_file.exists() or cookie_file.read_text(encoding="utf-8", errors="ignore") != cookie_data:
+                                    cookie_file.write_text(cookie_data, encoding="utf-8")
+                                ydl_opts["cookiefile"] = str(cookie_file)
+                            except Exception:
+                                pass
+                        elif os.getenv("YTDLP_COOKIEFILE") and os.path.exists(os.getenv("YTDLP_COOKIEFILE")):
+                            ydl_opts["cookiefile"] = os.getenv("YTDLP_COOKIEFILE")
+
                         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                             return ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
 
