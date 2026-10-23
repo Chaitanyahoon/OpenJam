@@ -228,6 +228,37 @@ async def get_recommendations():
     return {"tracks": tracks}
 
 
+@router.get("/stream/health")
+async def stream_health():
+    """Diagnostic: test stream extraction methods against a known video."""
+    test_id = "dQw4w9WgXcQ"  # Rick Astley — always available on YouTube
+    results = {}
+
+    # Test Invidious/Piped
+    try:
+        from backend.services.invidious import get_stream_url as get_invidious_stream_url
+        inv_url = await get_invidious_stream_url(test_id)
+        results["invidious_piped"] = {
+            "status": "ok" if inv_url else "no_url",
+            "url_preview": (inv_url[:80] + "...") if inv_url else None,
+        }
+    except Exception as e:
+        results["invidious_piped"] = {"status": "error", "error": str(e)[:200]}
+
+    # Summary
+    working = [k for k, v in results.items() if v.get("status") == "ok"]
+    results["summary"] = {
+        "working_methods": working,
+        "total_working": len(working),
+        "recommendation": (
+            "Stream extractors are working properly!" if len(working) > 0
+            else "Resolvers unavailable. Frontend fallback to native YouTube player is active."
+        ),
+    }
+
+    return results
+
+
 @router.get("/stream/{video_id}")
 async def stream_audio(
     video_id: str,
@@ -344,33 +375,3 @@ async def add_multiple_tracks_to_queue(
 
     return {"message": f"Successfully queued {len(track_list)} tracks", "added_count": len(track_list)}
 
-
-@router.get("/stream/health")
-async def stream_health():
-    """Diagnostic: test stream extraction methods against a known video."""
-    test_id = "dQw4w9WgXcQ"  # Rick Astley — always available on YouTube
-    results = {}
-
-    # Test Invidious/Piped
-    try:
-        from backend.services.invidious import get_stream_url as get_invidious_stream_url
-        inv_url = await get_invidious_stream_url(test_id)
-        results["invidious_piped"] = {
-            "status": "ok" if inv_url else "no_url",
-            "url_preview": (inv_url[:80] + "...") if inv_url else None,
-        }
-    except Exception as e:
-        results["invidious_piped"] = {"status": "error", "error": str(e)[:200]}
-
-    # Summary
-    working = [k for k, v in results.items() if v.get("status") == "ok"]
-    results["summary"] = {
-        "working_methods": working,
-        "total_working": len(working),
-        "recommendation": (
-            "Stream extractors are working properly!" if len(working) > 0
-            else "Resolvers unavailable. Frontend fallback to native YouTube player is active."
-        ),
-    }
-
-    return results

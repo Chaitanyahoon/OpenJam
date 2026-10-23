@@ -268,12 +268,16 @@ class AudioStreamEngine:
                             "nocheckcertificate": True,
                             "ignoreerrors": True,
                             "skip_download": True,
-                            "socket_timeout": 5.0,
+                            "noplaylist": True,
+                            "youtube_include_dash_manifest": False,
+                            "youtube_include_hls_manifest": False,
+                            "check_formats": False,
+                            "socket_timeout": 8.0,
                         }
                         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                             return ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
 
-                    info = await asyncio.wait_for(loop.run_in_executor(None, extract), timeout=5.5)
+                    info = await asyncio.wait_for(loop.run_in_executor(None, extract), timeout=10.0)
                     if info:
                         res = info.get("url")
                         if not res and "formats" in info:
@@ -305,7 +309,7 @@ class AudioStreamEngine:
                         except Exception:
                             pass
 
-                await asyncio.wait_for(_race(), timeout=6.5)
+                await asyncio.wait_for(_race(), timeout=11.5)
             except Exception:
                 pass
             finally:
