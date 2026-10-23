@@ -2001,6 +2001,14 @@ export default function HomePage({ initialRooms = [] }) {
           >
             ☕ Support OpenJam
           </button>
+          <span className="footer-sep" aria-hidden="true">&middot;</span>
+          <a
+            href="https://github.com/Chaitanyahoon/OpenJam/releases/latest/download/openjam-latest.apk"
+            className="footer-link"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+          >
+            📱 Android APK
+          </a>
         </div>
         <p className="footer-copy">
           &copy; {currentYear} OpenJam. Created by <a href="https://discord.com/users/964173378896400425" target="_blank" rel="noopener noreferrer" style={{ color: '#fff', fontWeight: 600, textDecoration: 'none', transition: 'color 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.color = 'var(--theme-accent, #ff9f1c)'} onMouseLeave={(e) => e.currentTarget.style.color = '#fff'}>Chaitanya</a>. All rights reserved.

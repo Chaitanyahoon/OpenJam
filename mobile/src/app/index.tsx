@@ -70,6 +70,7 @@ export default function Landing() {
   const [favoriteRooms, setFavoriteRooms] = useState<FavoriteRoom[]>([]);
   const [recentTracks, setRecentTracks] = useState<PlayedTrack[]>([]);
   const [ready, setReady] = useState(false);
+  const [initialRoomsLoaded, setInitialRoomsLoaded] = useState(false);
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [showReconnectedPill, setShowReconnectedPill] = useState(false);
@@ -161,7 +162,10 @@ export default function Landing() {
         if (isMounted) setRooms(liveRooms);
       } catch {} finally {
         clearTimeout(syncTimer);
-        if (isMounted) setIsSyncingCloud(false);
+        if (isMounted) {
+          setIsSyncingCloud(false);
+          setInitialRoomsLoaded(true);
+        }
       }
     })();
     return () => { isMounted = false; };
@@ -423,7 +427,7 @@ export default function Landing() {
             {isOnline && (
               <GenreFilterBar
                 roomCount={filteredRooms.length}
-                isSyncingCloud={isSyncingCloud}
+                isSyncingCloud={isSyncingCloud || (!initialRoomsLoaded && rooms.length === 0)}
                 searchQuery={searchQuery}
                 searchFocused={searchFocused}
                 selectedGenre={selectedGenre}
@@ -451,7 +455,9 @@ export default function Landing() {
               isOnline={false}
               onStartSoloJam={handleStartSoloJam}
             />
-          ) : ready ? (
+          ) : (!ready || (!initialRoomsLoaded && rooms.length === 0)) ? (
+            <RoomCardSkeletonList count={3} />
+          ) : (
             <RoomGridEmptyState
               isSearching={searchQuery.trim().length > 0}
               searchQuery={searchQuery}
@@ -461,8 +467,6 @@ export default function Landing() {
               isOnline={true}
               onStartSoloJam={handleStartSoloJam}
             />
-          ) : (
-            <RoomCardSkeletonList count={2} />
           )
         }
         ListFooterComponent={
