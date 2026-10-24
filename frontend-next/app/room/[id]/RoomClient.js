@@ -647,66 +647,82 @@ export default function RoomClient({ roomId }) {
           headers['Authorization'] = `Bearer ${token}`;
         }
 
-        const rMe = await fetch(`/auth/me?t=${Date.now()}`, { 
-          headers, 
-          credentials: 'include', 
-          cache: 'no-store' 
-        });
         let isAdmin = false;
-        if (rMe.ok) {
-          const data = await rMe.json();
-          if (data.user) {
-            setMe(data.user);
-            isAdmin = Boolean(data.user.is_admin);
-            localStorage.setItem('openjam_display_name', data.user.display_name);
-            if (data.user.avatar_url) {
-              localStorage.setItem('openjam_avatar_url', data.user.avatar_url);
-            }
-            if (reconnect) reconnect();
-            userResolved = true;
-            resolvedUserId = data.user.id;
-          } else {
-            // No session exists — auto-assign guest moniker if no stored name exists
-            const storedName = localStorage.getItem('openjam_display_name') || '';
-            let nameToJoin = storedName;
-            if (!nameToJoin) {
-              const prefixes = ['Vinyl', 'Echo', 'Neon', 'Velvet', 'Sonic', 'Strobe', 'Analog', 'Lunar'];
-              const suffixes = ['Jammer', 'Listener', 'Wave', 'Pulse', 'Drifter', 'Mixer'];
-              nameToJoin = `${prefixes[Math.floor(Math.random() * prefixes.length)]}${suffixes[Math.floor(Math.random() * suffixes.length)]}${Math.floor(Math.random() * 900 + 100)}`;
-            }
-            try {
-              const rJoin = await fetch('/auth/join', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ display_name: nameToJoin }),
-                credentials: 'include'
-              });
-              if (rJoin.ok) {
-                const joinData = await rJoin.json();
-                setMe(joinData.user);
-                if (joinData.user) {
-                  localStorage.setItem('openjam_display_name', joinData.user.display_name);
-                }
-                if (joinData.token) {
-                  localStorage.setItem('openjam_token', joinData.token);
-                  const maxAge = 86400 * 30;
-                  const isSecure = window.location.protocol === 'https:';
-                  document.cookie = `session_token=${joinData.token}; max-age=${maxAge}; path=/; samesite=lax${isSecure ? '; secure' : ''}`;
-                  headers['Authorization'] = `Bearer ${joinData.token}`;
-                }
-                if (reconnect) reconnect(joinData.token, joinData.user?.display_name);
-                userResolved = true;
-                resolvedUserId = joinData.user?.id || null;
+        try {
+          const rMe = await fetch(`/auth/me?t=${Date.now()}`, { 
+            headers, 
+            credentials: 'include', 
+            cache: 'no-store' 
+          });
+          if (rMe.ok) {
+            const data = await rMe.json();
+            if (data?.user) {
+              setMe(data.user);
+              isAdmin = Boolean(data.user.is_admin);
+              localStorage.setItem('openjam_display_name', data.user.display_name);
+              if (data.user.avatar_url) {
+                localStorage.setItem('openjam_avatar_url', data.user.avatar_url);
               }
-            } catch (errJoin) {
-              console.warn('Guest auto-join error:', errJoin);
+              if (reconnect) reconnect();
+              userResolved = true;
+              resolvedUserId = data.user.id;
             }
           }
+        } catch (errMe) {
+          console.warn('Auth verification error:', errMe);
         }
 
-        const rRoom = await fetch(`/rooms/${roomId}`, { headers, credentials: 'include' });
-        if (rRoom.ok) {
-          const data = await rRoom.json();
+        if (!userResolved) {
+          const storedName = (typeof window !== 'undefined' ? localStorage.getItem('openjam_display_name') : '') || '';
+          let nameToJoin = storedName.trim();
+          if (!nameToJoin) {
+            const prefixes = ['Vinyl', 'Echo', 'Neon', 'Velvet', 'Sonic', 'Strobe', 'Analog', 'Lunar'];
+            const suffixes = ['Jammer', 'Listener', 'Wave', 'Pulse', 'Drifter', 'Mixer'];
+            nameToJoin = `${prefixes[Math.floor(Math.random() * prefixes.length)]}${suffixes[Math.floor(Math.random() * suffixes.length)]}${Math.floor(Math.random() * 900 + 100)}`;
+          }
+          try {
+            const rJoin = await fetch('/auth/join', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ display_name: nameToJoin }),
+              credentials: 'include'
+            });
+            if (rJoin.ok) {
+              const joinData = await rJoin.json();
+              if (joinData.user) {
+                setMe(joinData.user);
+                localStorage.setItem('openjam_display_name', joinData.user.display_name);
+                resolvedUserId = joinData.user.id;
+              }
+              if (joinData.token) {
+                localStorage.setItem('openjam_token', joinData.token);
+                const maxAge = 86400 * 30;
+                const isSecure = window.location.protocol === 'https:';
+                document.cookie = `session_token=${joinData.token}; max-age=${maxAge}; path=/; samesite=lax${isSecure ? '; secure' : ''}`;
+                headers['Authorization'] = `Bearer ${joinData.token}`;
+                if (reconnect) reconnect(joinData.token, joinData.user?.display_name);
+              }
+            }
+          } catch (errJoin) {
+            console.warn('Guest auto-join error:', errJoin);
+          }
+          userResolved = true;
+        }
+
+        let roomData = null;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            const rRoom = await fetch(`/rooms/${roomId}`, { headers, credentials: 'include' });
+            if (rRoom.ok) {
+              roomData = await rRoom.json();
+              break;
+            }
+          } catch (e) {}
+          if (attempt === 0) await new Promise((res) => setTimeout(res, 500));
+        }
+
+        if (roomData && roomData.room) {
+          const data = roomData;
           setRoom(data.room);
           if (data.room && typeof window !== 'undefined') {
             try {
@@ -719,7 +735,6 @@ export default function RoomClient({ roomId }) {
           }
           setQueue(data.queue || []);
           setListeners(data.listeners || []);
-          
           
           // Host or Admin bypass: creator or platform admin should never see the password modal
           const isHost = resolvedUserId && data.room?.host_user_id === resolvedUserId;

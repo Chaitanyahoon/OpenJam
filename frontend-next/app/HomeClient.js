@@ -650,11 +650,47 @@ export default function HomePage({ initialRooms = [] }) {
 
 
   // Auth
+  const ensureValidAuthToken = async () => {
+    let token = typeof window !== 'undefined' ? localStorage.getItem('openjam_token') : null;
+    if (token) return token;
+    const storedName = (typeof window !== 'undefined' ? localStorage.getItem('openjam_display_name') : null) || '';
+    const storedAvatar = (typeof window !== 'undefined' ? localStorage.getItem('openjam_avatar_url') : null) || null;
+    const nameToUse = storedName.trim() || generateRandomName();
+    try {
+      const joinRes = await fetch('/auth/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ display_name: nameToUse, avatar_url: storedAvatar }),
+        credentials: 'include'
+      });
+      if (joinRes.ok) {
+        const joinData = await joinRes.json();
+        if (joinData.user) {
+          setMe(joinData.user);
+          localStorage.setItem('openjam_cached_user', JSON.stringify(joinData.user));
+        }
+        localStorage.setItem('openjam_display_name', nameToUse);
+        if (joinData.token) {
+          localStorage.setItem('openjam_token', joinData.token);
+          const maxAge = 86400 * 30;
+          const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:';
+          document.cookie = `session_token=${joinData.token}; max-age=${maxAge}; path=/; samesite=lax${isSecure ? '; secure' : ''}`;
+          if (reconnect) reconnect(joinData.token, nameToUse);
+          return joinData.token;
+        }
+      }
+    } catch (authErr) {
+      console.warn('Guest auto-join error:', authErr);
+    }
+    return null;
+  };
+
   const checkAuth = async (overrideToken = null) => {
     try {
       const headers = {};
-      if (overrideToken) {
-        headers['Authorization'] = `Bearer ${overrideToken}`;
+      const token = overrideToken || (typeof window !== 'undefined' ? localStorage.getItem('openjam_token') : null);
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
       }
       const r = await fetch(`/auth/me?t=${Date.now()}`, { 
         headers, 
@@ -890,57 +926,44 @@ export default function HomePage({ initialRooms = [] }) {
     if (!name) return triggerToast('Room name is required', 'error');
     setIsSubmitting(true);
     try {
-      let currentUser = me;
-      if (!currentUser) {
-        const storedName = (typeof window !== 'undefined' ? localStorage.getItem('openjam_display_name') : null) || '';
-        const storedAvatar = (typeof window !== 'undefined' ? localStorage.getItem('openjam_avatar_url') : null) || null;
-        const nameToUse = storedName.trim() || generateRandomName();
-        try {
-          const joinRes = await fetch('/auth/join', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ display_name: nameToUse, avatar_url: storedAvatar }),
-            credentials: 'include'
-          });
-          if (joinRes.ok) {
-            const joinData = await joinRes.json();
-            currentUser = joinData.user;
-            setMe(joinData.user);
-            localStorage.setItem('openjam_display_name', nameToUse);
-            if (joinData.token) {
-              localStorage.setItem('openjam_token', joinData.token);
-              const maxAge = 86400 * 30;
-              const isSecure = window.location.protocol === 'https:';
-              document.cookie = `session_token=${joinData.token}; max-age=${maxAge}; path=/; samesite=lax${isSecure ? '; secure' : ''}`;
-              if (reconnect) reconnect(joinData.token, nameToUse);
-            }
-          }
-        } catch (authErr) {
-          console.warn('Guest auto-join before create room error:', authErr);
-        }
-      }
-
-      const token = typeof window !== 'undefined' ? localStorage.getItem('openjam_token') : null;
+      let token = await ensureValidAuthToken();
       const headers = { 'Content-Type': 'application/json' };
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
       const trimmedPassword = createPassword.trim();
-      const r = await fetch('/rooms', {
+      const payload = JSON.stringify({
+        name,
+        description: createDesc.trim(),
+        genre_tags: Array.from(selectedTags),
+        queue_mode: createMode,
+        is_private: createPrivate,
+        password: (createPrivate && trimmedPassword) ? trimmedPassword : null,
+        allow_guest_controls: allowGuestControls
+      });
+
+      let r = await fetch('/rooms', {
         method: 'POST',
         headers,
-        body: JSON.stringify({
-          name,
-          description: createDesc.trim(),
-          genre_tags: Array.from(selectedTags),
-          queue_mode: createMode,
-          is_private: createPrivate,
-          password: (createPrivate && trimmedPassword) ? trimmedPassword : null,
-          allow_guest_controls: allowGuestControls
-        }),
+        body: payload,
         credentials: 'include'
       });
+
+      if (r.status === 401) {
+        if (typeof window !== 'undefined') localStorage.removeItem('openjam_token');
+        token = await ensureValidAuthToken();
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+          r = await fetch('/rooms', {
+            method: 'POST',
+            headers,
+            body: payload,
+            credentials: 'include'
+          });
+        }
+      }
+
       if (r.ok) {
         const data = await r.json();
         trackEvent('room_created', { room_id: data.room.id, name: data.room.name });
@@ -990,41 +1013,8 @@ export default function HomePage({ initialRooms = [] }) {
   };
 
   const handleInstantJam = async () => {
+    let token = await ensureValidAuthToken();
     let currentUser = me;
-    if (!currentUser) {
-      const storedName = (typeof window !== 'undefined' ? localStorage.getItem('openjam_display_name') : null) || '';
-      const storedAvatar = (typeof window !== 'undefined' ? localStorage.getItem('openjam_avatar_url') : null) || null;
-      const nameToUse = storedName.trim() || generateRandomName();
-      triggerToast(`⚡ Instant Jam: Setting up as ${nameToUse}...`, 'info');
-      try {
-        const r = await fetch('/auth/join', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ display_name: nameToUse, avatar_url: storedAvatar }),
-          credentials: 'include'
-        });
-        if (r.ok) {
-          const data = await r.json();
-          currentUser = data.user;
-          setMe(data.user);
-          localStorage.setItem('openjam_display_name', nameToUse);
-          if (data.token) {
-            localStorage.setItem('openjam_token', data.token);
-            const maxAge = 86400 * 30;
-            const isSecure = window.location.protocol === 'https:';
-            document.cookie = `session_token=${data.token}; max-age=${maxAge}; path=/; samesite=lax${isSecure ? '; secure' : ''}`;
-            if (reconnect) reconnect(data.token, nameToUse);
-          }
-        } else {
-          triggerToast('Failed to join guest session', 'error');
-          return;
-        }
-      } catch (err) {
-        triggerToast('Failed to join guest session', 'error');
-        return;
-      }
-    }
-
     const prefixes = ['Neon Lounge', 'Retro Beatcave', 'Analog Space', 'Echo Chamber', 'Decibel Oasis', 'Starlight Jam', 'Velvet Sync'];
     const rName = currentUser?.display_name 
       ? `${currentUser.display_name}'s Jam` 
@@ -1032,24 +1022,39 @@ export default function HomePage({ initialRooms = [] }) {
 
     try {
       setIsSubmitting(true);
-      const token = typeof window !== 'undefined' ? localStorage.getItem('openjam_token') : null;
       const headers = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const r = await fetch('/rooms', {
+      const payload = JSON.stringify({
+        name: rName,
+        description: '⚡ 1-Click Instant Jam. Welcome, come queue music and chill!',
+        genre_tags: ['chill', 'live'],
+        queue_mode: 'open',
+        is_private: false,
+        password: null,
+        allow_guest_controls: true
+      });
+
+      let r = await fetch('/rooms', {
         method: 'POST',
         headers,
-        body: JSON.stringify({
-          name: rName,
-          description: '⚡ 1-Click Instant Jam. Welcome, come queue music and chill!',
-          genre_tags: ['chill', 'live'],
-          queue_mode: 'open',
-          is_private: false,
-          password: null,
-          allow_guest_controls: true
-        }),
+        body: payload,
         credentials: 'include'
       });
+
+      if (r.status === 401) {
+        if (typeof window !== 'undefined') localStorage.removeItem('openjam_token');
+        token = await ensureValidAuthToken();
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+          r = await fetch('/rooms', {
+            method: 'POST',
+            headers,
+            body: payload,
+            credentials: 'include'
+          });
+        }
+      }
 
       if (r.ok) {
         const data = await r.json();

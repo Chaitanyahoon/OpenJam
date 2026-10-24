@@ -12,5 +12,8 @@ const RoomClientNoSSR = dynamic(() => import('./RoomClient'), {
 
 export default function RoomPageClient() {
   const params = useParams();
-  return <RoomClientNoSSR roomId={params.id} />;
+  const rawId = params?.id;
+  const roomId = Array.isArray(rawId) ? rawId[0] : (rawId || null);
+  if (!roomId) return <RoomSkeleton />;
+  return <RoomClientNoSSR roomId={roomId} />;
 }
