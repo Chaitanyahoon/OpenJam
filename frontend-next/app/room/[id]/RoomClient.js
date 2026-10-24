@@ -403,13 +403,13 @@ export default function RoomClient({ roomId }) {
     };
   }, []);
 
-  // Contextual recommendations: dynamically fetch suggestions matching active artist & track
+  // Contextual recommendations: dynamically fetch suggestions matching active artist & track (or last played)
   useEffect(() => {
     let isCancelled = false;
     const fetchContextualRecs = async () => {
       try {
-        const artist = nowPlaying?.artist || '';
-        const track = nowPlaying?.track_name || '';
+        const artist = nowPlaying?.artist || history[0]?.artist || '';
+        const track = nowPlaying?.track_name || history[0]?.track_name || '';
         const queryParams = new URLSearchParams();
         if (artist) queryParams.set('artist', artist);
         if (track) queryParams.set('track', track);
@@ -430,7 +430,7 @@ export default function RoomClient({ roomId }) {
     return () => {
       isCancelled = true;
     };
-  }, [nowPlaying?.artist, nowPlaying?.track_name]);
+  }, [nowPlaying?.artist, nowPlaying?.track_name, history[0]?.artist, history[0]?.track_name]);
 
   useEffect(() => {
     if (typeof document !== 'undefined') {
@@ -3869,7 +3869,7 @@ export default function RoomClient({ roomId }) {
                             }
                           }, 200);
                         }}
-                        placeholder="Search songs or paste YouTube / Spotify links…" 
+                        placeholder="Search songs or paste link…" 
                         autoComplete="off" 
                         style={{ width: '100%', paddingLeft: '36px', boxSizing: 'border-box' }}
                       />
@@ -4210,7 +4210,7 @@ export default function RoomClient({ roomId }) {
                             {recommendations.length > 0 && (
                               <>
                                 <div style={{ padding: '8px 12px', fontSize: '11px', color: 'var(--amber)', fontWeight: 'bold', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: favourites.length > 0 ? '12px' : '0' }}>
-                                  <Flame className="h-3.5 w-3.5 fill-current" /> Trending Recommendations
+                                  <Flame className="h-3.5 w-3.5 fill-current" /> {nowPlaying?.artist ? `Recommended for ${nowPlaying.artist.split(/[,/&]|(?:\s+feat\.?|\s+ft\.?)/i)[0].trim()} fans` : 'Trending Recommendations'}
                                 </div>
                                 {recommendations.map((track, idx) => (
                                   <div 
@@ -4697,7 +4697,7 @@ export default function RoomClient({ roomId }) {
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                             {recommendations
-                              .filter(rec => !queue.some(q => q.track_uri === rec.uri || q.track_name === rec.name))
+                              .filter(rec => !queue.some(q => (q.track_uri || q.uri) === (rec.track_uri || rec.uri) || (q.track_name || q.name) === (rec.track_name || rec.name)) && (rec.track_name || rec.name) !== (nowPlaying?.track_name || nowPlaying?.name))
                               .slice(0, 2)
                               .map((rec, rIdx) => (
                                 <div
@@ -7566,7 +7566,7 @@ export default function RoomClient({ roomId }) {
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                             {recommendations
-                              .filter(rec => !queue.some(q => q.track_uri === rec.uri || q.track_name === rec.name))
+                              .filter(rec => !queue.some(q => (q.track_uri || q.uri) === (rec.track_uri || rec.uri) || (q.track_name || q.name) === (rec.track_name || rec.name)) && (rec.track_name || rec.name) !== (nowPlaying?.track_name || nowPlaying?.name))
                               .slice(0, 2)
                               .map((rec, rIdx) => (
                                 <div
