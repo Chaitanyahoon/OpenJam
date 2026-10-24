@@ -27,6 +27,7 @@ export default function AdminPage() {
   const [refreshing, setRefreshing] = useState(false);
 
   // Search and filter states
+  const [roomFilter, setRoomFilter] = useState('all'); // 'all' | 'user' | 'radio'
   const [userFilter, setUserFilter] = useState('registered'); // 'registered' | 'all'
   const [playlistFilter, setPlaylistFilter] = useState('all'); // 'all' | 'public' | 'private'
   const [pruningGuests, setPruningGuests] = useState(false);
@@ -342,6 +343,17 @@ export default function AdminPage() {
     }
   };
 
+  const handleExportAnalytics = () => {
+    if (!analytics) return;
+    const blob = new Blob([JSON.stringify(analytics, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `openjam-analytics-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleTriggerHealthcheck = async () => {
     setTriggeringHealthcheck(true);
     try {
@@ -623,9 +635,31 @@ export default function AdminPage() {
                             <TrendingUp size={18} style={{ color: '#10b981' }} />
                             <h4 style={{ fontSize: '15px', fontWeight: 800, color: '#fff', margin: 0 }}>7-Day Traffic & Funnel Telemetry</h4>
                           </div>
-                          <span style={{ fontSize: '11px', color: 'var(--text-3, #64748b)', background: 'rgba(255,255,255,0.03)', padding: '3px 8px', borderRadius: '6px' }}>
-                            {analytics ? `${analytics.period_days || 7} Days Rolling` : 'Loading...'}
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '11px', color: 'var(--text-3, #64748b)', background: 'rgba(255,255,255,0.03)', padding: '3px 8px', borderRadius: '6px' }}>
+                              {analytics ? `${analytics.period_days || 7} Days Rolling` : 'Loading...'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={handleExportAnalytics}
+                              disabled={!analytics}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                fontSize: '11px',
+                                color: '#fff',
+                                background: 'rgba(255,255,255,0.04)',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                padding: '3px 10px',
+                                borderRadius: '6px',
+                                cursor: analytics ? 'pointer' : 'default',
+                                opacity: analytics ? 1 : 0.5,
+                              }}
+                            >
+                              📥 Export JSON
+                            </button>
+                          </div>
                         </div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>
@@ -762,11 +796,19 @@ export default function AdminPage() {
 
                   {/* TAB 2: ROOMS */}
                   {activeTab === 'rooms' && (() => {
-                    const filteredRooms = rooms.filter(room => 
-                      room.name.toLowerCase().includes(searchRoomsQuery.toLowerCase()) ||
-                      room.id.toLowerCase().includes(searchRoomsQuery.toLowerCase()) ||
-                      room.host_name.toLowerCase().includes(searchRoomsQuery.toLowerCase())
-                    );
+                    const userRoomsCount = rooms.filter(r => !r.id.startsWith('openjam-')).length;
+                    const radioRoomsCount = rooms.filter(r => r.id.startsWith('openjam-')).length;
+                    const filteredRooms = rooms.filter(room => {
+                      const isRadio = room.id.startsWith('openjam-');
+                      if (roomFilter === 'user' && isRadio) return false;
+                      if (roomFilter === 'radio' && !isRadio) return false;
+                      const q = searchRoomsQuery.toLowerCase();
+                      return (
+                        room.name.toLowerCase().includes(q) ||
+                        room.id.toLowerCase().includes(q) ||
+                        room.host_name.toLowerCase().includes(q)
+                      );
+                    });
                     return (
                       <motion.div
                         key="rooms"
@@ -775,17 +817,72 @@ export default function AdminPage() {
                         exit={{ opacity: 0, y: -6 }}
                         transition={{ duration: 0.15 }}
                       >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                          <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#fff' }}>Active Live Jam Rooms</h3>
-                          {rooms.length > 0 && (
-                            <button 
-                              className="btn btn-danger-flat" 
-                              onClick={() => setShowCloseAllConfirm(true)}
-                              style={{ padding: '8px 16px', borderRadius: '10px', fontSize: '12px', fontWeight: 700, border: '1px solid rgba(239,68,68,0.2)', background: 'rgba(239,68,68,0.05)', color: '#f87171', cursor: 'pointer' }}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                          <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#fff', margin: 0 }}>Active Live Jam Rooms</h3>
+                          
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              onClick={() => setRoomFilter('all')}
+                              style={{
+                                padding: '6px 14px',
+                                borderRadius: '20px',
+                                fontSize: '12px',
+                                fontWeight: roomFilter === 'all' ? 700 : 500,
+                                cursor: 'pointer',
+                                background: roomFilter === 'all' ? 'rgba(255, 159, 28, 0.2)' : 'rgba(255, 255, 255, 0.03)',
+                                border: `1px solid ${roomFilter === 'all' ? 'var(--amber, #ff9f1c)' : 'rgba(255, 255, 255, 0.08)'}`,
+                                color: roomFilter === 'all' ? '#fff' : 'var(--text-3)',
+                                transition: 'all 0.15s ease'
+                              }}
                             >
-                              Close All Active Rooms
+                              All ({rooms.length})
                             </button>
-                          )}
+                            <button
+                              type="button"
+                              onClick={() => setRoomFilter('user')}
+                              style={{
+                                padding: '6px 14px',
+                                borderRadius: '20px',
+                                fontSize: '12px',
+                                fontWeight: roomFilter === 'user' ? 700 : 500,
+                                cursor: 'pointer',
+                                background: roomFilter === 'user' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.03)',
+                                border: `1px solid ${roomFilter === 'user' ? '#10b981' : 'rgba(255, 255, 255, 0.08)'}`,
+                                color: roomFilter === 'user' ? '#fff' : 'var(--text-3)',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              ● User Jams ({userRoomsCount})
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setRoomFilter('radio')}
+                              style={{
+                                padding: '6px 14px',
+                                borderRadius: '20px',
+                                fontSize: '12px',
+                                fontWeight: roomFilter === 'radio' ? 700 : 500,
+                                cursor: 'pointer',
+                                background: roomFilter === 'radio' ? 'rgba(168, 85, 247, 0.2)' : 'rgba(255, 255, 255, 0.03)',
+                                border: `1px solid ${roomFilter === 'radio' ? '#a855f7' : 'rgba(255, 255, 255, 0.08)'}`,
+                                color: roomFilter === 'radio' ? '#fff' : 'var(--text-3)',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              📻 24/7 Radio ({radioRoomsCount})
+                            </button>
+
+                            {rooms.length > 0 && (
+                              <button 
+                                className="btn btn-danger-flat" 
+                                onClick={() => setShowCloseAllConfirm(true)}
+                                style={{ padding: '6px 14px', borderRadius: '10px', fontSize: '12px', fontWeight: 700, border: '1px solid rgba(239,68,68,0.2)', background: 'rgba(239,68,68,0.05)', color: '#f87171', cursor: 'pointer' }}
+                              >
+                                Close All Active Rooms
+                              </button>
+                            )}
+                          </div>
                         </div>
 
                         {rooms.length > 0 && (
@@ -827,7 +924,7 @@ export default function AdminPage() {
                               <tbody>
                                 {filteredRooms.map((room) => (
                                   <tr key={room.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }} className="admin-tr-hover">
-                                    <td style={{ padding: '14px 8px' }}><span className="admin-status-badge badge-active" style={{ background: 'rgba(16,185,129,0.1)', color: '#34d399', fontSize: '11px', padding: '3px 8px', borderRadius: '6px', fontWeight: 700 }}>Live</span></td>
+                                    <td style={{ padding: '14px 8px' }}><span className="admin-status-badge badge-active" style={{ background: room.id.startsWith('openjam-') ? 'rgba(168,85,247,0.15)' : 'rgba(16,185,129,0.1)', color: room.id.startsWith('openjam-') ? '#c084fc' : '#34d399', fontSize: '11px', padding: '3px 8px', borderRadius: '6px', fontWeight: 700 }}>{room.id.startsWith('openjam-') ? '📻 24/7 Radio' : '● Live Jam'}</span></td>
                                     <td style={{ padding: '14px 8px' }}>
                                       <div style={{ fontWeight: 600, color: '#fff', fontSize: '14px' }}>{room.name}</div>
                                       <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>ID: {room.id}</div>
