@@ -190,7 +190,7 @@ export default function RoomClient({ roomId }) {
 
   useEffect(() => {
     const enterTime = Date.now();
-    trackEvent('room_view', { room_id: roomId });
+    trackEvent('room_view', { room_id: roomId, referrer: (typeof document !== 'undefined' && document.referrer) || 'direct' });
 
     const handleUnload = () => {
       const durationSec = Math.round((Date.now() - enterTime) / 1000);

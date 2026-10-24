@@ -4,7 +4,13 @@ import { RoomSkeleton } from '@/components/SkeletonLoaders';
 import { getBackendUrl } from '@/utils/config';
 
 export function generateStaticParams() {
-  return [{ id: 'loading' }];
+  return [
+    { id: 'loading' },
+    { id: 'openjam-lounge' },
+    { id: 'openjam-desi' },
+    { id: 'openjam-synth' },
+    { id: 'openjam-hits' },
+  ];
 }
 
 export async function generateMetadata({ params }) {
@@ -74,7 +80,6 @@ export async function generateMetadata({ params }) {
         return {
           title,
           description,
-          themeColor: '#ff9f1c',
           robots: !room.is_private
             ? { index: true, follow: true }
             : { index: false, follow: false },

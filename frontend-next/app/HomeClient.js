@@ -194,7 +194,7 @@ export default function HomePage({ initialRooms = [] }) {
   const [currentYear, setCurrentYear] = useState(2026);
   useEffect(() => {
     setCurrentYear(new Date().getFullYear());
-    trackEvent('page_view', { path: '/' });
+    trackEvent('page_view', { path: '/', referrer: (typeof document !== 'undefined' && document.referrer) || 'direct' });
     if (typeof window !== 'undefined') {
       localStorage.removeItem('activeRoomPath');
       try {

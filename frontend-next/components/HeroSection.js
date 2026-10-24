@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import DomeGallery from './reactbits/DomeGallery';
 
@@ -479,6 +480,32 @@ function HeroSection({
                 <ArrowIcon />
               </span>
             </motion.button>
+
+            <Link
+              href="/room/openjam-lounge"
+              className="btn btn-secondary btn-elegant-glow btn-bubble"
+              style={{ 
+                padding: '13px 22px', 
+                fontSize: '14px', 
+                borderRadius: '99px', 
+                display: 'inline-flex', 
+                alignItems: 'center', 
+                gap: '6px',
+                background: 'rgba(255, 159, 28, 0.1)',
+                border: '1px solid rgba(255, 159, 28, 0.25)',
+                color: '#ff9f1c',
+                textDecoration: 'none',
+                fontWeight: 600,
+              }}
+            >
+              <div className="bubble-bg b1" />
+              <div className="bubble-bg b2" />
+              <div className="bubble-bg b3" />
+              <div className="bubble-bg b4" />
+              <span className="btn-bubble-content">
+                <span>📻 24/7 Live Radio</span>
+              </span>
+            </Link>
 
             {onCreateRoom && (
               <motion.button
