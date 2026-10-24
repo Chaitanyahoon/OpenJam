@@ -198,6 +198,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // Monotonic position sample for extrapolation between polls
   const sampleRef = useRef({ at: Date.now(), posMs: 0, playing: false });
   const lastSeekTimeRef = useRef(0);
+  const onTrackEndedCbRef = useRef<(() => void) | null>(null);
+  const onTrackErrorCbRef = useRef<((code: number | string) => void) | null>(null);
+  const lastErrorUriRef = useRef<string | null>(null);
 
   // Sync liked state whenever currentTrack changes
   useEffect(() => {
@@ -249,38 +252,45 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const loadTrack = useCallback(
     async (urlOrId: string, meta: LockScreenMeta): Promise<void> => {
-      const stream = await resolveAudioStream(urlOrId, meta);
-      if (stream.uri) {
-        sampleRef.current = { at: Date.now(), posMs: 0, playing: true };
-        player.replace({ uri: stream.uri });
-        player.volume = volumeRef.current;
-        player.play();
-      }
-
       try {
-        if (
-          typeof (player as { setActiveForLockScreen?: unknown })
-            .setActiveForLockScreen === 'function'
-        ) {
-          (
-            player as {
-              setActiveForLockScreen: (
-                active: boolean,
-                meta: LockScreenMeta,
-                options?: { showSeekForward?: boolean; showSeekBackward?: boolean },
-              ) => void;
-            }
-          ).setActiveForLockScreen(
-            true,
-            {
-              title: stream.title || meta.title,
-              artist: stream.artist || meta.artist,
-              artworkUrl: stream.artworkUrl || meta.artworkUrl,
-            },
-            { showSeekForward: true, showSeekBackward: true },
-          );
+        const stream = await resolveAudioStream(urlOrId, meta);
+        if (stream.uri) {
+          sampleRef.current = { at: Date.now(), posMs: 0, playing: true };
+          player.replace({ uri: stream.uri });
+          player.volume = volumeRef.current;
+          player.play();
+        } else {
+          onTrackErrorCbRef.current?.(100);
+          return;
         }
-      } catch {}
+
+        try {
+          if (
+            typeof (player as { setActiveForLockScreen?: unknown })
+              .setActiveForLockScreen === 'function'
+          ) {
+            (
+              player as {
+                setActiveForLockScreen: (
+                  active: boolean,
+                  meta: LockScreenMeta,
+                  options?: { showSeekForward?: boolean; showSeekBackward?: boolean },
+                ) => void;
+              }
+            ).setActiveForLockScreen(
+              true,
+              {
+                title: stream.title || meta.title,
+                artist: stream.artist || meta.artist,
+                artworkUrl: stream.artworkUrl || meta.artworkUrl,
+              },
+              { showSeekForward: true, showSeekBackward: true },
+            );
+          }
+        } catch {}
+      } catch {
+        onTrackErrorCbRef.current?.(100);
+      }
     },
     [player],
   );
@@ -432,10 +442,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     [player],
   );
 
-  // External listener refs for track lifecycle events
-  const onTrackEndedCbRef = useRef<(() => void) | null>(null);
-  const onTrackErrorCbRef = useRef<((code: number | string) => void) | null>(null);
-
+  // External listener setters for track lifecycle events
   const setOnTrackEnded = useCallback((cb: (() => void) | null) => {
     onTrackEndedCbRef.current = cb;
   }, []);
@@ -669,6 +676,23 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       handleTrackFinished();
     }
   }, [status, handleTrackFinished]);
+
+  // Native expo-audio track error listener
+  useEffect(() => {
+    const curUri = currentTrackRef.current?.track_uri;
+    const isError =
+      status.playbackState === 'error' ||
+      status.playbackState === 'failed' ||
+      Boolean((status as { error?: unknown })?.error);
+
+    if (isError && curUri && lastErrorUriRef.current !== curUri) {
+      lastErrorUriRef.current = curUri;
+      onTrackErrorCbRef.current?.(100);
+      if (sourceTitle !== 'room' && queueRef.current.length > 1) {
+        void playNext();
+      }
+    }
+  }, [status, sourceTitle, playNext]);
 
   // Next-Track Audio Pre-Caching Seam (Gapless Spotify-Grade Playback)
   const prewarmedUriRef = useRef<string | null>(null);
