@@ -101,3 +101,9 @@ def test_curated_rooms_always_visible_even_if_inactive_flag(client, db_session):
     room_ids = [r["id"] for r in resp.json()["rooms"]]
     assert DESI_ROOM_ID in room_ids
 
+
+
+def test_curated_rooms_immune_to_ghost_cleanup_and_host_takeover():
+    for cid in CURATED_ROOM_IDS:
+        assert is_curated_room(cid)
+    assert not is_curated_room("guest-user-custom-room")

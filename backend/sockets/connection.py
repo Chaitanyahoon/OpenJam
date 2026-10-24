@@ -145,7 +145,8 @@ def register_connection_handlers(sio: socketio.AsyncServer):
             "listeners": room_manager.get_listeners(room_id),
         }, room=room_id)
         
-        if room_id == "openjam-lounge":
+        from backend.constants import is_curated_room
+        if is_curated_room(room_id):
             if room_manager.get_listener_count(room_id) > 0:
                 from backend.sockets.playback import evaluate_skip_votes
                 await evaluate_skip_votes(room_id, sio)
@@ -380,7 +381,7 @@ def register_connection_handlers(sio: socketio.AsyncServer):
                     host_user_id = room.host_user_id
                     current_host_sid = room_manager.get_host_sid(room_id)
                     # If this user matches DB host, OR if the room currently has no active host (and is not lounge)
-                    if (room.host_user_id and room.host_user_id == user_id) or (room_id != "openjam-lounge" and not current_host_sid):
+                    if (room.host_user_id and room.host_user_id == user_id) or (not is_curated_room(room_id) and not current_host_sid):
                         room_manager.set_host(room_id, sid)
                         is_host = True
                         if not room.host_user_id:

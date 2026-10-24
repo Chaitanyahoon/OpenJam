@@ -255,8 +255,9 @@ def init_db():
         backfilled_count = 0
         for r in rooms:
             if not r.slug:
-                if r.id == "openjam-lounge":
-                    r.slug = "openjam-lounge"
+                from backend.constants import is_curated_room
+                if is_curated_room(r.id):
+                    r.slug = r.id
                 else:
                     new_slug = generate_room_slug(r.name)
                     while new_slug in existing_slugs:

@@ -133,10 +133,10 @@ async def _room_cleanup_loop():
             
             db = SessionLocal()
             try:
-                # Query all active rooms directly from DB to find ghosts
+                from backend.constants import is_curated_room
                 active_db_rooms = db.query(Room).filter(Room.is_active == True).all()
                 for r in active_db_rooms:
-                    if r.id == 'openjam-lounge':
+                    if is_curated_room(r.id):
                         continue
                     room_data = room_manager.store.get_room(r.id)
                     if not room_data:
