@@ -25,6 +25,7 @@ export default function AdminPage() {
   const [playlists, setPlaylists] = useState([]);
   const [logs, setLogs] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
 
   // Search and filter states
   const [roomFilter, setRoomFilter] = useState('all'); // 'all' | 'user' | 'radio'
@@ -59,12 +60,12 @@ export default function AdminPage() {
 
   // 3. Auto-refresh loop
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !autoRefresh) return;
     const interval = setInterval(() => {
       fetchData(true);
     }, 10000); // refresh every 10s
     return () => clearInterval(interval);
-  }, [isAuthenticated, activeTab]);
+  }, [isAuthenticated, activeTab, autoRefresh]);
 
   async function fetchStats() {
     try {
@@ -343,6 +344,17 @@ export default function AdminPage() {
     }
   };
 
+  const handleExportLogs = () => {
+    if (!logs || logs.length === 0) return;
+    const blob = new Blob([logs.join('\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `openjam-diagnostics-${new Date().toISOString().slice(0, 10)}.log`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleExportAnalytics = () => {
     if (!analytics) return;
     const blob = new Blob([JSON.stringify(analytics, null, 2)], { type: 'application/json' });
@@ -478,7 +490,29 @@ export default function AdminPage() {
                 </h1>
                 <p className="admin-subtitle" style={{ fontSize: '14px', color: 'var(--text-3, #64748b)' }}>Overview, moderation panel, user directories, and system diagnostics.</p>
               </div>
-              <div className="admin-header-btns" style={{ display: 'flex', gap: '12px' }}>
+              <div className="admin-header-btns" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => setAutoRefresh(!autoRefresh)}
+                  title={autoRefresh ? 'Live updates active (10s) — click to pause' : 'Live updates paused — click to resume'}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    border: `1px solid ${autoRefresh ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.08)'}`,
+                    borderRadius: '12px',
+                    padding: '10px 14px',
+                    background: autoRefresh ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.02)',
+                    color: autoRefresh ? '#34d399' : '#888',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: autoRefresh ? '#10b981' : '#666', boxShadow: autoRefresh ? '0 0 8px #10b981' : 'none' }} />
+                  <span>{autoRefresh ? 'Live (10s)' : 'Paused'}</span>
+                </button>
                 <button 
                   className={`btn btn-secondary btn-refresh ${refreshing ? 'refreshing' : ''}`}
                   onClick={() => fetchData()}
@@ -1448,12 +1482,21 @@ export default function AdminPage() {
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                           <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#fff' }}>Authentication Diagnostics Logs</h3>
-                          <button
-                            onClick={() => fetchData()}
-                            style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '6px 12px', background: 'rgba(255,255,255,0.02)', color: '#fff', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-                          >
-                            <RefreshCw size={12} /> Sync Logs
-                          </button>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              onClick={handleExportLogs}
+                              disabled={logs.length === 0}
+                              style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '6px 12px', background: 'rgba(255,255,255,0.02)', color: '#fff', fontSize: '12px', cursor: logs.length > 0 ? 'pointer' : 'default', opacity: logs.length > 0 ? 1 : 0.5, display: 'flex', alignItems: 'center', gap: '6px' }}
+                            >
+                              📥 Export Logs
+                            </button>
+                            <button
+                              onClick={() => fetchData()}
+                              style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '6px 12px', background: 'rgba(255,255,255,0.02)', color: '#fff', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                            >
+                              <RefreshCw size={12} /> Sync Logs
+                            </button>
+                          </div>
                         </div>
 
                         {logs.length > 0 && (
