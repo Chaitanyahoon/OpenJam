@@ -16,7 +16,7 @@ import {
 } from '@expo-google-fonts/poppins';
 import { PlayerProvider, usePlayer } from '../audio/PlayerContext';
 import { SocketProvider } from '../state/SocketContext';
-import { ToastProvider } from '../components/ToastContext';
+import { ToastProvider, useToast } from '../components/ToastContext';
 import { colors } from '../theme';
 import { AppLoadingScreen } from '../components/AppLoadingScreen';
 import { NetworkGuard } from '../components/NetworkGuard';
@@ -28,7 +28,6 @@ import * as WebBrowser from 'expo-web-browser';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { saveAuthToken } from '../api';
 import { useAppHeartbeat } from '../utils/heartbeat';
-import { useToast } from '../components/ToastContext';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 

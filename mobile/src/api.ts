@@ -10,7 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getBackendUrl } from './config';
 import { getVaultTracks } from './storage/vault';
 import { getRecentlyPlayed } from './storage/history';
-import { isDeviceOnline, notifyNetworkFailure, notifyNetworkSuccess } from './utils/network';
+import { notifyNetworkFailure, notifyNetworkSuccess } from './utils/network';
 export { getBackendUrl };
 
 const TOKEN_KEY = 'openjam_token';
@@ -279,7 +279,7 @@ export async function getRooms(): Promise<RoomSummary[]> {
       await AsyncStorage.setItem(ROOMS_CACHE_KEY, JSON.stringify(liveRooms)).catch(() => {});
     }
     return liveRooms;
-  } catch (err) {
+  } catch {
     // SWR fallback: Return cached rooms when offline or Render is waking up
     const cached = await getCachedRooms();
     return cached;
