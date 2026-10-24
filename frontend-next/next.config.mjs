@@ -75,6 +75,10 @@ const nextConfig = {
         destination: `${BACKEND_URL}/admin/:path*`,
       },
       {
+        source: '/analytics/:path*',
+        destination: `${BACKEND_URL}/analytics/:path*`,
+      },
+      {
         source: '/likes',
         destination: `${BACKEND_URL}/likes`,
       },

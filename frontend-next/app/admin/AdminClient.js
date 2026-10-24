@@ -7,7 +7,7 @@ import {
   Shield, Users, Radio, ListMusic, Terminal, RefreshCw, 
   Trash2, Award, Zap, LogOut, LayoutDashboard, Database, 
   Globe, Lock, AlertTriangle, CheckCircle, AlertCircle,
-  Eye, ExternalLink, Music
+  Eye, ExternalLink, Music, TrendingUp, MessageSquare
 } from 'lucide-react';
 
 export default function AdminPage() {
@@ -19,6 +19,7 @@ export default function AdminPage() {
   
   // Data states
   const [stats, setStats] = useState({ total_users: 0, total_playlists: 0, active_rooms: 0, online_listeners: 0 });
+  const [analytics, setAnalytics] = useState(null);
   const [rooms, setRooms] = useState([]);
   const [users, setUsers] = useState([]);
   const [playlists, setPlaylists] = useState([]);
@@ -66,10 +67,17 @@ export default function AdminPage() {
 
   async function fetchStats() {
     try {
-      const res = await fetch('/admin/stats');
-      if (res.ok) {
-        const data = await res.json();
+      const [statsRes, analyticsRes] = await Promise.allSettled([
+        fetch('/admin/stats'),
+        fetch('/analytics/summary'),
+      ]);
+      if (statsRes.status === 'fulfilled' && statsRes.value.ok) {
+        const data = await statsRes.value.json();
         setStats(data.stats);
+      }
+      if (analyticsRes.status === 'fulfilled' && analyticsRes.value.ok) {
+        const aData = await analyticsRes.value.json();
+        setAnalytics(aData);
       }
     } catch (err) {
       console.error('Failed to fetch admin stats:', err);
@@ -83,6 +91,10 @@ export default function AdminPage() {
         setIsAuthenticated(true);
         const data = await res.json();
         setStats(data.stats);
+        try {
+          const aRes = await fetch('/analytics/summary');
+          if (aRes.ok) setAnalytics(await aRes.json());
+        } catch (e) {}
       }
     } catch (err) {
       console.error('Failed to verify admin state:', err);
@@ -602,6 +614,91 @@ export default function AdminPage() {
                             Flush Cache
                           </button>
                         </div>
+                      </div>
+
+                      {/* 7-Day Traffic & Engagement Telemetry */}
+                      <div style={{ marginTop: '24px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <TrendingUp size={18} style={{ color: '#10b981' }} />
+                            <h4 style={{ fontSize: '15px', fontWeight: 800, color: '#fff', margin: 0 }}>7-Day Traffic & Funnel Telemetry</h4>
+                          </div>
+                          <span style={{ fontSize: '11px', color: 'var(--text-3, #64748b)', background: 'rgba(255,255,255,0.03)', padding: '3px 8px', borderRadius: '6px' }}>
+                            {analytics ? `${analytics.period_days || 7} Days Rolling` : 'Loading...'}
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>
+                          <div className="glass-card" style={{ padding: '16px', borderRadius: '14px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
+                            <div style={{ fontSize: '11px', color: 'var(--text-3, #64748b)', fontWeight: 600, textTransform: 'uppercase' }}>Unique Visitors</div>
+                            <div style={{ fontSize: '24px', fontWeight: 800, color: '#fff', marginTop: '4px' }}>{analytics?.unique_sessions ?? '—'}</div>
+                            <div style={{ fontSize: '10.5px', color: '#10b981', marginTop: '2px' }}>Active sessions</div>
+                          </div>
+                          <div className="glass-card" style={{ padding: '16px', borderRadius: '14px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
+                            <div style={{ fontSize: '11px', color: 'var(--text-3, #64748b)', fontWeight: 600, textTransform: 'uppercase' }}>Page Views</div>
+                            <div style={{ fontSize: '24px', fontWeight: 800, color: '#fff', marginTop: '4px' }}>{analytics?.events_by_type?.page_view ?? 0}</div>
+                            <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '2px' }}>Total web hits</div>
+                          </div>
+                          <div className="glass-card" style={{ padding: '16px', borderRadius: '14px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
+                            <div style={{ fontSize: '11px', color: 'var(--text-3, #64748b)', fontWeight: 600, textTransform: 'uppercase' }}>Rooms Created</div>
+                            <div style={{ fontSize: '24px', fontWeight: 800, color: '#fff', marginTop: '4px' }}>{analytics?.events_by_type?.room_created ?? 0}</div>
+                            <div style={{ fontSize: '10.5px', color: 'var(--amber, #ff9f1c)', marginTop: '2px' }}>Jam sessions host</div>
+                          </div>
+                          <div className="glass-card" style={{ padding: '16px', borderRadius: '14px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
+                            <div style={{ fontSize: '11px', color: 'var(--text-3, #64748b)', fontWeight: 600, textTransform: 'uppercase' }}>Room Joins</div>
+                            <div style={{ fontSize: '24px', fontWeight: 800, color: '#fff', marginTop: '4px' }}>{analytics?.events_by_type?.room_joined ?? 0}</div>
+                            <div style={{ fontSize: '10.5px', color: '#38bdf8', marginTop: '2px' }}>Listener arrivals</div>
+                          </div>
+                          <div className="glass-card" style={{ padding: '16px', borderRadius: '14px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
+                            <div style={{ fontSize: '11px', color: 'var(--text-3, #64748b)', fontWeight: 600, textTransform: 'uppercase' }}>Tracks Queued</div>
+                            <div style={{ fontSize: '24px', fontWeight: 800, color: '#fff', marginTop: '4px' }}>{analytics?.events_by_type?.track_queued ?? 0}</div>
+                            <div style={{ fontSize: '10.5px', color: '#a855f7', marginTop: '2px' }}>Songs requested</div>
+                          </div>
+                          <div className="glass-card" style={{ padding: '16px', borderRadius: '14px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
+                            <div style={{ fontSize: '11px', color: 'var(--text-3, #64748b)', fontWeight: 600, textTransform: 'uppercase' }}>Tip Jar Intent</div>
+                            <div style={{ fontSize: '24px', fontWeight: 800, color: '#fff', marginTop: '4px' }}>{analytics?.events_by_type?.tip_modal_opened ?? 0}</div>
+                            <div style={{ fontSize: '10.5px', color: '#f43f5e', marginTop: '2px' }}>Support clicks</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Community Micro-Feedback Sentiment */}
+                      <div style={{ marginTop: '20px', padding: '20px', borderRadius: '16px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <MessageSquare size={16} style={{ color: 'var(--amber, #ff9f1c)' }} />
+                            <h4 style={{ fontSize: '14px', fontWeight: 700, color: '#fff', margin: 0 }}>Community Feedback Sentiment</h4>
+                          </div>
+                          <div style={{ display: 'flex', gap: '12px', fontSize: '12px', fontWeight: 600 }}>
+                            <span style={{ color: '#10b981' }}>😍 {analytics?.feedback_by_rating?.great ?? 0} Great</span>
+                            <span style={{ color: 'var(--amber, #ff9f1c)' }}>😐 {analytics?.feedback_by_rating?.meh ?? 0} Meh</span>
+                            <span style={{ color: '#f87171' }}>😕 {analytics?.feedback_by_rating?.confusing ?? 0} Confusing</span>
+                          </div>
+                        </div>
+
+                        {analytics?.recent_feedback?.length > 0 ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto' }}>
+                            {analytics.recent_feedback.map((fb) => (
+                              <div key={fb.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: '10px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.03)', fontSize: '12.5px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                                  <span style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', flexShrink: 0, background: fb.rating === 'great' ? 'rgba(16,185,129,0.15)' : fb.rating === 'meh' ? 'rgba(255,159,28,0.15)' : 'rgba(239,68,68,0.15)', color: fb.rating === 'great' ? '#10b981' : fb.rating === 'meh' ? '#ff9f1c' : '#f87171' }}>
+                                    {fb.rating}
+                                  </span>
+                                  <span style={{ color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {fb.comment || '(No written comment)'}
+                                  </span>
+                                </div>
+                                <span style={{ fontSize: '11px', color: '#64748b', flexShrink: 0, marginLeft: '12px' }}>
+                                  {fb.created_at ? new Date(fb.created_at).toLocaleDateString() : ''}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p style={{ margin: 0, fontSize: '12.5px', color: 'var(--text-3, #64748b)' }}>
+                            No user feedback submitted yet in this rolling window. In-app micro-feedback automatically prompts active listeners.
+                          </p>
+                        )}
                       </div>
 
                       {/* Global Announcement Broadcast */}
