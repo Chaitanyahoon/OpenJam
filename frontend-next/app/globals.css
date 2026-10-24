@@ -937,7 +937,7 @@ input[type=range]::-moz-range-track {
   background: rgba(3, 3, 5, 0.75) !important;
   backdrop-filter: blur(12px) !important;
   -webkit-backdrop-filter: blur(12px) !important;
-  z-index: 9500 !important;
+  z-index: 10000 !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -1328,7 +1328,7 @@ input[type=range]::-moz-range-track {
 /* ---- Toast ---- */
 .toast-stack {
   position: fixed; bottom: 28px; right: 28px;
-  z-index: 9999; display: flex; flex-direction: column-reverse; gap: 10px;
+  z-index: 10100 !important; display: flex; flex-direction: column-reverse; gap: 10px;
   pointer-events: none;
   align-items: flex-end;
 }
