@@ -2017,7 +2017,7 @@ export default function HomePage({ initialRooms = [] }) {
 
       {/* Floating Preview Control Bar */}
       <AnimatePresence>
-        {activePreview && (
+        {activePreview && !showJoinModal && !showCreateModal && !showLeaveModal && !showSupportModal && (
           <motion.div
             initial={{ opacity: 0, y: 50, x: '-50%' }}
             animate={{ opacity: 1, y: 0, x: '-50%' }}

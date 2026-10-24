@@ -11,26 +11,26 @@ const backdropVariants = {
 };
 
 const modalVariants = {
-  hidden: { opacity: 0, scale: 0.94, y: 22 },
+  hidden: { opacity: 0, scale: 0.94, y: 16 },
   visible: {
     opacity: 1,
     scale: 1,
     y: 0,
-    transition: { type: 'spring', stiffness: 380, damping: 28 },
+    transition: { type: 'spring', stiffness: 420, damping: 30 },
   },
   exit: {
     opacity: 0,
     scale: 0.94,
-    y: 18,
-    transition: { duration: 0.16 },
+    y: 12,
+    transition: { duration: 0.15 },
   },
 };
 
 const PRESET_AMOUNTS = [
   { value: 50, emoji: '☕', label: '₹50', name: 'Chai' },
   { value: 100, emoji: '🎧', label: '₹100', name: 'Coffee' },
-  { value: 250, emoji: '⚡', label: '₹250', name: 'Sync Fuel' },
-  { value: 500, emoji: '🚀', label: '₹500', name: 'Server Core' },
+  { value: 250, emoji: '⚡', label: '₹250', name: 'Fuel' },
+  { value: 500, emoji: '🚀', label: '₹500', name: 'Server' },
 ];
 
 export default function SupportModal({ show, onClose, triggerToast }) {
@@ -42,7 +42,7 @@ export default function SupportModal({ show, onClose, triggerToast }) {
   const [selectedAmount, setSelectedAmount] = useState(100);
   const [customAmount, setCustomAmount] = useState('');
   const [copied, setCopied] = useState(false);
-  const [qrLoaded, setQrLoaded] = useState(false);
+  const [, setQrLoaded] = useState(false);
 
   useEffect(() => {
     if (!show) return undefined;
@@ -67,9 +67,9 @@ export default function SupportModal({ show, onClose, triggerToast }) {
     activeAmount > 0 ? `&am=${activeAmount}` : ''
   }&tn=${encodeURIComponent('Support OpenJam Real-time Audio')}`;
 
-  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
+  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
     upiUri
-  )}&margin=6`;
+  )}&margin=4`;
 
   const handleCopyUPI = async () => {
     try {
@@ -99,7 +99,6 @@ export default function SupportModal({ show, onClose, triggerToast }) {
     <AnimatePresence>
       {show && (
         <motion.div
-          className="modal-bg open"
           role="presentation"
           variants={backdropVariants}
           initial="hidden"
@@ -107,16 +106,20 @@ export default function SupportModal({ show, onClose, triggerToast }) {
           exit="exit"
           onClick={onClose}
           style={{
-            zIndex: 1300,
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10001, // Stay above Stage View (9999) and play-unlock-overlay (9990)
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             backdropFilter: 'blur(16px)',
-            background: 'rgba(5, 5, 8, 0.78)',
+            WebkitBackdropFilter: 'blur(16px)',
+            background: 'rgba(5, 5, 8, 0.82)',
+            padding: '16px',
+            touchAction: 'none',
           }}
         >
           <motion.div
-            className="modal-box"
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}
@@ -127,15 +130,18 @@ export default function SupportModal({ show, onClose, triggerToast }) {
             onClick={(e) => e.stopPropagation()}
             style={{
               position: 'relative',
-              maxWidth: '440px',
-              width: '92%',
-              padding: '24px 22px 20px',
+              maxWidth: '420px',
+              width: '100%',
+              padding: '20px 20px 18px',
+              paddingBottom: 'calc(20px + env(safe-area-inset-bottom, 0px))',
               background: 'linear-gradient(180deg, #16151f 0%, #0d0c13 100%)',
-              border: '1px solid rgba(255, 159, 28, 0.28)',
-              borderRadius: '26px',
-              boxShadow: '0 30px 80px rgba(0, 0, 0, 0.8), 0 0 40px rgba(255, 159, 28, 0.08)',
-              maxHeight: '92vh',
+              border: '1px solid rgba(255, 159, 28, 0.3)',
+              borderRadius: '24px',
+              boxShadow: '0 24px 70px rgba(0, 0, 0, 0.85), 0 0 35px rgba(255, 159, 28, 0.1)',
+              maxHeight: 'min(90vh, 760px)',
               overflowY: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              boxSizing: 'border-box',
             }}
           >
             {/* Top ambient radial glow */}
@@ -145,46 +151,57 @@ export default function SupportModal({ show, onClose, triggerToast }) {
                 top: 0,
                 left: '20%',
                 right: '20%',
-                height: '120px',
-                background: 'radial-gradient(ellipse at top, rgba(255, 159, 28, 0.16), transparent 70%)',
+                height: '100px',
+                background: 'radial-gradient(ellipse at top, rgba(255, 159, 28, 0.18), transparent 70%)',
                 pointerEvents: 'none',
               }}
             />
 
-            {/* Pill Badge */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            {/* Pill Badge & Close Button */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
               <div
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '6px',
+                  gap: '5px',
                   padding: '3px 10px',
-                  borderRadius: '16px',
+                  borderRadius: '999px',
                   background: 'rgba(255, 159, 28, 0.12)',
                   border: '1px solid rgba(255, 159, 28, 0.28)',
                   color: 'var(--theme-accent, #ff9f1c)',
                   fontSize: '10.5px',
                   fontWeight: 800,
-                  letterSpacing: '0.6px',
+                  letterSpacing: '0.4px',
                   textTransform: 'uppercase',
+                  minWidth: 0,
                 }}
               >
-                <Sparkles size={11} />
-                <span>100% Ad-Free • Community Funded</span>
+                <Sparkles size={11} style={{ flexShrink: 0 }} />
+                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  100% Ad-Free • Community Funded
+                </span>
               </div>
 
               <motion.button
                 type="button"
-                className="btn btn-ghost modal-close-btn"
                 onClick={onClose}
                 aria-label="Close support dialog"
                 style={{
                   fontSize: '15px',
-                  padding: '4px 8px',
+                  width: '28px',
+                  height: '28px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   color: 'var(--text-3)',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
                   borderRadius: '50%',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  padding: 0,
                 }}
-                whileHover={{ rotate: 90, scale: 1.15, color: '#ffffff' }}
+                whileHover={{ rotate: 90, scale: 1.1, color: '#ffffff' }}
                 whileTap={{ scale: 0.9 }}
               >
                 ✕
@@ -194,28 +211,28 @@ export default function SupportModal({ show, onClose, triggerToast }) {
             {/* Header Title */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
               <motion.div
-                whileHover={{ scale: 1.08, rotate: 6 }}
+                whileHover={{ scale: 1.06, rotate: 5 }}
                 style={{
-                  width: '42px',
-                  height: '42px',
-                  borderRadius: '14px',
-                  background: 'linear-gradient(135deg, rgba(255, 159, 28, 0.22) 0%, rgba(255, 120, 0, 0.1) 100%)',
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '12px',
+                  background: 'linear-gradient(135deg, rgba(255, 159, 28, 0.25) 0%, rgba(255, 120, 0, 0.1) 100%)',
                   border: '1.5px solid rgba(255, 159, 28, 0.35)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: 'var(--theme-accent, #ff9f1c)',
                   flexShrink: 0,
-                  boxShadow: '0 4px 16px rgba(255, 159, 28, 0.2)',
+                  boxShadow: '0 4px 14px rgba(255, 159, 28, 0.2)',
                 }}
               >
-                <Coffee size={22} />
+                <Coffee size={20} />
               </motion.div>
-              <div>
-                <h2 className="modal-title" id={titleId} style={{ fontSize: '20px', fontWeight: 900, letterSpacing: '-0.3px', margin: 0 }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <h2 id={titleId} style={{ fontSize: '18px', fontWeight: 900, letterSpacing: '-0.3px', margin: 0, color: '#ffffff', lineHeight: 1.2 }}>
                   Fuel OpenJam
                 </h2>
-                <p style={{ fontSize: '12px', color: 'var(--text-3)', margin: '2px 0 0 0', lineHeight: 1.4 }}>
+                <p style={{ fontSize: '11.5px', color: 'var(--text-3)', margin: '3px 0 0 0', lineHeight: 1.35 }}>
                   Keep real-time sync, Redis memory, and 24/7 queues alive
                 </p>
               </div>
@@ -224,32 +241,33 @@ export default function SupportModal({ show, onClose, triggerToast }) {
             {/* Impact Feature Tags */}
             <div
               style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
                 gap: '6px',
-                marginBottom: '16px',
-                padding: '10px 8px',
+                marginBottom: '14px',
+                padding: '8px 10px',
                 background: 'rgba(255, 255, 255, 0.025)',
                 border: '1px solid rgba(255, 255, 255, 0.06)',
-                borderRadius: '14px',
+                borderRadius: '12px',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', justifyContent: 'center' }}>
-                <Zap size={12} style={{ color: '#ff9f1c' }} />
-                <span style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--text-2)' }}>Sub-50ms Sync</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
+                <Zap size={11} style={{ color: '#ff9f1c', flexShrink: 0 }} />
+                <span style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--text-2)', whiteSpace: 'nowrap' }}>Sub-50ms Sync</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', justifyContent: 'center' }}>
-                <ShieldCheck size={12} style={{ color: '#10b981' }} />
-                <span style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--text-2)' }}>Zero Ads Ever</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
+                <ShieldCheck size={11} style={{ color: '#10b981', flexShrink: 0 }} />
+                <span style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--text-2)', whiteSpace: 'nowrap' }}>Zero Ads</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', justifyContent: 'center' }}>
-                <Heart size={12} style={{ color: '#f43f5e' }} />
-                <span style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--text-2)' }}>Direct to Server</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
+                <Heart size={11} style={{ color: '#f43f5e', flexShrink: 0 }} />
+                <span style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--text-2)', whiteSpace: 'nowrap' }}>Direct to Server</span>
               </div>
             </div>
 
             {/* Amount Selection */}
-            <div style={{ marginBottom: '16px' }}>
+            <div style={{ marginBottom: '14px' }}>
               <div
                 style={{
                   fontSize: '11px',
@@ -264,7 +282,7 @@ export default function SupportModal({ show, onClose, triggerToast }) {
                 }}
               >
                 <span>Choose Your Tip</span>
-                <span style={{ color: 'var(--theme-accent, #ff9f1c)', fontSize: '11px' }}>
+                <span style={{ color: 'var(--theme-accent, #ff9f1c)', fontSize: '11px', fontWeight: 700 }}>
                   {activeAmount > 0 ? `Selected: ₹${activeAmount}` : 'Any Amount'}
                 </span>
               </div>
@@ -284,8 +302,8 @@ export default function SupportModal({ show, onClose, triggerToast }) {
                         setSelectedAmount(item.value);
                       }}
                       style={{
-                        padding: '10px 4px 8px',
-                        borderRadius: '14px',
+                        padding: '8px 2px 6px',
+                        borderRadius: '12px',
                         border: isSelected
                           ? '2px solid var(--theme-accent, #ff9f1c)'
                           : '1px solid rgba(255, 255, 255, 0.08)',
@@ -295,15 +313,16 @@ export default function SupportModal({ show, onClose, triggerToast }) {
                         color: isSelected ? '#ffffff' : 'var(--text-2)',
                         cursor: 'pointer',
                         textAlign: 'center',
-                        boxShadow: isSelected ? '0 0 16px rgba(255, 159, 28, 0.25)' : 'none',
-                        transition: 'border 0.15s ease, background 0.15s ease',
+                        boxShadow: isSelected ? '0 0 14px rgba(255, 159, 28, 0.25)' : 'none',
+                        minWidth: 0,
+                        overflow: 'hidden',
                       }}
                     >
-                      <div style={{ fontSize: '16px', marginBottom: '2px' }}>{item.emoji}</div>
-                      <div style={{ fontSize: '13px', fontWeight: 800, color: isSelected ? '#ff9f1c' : '#ffffff' }}>
+                      <div style={{ fontSize: '15px', lineHeight: 1 }}>{item.emoji}</div>
+                      <div style={{ fontSize: '12.5px', fontWeight: 800, color: isSelected ? '#ff9f1c' : '#ffffff', marginTop: '3px' }}>
                         {item.label}
                       </div>
-                      <div style={{ fontSize: '9px', fontWeight: 600, color: isSelected ? '#ffffff' : 'var(--text-3)', marginTop: '2px' }}>
+                      <div style={{ fontSize: '9.5px', fontWeight: 600, color: isSelected ? '#ffffff' : 'var(--text-3)', marginTop: '1px' }}>
                         {item.name}
                       </div>
                     </motion.button>
@@ -318,9 +337,9 @@ export default function SupportModal({ show, onClose, triggerToast }) {
                   alignItems: 'center',
                   background: 'rgba(0, 0, 0, 0.35)',
                   border: customAmount ? '1.5px solid var(--theme-accent, #ff9f1c)' : '1px solid rgba(255, 255, 255, 0.09)',
-                  borderRadius: '12px',
+                  borderRadius: '10px',
                   padding: '2px 10px',
-                  transition: 'border 0.15s ease',
+                  minWidth: 0,
                 }}
               >
                 <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--theme-accent, #ff9f1c)', marginRight: '6px' }}>
@@ -335,10 +354,11 @@ export default function SupportModal({ show, onClose, triggerToast }) {
                   onChange={(e) => setCustomAmount(e.target.value)}
                   style={{
                     flex: 1,
+                    minWidth: 0,
                     fontSize: '12px',
                     background: 'transparent',
                     border: 'none',
-                    padding: '8px 0',
+                    padding: '7px 0',
                     color: '#ffffff',
                     outline: 'none',
                     fontFamily: 'inherit',
@@ -354,7 +374,8 @@ export default function SupportModal({ show, onClose, triggerToast }) {
                       color: 'var(--text-3)',
                       fontSize: '12px',
                       cursor: 'pointer',
-                      padding: '2px 6px',
+                      padding: '2px 4px',
+                      flexShrink: 0,
                     }}
                   >
                     ✕
@@ -363,7 +384,7 @@ export default function SupportModal({ show, onClose, triggerToast }) {
               </div>
             </div>
 
-            {/* QR Card with Instant Scan Container */}
+            {/* QR Card with High-Contrast Instant Scan */}
             <div
               style={{
                 display: 'flex',
@@ -372,10 +393,9 @@ export default function SupportModal({ show, onClose, triggerToast }) {
                 justifyContent: 'center',
                 background: 'linear-gradient(180deg, rgba(20, 20, 28, 0.6) 0%, rgba(10, 10, 15, 0.8) 100%)',
                 border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '20px',
-                padding: '16px 14px',
-                marginBottom: '16px',
-                position: 'relative',
+                borderRadius: '16px',
+                padding: '12px',
+                marginBottom: '12px',
               }}
             >
               {/* Accepted UPI Apps Strip */}
@@ -386,10 +406,12 @@ export default function SupportModal({ show, onClose, triggerToast }) {
                   textTransform: 'uppercase',
                   letterSpacing: '0.6px',
                   color: 'var(--text-3)',
-                  marginBottom: '10px',
+                  marginBottom: '8px',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px',
+                  gap: '5px',
+                  flexWrap: 'wrap',
+                  justifyContent: 'center',
                 }}
               >
                 <span>Scan with</span>
@@ -406,11 +428,10 @@ export default function SupportModal({ show, onClose, triggerToast }) {
               <div
                 style={{
                   background: '#ffffff',
-                  padding: '12px',
-                  borderRadius: '16px',
-                  boxShadow: '0 12px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(255, 159, 28, 0.18)',
-                  marginBottom: '10px',
-                  position: 'relative',
+                  padding: '10px',
+                  borderRadius: '14px',
+                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5), 0 0 16px rgba(255, 159, 28, 0.15)',
+                  marginBottom: '8px',
                 }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -418,13 +439,14 @@ export default function SupportModal({ show, onClose, triggerToast }) {
                   key={upiUri}
                   src={qrImageUrl}
                   alt={`UPI QR code to tip ₹${activeAmount || 100} to OpenJam`}
-                  width={180}
-                  height={180}
+                  width={140}
+                  height={140}
                   onLoad={() => setQrLoaded(true)}
                   style={{
                     display: 'block',
-                    borderRadius: '6px',
-                    transition: 'opacity 0.2s ease',
+                    borderRadius: '4px',
+                    width: '140px',
+                    height: '140px',
                   }}
                 />
               </div>
@@ -434,13 +456,13 @@ export default function SupportModal({ show, onClose, triggerToast }) {
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '6px',
-                  fontSize: '12px',
+                  gap: '5px',
+                  fontSize: '11px',
                   fontWeight: 800,
                   color: 'var(--theme-accent, #ff9f1c)',
                   background: 'rgba(255, 159, 28, 0.1)',
-                  padding: '3px 10px',
-                  borderRadius: '12px',
+                  padding: '2px 8px',
+                  borderRadius: '999px',
                   border: '1px solid rgba(255, 159, 28, 0.25)',
                 }}
               >
@@ -449,49 +471,64 @@ export default function SupportModal({ show, onClose, triggerToast }) {
               </div>
             </div>
 
-            {/* UPI ID Monospace Row */}
-            <div style={{ marginBottom: '12px' }}>
+            {/* UPI ID Monospace Row (Collision-Free) */}
+            <div style={{ marginBottom: '10px' }}>
               <div
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
+                  gap: '8px',
                   background: 'rgba(255, 255, 255, 0.04)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: '14px',
-                  padding: '10px 14px',
+                  border: '1px solid rgba(255, 255, 255, 0.09)',
+                  borderRadius: '12px',
+                  padding: '8px 12px',
+                  minWidth: 0,
                 }}
               >
-                <div style={{ overflow: 'hidden' }}>
-                  <div style={{ fontSize: '9.5px', textTransform: 'uppercase', color: 'var(--text-3)', fontWeight: 800, letterSpacing: '0.6px' }}>
+                <div style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
+                  <div style={{ fontSize: '9px', textTransform: 'uppercase', color: 'var(--text-3)', fontWeight: 800, letterSpacing: '0.6px' }}>
                     Direct UPI VPA
                   </div>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff', fontFamily: 'monospace', letterSpacing: '0.2px' }}>
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      color: '#ffffff',
+                      fontFamily: 'monospace',
+                      letterSpacing: '0.2px',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                    title={upiId}
+                  >
                     {upiId}
                   </div>
                 </div>
                 <motion.button
                   type="button"
                   onClick={handleCopyUPI}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.96 }}
                   className="btn"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 14px',
-                    fontSize: '11.5px',
+                    gap: '5px',
+                    padding: '6px 12px',
+                    fontSize: '11px',
                     fontWeight: 700,
-                    borderRadius: '10px',
+                    borderRadius: '8px',
                     cursor: 'pointer',
                     background: copied ? 'rgba(34, 197, 94, 0.18)' : 'rgba(255, 159, 28, 0.15)',
                     border: copied ? '1px solid #22c55e' : '1px solid rgba(255, 159, 28, 0.35)',
                     color: copied ? '#4ade80' : 'var(--theme-accent, #ff9f1c)',
+                    flexShrink: 0,
                   }}
                 >
-                  {copied ? <Check size={14} style={{ color: '#4ade80' }} /> : <Copy size={14} />}
-                  <span>{copied ? 'Copied!' : 'Copy ID'}</span>
+                  {copied ? <Check size={13} style={{ color: '#4ade80' }} /> : <Copy size={13} />}
+                  <span>{copied ? 'Copied!' : 'Copy'}</span>
                 </motion.button>
               </div>
             </div>
@@ -507,24 +544,25 @@ export default function SupportModal({ show, onClose, triggerToast }) {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '8px',
-                padding: '12px',
+                gap: '6px',
+                padding: '11px',
                 fontSize: '13px',
                 fontWeight: 800,
-                borderRadius: '14px',
+                borderRadius: '12px',
                 textDecoration: 'none',
                 background: 'linear-gradient(135deg, #ff9f1c 0%, #f77f00 100%)',
-                boxShadow: '0 6px 20px rgba(255, 159, 28, 0.35)',
-                marginBottom: '14px',
+                boxShadow: '0 4px 16px rgba(255, 159, 28, 0.3)',
+                marginBottom: '10px',
                 color: '#000000',
+                boxSizing: 'border-box',
               }}
             >
-              <Smartphone size={16} />
+              <Smartphone size={15} />
               <span>Pay {activeAmount > 0 ? `₹${activeAmount}` : ''} via UPI App</span>
             </motion.a>
 
-            {/* International & web fallback */}
-            <div style={{ textAlign: 'center', borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '12px' }}>
+            {/* International & Web Fallback */}
+            <div style={{ textAlign: 'center', borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '10px' }}>
               <a
                 href={externalSupportUrl}
                 target="_blank"
@@ -541,11 +579,11 @@ export default function SupportModal({ show, onClose, triggerToast }) {
                 onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--theme-accent, #ff9f1c)')}
                 onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-3)')}
               >
-                <span>Outside India? Support via web or card</span>
+                <span>Outside India? Card or Web support</span>
                 <ExternalLink size={11} />
               </a>
-              <div style={{ fontSize: '10px', color: 'var(--text-3)', marginTop: '4px', opacity: 0.65 }}>
-                100% of contributions directly pay monthly server bills. Thank you! ❤️
+              <div style={{ fontSize: '9.5px', color: 'var(--text-3)', marginTop: '3px', opacity: 0.65 }}>
+                100% of contributions pay monthly streaming servers. Thank you! ❤️
               </div>
             </div>
           </motion.div>
