@@ -3,6 +3,7 @@
 import React, { useEffect, useId, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Coffee, Copy, Check, ExternalLink, Smartphone, Sparkles, Zap, ShieldCheck, Heart } from 'lucide-react';
+import { trackEvent } from '@/utils/analytics';
 
 const backdropVariants = {
   hidden: { opacity: 0 },
@@ -47,6 +48,8 @@ export default function SupportModal({ show, onClose, triggerToast }) {
   useEffect(() => {
     if (!show) return undefined;
 
+    trackEvent('tip_modal_opened');
+
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') onClose();
     };
@@ -84,6 +87,7 @@ export default function SupportModal({ show, onClose, triggerToast }) {
         document.body.removeChild(input);
       }
       setCopied(true);
+      trackEvent('tip_modal_opened', { action: 'copy_upi', amount: activeAmount });
       if (triggerToast) {
         triggerToast('UPI ID copied to clipboard!', 'success');
       }
@@ -536,6 +540,7 @@ export default function SupportModal({ show, onClose, triggerToast }) {
             {/* Mobile UPI Direct App Intent */}
             <motion.a
               href={upiUri}
+              onClick={() => trackEvent('tip_modal_opened', { action: 'pay_upi_intent', amount: activeAmount })}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               className="btn btn-primary"
