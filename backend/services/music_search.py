@@ -460,12 +460,73 @@ class MusicSearchService:
 
     _reco_cache: list = []
     _reco_cache_date: str = ""
+    _artist_reco_cache: dict = {}
 
-    async def get_recommendations(self, limit: int = 12) -> list:
-        """Return trending tracks from iTunes Top Songs asynchronously, with daily rotation."""
+    async def get_recommendations(self, artist: str = "", track: str = "", limit: int = 12) -> list:
+        """Return contextual recommendations based on current playing artist, or trending tracks if empty."""
         import random
         from datetime import date
 
+        # 1. Contextual recommendations based on artist / track
+        clean_artist = ""
+        if artist and artist.strip():
+            clean_artist = re.split(r'[,/&]|(?:\s+feat\.?|\s+ft\.?)', artist.strip(), flags=re.IGNORECASE)[0].strip() or artist.strip()
+
+        if clean_artist:
+            cache_key = f"{clean_artist.lower()}_{track.strip().lower()}"
+            if cache_key in self._artist_reco_cache:
+                return self._artist_reco_cache[cache_key][:limit]
+
+            try:
+                params = urllib.parse.urlencode({
+                    "term": clean_artist,
+                    "media": "music",
+                    "entity": "song",
+                    "limit": min(limit + 8, 25),
+                })
+                url = f"{ITUNES_API}?{params}"
+                async with httpx.AsyncClient(timeout=4.0) as client:
+                    resp = await client.get(url, headers={"User-Agent": "OpenJam/1.0"})
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        results = data.get("results", [])
+                        contextual_tracks = []
+                        seen_titles = set()
+                        norm_current_track = track.strip().lower()
+
+                        for item in results:
+                            if item.get("kind") != "song":
+                                continue
+                            name = item.get("trackName", "Unknown")
+                            norm_name = name.lower()
+
+                            # Exclude currently playing track
+                            if norm_current_track and (norm_current_track in norm_name or norm_name in norm_current_track):
+                                continue
+
+                            if norm_name in seen_titles:
+                                continue
+                            seen_titles.add(norm_name)
+
+                            artist_name = item.get("artistName", clean_artist)
+                            artwork = (item.get("artworkUrl100") or "").replace("100x100bb", "600x600bb")
+                            duration_ms = item.get("trackTimeMillis") or 0
+
+                            contextual_tracks.append({
+                                "name": name,
+                                "artist": artist_name,
+                                "album_art_url": artwork or None,
+                                "uri": f"{name} {artist_name} official audio",
+                                "duration_ms": duration_ms,
+                            })
+
+                        if contextual_tracks:
+                            self._artist_reco_cache[cache_key] = contextual_tracks
+                            return contextual_tracks[:limit]
+            except Exception as e:
+                logger.warning(f"Contextual recommendations query failed for '{clean_artist}': {e}")
+
+        # 2. General trending discovery recommendations
         today = date.today().isoformat()
         if self._reco_cache and self._reco_cache_date == today:
             return self._reco_cache[:limit]
@@ -610,8 +671,8 @@ class MusicSearchService:
     def resolve_youtube_sync(self, query: str) -> str | None:
         return self._run_async_in_thread(self.resolve_youtube(query))
 
-    def get_recommendations_sync(self, limit: int = 12) -> list:
-        return self._run_async_in_thread(self.get_recommendations(limit))
+    def get_recommendations_sync(self, artist: str = "", track: str = "", limit: int = 12) -> list:
+        return self._run_async_in_thread(self.get_recommendations(artist=artist, track=track, limit=limit))
 
     def resolve_youtube_metadata_sync(self, video_id: str) -> dict | None:
         return self._run_async_in_thread(self.resolve_youtube_metadata(video_id))

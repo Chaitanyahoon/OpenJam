@@ -396,24 +396,41 @@ export default function RoomClient({ roomId }) {
     if (typeof window !== 'undefined') {
       localStorage.setItem('activeRoomPath', window.location.pathname);
     }
-    const fetchRecommendations = async () => {
-      try {
-        const res = await fetch('/search/recommendations');
-        if (res.ok) {
-          const data = await res.json();
-          setRecommendations(data.tracks || []);
-        }
-      } catch (err) {
-        console.error('Failed to fetch recommendations:', err);
-      }
-    };
-    fetchRecommendations();
     return () => {
       if (typeof document !== 'undefined') {
         document.body.classList.remove('room-page');
       }
     };
   }, []);
+
+  // Contextual recommendations: dynamically fetch suggestions matching active artist & track
+  useEffect(() => {
+    let isCancelled = false;
+    const fetchContextualRecs = async () => {
+      try {
+        const artist = nowPlaying?.artist || '';
+        const track = nowPlaying?.track_name || '';
+        const queryParams = new URLSearchParams();
+        if (artist) queryParams.set('artist', artist);
+        if (track) queryParams.set('track', track);
+        const qStr = queryParams.toString();
+        const url = `/search/recommendations${qStr ? '?' + qStr : ''}`;
+        const res = await fetch(url);
+        if (res.ok && !isCancelled) {
+          const data = await res.json();
+          if (data.tracks && data.tracks.length > 0) {
+            setRecommendations(data.tracks);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch recommendations:', err);
+      }
+    };
+    fetchContextualRecs();
+    return () => {
+      isCancelled = true;
+    };
+  }, [nowPlaying?.artist, nowPlaying?.track_name]);
 
   useEffect(() => {
     if (typeof document !== 'undefined') {
@@ -4675,7 +4692,7 @@ export default function RoomClient({ roomId }) {
                               ✨ Suggested Next
                             </span>
                             <span style={{ fontSize: '10.5px', color: 'rgba(255,255,255,0.4)' }}>
-                              Queue running low
+                              {nowPlaying?.artist ? `More from ${nowPlaying.artist.split(/[,/&]|(?:\s+feat\.?|\s+ft\.?)/i)[0].trim()}` : 'Queue running low'}
                             </span>
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -7544,7 +7561,7 @@ export default function RoomClient({ roomId }) {
                               ✨ Suggested Next
                             </span>
                             <span style={{ fontSize: '10.5px', color: 'rgba(255,255,255,0.4)' }}>
-                              Queue running low
+                              {nowPlaying?.artist ? `More from ${nowPlaying.artist.split(/[,/&]|(?:\s+feat\.?|\s+ft\.?)/i)[0].trim()}` : 'Queue running low'}
                             </span>
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>

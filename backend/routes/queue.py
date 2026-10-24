@@ -221,9 +221,9 @@ async def get_alternate_track(q: str = "", exclude: str = ""):
 
 
 @router.get("/search/recommendations")
-async def get_recommendations():
-    """Return trending/popular tracks as search starting suggestions (no key needed)."""
-    tracks = await music_search_service.get_recommendations()
+async def get_recommendations(artist: str = "", track: str = ""):
+    """Return trending or artist-contextual tracks as queue recommendations."""
+    tracks = await music_search_service.get_recommendations(artist=artist, track=track)
     if tracks:
         asyncio.create_task(pre_resolve_search_results(tracks[:3]))
     return {"tracks": tracks}
