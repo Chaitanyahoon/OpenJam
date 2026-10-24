@@ -509,7 +509,20 @@ class MusicSearchService:
                     continue
 
         if not all_tracks:
-            return []
+            try:
+                from backend.constants import LOUNGE_DISCOVERY_TRACKS
+                all_tracks = [
+                    {
+                        "name": t["track_name"],
+                        "artist": t["artist"],
+                        "album_art_url": t.get("album_art_url", ""),
+                        "uri": t["track_uri"],
+                        "duration_ms": t.get("duration_ms", 0),
+                    }
+                    for t in LOUNGE_DISCOVERY_TRACKS
+                ]
+            except Exception:
+                return []
 
         # Deterministic daily shuffle — same order for everyone today, different tomorrow
         rng = random.Random(today)

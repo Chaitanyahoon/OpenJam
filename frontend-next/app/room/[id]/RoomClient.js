@@ -4673,6 +4673,34 @@ export default function RoomClient({ roomId }) {
                                 </span>
                               </div>
                             ))}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                recommendations.slice(0, 3).forEach((rec, idx) => {
+                                  setTimeout(() => handleAddTrack(rec), idx * 120);
+                                });
+                                triggerToast('Adding recommended vibe tracks to queue…', 'info');
+                              }}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '6px',
+                                padding: '8px 16px',
+                                borderRadius: '10px',
+                                background: 'rgba(255, 159, 28, 0.1)',
+                                border: '1px solid rgba(255, 159, 28, 0.25)',
+                                color: 'var(--theme-accent, #ff9f1c)',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                marginTop: '4px',
+                                width: '100%',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              ▶ Start Recommended Vibe (3 tracks)
+                            </button>
                           </div>
                         )}
                       </div>
