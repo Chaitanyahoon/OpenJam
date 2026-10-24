@@ -156,10 +156,14 @@ export async function generateMetadata({ params }) {
   };
 }
 
-export default function RoomPage() {
+export default async function RoomPage({ params }) {
+  const resolvedParams = params ? await params : null;
+  const rawId = resolvedParams?.id;
+  const roomId = Array.isArray(rawId) ? rawId[0] : (rawId || null);
+
   return (
     <Suspense fallback={<RoomSkeleton />}>
-      <RoomPageClient />
+      <RoomPageClient initialRoomId={roomId} />
     </Suspense>
   );
 }

@@ -10,10 +10,10 @@ const RoomClientNoSSR = dynamic(() => import('./RoomClient'), {
   loading: () => <RoomSkeleton />
 });
 
-export default function RoomPageClient() {
+export default function RoomPageClient({ initialRoomId = null }) {
   const params = useParams();
-  const rawId = params?.id;
+  const rawId = params?.id || initialRoomId;
   const roomId = Array.isArray(rawId) ? rawId[0] : (rawId || null);
-  if (!roomId) return <RoomSkeleton />;
+  if (!roomId || roomId === 'loading') return <RoomSkeleton />;
   return <RoomClientNoSSR roomId={roomId} />;
 }

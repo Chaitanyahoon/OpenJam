@@ -67,20 +67,57 @@ export default function GlobalError({ error, reset }) {
           color: 'var(--text-3, #64748b)',
           fontSize: '14px',
           lineHeight: 1.6,
-          marginBottom: '32px'
+          marginBottom: error?.message ? '16px' : '32px'
         }}>
           An unexpected error occurred. We have logged the details and are working to stabilize the system.
         </p>
 
-        <motion.button 
-          onClick={reset} 
-          className="btn btn-primary"
-          style={{ padding: '12px 36px', border: 'none', cursor: 'pointer' }}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          Try again
-        </motion.button>
+        {error?.message && (
+          <code style={{
+            fontSize: '12px',
+            color: '#f43f5e',
+            background: 'rgba(244, 63, 94, 0.1)',
+            border: '1px solid rgba(244, 63, 94, 0.2)',
+            padding: '8px 14px',
+            borderRadius: '8px',
+            marginBottom: '28px',
+            maxWidth: '100%',
+            wordBreak: 'break-word',
+            display: 'inline-block'
+          }}>
+            {error.message}
+          </code>
+        )}
+
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
+          <motion.button 
+            onClick={reset} 
+            className="btn btn-primary"
+            style={{ padding: '12px 28px', border: 'none', cursor: 'pointer' }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            Try again
+          </motion.button>
+
+          <motion.button 
+            onClick={() => { window.location.href = '/'; }} 
+            className="btn btn-secondary"
+            style={{ 
+              padding: '12px 24px', 
+              background: 'rgba(255, 255, 255, 0.08)', 
+              color: '#fff', 
+              border: '1px solid rgba(255, 255, 255, 0.15)', 
+              borderRadius: '9999px',
+              cursor: 'pointer',
+              fontWeight: 600
+            }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            Back to Home
+          </motion.button>
+        </div>
       </motion.div>
     </div>
   );
