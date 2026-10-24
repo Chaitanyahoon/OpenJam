@@ -3180,7 +3180,7 @@ export default function RoomClient({ roomId }) {
       <div className={`room-ambient ${nowPlaying?.album_art_url ? 'active' : ''}`} id="room-ambient" style={ambientBackgroundStyle}></div>
 
       {/* Floating Reactions Render */}
-      <div ref={reactionContainerRef} className="reaction-container" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 1000 }} />
+      <div ref={reactionContainerRef} className="reaction-container" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 10000 }} />
 
       {/* ══ MOBILE APP BANNER ════════════════════════════════════ */}
       {showAppBanner && (
@@ -6949,6 +6949,33 @@ export default function RoomClient({ roomId }) {
                       fill={favourites.some(f => f.track_uri === nowPlaying?.track_uri) ? '#ff2a5f' : 'none'}
                     />
                   </motion.button>
+
+                  {/* Stage Mode Quick Reactions */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '3px', borderLeft: '1px solid rgba(255,255,255,0.12)', borderRight: '1px solid rgba(255,255,255,0.12)', padding: '0 6px', margin: '0 2px' }}>
+                    {['❤️', '🔥', '⚡', '🎵'].map((emoji) => (
+                      <motion.button
+                        key={emoji}
+                        type="button"
+                        whileHover={{ scale: 1.25 }}
+                        whileTap={{ scale: 0.82 }}
+                        onClick={() => handleSendReaction(emoji)}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          fontSize: '15px',
+                          cursor: 'pointer',
+                          padding: '2px 4px',
+                          lineHeight: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                        title={`React ${emoji}`}
+                      >
+                        {emoji}
+                      </motion.button>
+                    ))}
+                  </div>
 
                   {/* Horizontal Volume Bar with Exponential Loudness & Wheel Scroll */}
                   <div 
