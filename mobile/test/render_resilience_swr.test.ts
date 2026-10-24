@@ -200,4 +200,35 @@ describe('Render Free-Tier Resilience & SWR Engine', () => {
     assert.strictEqual(canModerateQueue(false, false, false), false); // Standard listener without controls
     assert.strictEqual(canModerateQueue(false, false, true), true); // Solo jam session
   });
+
+  it('correctly maps 24/7 radio stations and tags for Bollywood and Top Hits genres', () => {
+    const genreMap: Record<string, string[]> = {
+      'Bollywood & Desi': ['bollywood', 'desi', 'hindi', 'punjabi', 'india', 'filmi', 'bhangra'],
+      'Top Hits': ['hits', 'pop', 'billboard', 'chart', 'trending'],
+    };
+
+    const rooms = [
+      { id: 'openjam-desi', name: 'OpenJam Bollywood', host_name: 'Bot', listener_count: 5, is_private: false, genre_tags: ['bollywood', 'desi'] },
+      { id: 'openjam-hits', name: 'OpenJam Top Hits', host_name: 'Bot', listener_count: 8, is_private: false, genre_tags: ['pop', 'hits'] },
+      { id: 'openjam-lounge', name: 'OpenJam Lounge', host_name: 'Bot', listener_count: 3, is_private: false, genre_tags: ['lofi', 'chill'] },
+    ];
+
+    const filterByGenre = (genre: string) => {
+      const keywords = genreMap[genre] || [genre.toLowerCase()];
+      return rooms.filter((r) => {
+        const roomTags = (r.genre_tags || []).map((t) => t.toLowerCase().trim());
+        const roomName = (r.name || '').toLowerCase();
+        const roomId = (r.id || '').toLowerCase();
+        return keywords.some((kw) => roomTags.some((tag) => tag.includes(kw) || kw.includes(tag)) || roomName.includes(kw) || roomId.includes(kw));
+      });
+    };
+
+    const desiRooms = filterByGenre('Bollywood & Desi');
+    assert.strictEqual(desiRooms.length, 1);
+    assert.strictEqual(desiRooms[0].id, 'openjam-desi');
+
+    const hitsRooms = filterByGenre('Top Hits');
+    assert.strictEqual(hitsRooms.length, 1);
+    assert.strictEqual(hitsRooms[0].id, 'openjam-hits');
+  });
 });

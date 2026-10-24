@@ -40,10 +40,12 @@ import {
 // Complete WebBrowser session if returning from OAuth
 WebBrowser.maybeCompleteAuthSession();
 
-const GENRES = ['All', 'Lofi & Chill', 'Synthwave', 'Hip Hop', 'Ambient'] as const;
+const GENRES = ['All', 'Lofi & Chill', 'Bollywood & Desi', 'Top Hits', 'Synthwave', 'Hip Hop', 'Ambient'] as const;
 
 const GENRE_MAP: Record<string, string[]> = {
   'Lofi & Chill': ['lofi', 'chill', 'beats', 'study', 'relax', 'cafe', 'lounge'],
+  'Bollywood & Desi': ['bollywood', 'desi', 'hindi', 'punjabi', 'india', 'filmi', 'bhangra'],
+  'Top Hits': ['hits', 'pop', 'billboard', 'chart', 'trending'],
   'Synthwave': ['synthwave', 'retrowave', '80s', 'electronic', 'synth', 'cyberpunk', 'sunset'],
   'Hip Hop': ['hip-hop', 'hiphop', 'rap', 'trap', 'boom-bap', 'beats', 'r&b'],
   'Ambient': ['ambient', 'drone', 'meditation', 'focus', 'atmosphere', 'peaceful'],
@@ -364,7 +366,8 @@ export default function Landing() {
       list = list.filter((r) => {
         const roomTags = (r.genre_tags || []).map((t) => t.toLowerCase().trim());
         const roomName = (r.name || '').toLowerCase();
-        return targetKeywords.some((kw) => roomTags.some((tag) => tag.includes(kw) || kw.includes(tag)) || roomName.includes(kw));
+        const roomId = (r.id || '').toLowerCase();
+        return targetKeywords.some((kw) => roomTags.some((tag) => tag.includes(kw) || kw.includes(tag)) || roomName.includes(kw) || roomId.includes(kw));
       });
     }
     const q = searchQuery.trim().toLowerCase();

@@ -16,6 +16,8 @@ import { hapticMedium } from '../../utils/haptics';
 const DEFAULT_GENRES: readonly string[] = [
   'All',
   'Lofi & Chill',
+  'Bollywood & Desi',
+  'Top Hits',
   'Synthwave',
   'Hip Hop',
   'Ambient',
