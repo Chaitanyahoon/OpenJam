@@ -6154,6 +6154,26 @@ export default function RoomClient({ roomId }) {
                   />
                   <button className="btn btn-primary" onClick={handleCopyInvite} style={{ padding: '0 20px', fontSize: '13px', borderRadius: '10px', fontWeight: 600 }}>Copy Link</button>
                 </div>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                  <a
+                    href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`🎧 Join me in "${room?.name || 'OpenJam'}"! Listen together in real-time sync:\n${typeof window !== 'undefined' ? `${window.location.origin}/room/${room?.slug || roomId}` : ''}`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn"
+                    style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: 'rgba(37, 211, 102, 0.12)', border: '1px solid rgba(37, 211, 102, 0.28)', color: '#25d366', fontSize: '12px', fontWeight: 600, padding: '8px 12px', borderRadius: '10px', textDecoration: 'none' }}
+                  >
+                    <span>💬 WhatsApp</span>
+                  </a>
+                  <a
+                    href={`https://t.me/share/url?url=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/room/${room?.slug || roomId}` : '')}&text=${encodeURIComponent(`🎧 Join me in "${room?.name || 'OpenJam'}" on OpenJam`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn"
+                    style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: 'rgba(0, 136, 204, 0.12)', border: '1px solid rgba(0, 136, 204, 0.28)', color: '#38bdf8', fontSize: '12px', fontWeight: 600, padding: '8px 12px', borderRadius: '10px', textDecoration: 'none' }}
+                  >
+                    <span>✈️ Telegram</span>
+                  </a>
+                </div>
               </div>
             </motion.div>
           </div>
