@@ -1,16 +1,7 @@
 import React, { Suspense } from 'react';
 import RoomPageClient from './RoomPageClient';
 import { RoomSkeleton } from '@/components/SkeletonLoaders';
-
-function getBackendUrl() {
-  if (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_BACKEND_URL) {
-    const url = process.env.NEXT_PUBLIC_BACKEND_URL;
-    if (url && url !== 'undefined' && url !== 'null' && url.trim() !== '') {
-      return url.replace(/\/$/, '').replace(/\/health\/?$/, '');
-    }
-  }
-  return 'https://openjam-backend.onrender.com';
-}
+import { getBackendUrl } from '@/utils/config';
 
 export function generateStaticParams() {
   return [{ id: 'loading' }];
