@@ -15,7 +15,7 @@ function RoomCard({ room, nameColor, getInitials, href, isSaved = false, onToggl
     if (room.id === 'openjam-hits') return '⚡ 24/7 Top Hits';
     if (room.id === 'openjam-synth') return '🌙 24/7 Synth';
     if (room.is_private) return 'Private';
-    return 'Live';
+    return '👥 Live Jam';
   };
 
   const t = room.current_track;

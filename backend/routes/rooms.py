@@ -64,7 +64,8 @@ async def list_rooms(
                     pass
             is_my_room = current_user_id and room.host_user_id == current_user_id
             is_lounge = is_curated_room(room.id)
-            if count == 0 and age_seconds > 30 and not is_my_room and not is_lounge:
+            # Allow active user rooms to stay visible for 2 hours even with 0 listeners, instead of aggressive 30s drop
+            if count == 0 and age_seconds > 7200 and not is_my_room and not is_lounge:
                 continue
                 
             host_name = room.host.display_name if room.host else "Unknown"
@@ -74,8 +75,21 @@ async def list_rooms(
                 current_track=now_playing,
                 host_name=host_name,
             ))
-        # Pin openjam-lounge at the top, then sort by listener_count desc
-        visible_rooms.sort(key=lambda r: (1 if is_curated_room(r["id"]) else 0, r["listener_count"]), reverse=True)
+        # Prioritize openjam-lounge at top, then active user rooms, then recent user rooms, then secondary bot stations
+        def _room_priority(r):
+            rid = r["id"]
+            is_bot = is_curated_room(rid)
+            listeners = r.get("listener_count", 0)
+            if rid == "openjam-lounge":
+                return (4, 0)
+            elif not is_bot and listeners > 0:
+                return (3, listeners)
+            elif not is_bot:
+                return (2, listeners)
+            else:
+                return (1, listeners)
+
+        visible_rooms.sort(key=_room_priority, reverse=True)
         total = len(visible_rooms)
         return {"rooms": visible_rooms[skip:skip + limit], "total": total}
 

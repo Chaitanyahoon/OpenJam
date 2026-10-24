@@ -149,8 +149,8 @@ async def _room_cleanup_loop():
                             age_seconds = (now_dt - r_created_at).total_seconds()
                         else:
                             age_seconds = 9999
-                        # If the room has been in DB for > 120 seconds but never joined/created in Redis, deactivate it
-                        if age_seconds > 120:
+                        # If the room has been in DB for > 30 minutes but never joined/created in Redis, deactivate it
+                        if age_seconds > 1800:
                             rooms_to_delete.append(r.id)
                     else:
                         # Room is in Redis. Verify users still have active connections
@@ -175,7 +175,7 @@ async def _room_cleanup_loop():
                         if not users:
                             empty_since = room_data.get("empty_since")
                             if empty_since:
-                                if now_unix - empty_since > 120:  # 2 minutes
+                                if now_unix - empty_since > 1800:  # 30 minutes grace period
                                     rooms_to_delete.append(r.id)
                             else:
                                 # No empty_since set but users is empty. Set it now.

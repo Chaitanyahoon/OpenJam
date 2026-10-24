@@ -445,19 +445,47 @@ export default function HomePage({ initialRooms = [] }) {
   // Filter & Search
   const filteredRooms = useMemo(() => {
     const q = searchQuery.toLowerCase();
-    return rooms.filter((r) => {
+    const result = rooms.filter((r) => {
+      const isCurated = Boolean(r.id && (r.id.startsWith('openjam-') || r.id === 'openjam-lounge'));
+
+      if (activeGenreFilter === '__saved__') {
+        const isSaved = savedRoomIds.includes(r.id) || (r.slug && savedRoomIds.includes(r.slug));
+        return isSaved;
+      }
+
+      if (activeGenreFilter === '__people__') {
+        if (isCurated) return false;
+      } else if (activeGenreFilter === '__radio__') {
+        if (!isCurated) return false;
+      }
+
       const matchQuery =
         !q ||
         r.name.toLowerCase().includes(q) ||
         (r.genre_tags || []).some((t) => t.toLowerCase().includes(q));
 
-      if (activeGenreFilter === '__saved__') {
-        const isSaved = savedRoomIds.includes(r.id) || (r.slug && savedRoomIds.includes(r.slug));
-        return matchQuery && isSaved;
-      }
+      const matchGenre =
+        !activeGenreFilter ||
+        activeGenreFilter === '__people__' ||
+        activeGenreFilter === '__radio__' ||
+        (r.genre_tags || []).includes(activeGenreFilter);
 
-      const matchGenre = !activeGenreFilter || (r.genre_tags || []).includes(activeGenreFilter);
       return matchQuery && matchGenre;
+    });
+
+    // Real human rooms prioritized, then openjam-lounge, then secondary bot stations
+    return result.sort((a, b) => {
+      const aBot = Boolean(a.id && (a.id.startsWith('openjam-') || a.id === 'openjam-lounge'));
+      const bBot = Boolean(b.id && (b.id.startsWith('openjam-') || b.id === 'openjam-lounge'));
+      const aListeners = a.listener_count || 0;
+      const bListeners = b.listener_count || 0;
+
+      if (!aBot && bBot) return -1;
+      if (aBot && !bBot) return 1;
+      if (!aBot && !bBot) return bListeners - aListeners;
+      if (a.id === 'openjam-lounge') return -1;
+      if (b.id === 'openjam-lounge') return 1;
+      return bListeners - aListeners;
     });
   }, [rooms, searchQuery, activeGenreFilter, savedRoomIds]);
 
@@ -1793,7 +1821,7 @@ export default function HomePage({ initialRooms = [] }) {
           <div className="rooms-toolbar-meta">
             <span className="results-copy">
               Showing {filteredRooms.length} result{filteredRooms.length !== 1 ? 's' : ''}
-              {activeGenreFilter ? ` in ${activeGenreFilter}` : ''}
+              {activeGenreFilter === '__people__' ? ' in 👥 People Jams' : activeGenreFilter === '__radio__' ? ' in 📻 24/7 Radio' : activeGenreFilter === '__saved__' ? ' in Saved Rooms' : activeGenreFilter ? ` in ${activeGenreFilter}` : ''}
               {searchQuery ? ` for "${searchQuery}"` : ''}
             </span>
             {(searchQuery || activeGenreFilter) && (
@@ -1821,6 +1849,24 @@ export default function HomePage({ initialRooms = [] }) {
               whileTap={{ scale: 0.92 }}
             >
               All
+            </motion.button>
+            <motion.button
+              className={`genre-chip ${activeGenreFilter === '__people__' ? 'active' : ''}`}
+              onClick={() => setActiveGenreFilter(activeGenreFilter === '__people__' ? null : '__people__')}
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+            >
+              <span>👥 People Jams</span>
+            </motion.button>
+            <motion.button
+              className={`genre-chip ${activeGenreFilter === '__radio__' ? 'active' : ''}`}
+              onClick={() => setActiveGenreFilter(activeGenreFilter === '__radio__' ? null : '__radio__')}
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+            >
+              <span>📻 24/7 Radio</span>
             </motion.button>
             {savedRoomIds.length > 0 && (
               <motion.button
