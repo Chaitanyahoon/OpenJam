@@ -185,16 +185,18 @@ async def create_room(request: Request, create_room_req: CreateRoomRequest, db: 
     room_dict = await asyncio.to_thread(_db_create_room)
     
     if not is_private and room_dict.get("id"):
-        async def _notify_indexnow_bg(room_id: str):
+        async def _notify_indexnow_bg(room_id: str, slug: str | None = None):
             try:
                 import httpx
                 INDEXNOW_KEY = "5a8e2b9c7d1f4e3a8b6c0d2e1f4a7b9c"
                 HOST = "www.openjam.fun"
+                urls = [f"https://{HOST}/room/{slug}"] if slug and slug != room_id else []
+                urls.append(f"https://{HOST}/room/{room_id}")
                 payload = {
                     "host": HOST,
                     "key": INDEXNOW_KEY,
                     "keyLocation": f"https://{HOST}/{INDEXNOW_KEY}.txt",
-                    "urlList": [f"https://{HOST}/room/{room_id}"]
+                    "urlList": urls
                 }
                 async with httpx.AsyncClient(timeout=4.0) as client:
                     await client.post(
@@ -202,11 +204,11 @@ async def create_room(request: Request, create_room_req: CreateRoomRequest, db: 
                         json=payload,
                         headers={"Content-Type": "application/json; charset=utf-8"}
                     )
-                    logger.info(f"IndexNow pinged for public room {room_id}")
+                    logger.info(f"IndexNow pinged for public room {room_id} ({urls})")
             except Exception as e:
                 logger.debug(f"IndexNow notification failed: {e}")
         
-        asyncio.create_task(_notify_indexnow_bg(room_dict["id"]))
+        asyncio.create_task(_notify_indexnow_bg(room_dict["id"], room_dict.get("slug")))
 
     return {"room": room_dict}
 def check_room_access(room: Room, user_id: str | None, is_admin: bool = False) -> bool:
