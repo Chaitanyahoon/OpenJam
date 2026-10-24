@@ -937,7 +937,7 @@ input[type=range]::-moz-range-track {
   background: rgba(3, 3, 5, 0.75) !important;
   backdrop-filter: blur(12px) !important;
   -webkit-backdrop-filter: blur(12px) !important;
-  z-index: 900 !important;
+  z-index: 9500 !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -959,6 +959,9 @@ input[type=range]::-moz-range-track {
   padding: 32px !important;
   width: 100% !important;
   max-width: 460px !important;
+  max-height: min(90vh, 780px) !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
   box-shadow: 
     0 32px 80px rgba(0, 0, 0, 0.75), 
     inset 0 1px 0 rgba(255, 255, 255, 0.05), 
@@ -3457,8 +3460,12 @@ body:not(.room-page) .navbar {
   .modal-bg { align-items: flex-end; padding: 0; }
   .modal-box {
     max-width: 100%;
+    max-height: 88vh !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
     border-radius: var(--r-xl) var(--r-xl) 0 0;
     padding: var(--s6);
+    padding-bottom: calc(var(--s6) + env(safe-area-inset-bottom, 16px));
     transform: translateY(100%);
   }
   .modal-bg.open .modal-box,
