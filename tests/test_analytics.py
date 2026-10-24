@@ -72,6 +72,7 @@ def test_submit_feedback_invalid_rating(client):
 def test_analytics_summary(client):
     # Track some events first
     client.post("/analytics/event", json={"event": "page_view", "session_id": "s_sum_1"})
+    client.post("/analytics/event", json={"event": "room_view", "session_id": "s_sum_1", "room_id": "chill-lounge"})
     client.post("/analytics/event", json={"event": "track_queued", "session_id": "s_sum_1"})
     client.post("/analytics/feedback", json={"rating": "meh", "comment": "needs more tracks"})
 

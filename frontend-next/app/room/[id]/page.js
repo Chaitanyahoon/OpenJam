@@ -45,7 +45,7 @@ export async function generateMetadata({ params }) {
   }
 
   try {
-    const backendUrl = getBackendUrl();
+    const backendUrl = (typeof getBackendUrl === 'function' ? getBackendUrl() : null) || process.env.NEXT_PUBLIC_BACKEND_URL || 'https://openjam-backend.onrender.com';
     const response = await fetch(`${backendUrl}/rooms/${id}`, { next: { revalidate: 30 } });
     
     if (response.ok) {

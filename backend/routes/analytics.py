@@ -20,12 +20,15 @@ router = APIRouter(prefix="/analytics", tags=["analytics"])
 ALLOWED_RATINGS = {"great", "meh", "confusing"}
 ALLOWED_EVENTS = {
     "page_view",
+    "room_view",
     "room_joined",
     "room_created",
     "track_queued",
     "invite_copied",
     "session_duration",
     "tip_modal_opened",
+    "feedback_prompt_shown",
+    "feedback_dismissed",
 }
 
 
