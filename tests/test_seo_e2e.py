@@ -76,7 +76,7 @@ class TestTier1SearchIndexing:
         const cleanCode = code
           .replace(/import\\s+[\\s\\S]*?from\\s+['"][^'"]+['"];?/g, '')
           .replace(/export\\s+function\\s+generateStaticParams[\\s\\S]*?\\}\\n/g, '')
-          .replace(/export\\s+default\\s+function\\s+RoomPage[\\s\\S]*$/g, '')
+          .replace(/export\\s+default\\s+(?:async\\s+)?function\\s+RoomPage[\\s\\S]*$/g, '')
           .replace(/export\\s+/g, '');
 
         const evalFunc = new Function('roomId', 'return (async () => {' + cleanCode + '; return await generateMetadata({ params: Promise.resolve({ id: roomId }) });})()');
@@ -122,7 +122,7 @@ class TestTier1SearchIndexing:
         const cleanCode = code
           .replace(/import\\s+[\\s\\S]*?from\\s+['"][^'"]+['"];?/g, '')
           .replace(/export\\s+function\\s+generateStaticParams[\\s\\S]*?\\}\\n/g, '')
-          .replace(/export\\s+default\\s+function\\s+RoomPage[\\s\\S]*$/g, '')
+          .replace(/export\\s+default\\s+(?:async\\s+)?function\\s+RoomPage[\\s\\S]*$/g, '')
           .replace(/export\\s+/g, '');
 
         const evalFunc = new Function('roomId', 'return (async () => {' + cleanCode + '; return await generateMetadata({ params: Promise.resolve({ id: roomId }) });})()');
@@ -150,7 +150,7 @@ class TestTier1SearchIndexing:
         const cleanCode = code
           .replace(/import\\s+[\\s\\S]*?from\\s+['"][^'"]+['"];?/g, '')
           .replace(/export\\s+function\\s+generateStaticParams[\\s\\S]*?\\}\\n/g, '')
-          .replace(/export\\s+default\\s+function\\s+RoomPage[\\s\\S]*$/g, '')
+          .replace(/export\\s+default\\s+(?:async\\s+)?function\\s+RoomPage[\\s\\S]*$/g, '')
           .replace(/export\\s+/g, '');
 
         const evalFunc = new Function('roomId', 'return (async () => {' + cleanCode + '; return await generateMetadata({ params: Promise.resolve({ id: roomId }) });})()');
@@ -174,7 +174,7 @@ class TestTier1SearchIndexing:
         const cleanCode = code
           .replace(/import\\s+[\\s\\S]*?from\\s+['"][^'"]+['"];?/g, '')
           .replace(/export\\s+function\\s+generateStaticParams[\\s\\S]*?\\}\\n/g, '')
-          .replace(/export\\s+default\\s+function\\s+RoomPage[\\s\\S]*$/g, '')
+          .replace(/export\\s+default\\s+(?:async\\s+)?function\\s+RoomPage[\\s\\S]*$/g, '')
           .replace(/export\\s+/g, '');
 
         const evalFunc = new Function('roomId', 'return (async () => {' + cleanCode + '; return await generateMetadata({ params: Promise.resolve({ id: roomId }) });})()');
@@ -573,7 +573,7 @@ class TestTier4SocialShareCards:
         const cleanCode = code
           .replace(/import\\s+[\\s\\S]*?from\\s+['"][^'"]+['"];?/g, '')
           .replace(/export\\s+function\\s+generateStaticParams[\\s\\S]*?\\}\\n/g, '')
-          .replace(/export\\s+default\\s+function\\s+RoomPage[\\s\\S]*$/g, '')
+          .replace(/export\\s+default\\s+(?:async\\s+)?function\\s+RoomPage[\\s\\S]*$/g, '')
           .replace(/export\\s+/g, '');
 
         const evalFunc = new Function('roomId', 'return (async () => {' + cleanCode + '; return await generateMetadata({ params: Promise.resolve({ id: roomId }) });})()');
@@ -618,7 +618,7 @@ class TestTier4SocialShareCards:
         const cleanCode = code
           .replace(/import\\s+[\\s\\S]*?from\\s+['"][^'"]+['"];?/g, '')
           .replace(/export\\s+function\\s+generateStaticParams[\\s\\S]*?\\}\\n/g, '')
-          .replace(/export\\s+default\\s+function\\s+RoomPage[\\s\\S]*$/g, '')
+          .replace(/export\\s+default\\s+(?:async\\s+)?function\\s+RoomPage[\\s\\S]*$/g, '')
           .replace(/export\\s+/g, '');
 
         const evalFunc = new Function('roomId', 'return (async () => {' + cleanCode + '; return await generateMetadata({ params: Promise.resolve({ id: roomId }) });})()');
