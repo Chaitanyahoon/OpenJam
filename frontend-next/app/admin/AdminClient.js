@@ -28,7 +28,7 @@ export default function AdminPage() {
   const [autoRefresh, setAutoRefresh] = useState(true);
 
   // Search and filter states
-  const [roomFilter, setRoomFilter] = useState('all'); // 'all' | 'user' | 'radio'
+  const [roomFilter, setRoomFilter] = useState('all'); // 'all' | 'user' | 'radio' | 'private'
   const [userFilter, setUserFilter] = useState('registered'); // 'registered' | 'all'
   const [playlistFilter, setPlaylistFilter] = useState('all'); // 'all' | 'public' | 'private'
   const [pruningGuests, setPruningGuests] = useState(false);
@@ -832,10 +832,12 @@ export default function AdminPage() {
                   {activeTab === 'rooms' && (() => {
                     const userRoomsCount = rooms.filter(r => !r.id.startsWith('openjam-')).length;
                     const radioRoomsCount = rooms.filter(r => r.id.startsWith('openjam-')).length;
+                    const privateRoomsCount = rooms.filter(r => r.is_private).length;
                     const filteredRooms = rooms.filter(room => {
                       const isRadio = room.id.startsWith('openjam-');
                       if (roomFilter === 'user' && isRadio) return false;
                       if (roomFilter === 'radio' && !isRadio) return false;
+                      if (roomFilter === 'private' && !room.is_private) return false;
                       const q = searchRoomsQuery.toLowerCase();
                       return (
                         room.name.toLowerCase().includes(q) ||
@@ -906,6 +908,23 @@ export default function AdminPage() {
                             >
                               📻 24/7 Radio ({radioRoomsCount})
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => setRoomFilter('private')}
+                              style={{
+                                padding: '6px 14px',
+                                borderRadius: '20px',
+                                fontSize: '12px',
+                                fontWeight: roomFilter === 'private' ? 700 : 500,
+                                cursor: 'pointer',
+                                background: roomFilter === 'private' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.03)',
+                                border: `1px solid ${roomFilter === 'private' ? '#f87171' : 'rgba(255, 255, 255, 0.08)'}`,
+                                color: roomFilter === 'private' ? '#fff' : 'var(--text-3)',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              🔒 Private ({privateRoomsCount})
+                            </button>
 
                             {rooms.length > 0 && (
                               <button 
@@ -920,7 +939,7 @@ export default function AdminPage() {
                         </div>
 
                         {rooms.length > 0 && (
-                          <div style={{ marginBottom: '16px' }}>
+                          <div style={{ position: 'relative', marginBottom: '16px' }}>
                             <input
                               type="text"
                               placeholder="Search rooms by name, ID or host..."
@@ -928,7 +947,7 @@ export default function AdminPage() {
                               onChange={(e) => setSearchRoomsQuery(e.target.value)}
                               style={{
                                 width: '100%',
-                                padding: '10px 14px',
+                                padding: '10px 36px 10px 14px',
                                 borderRadius: '12px',
                                 background: 'rgba(255,255,255,0.02)',
                                 border: '1px solid rgba(255,255,255,0.08)',
@@ -938,6 +957,27 @@ export default function AdminPage() {
                                 boxSizing: 'border-box'
                               }}
                             />
+                            {searchRoomsQuery && (
+                              <button
+                                type="button"
+                                onClick={() => setSearchRoomsQuery('')}
+                                aria-label="Clear room search"
+                                style={{
+                                  position: 'absolute',
+                                  right: '12px',
+                                  top: '50%',
+                                  transform: 'translateY(-50%)',
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#888',
+                                  cursor: 'pointer',
+                                  fontSize: '14px',
+                                  padding: '2px 4px'
+                                }}
+                              >
+                                ✕
+                              </button>
+                            )}
                           </div>
                         )}
 
@@ -960,7 +1000,19 @@ export default function AdminPage() {
                                   <tr key={room.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }} className="admin-tr-hover">
                                     <td style={{ padding: '14px 8px' }}><span className="admin-status-badge badge-active" style={{ background: room.id.startsWith('openjam-') ? 'rgba(168,85,247,0.15)' : 'rgba(16,185,129,0.1)', color: room.id.startsWith('openjam-') ? '#c084fc' : '#34d399', fontSize: '11px', padding: '3px 8px', borderRadius: '6px', fontWeight: 700 }}>{room.id.startsWith('openjam-') ? '📻 24/7 Radio' : '● Live Jam'}</span></td>
                                     <td style={{ padding: '14px 8px' }}>
-                                      <div style={{ fontWeight: 600, color: '#fff', fontSize: '14px' }}>{room.name}</div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                        <span style={{ fontWeight: 600, color: '#fff', fontSize: '14px' }}>{room.name}</span>
+                                        {room.is_private && (
+                                          <span style={{ fontSize: '10px', background: 'rgba(239,68,68,0.12)', color: '#f87171', padding: '1px 6px', borderRadius: '4px', border: '1px solid rgba(239,68,68,0.25)', fontWeight: 700 }}>
+                                            🔒 Private
+                                          </span>
+                                        )}
+                                        {room.queue_mode === 'host_only' && (
+                                          <span style={{ fontSize: '10px', background: 'rgba(255,159,28,0.12)', color: 'var(--amber, #ff9f1c)', padding: '1px 6px', borderRadius: '4px', border: '1px solid rgba(255,159,28,0.25)', fontWeight: 600 }}>
+                                            DJ Only
+                                          </span>
+                                        )}
+                                      </div>
                                       <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>ID: {room.id}</div>
                                     </td>
                                     <td style={{ padding: '14px 8px', fontSize: '13px', color: '#ccc', maxWidth: '220px' }}>
@@ -1016,7 +1068,9 @@ export default function AdminPage() {
                           </div>
                         ) : rooms.length > 0 ? (
                           <div style={{ color: 'var(--text-3)', padding: '40px 0', textAlign: 'center', fontSize: '14px' }}>
-                            No rooms match "{searchRoomsQuery}"
+                            {searchRoomsQuery
+                              ? `No rooms match "${searchRoomsQuery}"`
+                              : `No ${roomFilter === 'user' ? 'user jams' : roomFilter === 'radio' ? '24/7 radio stations' : roomFilter === 'private' ? 'private rooms' : 'rooms'} found.`}
                           </div>
                         ) : (
                           <div className="admin-empty-state">
@@ -1119,7 +1173,7 @@ export default function AdminPage() {
                         </div>
                         
                         {users.length > 0 && (
-                          <div style={{ marginBottom: '16px' }}>
+                          <div style={{ position: 'relative', marginBottom: '16px' }}>
                             <input
                               type="text"
                               placeholder={`Search ${userFilter === 'registered' ? 'registered' : 'all'} users by name, ID or Discord...`}
@@ -1127,7 +1181,7 @@ export default function AdminPage() {
                               onChange={(e) => setSearchUsersQuery(e.target.value)}
                               style={{
                                 width: '100%',
-                                padding: '10px 14px',
+                                padding: '10px 36px 10px 14px',
                                 borderRadius: '12px',
                                 background: 'rgba(255,255,255,0.02)',
                                 border: '1px solid rgba(255,255,255,0.08)',
@@ -1137,6 +1191,27 @@ export default function AdminPage() {
                                 boxSizing: 'border-box'
                               }}
                             />
+                            {searchUsersQuery && (
+                              <button
+                                type="button"
+                                onClick={() => setSearchUsersQuery('')}
+                                aria-label="Clear user search"
+                                style={{
+                                  position: 'absolute',
+                                  right: '12px',
+                                  top: '50%',
+                                  transform: 'translateY(-50%)',
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#888',
+                                  cursor: 'pointer',
+                                  fontSize: '14px',
+                                  padding: '2px 4px'
+                                }}
+                              >
+                                ✕
+                              </button>
+                            )}
                           </div>
                         )}
 
@@ -1239,7 +1314,9 @@ export default function AdminPage() {
                           </div>
                         ) : users.length > 0 ? (
                           <div style={{ color: 'var(--text-3)', padding: '40px 0', textAlign: 'center', fontSize: '14px' }}>
-                            No users match "{searchUsersQuery}"
+                            {searchUsersQuery
+                              ? `No users match "${searchUsersQuery}"`
+                              : `No ${userFilter === 'registered' ? 'registered Discord users' : 'users'} found.`}
                           </div>
                         ) : (
                           <div className="admin-empty-state">
@@ -1334,7 +1411,7 @@ export default function AdminPage() {
                         </div>
                         
                         {playlists.length > 0 && (
-                          <div style={{ marginBottom: '16px' }}>
+                          <div style={{ position: 'relative', marginBottom: '16px' }}>
                             <input
                               type="text"
                               placeholder="Search playlists by name, ID or creator..."
@@ -1342,7 +1419,7 @@ export default function AdminPage() {
                               onChange={(e) => setSearchPlaylistsQuery(e.target.value)}
                               style={{
                                 width: '100%',
-                                padding: '10px 14px',
+                                padding: '10px 36px 10px 14px',
                                 borderRadius: '12px',
                                 background: 'rgba(255,255,255,0.02)',
                                 border: '1px solid rgba(255,255,255,0.08)',
@@ -1352,6 +1429,27 @@ export default function AdminPage() {
                                 boxSizing: 'border-box'
                               }}
                             />
+                            {searchPlaylistsQuery && (
+                              <button
+                                type="button"
+                                onClick={() => setSearchPlaylistsQuery('')}
+                                aria-label="Clear playlist search"
+                                style={{
+                                  position: 'absolute',
+                                  right: '12px',
+                                  top: '50%',
+                                  transform: 'translateY(-50%)',
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#888',
+                                  cursor: 'pointer',
+                                  fontSize: '14px',
+                                  padding: '2px 4px'
+                                }}
+                              >
+                                ✕
+                              </button>
+                            )}
                           </div>
                         )}
 
@@ -1500,7 +1598,7 @@ export default function AdminPage() {
                         </div>
 
                         {logs.length > 0 && (
-                          <div style={{ marginBottom: '16px' }}>
+                          <div style={{ position: 'relative', marginBottom: '16px' }}>
                             <input
                               type="text"
                               placeholder="Filter logs by keyword (e.g. error, auth, user)..."
@@ -1508,7 +1606,7 @@ export default function AdminPage() {
                               onChange={(e) => setSearchLogsQuery(e.target.value)}
                               style={{
                                 width: '100%',
-                                padding: '10px 14px',
+                                padding: '10px 36px 10px 14px',
                                 borderRadius: '12px',
                                 background: 'rgba(255,255,255,0.02)',
                                 border: '1px solid rgba(255,255,255,0.08)',
@@ -1518,6 +1616,27 @@ export default function AdminPage() {
                                 boxSizing: 'border-box'
                               }}
                             />
+                            {searchLogsQuery && (
+                              <button
+                                type="button"
+                                onClick={() => setSearchLogsQuery('')}
+                                aria-label="Clear logs search"
+                                style={{
+                                  position: 'absolute',
+                                  right: '12px',
+                                  top: '50%',
+                                  transform: 'translateY(-50%)',
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#888',
+                                  cursor: 'pointer',
+                                  fontSize: '14px',
+                                  padding: '2px 4px'
+                                }}
+                              >
+                                ✕
+                              </button>
+                            )}
                           </div>
                         )}
 
@@ -1531,7 +1650,7 @@ export default function AdminPage() {
                             ))
                           ) : logs.length > 0 ? (
                             <div style={{ color: '#555', textAlign: 'center', paddingTop: '40px' }}>
-                              No logs match keyword "{searchLogsQuery}"
+                              {searchLogsQuery ? `No logs match keyword "${searchLogsQuery}"` : 'Diagnostics log buffer is empty.'}
                             </div>
                           ) : (
                             <div style={{ color: '#555', textAlign: 'center', paddingTop: '40px' }}>

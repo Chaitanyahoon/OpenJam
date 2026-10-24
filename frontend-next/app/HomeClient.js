@@ -1984,23 +1984,40 @@ export default function HomePage({ initialRooms = [] }) {
                 gap: '8px',
                 padding: '6px 14px',
                 borderRadius: '99px',
-                background: 'rgba(255, 159, 28, 0.15)',
-                border: '1px solid var(--amber)',
-                color: 'var(--amber)',
+                background: (searchQuery || activeGenreFilter) ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 159, 28, 0.15)',
+                border: `1px solid ${(searchQuery || activeGenreFilter) ? 'rgba(255, 255, 255, 0.2)' : 'var(--amber)'}`,
+                color: (searchQuery || activeGenreFilter) ? '#ccc' : 'var(--amber)',
                 fontSize: '12px',
                 fontWeight: 700,
                 textTransform: 'uppercase',
                 letterSpacing: '0.06em'
               }}>
-                <span className="section-live-dot" style={{ margin: 0 }} /> 24/7 Community Station
+                <span className="section-live-dot" style={{ margin: 0 }} /> {(searchQuery || activeGenreFilter) ? 'Filter Active' : '24/7 Community Station'}
               </div>
               <h3 style={{ fontSize: '24px', fontWeight: 800, color: '#fff', margin: 0, letterSpacing: '-0.02em' }}>
-                ☕ OpenJam Live Lounge
+                {(searchQuery || activeGenreFilter) ? '🔍 No Matching Jams Found' : '☕ OpenJam Live Lounge'}
               </h3>
               <p style={{ color: 'var(--text-2)', fontSize: '14.5px', maxWidth: '440px', margin: 0, lineHeight: 1.6 }}>
-                The official community radio is broadcasting synchronized chill beats right now. Jump straight in or spin up your own live room in 1 click!
+                {(searchQuery || activeGenreFilter)
+                  ? `No active rooms match "${searchQuery || (activeGenreFilter === '__people__' ? 'People Jams' : activeGenreFilter === '__radio__' ? '24/7 Radio' : activeGenreFilter === '__saved__' ? 'Saved Rooms' : activeGenreFilter)}". You can clear filters, tune into the Live Lounge, or start this vibe yourself in 1 tap!`
+                  : 'The official community radio is broadcasting synchronized chill beats right now. Jump straight in or spin up your own live room in 1 click!'}
               </p>
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center', marginTop: '8px' }}>
+                {(searchQuery || activeGenreFilter) && (
+                  <motion.button
+                    type="button"
+                    className="btn btn-secondary btn-bubble"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setActiveGenreFilter(null);
+                    }}
+                    whileHover={{ scale: 1.04 }}
+                    whileTap={{ scale: 0.96 }}
+                    style={{ padding: '12px 20px', borderRadius: '99px', fontSize: '14px', border: '1px solid rgba(255,255,255,0.15)' }}
+                  >
+                    ✕ Clear Filters
+                  </motion.button>
+                )}
                 <motion.button
                   type="button"
                   className="btn btn-primary btn-bubble"
