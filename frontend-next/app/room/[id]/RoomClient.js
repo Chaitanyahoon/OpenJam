@@ -355,6 +355,7 @@ export default function RoomClient({ roomId }) {
 
   const handleTogglePlayRef = useRef(null);
   const handleNextTrackRef = useRef(null);
+  const handleSendReactionRef = useRef(null);
   const lastTrackChangeRef = useRef({ uri: null, time: 0 });
   const roomClosedRef = useRef(false);
 
@@ -894,6 +895,10 @@ export default function RoomClient({ roomId }) {
       } else if (e.shiftKey && (e.key === 'ArrowRight' || e.key === 'n' || e.key === 'N')) {
         e.preventDefault();
         handleNextTrackRef.current?.();
+      } else if (['1', '2', '3', '4'].includes(e.key)) {
+        e.preventDefault();
+        const reactionMap = { '1': '❤️', '2': '🔥', '3': '⚡', '4': '🎵' };
+        handleSendReactionRef.current?.(reactionMap[e.key]);
       }
     };
 
@@ -2655,6 +2660,7 @@ export default function RoomClient({ roomId }) {
     lastReactionSentRef.current = now;
     socket.emit('send_reaction', { room_id: roomId, emoji });
   };
+  handleSendReactionRef.current = handleSendReaction;
 
   const handleTyping = (e) => {
     const value = e.target.value;
@@ -7798,6 +7804,15 @@ export default function RoomClient({ roomId }) {
                     title="Toggle Shortcuts (?)"
                   >
                     <span className="stage-hud-key">?</span> Keys
+                  </button>
+                  <div className="stage-hud-divider" />
+                  <button
+                    type="button"
+                    className="stage-hud-badge"
+                    onClick={() => handleSendReaction('🔥')}
+                    title="Quick Reactions (1: ❤️, 2: 🔥, 3: ⚡, 4: 🎵)"
+                  >
+                    <span className="stage-hud-key">1-4</span> React
                   </button>
                   <div className="stage-hud-divider" />
                   <button
