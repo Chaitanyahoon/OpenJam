@@ -672,3 +672,39 @@ def test_create_room_rate_limiting(client, auth_headers):
 
 
 
+
+
+@pytest.mark.asyncio
+async def test_create_room_discord_webhook_notification(client, auth_headers, monkeypatch):
+    """Test that public room creation triggers Discord webhook notification when configured."""
+    from unittest.mock import AsyncMock, patch
+    from backend.config import settings
+
+    monkeypatch.setattr(settings, 'DISCORD_WEBHOOK_URL', 'https://discord.com/api/webhooks/123/abc')
+
+    calls = []
+
+    async def mock_post(self, url, **kwargs):
+        calls.append({'url': url, 'kwargs': kwargs})
+        mock_resp = AsyncMock()
+        mock_resp.status_code = 200
+        return mock_resp
+
+    with patch('httpx.AsyncClient.post', new=mock_post):
+        res = client.post(
+            '/rooms',
+            json={'name': 'Webhook Synth Room', 'genre_tags': ['synthwave', 'chill'], 'is_private': False},
+            headers=auth_headers
+        )
+        assert res.status_code == 200
+        import asyncio
+        await asyncio.sleep(0.05)
+
+    webhook_calls = [c for c in calls if 'discord.com' in c['url']]
+    assert len(webhook_calls) == 1
+    call = webhook_calls[0]
+    assert call['url'] == 'https://discord.com/api/webhooks/123/abc'
+    embeds = call['kwargs']['json']['embeds']
+    assert len(embeds) == 1
+    assert 'Webhook Synth Room' in embeds[0]['title']
+    assert 'synthwave' in embeds[0]['description']

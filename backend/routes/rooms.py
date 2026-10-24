@@ -14,6 +14,7 @@ from backend.services.room_manager import room_manager
 from backend.services.queue_manager import queue_manager
 from backend.schemas import CreateRoomRequest, RoomListResponse
 from backend.limiter import limiter
+from backend.config import settings
 
 from backend.constants import is_curated_room
 
@@ -208,7 +209,32 @@ async def create_room(request: Request, create_room_req: CreateRoomRequest, db: 
             except Exception as e:
                 logger.debug(f"IndexNow notification failed: {e}")
         
+        async def _notify_discord_webhook_bg(room_data: dict):
+            webhook_url = getattr(settings, "DISCORD_WEBHOOK_URL", "")
+            if not webhook_url:
+                return
+            try:
+                import httpx
+                room_name = room_data.get("name", "Jam Room")
+                host_name = room_data.get("host_name", "Someone")
+                slug = room_data.get("slug") or room_data.get("id")
+                room_url = f"https://www.openjam.fun/room/{slug}"
+                tags = ", ".join(f"#{t}" for t in room_data.get("genre_tags", [])) or "#music"
+                embed = {
+                    "title": f"📻 Live Jam: {room_name}",
+                    "url": room_url,
+                    "description": f"**@{host_name}** started a live synchronized jam room!\n\n**Genres**: {tags}\n\n[👉 **Join Room & Listen Live**]({room_url})",
+                    "color": 16752412,
+                    "footer": {"text": "OpenJam • Real-Time Synced Audio"},
+                }
+                async with httpx.AsyncClient(timeout=4.0) as client:
+                    await client.post(webhook_url, json={"embeds": [embed]})
+                    logger.info(f"Discord webhook notified for room {slug}")
+            except Exception as e:
+                logger.debug(f"Discord webhook notification failed: {e}")
+        
         asyncio.create_task(_notify_indexnow_bg(room_dict["id"], room_dict.get("slug")))
+        asyncio.create_task(_notify_discord_webhook_bg(room_dict))
 
     return {"room": room_dict}
 def check_room_access(room: Room, user_id: str | None, is_admin: bool = False) -> bool:
