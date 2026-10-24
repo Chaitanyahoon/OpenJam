@@ -3,7 +3,9 @@
   <h1>🎶 OpenJam — Real-Time Synchronized Social Listening</h1>
   <p style="max-width:720px;">A classy, high-performance web app that lets you share a listening room with friends so everyone hears the same music at the exact same millisecond — zero accounts required, zero lag, zero cost.</p>
 
-  <div style="margin-top:18px;display:flex;gap:12px;justify-content:center;align-items:center;">
+  <div style="margin-top:18px;display:flex;gap:12px;justify-content:center;align-items:center;flex-wrap:wrap;">
+    <a href="https://www.openjam.fun"><img src="https://img.shields.io/badge/Web%20App-openjam.fun-ff9f1c?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Live Web App" /></a>
+    <a href="https://github.com/Chaitanyahoon/OpenJam/releases/latest/download/openjam-latest.apk"><img src="https://img.shields.io/badge/Android%20APK-Download%20v1.0.34-3ddc84?style=for-the-badge&logo=android&logoColor=white" alt="Android APK" /></a>
     <img src="https://img.shields.io/badge/Status-Live%20%26%20Grooving-00f2ff?style=for-the-badge" alt="status" />
     <img src="https://img.shields.io/badge/License-Proprietary%20%2F%20All%20Rights%20Reserved-ff9f1c?style=for-the-badge" alt="license" />
   </div>
@@ -26,10 +28,12 @@
 ## ✨ Key Highlights
 
 - **⚡ Millisecond Audio Synchronization**: NTP-style latency calculation (`sync_ping`/`sync_pong`) so all listeners hear music in exact sync.
+- **📻 24/7 Synced Radio Stations**: 4 permanent community lounges (Lofi Lounge, Desi Chill, Synthwave, Global Top Hits) streaming synchronized music 24/7.
+- **📱 Native Android App & PWA**: Standalone Android APK with AndroidX Media3 background playback, lockscreen controls, and offline audio vault.
 - **🚀 Ultra-Fast Stream Resolution**: Parallel search resolution (iTunes API + yt-dlp) with 302 CDN redirects and 2.5s stall recovery.
 - **💬 Real-Time Chat & Flying Reactions**: Socket.IO chat with live flying floating emoji pop-up particle animations.
+- **🔔 Discord Community Webhooks**: Automatic real-time embed alerts sent to your Discord server whenever a live public jam room is created.
 - **🔑 Zero Friction & Optional Discord OAuth**: Join anonymously as a guest or link your Discord account for custom profile sync.
-- **📱 Fully Responsive SPA & PWA**: Mobile bottom tab bar, desktop multi-pane layout, installable PWA manifest.
 - **💰 100% Free-Tier Architecture**: Engineered to run entirely on free-tier infrastructure (Vercel, Render, Supabase, Redis).
 
 ---
