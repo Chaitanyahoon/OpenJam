@@ -4269,6 +4269,7 @@ export default function RoomClient({ roomId }) {
 
                   {activeQueueTab === 'queue' ? (
                     queue.length > 0 ? (
+                      <>
                       <Reorder.Group
                         axis="y"
                         values={queue}
@@ -4611,7 +4612,72 @@ export default function RoomClient({ roomId }) {
                           </Reorder.Item>
                         ))}
                       </Reorder.Group>
-                    ) : (
+                      {queue.length <= 2 && recommendations.length > 0 && (
+                        <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', padding: '0 4px' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-3, #64748b)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              ✨ Suggested Next
+                            </span>
+                            <span style={{ fontSize: '10.5px', color: 'rgba(255,255,255,0.4)' }}>
+                              Queue running low
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {recommendations
+                              .filter(rec => !queue.some(q => q.track_uri === rec.uri || q.track_name === rec.name))
+                              .slice(0, 2)
+                              .map((rec, rIdx) => (
+                                <div
+                                  key={rec.uri || rIdx}
+                                  onClick={() => handleAddTrack(rec)}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '10px',
+                                    padding: '6px 10px',
+                                    background: 'rgba(255, 255, 255, 0.02)',
+                                    border: '1px solid rgba(255, 255, 255, 0.05)',
+                                    borderRadius: '10px',
+                                    cursor: 'pointer',
+                                    textAlign: 'left',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = 'rgba(255, 159, 28, 0.06)';
+                                    e.currentTarget.style.borderColor = 'rgba(255, 159, 28, 0.2)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
+                                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.05)';
+                                  }}
+                                  title="Click to add track to queue"
+                                >
+                                  {rec.album_art_url && (
+                                    <img
+                                      src={rec.album_art_url}
+                                      alt=""
+                                      style={{ width: '30px', height: '30px', borderRadius: '6px', objectFit: 'cover', flexShrink: 0 }}
+                                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                    />
+                                  )}
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: '12px', fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      {rec.name}
+                                    </div>
+                                    <div style={{ fontSize: '10.5px', color: 'rgba(255, 255, 255, 0.4)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      {rec.artist || 'Unknown'}
+                                    </div>
+                                  </div>
+                                  <span style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--theme-accent, #ff9f1c)', background: 'rgba(255, 159, 28, 0.1)', padding: '3px 8px', borderRadius: '6px', flexShrink: 0 }}>
+                                    + Add
+                                  </span>
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
                       <div className="empty" style={{ padding: '24px 16px', textAlign: 'center' }}>
                         <div className="empty-illustration" style={{ marginBottom: '8px' }}>
                           <Music className="h-10 w-10" style={{ opacity: 0.25, margin: '0 auto' }} />
@@ -7336,6 +7402,7 @@ export default function RoomClient({ roomId }) {
                   </div>
                   <div className="stage-queue-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {queue.length > 0 ? (
+                      <>
                       <Reorder.Group
                         axis="y"
                         values={queue}
@@ -7386,7 +7453,72 @@ export default function RoomClient({ roomId }) {
                           </Reorder.Item>
                         ))}
                       </Reorder.Group>
-                    ) : (
+                      {queue.length <= 2 && recommendations.length > 0 && (
+                        <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', padding: '0 4px' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-3, #64748b)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              ✨ Suggested Next
+                            </span>
+                            <span style={{ fontSize: '10.5px', color: 'rgba(255,255,255,0.4)' }}>
+                              Queue running low
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {recommendations
+                              .filter(rec => !queue.some(q => q.track_uri === rec.uri || q.track_name === rec.name))
+                              .slice(0, 2)
+                              .map((rec, rIdx) => (
+                                <div
+                                  key={rec.uri || rIdx}
+                                  onClick={() => handleAddTrack(rec)}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '10px',
+                                    padding: '6px 10px',
+                                    background: 'rgba(255, 255, 255, 0.02)',
+                                    border: '1px solid rgba(255, 255, 255, 0.05)',
+                                    borderRadius: '10px',
+                                    cursor: 'pointer',
+                                    textAlign: 'left',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = 'rgba(255, 159, 28, 0.06)';
+                                    e.currentTarget.style.borderColor = 'rgba(255, 159, 28, 0.2)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
+                                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.05)';
+                                  }}
+                                  title="Click to add track to queue"
+                                >
+                                  {rec.album_art_url && (
+                                    <img
+                                      src={rec.album_art_url}
+                                      alt=""
+                                      style={{ width: '30px', height: '30px', borderRadius: '6px', objectFit: 'cover', flexShrink: 0 }}
+                                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                    />
+                                  )}
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: '12px', fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      {rec.name}
+                                    </div>
+                                    <div style={{ fontSize: '10.5px', color: 'rgba(255, 255, 255, 0.4)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      {rec.artist || 'Unknown'}
+                                    </div>
+                                  </div>
+                                  <span style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--theme-accent, #ff9f1c)', background: 'rgba(255, 159, 28, 0.1)', padding: '3px 8px', borderRadius: '6px', flexShrink: 0 }}>
+                                    + Add
+                                  </span>
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
                       <div style={{ padding: '20px', textAlign: 'center', color: 'rgba(255,255,255,0.4)' }}>Queue empty</div>
                     )}
                   </div>
