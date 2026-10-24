@@ -2049,6 +2049,16 @@ export default function HomePage({ initialRooms = [] }) {
           </button>
           <span className="footer-sep" aria-hidden="true">&middot;</span>
           <a
+            href="https://github.com/Chaitanyahoon/OpenJam"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="footer-link"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+          >
+            ⭐ GitHub
+          </a>
+          <span className="footer-sep" aria-hidden="true">&middot;</span>
+          <a
             href="https://github.com/Chaitanyahoon/OpenJam/releases/latest/download/openjam-latest.apk"
             className="footer-link"
             style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
