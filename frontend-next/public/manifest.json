@@ -26,6 +26,13 @@
   ],
   "shortcuts": [
     {
+      "name": "24/7 Lofi Radio",
+      "short_name": "Live Radio",
+      "description": "Listen to 24/7 synchronized chill lofi music",
+      "url": "/room/openjam-lounge",
+      "icons": [{ "src": "/static/img/icon-192.png", "sizes": "192x192" }]
+    },
+    {
       "name": "Instant Jam",
       "short_name": "Instant Jam",
       "description": "Start a quick listening room instantly",
