@@ -394,6 +394,17 @@ export default function HomePage({ initialRooms = [] }) {
     }
   }, [previewVolume, previewMuted]);
 
+  // Update browser tab title dynamically when previewing audio
+  useEffect(() => {
+    if (!activePreview || !isPlayingPreview) return;
+    const defaultTitle = document.title;
+    const trackLabel = activePreview.trackName || activePreview.title || 'Music';
+    document.title = `▶ ${trackLabel} • OpenJam`;
+    return () => {
+      document.title = defaultTitle;
+    };
+  }, [activePreview, isPlayingPreview]);
+
   // Clean up preview player on unmount
   useEffect(() => {
     return () => {
