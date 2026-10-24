@@ -2489,7 +2489,37 @@ export default function RoomClient({ roomId }) {
           break;
         case 'ArrowRight':
           e.preventDefault();
-          handleSeekRelativeRef.current?.(5000);
+          if (e.shiftKey) {
+            handleNextTrackRef.current?.();
+          } else {
+            handleSeekRelativeRef.current?.(5000);
+          }
+          break;
+        case 'KeyN':
+          if (e.shiftKey) {
+            e.preventDefault();
+            handleNextTrackRef.current?.();
+          }
+          break;
+        case 'Digit1':
+        case 'Numpad1':
+          e.preventDefault();
+          handleSendReactionRef.current?.('❤️');
+          break;
+        case 'Digit2':
+        case 'Numpad2':
+          e.preventDefault();
+          handleSendReactionRef.current?.('🔥');
+          break;
+        case 'Digit3':
+        case 'Numpad3':
+          e.preventDefault();
+          handleSendReactionRef.current?.('⚡');
+          break;
+        case 'Digit4':
+        case 'Numpad4':
+          e.preventDefault();
+          handleSendReactionRef.current?.('🎵');
           break;
         case 'ArrowUp':
           e.preventDefault();
@@ -7747,6 +7777,14 @@ export default function RoomClient({ roomId }) {
                     title="Forward 5s (→)"
                   >
                     <span className="stage-hud-key">→</span> +5s
+                  </button>
+                  <button
+                    type="button"
+                    className="stage-hud-badge"
+                    onClick={canControl ? handleNextTrack : handleVoteSkip}
+                    title={canControl ? "Next Track (Shift + →)" : "Vote to Skip (Shift + →)"}
+                  >
+                    <span className="stage-hud-key">⇧→</span> {canControl ? 'Next' : 'Vote Skip'}
                   </button>
                   <div className="stage-hud-divider" />
                   <button
