@@ -3085,31 +3085,36 @@ export default function RoomClient({ roomId }) {
     }
   };
 
-  const handleCopyInvite = async () => {
+  const handleDirectShare = async () => {
     if (typeof window === 'undefined') return;
     const roomSlugOrId = room?.slug || roomId;
     const inviteUrl = `${window.location.origin}/room/${roomSlugOrId}`;
     const roomTitle = room?.name || 'OpenJam Room';
     const trackInfo = nowPlaying?.track_name ? ` • Listening to ${nowPlaying.track_name}` : '';
 
-    trackEvent('invite_copied', { room_id: roomId });
-
-    // 1. Native OS Web Share API on mobile devices
-    const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
-    if (isMobile && typeof navigator.share === 'function') {
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
       try {
         await navigator.share({
           title: `${roomTitle} | OpenJam`,
-          text: `Vibe with us on OpenJam${trackInfo}:`,
+          text: `🎧 Join me on OpenJam in "${roomTitle}"${trackInfo}! Listen together in real-time sync with zero drift:`,
           url: inviteUrl,
         });
+        trackEvent('invite_direct_shared', { room_id: roomId });
         return;
       } catch (err) {
-        if (err.name === 'AbortError') return; // User dismissed share sheet
+        if (err.name === 'AbortError') return;
       }
     }
-    
-    // 2. Clipboard fallback
+    setShowInvite(true);
+  };
+
+  const handleCopyInvite = async () => {
+    if (typeof window === 'undefined') return;
+    const roomSlugOrId = room?.slug || roomId;
+    const inviteUrl = `${window.location.origin}/room/${roomSlugOrId}`;
+
+    trackEvent('invite_copied', { room_id: roomId });
+
     const fallbackCopy = (text) => {
       try {
         const textarea = document.createElement('textarea');
@@ -3119,15 +3124,15 @@ export default function RoomClient({ roomId }) {
         textarea.select();
         document.execCommand('copy');
         document.body.removeChild(textarea);
-        triggerToast('OpenJam room invite copied!', 'success');
+        triggerToast('OpenJam room link copied to clipboard!', 'success');
       } catch (e) {
         triggerToast('Failed to copy link', 'error');
       }
     };
 
-    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+    if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
       navigator.clipboard.writeText(inviteUrl)
-        .then(() => triggerToast('OpenJam room invite copied!', 'success'))
+        .then(() => triggerToast('OpenJam room link copied to clipboard!', 'success'))
         .catch(() => fallbackCopy(inviteUrl));
     } else {
       fallbackCopy(inviteUrl);
@@ -3399,7 +3404,7 @@ export default function RoomClient({ roomId }) {
             </button>
             <button 
               className="btn btn-secondary room-bar-icon-btn" 
-              onClick={handleCopyInvite} 
+              onClick={handleDirectShare} 
               title="Share OpenJam Room"
             >
               <Share2 size={16} />
@@ -6285,6 +6290,34 @@ export default function RoomClient({ roomId }) {
                 <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-2)' }}>Scan to Join OpenJam Instantly</span>
                 <span style={{ fontSize: '11px', color: 'var(--text-3)', marginTop: '4px' }}>Listen together in real time on OpenJam — zero drift, shared queues, pure sound.</span>
               </div>
+
+              {/* Direct Native Share */}
+              {typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
+                <button
+                  className="btn btn-primary"
+                  onClick={handleDirectShare}
+                  style={{
+                    width: '100%',
+                    marginBottom: '16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    padding: '12px 16px',
+                    borderRadius: '12px',
+                    fontWeight: 700,
+                    fontSize: '13px',
+                    background: 'linear-gradient(135deg, var(--amber, #ff9f1c) 0%, #f59e0b 100%)',
+                    color: '#08080a',
+                    border: 'none',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 16px rgba(255, 159, 28, 0.25)'
+                  }}
+                >
+                  <Share2 size={15} />
+                  <span>Direct Share (Apps, Messages, AirDrop)</span>
+                </button>
+              )}
 
               {/* Link Copier */}
               <div style={{ marginBottom: '8px' }}>
