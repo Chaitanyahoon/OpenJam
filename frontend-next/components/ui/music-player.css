@@ -1715,7 +1715,7 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
 
 .mp-theater-body.lyrics-hidden .mp-artwork-wrapper {
   width: 100% !important;
-  max-width: clamp(280px, 34vh, 400px) !important;
+  max-width: clamp(180px, 26vh, 340px) !important;
   height: auto !important;
   aspect-ratio: 1 / 1 !important;
   margin-left: auto !important;
@@ -1983,7 +1983,7 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
 .mp-artwork-wrapper {
   position: relative !important;
   width: 100% !important;
-  max-width: clamp(280px, 34vh, 400px) !important;
+  max-width: clamp(180px, 26vh, 340px) !important;
   height: auto !important;
   aspect-ratio: 1 / 1 !important;
   margin-left: auto !important;
@@ -2362,7 +2362,7 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
 .mp-container {
   width: 100% !important;
   max-width: clamp(520px, 48vw, 760px);
-  margin: 0 auto !important;
+  margin: auto 0 !important;
   box-sizing: border-box !important;
 }
 
@@ -2388,7 +2388,7 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
   width: 100% !important;
   max-width: 100% !important;
   border-right: none !important;
-  padding: 24px 28px !important;
+  padding: clamp(14px, 2.2vh, 24px) clamp(16px, 2.5vw, 28px) !important;
   background: transparent !important;
 }
 
@@ -2396,7 +2396,7 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
   flex: 0 0 340px !important;
   width: 340px !important;
   max-width: 340px !important;
-  padding: 20px 24px !important;
+  padding: 16px 20px !important;
   border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
@@ -2408,7 +2408,7 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
   align-items: center !important;
   margin-left: auto !important;
   margin-right: auto !important;
-  margin-bottom: 20px !important;
+  margin-bottom: clamp(10px, 1.6vh, 18px) !important;
   box-sizing: border-box !important;
 }
 
@@ -2427,12 +2427,12 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
 .mp-artwork-wrapper {
   position: relative !important;
   width: 100% !important;
-  max-width: clamp(280px, 34vh, 400px) !important;
+  max-width: clamp(180px, 26vh, 340px) !important;
   height: auto !important;
   aspect-ratio: 1 / 1 !important;
   margin-left: auto !important;
   margin-right: auto !important;
-  border-radius: 26px !important;
+  border-radius: 24px !important;
   overflow: hidden !important;
   box-shadow: 0 28px 70px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.12) !important;
   background: #101015 !important;
@@ -2446,14 +2446,14 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
   align-items: center !important;
   justify-content: center !important;
   text-align: center !important;
-  margin-bottom: 18px !important;
+  margin-bottom: clamp(8px, 1.4vh, 16px) !important;
   padding: 0 4px !important;
   box-sizing: border-box !important;
 }
 
 .mp-track-title {
   font-family: var(--font-display-next), Outfit, system-ui, sans-serif !important;
-  font-size: clamp(22px, 2.2vw, 30px) !important;
+  font-size: clamp(18px, 2vw, 26px) !important;
   font-weight: 800 !important;
   color: #ffffff !important;
   max-width: 90% !important;
@@ -2462,10 +2462,10 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
 
 .mp-track-artist {
   font-family: var(--font-ui-next), sans-serif !important;
-  font-size: clamp(13.5px, 1.2vw, 16px) !important;
+  font-size: clamp(12.5px, 1.1vw, 15px) !important;
   font-weight: 500 !important;
   color: rgba(255, 255, 255, 0.65) !important;
-  margin: 4px 0 0 !important;
+  margin: 3px 0 0 !important;
 }
 
 /* Fix timeline and timestamp truncation */
@@ -2475,7 +2475,7 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
   margin-left: auto !important;
   margin-right: auto !important;
   box-sizing: border-box !important;
-  margin-bottom: 14px !important;
+  margin-bottom: clamp(6px, 1vh, 12px) !important;
   padding: 0 2px !important;
 }
 
@@ -2484,11 +2484,11 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
   justify-content: space-between !important;
   align-items: center !important;
   width: 100% !important;
-  margin-top: 8px !important;
+  margin-top: 6px !important;
   padding: 0 !important;
   box-sizing: border-box !important;
   font-family: var(--font-mono, monospace) !important;
-  font-size: 11.5px !important;
+  font-size: 11px !important;
   font-weight: 600 !important;
   color: rgba(255, 255, 255, 0.65) !important;
   font-variant-numeric: tabular-nums !important;
@@ -2505,9 +2505,9 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  gap: clamp(20px, 2.5vw, 32px) !important;
+  gap: clamp(16px, 2.2vw, 28px) !important;
   width: 100% !important;
-  margin: 14px 0 18px !important;
+  margin: clamp(6px, 1vh, 12px) 0 clamp(8px, 1.3vh, 16px) !important;
   box-sizing: border-box !important;
 }
 
@@ -2517,9 +2517,9 @@ input[type="range"].mp-util-volume-slider:hover::-moz-range-thumb {
   grid-template-columns: 1fr auto 1fr !important;
   align-items: center !important;
   width: 100% !important;
-  padding: 14px 4px 0 !important;
+  padding: clamp(8px, 1.2vh, 12px) 4px 0 !important;
   border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
-  margin-top: 12px !important;
+  margin-top: clamp(6px, 1vh, 10px) !important;
   box-sizing: border-box !important;
 }
 

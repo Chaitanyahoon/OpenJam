@@ -9796,8 +9796,9 @@ body:not(.room-page) .navbar:hover {
   flex-direction: column !important;
   align-items: center !important;
   justify-content: center !important;
-  overflow: hidden !important;
-  padding: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: clamp(6px, 1.5vh, 16px) clamp(8px, 1.5vw, 16px) !important;
   scrollbar-width: none !important;
   box-sizing: border-box !important;
 }

@@ -403,7 +403,7 @@ export const MusicPlayer = ({
                 style={{
                   position: 'relative',
                   width: '100%',
-                  maxWidth: lyricsVisible ? 'clamp(200px, 24vh, 260px)' : 'clamp(280px, 34vh, 400px)',
+                  maxWidth: lyricsVisible ? 'clamp(180px, 22vh, 260px)' : 'clamp(180px, 26vh, 340px)',
                   margin: '0 auto',
                   display: 'flex',
                   flexDirection: 'column',
